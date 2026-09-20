@@ -1,0 +1,1018 @@
+# V3 — Design System Consumer & Lifecycle
+
+## Цель V3
+
+V3 завершает полный жизненный цикл дизайн-системы.
+
+После V1 мы умеем создавать и проверять независимые UI packages.
+
+После V2 coding-agent умеет по стандартному процессу создавать новую дизайн-систему, проводить Design Interview, генерировать package, проверять его в Showcase и Reference App и готовить release.
+
+V3 решает следующую проблему:
+
+> Как coding-agent должен правильно использовать уже существующую Design System в реальном продукте и как эта Design System должна развиваться дальше без разрушения визуального языка?
+
+AI по-прежнему не является частью runtime проекта.
+
+Repository не содержит AI API, LLM SDK или собственного agent runtime.
+
+V3 только предоставляет внешним coding-agents понятный контракт, инструкции и deterministic tooling.
+
+---
+
+# Основной workflow
+
+Полный жизненный цикл после V3 должен выглядеть так:
+
+```text
+Design System Repository
+        ↓
+create-design-system skill
+        ↓
+new Design System
+        ↓
+Showcase
+        ↓
+Reference App
+        ↓
+validation
+        ↓
+npm package
+        ↓
+────────────────────────────
+        ↓
+Real Product Repository
+        ↓
+install Design System
+        ↓
+consumer instructions
+        ↓
+coding-agent
+        ↓
+product development
+        ↓
+new reusable UI requirement
+        ↓
+────────────────────────────
+        ↓
+Design System Repository
+        ↓
+modify-design-system skill
+        ↓
+new package version
+        ↓
+────────────────────────────
+        ↓
+Real Product Repository
+        ↓
+package update
+```
+
+V3 должна сделать этот цикл предсказуемым.
+
+---
+
+# 1. Consumer Contract
+
+Каждый Design System package должен быть полностью понятен внешнему coding-agent.
+
+После установки:
+
+```bash
+pnpm add @prism-system/ui-pulse
+```
+
+agent должен иметь возможность определить:
+
+- какая Design System используется;
+- какая её версия;
+- какие компоненты доступны;
+- какие variants существуют;
+- какие styling rules действуют;
+- что разрешено делать внутри продукта;
+- что должно изменяться только в Design System;
+- когда допустимо создавать локальный component;
+- когда изменение должно вернуться обратно в Design System repository.
+
+Главный принцип:
+
+> Package должен объяснять не только как его импортировать, но и как правильно с ним работать.
+
+---
+
+# 2. Consumer Skill
+
+V3 добавляет отдельный skill:
+
+```text
+skills/
+└── use-design-system/
+    └── SKILL.md
+```
+
+Этот skill используется coding-agent внутри реального product repository.
+
+Он объясняет общий workflow использования любой Design System этого проекта.
+
+Agent должен:
+
+1. определить установленный design-system package;
+2. определить его версию;
+3. прочитать package instructions;
+4. изучить available components;
+5. использовать существующий public API;
+6. не создавать локальные альтернативы существующим primitives;
+7. соблюдать visual constraints;
+8. отделять application logic от visual system;
+9. правильно обрабатывать ситуации, когда необходим новый reusable component.
+
+Skill должен оставаться agent-agnostic.
+
+Он не должен зависеть от Claude Code, Codex, OpenCode или другой конкретной системы.
+
+---
+
+# 3. Package-level AGENTS.md
+
+Каждый Design System package уже содержит собственный:
+
+```text
+AGENTS.md
+```
+
+В V3 этот файл становится полноценным consumer contract.
+
+Он должен содержать:
+
+## Identity
+
+Что представляет собой Design System.
+
+## Visual Direction
+
+Например:
+
+```text
+- compact
+- technical
+- restrained
+- dark-first
+- low saturation
+```
+
+## Available UI
+
+Основные компоненты и patterns.
+
+## Usage Rules
+
+Что coding-agent должен использовать.
+
+## Restrictions
+
+Что нельзя самостоятельно переопределять.
+
+## Extension Rules
+
+Как определить, относится ли новый component к приложению или Design System.
+
+---
+
+# 4. Structured Manifest
+
+Кроме human-readable и agent-readable документации каждый package должен предоставлять structured manifest.
+
+Например:
+
+```text
+design-system.json
+```
+
+Пример:
+
+```json
+{
+  "name": "Pulse",
+  "package": "@prism-system/ui-pulse",
+  "version": "1.3.0",
+
+  "components": {
+    "Button": {
+      "variants": ["primary", "secondary", "ghost", "destructive"],
+      "sizes": ["sm", "md", "lg"]
+    },
+
+    "Card": {
+      "variants": ["default", "muted"]
+    },
+
+    "Badge": {
+      "variants": ["default", "success", "warning", "destructive"]
+    }
+  },
+
+  "rules": {
+    "allowArbitraryColors": false,
+    "allowArbitraryRadius": false,
+    "allowArbitraryShadows": false,
+    "allowPrimitiveDuplication": false
+  },
+
+  "design": {
+    "density": "compact",
+    "theme": "dark-first",
+    "radius": "medium"
+  }
+}
+```
+
+Manifest не заменяет README или AGENTS.md.
+
+Он предоставляет структурированное описание Design System для tooling и coding-agents.
+
+---
+
+# 5. Product Responsibilities
+
+Real product отвечает за:
+
+```text
+business logic
+data
+routing
+feature state
+page composition
+product-specific behavior
+application-specific layout
+```
+
+Design System отвечает за:
+
+```text
+visual primitives
+colors
+typography
+radius
+borders
+surfaces
+shadows
+component states
+variants
+motion
+reusable visual patterns
+```
+
+Product не должен становиться второй скрытой Design System.
+
+---
+
+# 6. Использование компонентов
+
+Предпочтительный подход:
+
+```tsx
+<Card>
+  <Input />
+
+  <Select />
+
+  <Button variant="primary">
+    Save
+  </Button>
+</Card>
+```
+
+Нежелательный подход:
+
+```tsx
+<Button
+  className="
+    rounded-[19px]
+    bg-[#356AFF]
+    shadow-[0_8px_30px_rgba(...)]
+  "
+>
+  Save
+</Button>
+```
+
+Если существующий Button визуально не подходит всему продукту, проблема должна решаться в Design System.
+
+---
+
+# 7. Local Components vs Design System Components
+
+V3 должна чётко разделять несколько уровней UI.
+
+## Primitive
+
+Например:
+
+```text
+Button
+Input
+Checkbox
+Dialog
+Tabs
+```
+
+Принадлежит Design System.
+
+---
+
+## Reusable Visual Pattern
+
+Например:
+
+```text
+MetricCard
+EmptyState
+Toolbar
+SettingsSection
+StatusIndicator
+```
+
+Если pattern используется в разных частях продукта и определяет визуальный язык, он является кандидатом на Design System.
+
+---
+
+## Product Component
+
+Например:
+
+```text
+UserPlanCard
+InvoiceSummary
+RepositoryInfo
+```
+
+Может быть частью конкретного продукта.
+
+Он собирается из Design System primitives.
+
+---
+
+## Feature Component
+
+Например:
+
+```text
+BillingHistory
+ProjectMembersManager
+AccountSecurityForm
+```
+
+Это бизнес-компонент.
+
+Он должен оставаться в product repository.
+
+---
+
+# 8. Решение о новом компоненте
+
+Когда coding-agent понимает, что существующего UI недостаточно, workflow должен быть таким:
+
+```text
+Need new UI
+   ↓
+Does Design System already provide it?
+   ↓
+yes → use existing component
+   ↓
+no
+   ↓
+Is this business-specific?
+   ↓
+yes → keep in product
+   ↓
+no
+   ↓
+Is this a reusable visual pattern?
+   ↓
+yes → propose Design System change
+```
+
+Agent не должен автоматически отправлять каждую новую React-компоненту в UI package.
+
+Design System должна оставаться чистой.
+
+---
+
+# 9. Modify Design System Skill
+
+V3 добавляет:
+
+```text
+skills/
+└── modify-design-system/
+    └── SKILL.md
+```
+
+Этот skill используется, когда необходимо изменить уже существующую систему.
+
+Например:
+
+```text
+Add SegmentedControl to Pulse.
+```
+
+Agent должен пройти стандартный workflow:
+
+```text
+inspect existing Design System
+        ↓
+read Design Brief
+        ↓
+read AGENTS.md
+        ↓
+inspect existing patterns
+        ↓
+implement component
+        ↓
+add Showcase examples
+        ↓
+verify Reference App if relevant
+        ↓
+update manifest
+        ↓
+update documentation
+        ↓
+validate
+        ↓
+changeset
+        ↓
+new version
+```
+
+Главная цель:
+
+> Новые компоненты должны выглядеть так, будто они всегда являлись частью этой системы.
+
+---
+
+# 10. Existing Design Language First
+
+Modify skill не должен заново придумывать визуальный язык.
+
+Перед реализацией нового компонента Agent обязан изучить:
+
+```text
+tokens
+existing components
+spacing
+radius
+states
+motion
+visual hierarchy
+existing composition patterns
+```
+
+Новый компонент должен продолжать существующую систему.
+
+Не создавать отдельную мини-дизайн-систему внутри одного компонента.
+
+---
+
+# 11. Product → Design System Feedback Loop
+
+После V3 Design System развивается вместе с реальным продуктом.
+
+Workflow:
+
+```text
+@prism-system/ui-pulse@1.2.0
+        ↓
+Pulse Product
+        ↓
+product requires SegmentedControl
+        ↓
+Design System Repository
+        ↓
+modify-design-system
+        ↓
+Showcase review
+        ↓
+Reference App review
+        ↓
+@prism-system/ui-pulse@1.3.0
+        ↓
+Product updates package
+```
+
+Это основной lifecycle loop V3.
+
+---
+
+# 12. Version Awareness
+
+Agent обязан учитывать установленную версию package.
+
+Например приложение использует:
+
+```json
+{
+  "@prism-system/ui-pulse": "1.2.0"
+}
+```
+
+Agent не должен автоматически предполагать наличие component API, который появился только в `1.4.0`.
+
+Consumer instructions и manifest должны соответствовать установленной версии.
+
+Версия Design System является частью контракта.
+
+---
+
+# 13. Consumer Setup
+
+V3 должна предоставить простой способ подготовить product repository к использованию Design System.
+
+Например:
+
+```bash
+pnpm ds:connect @prism-system/ui-pulse
+```
+
+Точное название команды может измениться.
+
+Команда может создать:
+
+```text
+.design-system/
+├── config.json
+└── AGENTS.md
+```
+
+Пример:
+
+```json
+{
+  "package": "@prism-system/ui-pulse",
+  "strict": true
+}
+```
+
+Product root instructions могут содержать:
+
+```text
+This project uses @prism-system/ui-pulse as its visual source of truth.
+
+Read the Design System instructions before implementing UI.
+```
+
+---
+
+# 14. Consumer Setup не копирует Design System
+
+Очень важно:
+
+```text
+.design-system/
+```
+
+не содержит копии компонентов или styling.
+
+Источник истины остаётся npm package.
+
+Consumer setup хранит только:
+
+```text
+configuration
+instructions
+package reference
+usage rules
+```
+
+---
+
+# 15. Strict Mode
+
+V3 вводит понятие strict usage.
+
+Например:
+
+```json
+{
+  "strict": true
+}
+```
+
+В strict mode product должен избегать:
+
+```text
+arbitrary colors
+arbitrary radius values
+arbitrary shadows
+duplicate primitives
+large visual overrides
+local replacements for existing components
+```
+
+Strict mode не запрещает обычный layout styling.
+
+Например допустимы:
+
+```text
+grid
+flex
+gap
+responsive layout
+positioning
+page-specific composition
+```
+
+Запрет относится прежде всего к изменению visual language.
+
+---
+
+# 16. Usage Validation
+
+Часть strict mode может поддерживаться обычным deterministic tooling.
+
+Например:
+
+```bash
+pnpm ds:check-usage
+```
+
+Tooling может искать потенциально опасные patterns:
+
+```text
+bg-[#...]
+text-[#...]
+rounded-[...]
+shadow-[...]
+```
+
+а также известные случаи дублирования primitives.
+
+Validation не должна пытаться полностью понимать дизайн через static analysis.
+
+Её задача — обнаруживать подозрительные нарушения.
+
+---
+
+# 17. Agent Instructions vs Automated Checks
+
+V3 использует два слоя защиты.
+
+## Instructions
+
+Объясняют coding-agent:
+
+> как нужно работать.
+
+## Checks
+
+Проверяют:
+
+> не появились ли очевидные нарушения.
+
+Схема:
+
+```text
+AGENTS.md
++
+use-design-system skill
++
+design-system.json
++
+static checks
+```
+
+Это намного надёжнее, чем один большой prompt.
+
+---
+
+# 18. Package Discovery
+
+Consumer Skill должен иметь простой способ определить Design System.
+
+Например через:
+
+```text
+package.json
+.design-system/config.json
+package metadata
+```
+
+Discovery не должен зависеть от догадок.
+
+Agent должен однозначно понимать:
+
+```text
+Design System:
+@prism-system/ui-pulse
+
+Version:
+1.3.0
+```
+
+---
+
+# 19. Documentation Discovery
+
+После определения package Agent должен иметь предсказуемый порядок получения информации:
+
+```text
+1. Consumer config
+2. Package manifest
+3. Package AGENTS.md
+4. Package README
+5. Public TypeScript API
+```
+
+Не нужно заставлять agent исследовать весь `node_modules` вручную.
+
+---
+
+# 20. Package API остаётся главным источником истины
+
+Documentation помогает понять Design System.
+
+Но реальный public API остаётся техническим контрактом.
+
+Например:
+
+```tsx
+import {
+  Button,
+  Card,
+  Dialog
+} from "@prism-system/ui-pulse"
+```
+
+Agent не должен импортировать:
+
+```tsx
+@prism-system/ui-pulse/src/internal/...
+```
+
+если этот путь не является частью официального exports API.
+
+---
+
+# 21. Updating Design System
+
+Product должен обновлять package осознанно.
+
+Например:
+
+```text
+@prism-system/ui-pulse@1.2.0
+```
+
+не превращается автоматически в:
+
+```text
+@prism-system/ui-pulse@2.0.0
+```
+
+без проверки.
+
+При update должны выполняться:
+
+```text
+install/update
+typecheck
+build
+usage validation
+visual verification where necessary
+```
+
+---
+
+# 22. Breaking Changes
+
+Если Design System меняет:
+
+```text
+component API
+component names
+token semantics
+important variants
+major visual language
+```
+
+это должно отражаться в versioning.
+
+V3 не должна скрывать breaking changes от consumer.
+
+---
+
+# 23. Lifecycle Skills
+
+К концу V3 repository должен иметь ясное разделение skills:
+
+```text
+skills/
+├── create-design-system/
+├── use-design-system/
+└── modify-design-system/
+```
+
+Их responsibilities:
+
+```text
+create-design-system
+→ создать новую систему
+
+use-design-system
+→ правильно использовать существующую систему в продукте
+
+modify-design-system
+→ безопасно развивать существующую систему
+```
+
+Skills не должны дублировать огромные куски документации друг друга.
+
+Общие repository rules остаются в root documentation и AGENTS.md.
+
+---
+
+# 24. Agent-Agnostic Principle
+
+Вся система V3 должна оставаться независимой от конкретного AI vendor.
+
+Нельзя строить architecture вокруг:
+
+```text
+Claude-specific API
+Codex-specific API
+OpenCode-specific runtime
+```
+
+Основные интерфейсы:
+
+```text
+Markdown
+AGENTS.md
+SKILL.md
+JSON
+package metadata
+CLI/scripts
+npm packages
+```
+
+Это позволяет использовать репозиторий с разными coding-agents.
+
+---
+
+# 25. Что НЕ входит в V3
+
+Даже V3 не должна превращать проект в AI platform.
+
+Не требуется:
+
+```text
+LLM hosting
+OpenAI API
+Anthropic API
+embedded chat
+MCP server unless later separately justified
+AI backend
+autonomous cloud agent
+design generation SaaS
+```
+
+Внешний coding-agent остаётся внешним.
+
+---
+
+# 26. Definition of Done
+
+V3 считается завершённой, когда работает полный consumer lifecycle.
+
+## Consumer
+
+- Design System можно установить в реальный product repository;
+- agent может автоматически определить package и версию;
+- существуют понятные consumer instructions;
+- существует `use-design-system` skill;
+- Agent понимает available components и restrictions;
+- product не нуждается в копировании package source.
+
+## Manifest
+
+Каждый Design System содержит structured metadata:
+
+- package identity;
+- version;
+- component catalog;
+- variants;
+- design information;
+- usage rules.
+
+## Usage
+
+Coding-agent может:
+
+- собрать новые product pages;
+- использовать существующие primitives;
+- отличать product component от Design System component;
+- не создавать очевидные visual overrides без причины.
+
+## Validation
+
+Существует usage validation, способная обнаруживать основные нарушения strict mode.
+
+## Modification
+
+Существует `modify-design-system` skill.
+
+Agent может:
+
+- изучить существующую систему;
+- добавить новый reusable UI component;
+- показать его в Showcase;
+- проверить его в Reference App;
+- обновить manifest;
+- подготовить новую версию.
+
+## Lifecycle
+
+Работает полный flow:
+
+```text
+Design System
+→ npm package
+→ Product
+→ new requirement
+→ Design System update
+→ new package version
+→ Product update
+```
+
+---
+
+# Результат V3
+
+После V3 пользователь должен иметь возможность:
+
+```text
+1. Создать Design System через V2 workflow.
+
+2. Опубликовать её как package.
+
+3. Установить package в настоящий продукт.
+
+4. Запустить практически любой подходящий coding-agent.
+
+5. Агент самостоятельно понимает,
+   какую Design System использует проект.
+
+6. Агент понимает её API и visual rules.
+
+7. Агент строит продукт поверх существующей системы,
+   а не создаёт новую стилизацию локально.
+
+8. Если появляется новый reusable UI requirement,
+   он возвращается в Design System workflow.
+
+9. Создаётся новая версия package.
+
+10. Product безопасно обновляется.
+```
+
+Таким образом Design System перестаёт быть одноразовым набором компонентов.
+
+Она становится отдельным развивающимся визуальным контрактом продукта.
+
+---
+
+# V1 → V2 → V3
+
+Весь проект можно описать тремя этапами:
+
+```text
+V1 — FOUNDATION
+Build and validate portable Design Systems.
+
+V2 — CREATION
+Create new Design Systems quickly through a controlled agent workflow.
+
+V3 — CONSUMPTION & LIFECYCLE
+Use and evolve those Design Systems correctly inside real products.
+```
+
+И ещё проще:
+
+```text
+V1
+BUILD
+
+V2
+CREATE
+
+V3
+USE & EVOLVE
+```
+
+---
+
+# Основной принцип V3
+
+> The product consumes the visual language.  
+> The Design System owns the visual language.
+
+Coding-agent должен развивать продукт внутри этого контракта, а не заново придумывать дизайн на каждой новой странице.

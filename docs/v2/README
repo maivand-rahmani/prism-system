@@ -1,0 +1,821 @@
+# V2 — Design System Factory
+
+## 1. Цель V2
+
+V2 превращает репозиторий из набора дизайн-систем в **фабрику новых дизайн-систем**.
+
+После V1 у нас уже есть:
+
+- общий `core`;
+- независимые design-system packages;
+- Showcase;
+- Reference App;
+- стабильный package contract;
+- понятная структура monorepo;
+- npm-ready packages.
+
+V2 не должна пересматривать этот фундамент.
+
+Главная задача V2:
+
+> Новый design-system package должен создаваться быстро, предсказуемо и по одному стандартному процессу с помощью внешнего coding-agent.
+
+AI не является частью runtime проекта.
+
+Репозиторий не содержит LLM API, OpenAI SDK, Anthropic SDK или встроенного агента.
+
+Пользователь самостоятельно запускает любой подходящий coding-agent внутри репозитория:
+
+```text
+Claude Code
+Codex
+OpenCode
+Cursor
+Copilot Agent
+или другой совместимый coding-agent
+```
+
+Репозиторий предоставляет этому агенту инструкции, skills, templates и deterministic tooling.
+
+---
+
+# 2. Основной workflow
+
+Создание новой дизайн-системы должно выглядеть так:
+
+```text
+User
+  ↓
+opens Design System repository
+  ↓
+starts coding-agent
+  ↓
+asks to create a new Design System
+  ↓
+agent loads create-design-system skill
+  ↓
+Design Interview
+  ↓
+Design Brief
+  ↓
+package generation
+  ↓
+visual implementation
+  ↓
+Showcase
+  ↓
+Reference App
+  ↓
+human review
+  ↓
+iterations
+  ↓
+validation
+  ↓
+version + package
+  ↓
+publish
+```
+
+Пользователь не должен вручную:
+
+- создавать структуру package;
+- настраивать exports;
+- подключать package к Showcase;
+- подключать package к Reference App;
+- писать базовый `AGENTS.md`;
+- вручную проверять наличие обязательных компонентов;
+- каждый раз объяснять агенту архитектуру repository.
+
+Это должна обеспечивать V2.
+
+---
+
+# 3. Create Design System Skill
+
+Главная новая возможность V2:
+
+```text
+skills/
+└── create-design-system/
+    └── SKILL.md
+```
+
+Skill является инструкцией для внешнего coding-agent.
+
+Он объясняет агенту:
+
+- что представляет собой этот repository;
+- как устроены design-system packages;
+- какие этапы обязательно пройти;
+- какие вопросы задать пользователю;
+- когда можно начинать implementation;
+- какие scripts использовать;
+- какой package contract необходимо соблюдать;
+- как зарегистрировать новую систему;
+- какие проверки выполнить;
+- когда package считается готовым.
+
+Skill не должен быть привязан к конкретной модели или coding-agent.
+
+Он должен использовать обычные переносимые механизмы:
+
+```text
+Markdown
+AGENTS.md
+repository scripts
+package manifests
+templates
+JSON/config files
+```
+
+Цель:
+
+> Один и тот же workflow должен быть понятен разным coding-agents.
+
+---
+
+# 4. Design Interview
+
+Agent не должен начинать генерацию компонентов сразу после команды:
+
+> Create a Design System.
+
+Первый этап — structured Design Interview.
+
+Agent должен собрать достаточный контекст о будущем продукте.
+
+Основные области интервью:
+
+### Product
+
+- Что это за продукт?
+- Для кого он?
+- Desktop, mobile или responsive web?
+- Какой тип интерфейса предполагается?
+- Насколько интерфейс data-heavy?
+
+### Visual Direction
+
+- Как должен ощущаться продукт?
+- Compact или spacious?
+- Calm или expressive?
+- Technical или friendly?
+- Light-first или dark-first?
+- Какие существующие продукты нравятся визуально?
+- Какие решения категорически не нравятся?
+
+### Foundations
+
+- Accent direction;
+- color temperature;
+- contrast;
+- typography character;
+- dominant radius;
+- surface model;
+- borders;
+- elevation;
+- motion intensity.
+
+### Components
+
+- Какие стандартные components понадобятся?
+- Есть ли специфичные компоненты продукта?
+- Нужна ли высокая плотность controls?
+- Какие сложные composition scenarios ожидаются?
+
+Agent может задавать дополнительные вопросы, если ответы пользователя требуют уточнения.
+
+Интервью должно быть последовательным и практичным.
+
+Не нужно задавать десятки бессмысленных вопросов ради заполнения формы.
+
+---
+
+# 5. Design Brief
+
+После интервью Agent должен сначала сформировать краткий Design Brief.
+
+Например:
+
+```text
+Project: Pulse
+
+Product:
+Developer productivity application
+
+Direction:
+- compact
+- technical
+- dark-first
+- restrained
+- low visual noise
+
+References:
+- Linear
+- Raycast
+
+Accent:
+- cool blue
+
+Surfaces:
+- low contrast
+- subtle elevation
+- visible borders
+
+Radius:
+- compact / medium
+
+Typography:
+- neutral
+- strong hierarchy
+- dense body text
+
+Motion:
+- minimal
+
+Avoid:
+- oversized cards
+- heavy gradients
+- excessive glass
+- pill-heavy UI
+- generic SaaS dashboard appearance
+```
+
+Этот brief становится визуальным контрактом создаваемой системы.
+
+Только после его формирования Agent переходит к implementation.
+
+---
+
+# 6. Deterministic Tooling
+
+Agent должен принимать визуальные решения.
+
+Но повторяемые инженерные действия не должны каждый раз генерироваться LLM вручную.
+
+Основной принцип V2:
+
+> Creative decisions belong to the agent.  
+> Repetitive engineering operations belong to scripts.
+
+Для этого repository получает deterministic tooling.
+
+Например:
+
+```text
+scripts/
+├── create-design-system
+├── register-design-system
+├── validate-design-system
+└── prepare-release
+```
+
+И команды уровня:
+
+```bash
+pnpm ds:create pulse
+pnpm ds:check pulse
+pnpm ds:release pulse
+```
+
+Точные названия команд могут измениться во время реализации, но responsibilities должны оставаться разделёнными.
+
+---
+
+# 7. Package Template
+
+Новые design systems не должны каждый раз получать новую структуру.
+
+Для этого V2 вводит canonical template.
+
+Например:
+
+```text
+templates/
+└── design-system/
+```
+
+При создании:
+
+```bash
+pnpm ds:create pulse
+```
+
+создаётся:
+
+```text
+packages/pulse/
+├── src/
+│   ├── components/
+│   ├── styles/
+│   ├── tokens/
+│   └── index.ts
+│
+├── AGENTS.md
+├── README.md
+├── package.json
+└── ...
+```
+
+Новая система должна автоматически наследовать conventions V1.
+
+Agent не должен самостоятельно изобретать:
+
+- новую folder structure;
+- другой export model;
+- новый build approach;
+- собственную систему package naming;
+- альтернативную архитектуру tokens.
+
+Если стандарт V1 подходит — его необходимо использовать.
+
+---
+
+# 8. Required Component Contract
+
+Каждая новая дизайн-система должна предоставлять обязательный базовый набор компонентов.
+
+Это необходимо для:
+
+- совместимости с Showcase;
+- совместимости с Reference App;
+- предсказуемости package API;
+- последующего использования coding-agent.
+
+Например базовый contract может включать:
+
+```text
+Button
+Input
+Textarea
+Card
+Badge
+Checkbox
+RadioGroup
+Switch
+Select
+Tabs
+Dialog
+DropdownMenu
+Tooltip
+Separator
+```
+
+Точный список фиксируется после V1.
+
+Design System может иметь дополнительные компоненты.
+
+Например:
+
+```text
+@prism-system/ui-pulse
+```
+
+может дополнительно экспортировать:
+
+```text
+CommandBar
+MetricCard
+DataToolbar
+StatusIndicator
+```
+
+Но базовый contract должен оставаться совместимым.
+
+---
+
+# 9. Создание визуальной системы
+
+После генерации структуры Agent начинает реализацию visual language.
+
+Он должен настроить:
+
+```text
+colors
+typography
+spacing
+radius
+borders
+surfaces
+shadows
+motion
+states
+variants
+```
+
+После foundations создаются или адаптируются required components.
+
+При этом Agent должен использовать существующий:
+
+```text
+@prism-system/ui-core
+```
+
+и существующие shadcn primitives.
+
+Не нужно переписывать качественные primitives без причины.
+
+---
+
+# 10. Showcase Integration
+
+Каждая новая Design System автоматически регистрируется в Showcase.
+
+До:
+
+```text
+System A
+System B
+```
+
+После создания Pulse:
+
+```text
+System A
+System B
+Pulse
+```
+
+Пользователь должен иметь возможность открыть систему отдельно:
+
+```text
+/showcase/pulse
+```
+
+и увидеть:
+
+```text
+Foundations
+
+Colors
+Typography
+Spacing
+Radius
+Borders
+Shadows
+Motion
+
+
+Components
+
+Button
+Input
+Card
+Badge
+Checkbox
+Select
+Tabs
+Dialog
+...
+```
+
+Showcase нужен для детального визуального review.
+
+---
+
+# 11. Reference App Integration
+
+Каждая новая система также автоматически становится доступной в Reference App.
+
+Например:
+
+```text
+Design System
+
+[ Pulse ▼ ]
+```
+
+Reference App остаётся тем же интерфейсом.
+
+Меняется только подключённая Design System.
+
+```text
+                 Reference App
+
+                      │
+       ┌──────────────┼──────────────┐
+       ↓              ↓              ↓
+
+   System A        System B        Pulse
+```
+
+Это обязательная часть процесса создания.
+
+Новая система не считается полноценной, если она хорошо выглядит только в Showcase, но разваливается в composition.
+
+---
+
+# 12. Human Visual Review
+
+После первой генерации Agent не должен сразу публиковать package.
+
+Пользователь должен посмотреть:
+
+```text
+Showcase
++
+Reference App
+```
+
+И дать визуальную обратную связь.
+
+Например:
+
+```text
+Cards слишком светлые.
+
+Input слишком высокий.
+
+Primary слишком насыщенный.
+
+Radius уменьшить.
+
+Sidebar должен иметь меньше contrast.
+
+Typography уже хорошая — не менять.
+```
+
+Agent вносит изменения в design-system package.
+
+Не в Reference App.
+
+Не в Showcase.
+
+Эти приложения только отображают систему.
+
+---
+
+# 13. Iteration Rule
+
+Все визуальные изменения должны происходить в package.
+
+Правильно:
+
+```text
+packages/pulse
+      ↓
+Showcase updates
+      ↓
+Reference App updates
+```
+
+Неправильно:
+
+```text
+Reference App
+      ↓
+custom overrides
+```
+
+Если Reference App требует большого количества overrides, это сигнал, что сама Design System недостаточно полноценна.
+
+---
+
+# 14. Validation
+
+Когда пользователь визуально утвердил систему, Agent запускает validation.
+
+Например:
+
+```bash
+pnpm ds:check pulse
+```
+
+Validation должна проверять минимум:
+
+```text
+✓ package structure
+✓ package naming
+✓ required files
+✓ required components
+✓ package exports
+✓ design tokens
+✓ theme configuration
+✓ TypeScript
+✓ lint
+✓ build
+✓ Showcase registration
+✓ Reference App compatibility
+✓ README
+✓ AGENTS.md
+```
+
+Если обязательный component отсутствует:
+
+```text
+Design System validation failed
+
+Missing required component:
+Select
+```
+
+Package не считается готовым.
+
+---
+
+# 15. AGENTS.md Generation
+
+Каждая новая система автоматически получает:
+
+```text
+packages/<name>/AGENTS.md
+```
+
+Этот файл должен объяснять внешнему coding-agent:
+
+- visual direction;
+- available components;
+- component usage rules;
+- styling restrictions;
+- allowed extension points;
+- что нельзя переопределять без необходимости.
+
+Например:
+
+```text
+Visual direction:
+- compact
+- technical
+- dark-first
+- low saturation
+
+Avoid:
+- arbitrary colors
+- large radius
+- custom shadows
+- duplicated primitives
+- unnecessary gradients
+
+Use existing components before creating new ones.
+```
+
+V2 создаёт этот файл автоматически на основе Design Brief.
+
+Полноценный consumer-agent workflow будет расширен в V3.
+
+---
+
+# 16. README Generation
+
+Новый package также получает human-facing README.
+
+Он должен содержать:
+
+```text
+installation
+setup
+styles import
+package API
+available components
+basic usage
+```
+
+README не должен превращаться в огромный documentation portal.
+
+Его задача — позволить человеку быстро начать использовать package.
+
+---
+
+# 17. Release Preparation
+
+После успешного review и validation Agent готовит первый release.
+
+Workflow:
+
+```text
+Design approved
+      ↓
+Validation
+      ↓
+Changeset
+      ↓
+Version
+      ↓
+Build
+      ↓
+Pack
+      ↓
+Publish
+```
+
+Например:
+
+```text
+@prism-system/ui-pulse@1.0.0
+```
+
+Publishing может выполняться через существующие npm/pnpm mechanisms.
+
+Нет необходимости создавать собственный package registry.
+
+---
+
+# 18. Definition of Done
+
+V2 считается завершённой, когда пользователь может выполнить полный сценарий:
+
+```text
+1. Открыть repository.
+
+2. Запустить внешний coding-agent.
+
+3. Попросить создать новую Design System.
+
+4. Agent автоматически находит create-design-system Skill.
+
+5. Agent проводит Design Interview.
+
+6. Формирует Design Brief.
+
+7. Создаёт новый package через canonical tooling.
+
+8. Реализует visual foundations.
+
+9. Реализует required component contract.
+
+10. Регистрирует систему в Showcase.
+
+11. Регистрирует систему в Reference App.
+
+12. Пользователь визуально проверяет систему.
+
+13. Agent вносит изменения в package.
+
+14. Validation проходит полностью.
+
+15. Создаются README и AGENTS.md.
+
+16. Package получает версию.
+
+17. Package можно собрать и опубликовать.
+
+18. Package можно установить в отдельный продукт.
+```
+
+---
+
+# Что НЕ входит в V2
+
+V2 не должна превращаться в полную automation platform.
+
+Пока не требуется:
+
+```text
+AI runtime
+LLM API integration
+MCP server
+agent hosting
+chat UI
+design generation service
+consumer project automation
+automatic modification skill
+full package lifecycle skill
+complex visual regression platform
+```
+
+Основная задача V2:
+
+> Создание новой дизайн-системы.
+
+---
+
+# Результат V2
+
+После завершения V2 процесс создания новой системы должен выглядеть примерно так:
+
+```text
+"Create a Design System for Pulse."
+                ↓
+          Design Interview
+                ↓
+           Design Brief
+                ↓
+       @prism-system/ui-pulse
+                ↓
+            Showcase
+                ↓
+          Reference App
+                ↓
+          Human Review
+                ↓
+           Validation
+                ↓
+        @prism-system/ui-pulse
+              1.0.0
+```
+
+Вместо ручного создания новой UI architecture пользователь получает контролируемый повторяемый процесс.
+
+---
+
+# Основной принцип V2
+
+> One repository.  
+> One architecture.  
+> One creation workflow.  
+> Many independent design systems.
+
+V1 доказала, что Design System architecture работает.
+
+V2 делает создание новых Design Systems быстрым, повторяемым и понятным для любого подходящего coding-agent.

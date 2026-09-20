@@ -1,0 +1,674 @@
+# V1 — Design System Foundation
+
+## Цель
+
+V1 создаёт фундамент центрального репозитория дизайн-систем.
+
+Основная идея:
+
+> Визуальный язык продукта создаётся отдельно от самого продукта, проверяется в контролируемой среде и затем подключается к реальному проекту как готовый package.
+
+Мы не хотим каждый раз во время разработки нового приложения заново решать:
+
+- как выглядит Button;
+- какой radius использовать;
+- какие нужны цвета;
+- какие должны быть Card, Input, Dialog;
+- какие использовать shadows;
+- насколько плотным должен быть интерфейс;
+- как должны выглядеть hover, focus, disabled и другие состояния.
+
+Все эти решения должны принадлежать Design System.
+
+Продукт должен использовать уже готовую систему, а не заново придумывать её.
+
+---
+
+# Архитектура V1
+
+```text
+design-systems/
+│
+├── apps/
+│   ├── showcase/
+│   └── reference-app/
+│
+├── packages/
+│   ├── core/
+│   ├── system-a/
+│   └── system-b/
+│
+├── docs/
+│   ├── V1/
+│   ├── V2/
+│   └── V3/
+│
+├── AGENTS.md
+├── package.json
+├── pnpm-workspace.yaml
+└── turbo.json
+```
+
+V1 использует минимум две небольшие тестовые дизайн-системы.
+
+Они не являются настоящими продуктами.
+
+Например:
+
+```text
+@prism-system/ui-system-a
+@prism-system/ui-system-b
+```
+
+Одна может быть более спокойной и минимальной, другая — более контрастной и выразительной.
+
+Их задача — доказать, что одна архитектура действительно поддерживает разные визуальные языки.
+
+---
+
+# `@prism-system/ui-core`
+
+`core` — общий технический фундамент.
+
+Он не определяет внешний вид конкретного продукта.
+
+Здесь находятся общие инженерные вещи:
+
+```text
+utilities
+shared types
+component contracts
+common hooks
+accessibility patterns
+shadcn primitives
+CVA conventions
+```
+
+Например:
+
+```text
+@prism-system/ui-core
+        ↓
+ ┌──────┴──────┐
+ ↓             ↓
+system-a     system-b
+```
+
+`core` не должен знать, как выглядят `system-a` или `system-b`.
+
+---
+
+# Product Design System Packages
+
+Каждая дизайн-система существует как отдельный package.
+
+Например:
+
+```text
+packages/
+├── system-a/
+└── system-b/
+```
+
+Каждый package определяет собственные:
+
+```text
+colors
+typography
+spacing
+radius
+borders
+shadows
+surfaces
+motion
+component variants
+component styling
+```
+
+И экспортирует единый основной набор компонентов.
+
+Например:
+
+```tsx
+import {
+  Button,
+  Input,
+  Card,
+  Badge,
+  Checkbox,
+  Tabs,
+  Dialog,
+  Select
+} from "@prism-system/ui-system-a"
+```
+
+Другой package должен предоставлять совместимый основной API:
+
+```tsx
+import {
+  Button,
+  Input,
+  Card,
+  Badge,
+  Checkbox,
+  Tabs,
+  Dialog,
+  Select
+} from "@prism-system/ui-system-b"
+```
+
+Это важная часть V1.
+
+Разные дизайн-системы могут выглядеть совершенно по-разному, но должны иметь понятный общий контракт для основных UI primitives.
+
+При этом в будущем каждый package сможет иметь дополнительные специфичные компоненты, которые не обязаны существовать во всех остальных системах.
+
+---
+
+# Showcase
+
+```text
+apps/showcase
+```
+
+Showcase нужен для детального просмотра дизайн-системы.
+
+Это лаборатория компонентов.
+
+Здесь мы смотрим:
+
+```text
+Foundations
+├── Colors
+├── Typography
+├── Spacing
+├── Radius
+├── Borders
+├── Shadows
+└── Motion
+
+Components
+├── Button
+├── Input
+├── Card
+├── Badge
+├── Checkbox
+├── Select
+├── Tabs
+├── Dialog
+└── ...
+```
+
+Каждый компонент показывается в разных вариантах и состояниях.
+
+Например Button:
+
+```text
+Variants
+[ Primary ] [ Secondary ] [ Ghost ] [ Destructive ]
+
+Sizes
+[ Small ] [ Medium ] [ Large ]
+
+States
+Default
+Hover
+Focus
+Disabled
+Loading
+```
+
+Showcase отвечает на вопрос:
+
+> Правильно ли выглядит сама дизайн-система?
+
+Он не является реальным приложением и не пытается им быть.
+
+---
+
+# Reference App
+
+```text
+apps/reference-app
+```
+
+Reference App решает другую задачу.
+
+Он показывает:
+
+> Как эта дизайн-система выглядит, когда компоненты используются вместе в структуре настоящего интерфейса?
+
+Это **не продукт**.
+
+В нём нет:
+
+- backend;
+- authentication;
+- database;
+- настоящей бизнес-логики;
+- API;
+- сложного state management.
+
+Это один статичный reference interface.
+
+---
+
+## Как выглядит Reference App
+
+Например:
+
+```text
+┌──────────────────────────────────────────────────────┐
+│ Reference App            Design System: [ System A ] │
+├──────────────┬───────────────────────────────────────┤
+│              │                                       │
+│ Dashboard    │   Dashboard                           │
+│ Projects     │                                       │
+│ Analytics    │   ┌──────────┐ ┌──────────┐           │
+│ Settings     │   │ Card     │ │ Card     │           │
+│              │   └──────────┘ └──────────┘           │
+│              │                                       │
+│              │   Search...        [Create]           │
+│              │                                       │
+│              │   ┌───────────────────────────────┐   │
+│              │   │ Table / Content / Badges      │   │
+│              │   └───────────────────────────────┘   │
+│              │                                       │
+└──────────────┴───────────────────────────────────────┘
+```
+
+Интерфейс специально должен использовать много разных UI primitives вместе:
+
+```text
+Sidebar
+Navigation
+Buttons
+Inputs
+Cards
+Badges
+Tabs
+Dropdowns
+Dialog
+Table-like composition
+Form section
+Empty state
+Toolbar
+```
+
+Также нужны композиционные эксперименты:
+
+```text
+Card внутри Dialog
+Input + Button внутри Toolbar
+Badge внутри Card
+Tabs над несколькими surfaces
+Dropdown внутри navigation
+Form внутри modal
+```
+
+Это позволяет увидеть проблемы, которые невозможно заметить, рассматривая компоненты по одному.
+
+---
+
+# Design System Switcher
+
+В верхней части Reference App находится переключатель:
+
+```text
+Design System:
+
+[ System A ▼ ]
+```
+
+Например:
+
+```text
+System A
+System B
+```
+
+При смене системы весь интерфейс начинает использовать другой design-system package.
+
+```text
+              SAME REFERENCE APP
+
+                     │
+           ┌─────────┴─────────┐
+           ↓                   ↓
+
+ @prism-system/ui-system-a   @prism-system/ui-system-b
+
+           ↓                   ↓
+
+    Visual Style A        Visual Style B
+```
+
+Структура страницы при этом остаётся одинаковой.
+
+Меняется именно Design System.
+
+---
+
+# Зачем нужен Reference App
+
+Это один из главных тестов всей идеи.
+
+Представим, что два package прекрасно выглядят в Showcase.
+
+Но после сборки настоящего интерфейса может выясниться:
+
+```text
+Card слишком большая
+
+Button плохо сочетается с Input
+
+Sidebar слишком контрастный
+
+Spacing между компонентами выглядит неправильно
+
+Dialog визуально не принадлежит остальной системе
+
+Typography плохо работает в сложной композиции
+```
+
+Reference App позволяет увидеть это **до начала разработки настоящего продукта**.
+
+---
+
+# Showcase и Reference App решают разные задачи
+
+```text
+SHOWCASE
+│
+│  Button
+│  Input
+│  Card
+│  Dialog
+│
+└─ Проверяет компоненты отдельно
+
+
+REFERENCE APP
+│
+│  Button + Input + Card + Dialog
+│  + Layout + Navigation + Forms
+│
+└─ Проверяет систему целиком
+```
+
+Оба приложения используют реальные packages.
+
+Никаких копий UI-компонентов внутри `apps`.
+
+---
+
+# Package Contract
+
+Чтобы Reference App мог переключаться между разными системами, основной набор компонентов должен иметь стабильный контракт.
+
+Условно:
+
+```ts
+interface DesignSystem {
+  Button
+  Input
+  Card
+  Badge
+  Checkbox
+  Tabs
+  Select
+  Dialog
+}
+```
+
+Конкретная реализация может быть разной.
+
+Но Reference App должен иметь возможность сказать:
+
+```text
+Используй System A
+```
+
+или:
+
+```text
+Используй System B
+```
+
+не переписывая весь интерфейс.
+
+Техническая реализация этого механизма может быть выбрана во время разработки V1, но API design systems должен оставаться простым и предсказуемым.
+
+---
+
+# Styling Ownership
+
+Design System отвечает за:
+
+```text
+colors
+typography
+radius
+spacing rules
+borders
+shadows
+surfaces
+component appearance
+component variants
+interaction states
+motion
+```
+
+Reference App отвечает только за:
+
+```text
+layout
+composition
+placement of components
+reference scenarios
+```
+
+Reference App не должен самостоятельно менять visual language.
+
+Плохо:
+
+```tsx
+<Button className="rounded-full bg-purple-500 shadow-xl">
+  Create
+</Button>
+```
+
+Правильно:
+
+```tsx
+<Button variant="primary">
+  Create
+</Button>
+```
+
+---
+
+# Agent Documentation
+
+Даже в V1 репозиторий должен быть понятен coding-agent.
+
+В root:
+
+```text
+AGENTS.md
+```
+
+Он объясняет:
+
+- назначение repository;
+- архитектуру;
+- package boundaries;
+- dependency direction;
+- роль Showcase;
+- роль Reference App;
+- правила создания компонентов.
+
+Каждый design-system package также получает собственный:
+
+```text
+packages/system-a/AGENTS.md
+packages/system-b/AGENTS.md
+```
+
+Он описывает конкретный visual language и правила использования package.
+
+Это станет фундаментом для автоматизации следующих версий.
+
+---
+
+# Technology
+
+V1 строится на:
+
+```text
+pnpm workspaces
+Turborepo
+TypeScript
+React
+Next.js
+Tailwind CSS v4
+shadcn/ui
+CVA where appropriate
+Changesets
+```
+
+Мы используем shadcn как инженерный фундамент, а не пытаемся писать новый универсальный UI framework.
+
+---
+
+# Что НЕ входит в V1
+
+V1 специально ограничена.
+
+Не создаём пока:
+
+```text
+CLI generator
+create-design-system Skill
+interactive agent interview
+automatic package generation
+automatic npm publishing
+MCP
+AI API
+AI runtime
+Storybook
+large documentation platform
+visual regression infrastructure
+dozens of design systems
+```
+
+V1 должна доказать фундамент.
+
+---
+
+# Definition of Done
+
+V1 завершена, когда:
+
+### Infrastructure
+
+- monorepo корректно собирается;
+- `pnpm install`, `dev`, `build`, `lint`, `typecheck` работают;
+- package boundaries соблюдаются.
+
+### Core
+
+- существует `@prism-system/ui-core`;
+- он не содержит styling конкретной Design System;
+- общие primitives и utilities имеют clean API.
+
+### Design Systems
+
+Существует минимум две небольшие тестовые системы:
+
+```text
+@prism-system/ui-system-a
+@prism-system/ui-system-b
+```
+
+Они:
+
+- используют общий фундамент;
+- имеют собственные tokens;
+- имеют собственный visual language;
+- предоставляют совместимый основной component API;
+- имеют README;
+- имеют AGENTS.md;
+- могут быть собраны как packages.
+
+### Showcase
+
+Showcase:
+
+- умеет отображать любую тестовую Design System;
+- показывает foundations;
+- показывает основные компоненты;
+- показывает variants и states;
+- использует настоящие package exports.
+
+### Reference App
+
+Reference App:
+
+- является одним фиксированным интерфейсом без бизнес-логики;
+- использует основные компоненты Design System;
+- содержит сложные component compositions;
+- имеет Design System Switcher;
+- умеет переключаться между `system-a` и `system-b`;
+- при переключении сохраняет структуру страницы;
+- визуально полностью принимает выбранную систему;
+- не копирует и не переопределяет стили packages.
+
+### Package validation
+
+Каждый design-system package:
+
+- корректно собирается;
+- имеет clean exports;
+- предоставляет TypeScript types;
+- корректно подключает styles;
+- может использоваться вне исходного package;
+- готов к будущей публикации в npm.
+
+---
+
+# Результат V1
+
+После завершения V1 мы должны иметь возможность открыть Reference App и сделать:
+
+```text
+System A
+    ↓
+весь интерфейс выглядит как Product A
+
+
+System B
+    ↓
+тот же интерфейс выглядит как совершенно другой Product B
+```
+
+При этом структура приложения не меняется.
+
+Именно это доказывает основную архитектурную идею проекта:
+
+> Design System является независимым и переносимым визуальным слоем продукта.
+
+Showcase позволяет проверить детали системы.
+
+Reference App позволяет проверить систему в реальной композиции.
+
+Packages позволяют затем перенести этот visual language в настоящий продукт.
+
+---
+
+# Основной принцип V1
+
+> Build the visual system once.  
+> Validate it in isolation.  
+> Validate it in composition.  
+> Then use it in the real product.

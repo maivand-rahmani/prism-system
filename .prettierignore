@@ -1,0 +1,11 @@
+node_modules
+dist
+.next
+.turbo
+coverage
+pnpm-lock.yaml
+.playwright-mcp
+qa-*.png
+
+# Architecture docs are owned by the docs lane and are not formatted here.
+docs

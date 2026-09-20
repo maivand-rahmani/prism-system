@@ -1,0 +1,28 @@
+{
+  "name": "@prism-system/showcase",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Component laboratory for the Maivand design systems.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@prism-system/ui-core": "workspace:*",
+    "@prism-system/ui-system-a": "workspace:*",
+    "@prism-system/ui-system-b": "workspace:*",
+    "next": "15.5.7",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.18.0",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "typescript": "5.9.3"
+  }
+}
