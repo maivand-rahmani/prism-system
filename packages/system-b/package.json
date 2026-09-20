@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "description": "A contrasty, expressive visual system built on @prism-system/ui-core.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/maivand-rahmani/prism-system"
+  },
   "publishConfig": {
     "access": "public"
   },
