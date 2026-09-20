@@ -26,7 +26,7 @@ design-systems/
 │   └── system-b/          # @prism-system/ui-system-b — test design system
 └── docs/
     ├── v1/                # V1 foundation spec
-    ├── v2/                # V2 factory spec (planned, not implemented)
+    ├── v2/                # V2 factory spec (foundation implemented)
     └── v3/                # V3 consumer lifecycle spec (planned, not implemented)
 ```
 
@@ -109,12 +109,21 @@ Wrong:
 
 ## Current implementation status
 
-- **Implemented:** monorepo infrastructure and `@prism-system/ui-core` (contracts, types,
-  utilities, a11y helpers, common hooks).
-- **Not implemented on purpose:** V2 factory tooling (creation scripts, templates,
-  skills, validation CLI) and V3 lifecycle tooling (consumer/manifest tooling,
-  strict-mode usage checks). Their specs live in `docs/v2` and `docs/v3`.
-  Do not scaffold them unless explicitly asked.
+- **V1 — complete.** The monorepo infrastructure is in place: `@prism-system/ui-core`
+  (contracts, types, utilities, a11y helpers, common hooks), the two test design systems
+  `@prism-system/ui-system-a` and `@prism-system/ui-system-b`, Showcase, and Reference App.
+  Packages build, typecheck, and publish, and the package/release setup (Changesets plus
+  the GitHub OIDC release workflow) is established.
+- **V2 — in progress (factory foundation implemented).** The canonical package template
+  (`templates/design-system`), the deterministic generators `pnpm ds:create` and
+  `pnpm ds:register`, and the design-system manifest `config/design-systems.json` are
+  implemented. The portable `create-design-system` skill and its Design Interview,
+  deterministic validation, Showcase / Reference App integration, and release
+  preparation remain pending.
+- **V3 — not implemented.** V3 lifecycle tooling (consumer/manifest tooling, strict-mode
+  usage checks) lives in `docs/v3` as a specification only.
+- Do not scaffold V2 or V3 tooling beyond the implemented V2 factory foundation unless
+  explicitly asked.
 
 ## Commands
 

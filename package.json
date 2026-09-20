@@ -17,6 +17,8 @@
     "clean": "turbo run clean",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "ds:create": "node scripts/create-design-system.mjs",
+    "ds:register": "node scripts/register-design-system.mjs",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "turbo run build && changeset publish"

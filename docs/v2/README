@@ -1,5 +1,28 @@
 # V2 — Design System Factory
 
+## Статус
+
+Это базовый документ спецификации V2. Раздел ниже отражает текущее состояние
+реализации; сам документ описывает целевую спецификацию.
+
+- **V1 завершена.** Фундамент, `core`, тестовые design systems, Showcase, Reference App и
+  package/release setup реализованы.
+- **V2 — Phase 2 foundation реализован.** Canonical template
+  `templates/design-system`, генератор `pnpm ds:create`, регистрация
+  `pnpm ds:register` и manifest `config/design-systems.json` существуют и покрыты
+  deterministic tooling.
+
+Остальные срезы V2 пока не реализованы:
+
+- переносимый skill `create-design-system` и Design Interview;
+- deterministic validation пакетов (`pnpm ds:check`);
+- интеграция новых систем в Showcase и Reference App;
+- подготовка release (`pnpm ds:release`).
+
+AI runtime при этом не вводится: AI остаётся внешним coding-agent, как описано ниже.
+
+---
+
 ## 1. Цель V2
 
 V2 превращает репозиторий из набора дизайн-систем в **фабрику новых дизайн-систем**.

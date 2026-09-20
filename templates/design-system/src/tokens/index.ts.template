@@ -1,0 +1,28 @@
+export const {{TOKENS_EXPORT}} = {
+  color: {
+    canvas: "#f6f7f8",
+    surface: "#ffffff",
+    surfaceMuted: "#eef0f2",
+    surfaceRaised: "#ffffff",
+    ink: "#20242a",
+    inkMuted: "#626b76",
+    line: "#d7dce1",
+    lineStrong: "#b9c1c9",
+    accent: "#315f8f",
+    accentStrong: "#24496f",
+    accentSoft: "#e4edf6",
+    danger: "#b53d48",
+    dangerSoft: "#f9e8ea",
+    focus: "#4c8fd0",
+    onAccent: "#ffffff",
+  },
+  radius: { sm: "6px", md: "9px", lg: "13px", pill: "999px" },
+  shadow: {
+    sm: "0 1px 3px rgba(25, 32, 40, .08)",
+    md: "0 12px 32px rgba(25, 32, 40, .12)",
+  },
+  motion: { fast: "120ms", normal: "180ms", ease: "cubic-bezier(.2,.7,.2,1)" },
+  typography: { sans: "ui-sans-serif, system-ui, sans-serif", mono: "ui-monospace, monospace" },
+} as const;
+
+export type Tokens = typeof {{TOKENS_EXPORT}};

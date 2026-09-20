@@ -1,0 +1,57 @@
+{
+  "name": "{{PACKAGE_NAME}}",
+  "version": "0.1.0",
+  "description": "{{SYSTEM_NAME}} — a V2 design system built on @prism-system/ui-core.",
+  "license": "MIT",
+  "prismSystem": {
+    "name": "{{SYSTEM_NAME}}",
+    "contract": "v2",
+    "uiClass": "{{SYSTEM_CLASS}}-ui",
+    "tokensExport": "{{TOKENS_EXPORT}}"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/maivand-rahmani/prism-system"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": ["**/*.css"],
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./styles.css": "./dist/index.css",
+    "./tokens": {
+      "types": "./dist/tokens/index.d.ts",
+      "import": "./dist/tokens/index.mjs",
+      "require": "./dist/tokens/index.js"
+    }
+  },
+  "files": ["dist", "README.md", "AGENTS.md", "LICENSE"],
+  "scripts": {
+    "build": "tsup src/index.ts src/tokens/index.ts --format esm,cjs --dts --clean",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint src"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "dependencies": {
+    "@prism-system/ui-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0"
+  }
+}

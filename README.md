@@ -73,11 +73,19 @@ See each package's `README.md` and `AGENTS.md` for details.
 
 ## Roadmap
 
-- **V1 — Foundation:** portable design systems, Showcase, Reference App. See `docs/v1`.
-- **V2 — Creation:** repeatable workflow for creating new design systems. See `docs/v2`.
-- **V3 — Consumption & lifecycle:** using and evolving systems in real products. See `docs/v3`.
+- **V1 — Foundation (complete):** portable design systems, Showcase, Reference App, and
+  the npm package/release setup. See `docs/v1`.
+- **V2 — Creation (in progress):** repeatable workflow for creating new design systems.
+  The factory foundation is implemented — the canonical template, `ds:create`,
+  `ds:register`, and the design-system manifest. The portable skill and Design Interview,
+  validation, app integration, and release preparation remain. See `docs/v2`.
+- **V3 — Consumption & lifecycle (planned, specification only):** using and evolving
+  systems in real products. See `docs/v3`.
 
-V2 and V3 specifications are intentionally **not implemented yet**.
+V1 is implemented and released. For V2 the factory foundation (canonical template,
+`ds:create`, `ds:register`, manifest) is implemented, while the portable skill and
+interview, validation, app integration, and release preparation are still in progress.
+V3 is a specification only and is intentionally **not implemented yet**.
 
 ## Releases
 

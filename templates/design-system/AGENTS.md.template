@@ -1,0 +1,49 @@
+# {{SYSTEM_NAME}} package rules
+
+`{{PACKAGE_NAME}}` is an independent V2 design system. Keep its visual language
+inside `src/tokens`, `src/styles`, and `src/components`; consuming apps should
+compose the components rather than replace their appearance.
+
+## Visual direction
+
+- Summary: {{BRIEF_SUMMARY}}
+- Direction: {{VISUAL_DIRECTION}}
+- Avoid: {{AVOID_LIST}}
+
+## Available components
+
+The public API is exactly the V2 contract in canonical order:
+
+`Button`, `Input`, `Textarea`, `Card`, `Badge`, `Checkbox`, `RadioGroup`,
+`Switch`, `Select`, `Tabs`, `Dialog`, `DropdownMenu`, `Tooltip`, `Separator`.
+
+Each component also exposes its documented compound static members (for example
+`Card.Header`, `Tabs.List`, `Dialog.Content`, `DropdownMenu.Item`). Preserve the
+full fourteen-component contract; never remove or rename a required component.
+
+## Extension points
+
+Improve the system here, and only here:
+
+- `src/tokens` — colors, typography, spacing, radius, borders, shadows, motion.
+- `src/styles` — surface, state, and composition rules.
+- `src/components` — component appearance, variants, and states.
+
+New reusable visual patterns belong in this package. Product-specific
+compositions belong to the consuming app.
+
+## Rules
+
+1. Use `@prism-system/ui-core` primitives, contract types, and `cn` before
+   writing a new primitive.
+2. Keep every visual decision — colors, typography, spacing, radius, borders,
+   shadows, states, motion — in this package. Consume the system through props,
+   not through className overrides.
+3. Do not import another design system or app code. Use only
+   `@prism-system/ui-core` and React.
+4. Avoid arbitrary colors, radii, and shadows, and do not duplicate primitives
+   that core already provides.
+5. Preserve compound static members and normalize optional Radix `forceMount`
+   values before passing them to primitives.
+
+Design brief: {{BRIEF_SUMMARY}}

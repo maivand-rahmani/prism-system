@@ -1,0 +1,87 @@
+# {{SYSTEM_NAME}}
+
+`{{PACKAGE_NAME}}` is a portable React design system implementing the canonical
+V2 contract. It is intentionally a small, readable starting point for the
+Design Brief below rather than a finished product language.
+
+## Design brief
+
+- Summary: {{BRIEF_SUMMARY}}
+- Visual direction: {{VISUAL_DIRECTION}}
+- Avoid: {{AVOID_LIST}}
+
+## Installation
+
+```bash
+pnpm add {{PACKAGE_NAME}}
+```
+
+The package is built for React 18+ and depends on `@prism-system/ui-core`.
+
+## Setup
+
+Import the stylesheet once, before any components render:
+
+```tsx
+import "{{PACKAGE_NAME}}/styles.css";
+```
+
+## Usage
+
+```tsx
+import { Button, Card } from "{{PACKAGE_NAME}}";
+import "{{PACKAGE_NAME}}/styles.css";
+
+export function Example() {
+  return (
+    <Card>
+      <Card.Header>
+        <Card.Title>Continue</Card.Title>
+      </Card.Header>
+      <Card.Content>
+        <Button>Continue</Button>
+      </Card.Content>
+    </Card>
+  );
+}
+```
+
+## Package API
+
+The package root exports the fourteen V2 components together with their compound
+static members (for example `Card.Header`, `Tabs.List`, `Select.Item`,
+`Dialog.Content`). Design tokens are available from `{{PACKAGE_NAME}}/tokens`.
+
+### Components
+
+Every V2 design system provides the same component set:
+
+- `Button`
+- `Input`
+- `Textarea`
+- `Card`
+- `Badge`
+- `Checkbox`
+- `RadioGroup`
+- `Switch`
+- `Select`
+- `Tabs`
+- `Dialog`
+- `DropdownMenu`
+- `Tooltip`
+- `Separator`
+
+Components use only `@prism-system/ui-core` for behavior and React; this package
+owns the visual tokens, CSS, and component composition.
+
+## Development
+
+```bash
+pnpm build
+pnpm typecheck
+pnpm lint
+```
+
+Refine `src/tokens`, `src/styles`, and `src/components` together. Keep the
+system class on every visual component so the package can be safely consumed
+alongside another design system.

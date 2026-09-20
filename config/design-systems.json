@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "designSystems": [
+    {
+      "id": "system-a",
+      "name": "System A",
+      "packageName": "@prism-system/ui-system-a",
+      "packagePath": "packages/system-a",
+      "uiClass": "maivand-a-ui",
+      "tokensExport": "systemATokens",
+      "contract": "v1"
+    },
+    {
+      "id": "system-b",
+      "name": "System B",
+      "packageName": "@prism-system/ui-system-b",
+      "packagePath": "packages/system-b",
+      "uiClass": "maivand-b-ui",
+      "tokensExport": "systemBTokens",
+      "contract": "v1"
+    }
+  ]
+}
