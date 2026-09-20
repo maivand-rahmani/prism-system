@@ -19,7 +19,26 @@ import type {
   DialogProps,
   DialogTitleProps,
   DialogTriggerProps,
+  DropdownMenuArrowProps,
+  DropdownMenuCheckboxItemProps,
+  DropdownMenuContentProps,
+  DropdownMenuGroupProps,
+  DropdownMenuItemIndicatorProps,
+  DropdownMenuItemProps,
+  DropdownMenuLabelProps,
+  DropdownMenuPortalProps,
+  DropdownMenuProps,
+  DropdownMenuRadioGroupProps,
+  DropdownMenuRadioItemProps,
+  DropdownMenuSeparatorProps,
+  DropdownMenuSubContentProps,
+  DropdownMenuSubProps,
+  DropdownMenuSubTriggerProps,
+  DropdownMenuTriggerProps,
   InputProps,
+  RadioGroupIndicatorProps,
+  RadioGroupItemProps,
+  RadioGroupProps,
   SelectContentProps,
   SelectGroupProps,
   SelectItemProps,
@@ -28,10 +47,20 @@ import type {
   SelectSeparatorProps,
   SelectTriggerProps,
   SelectValueProps,
+  SeparatorProps,
+  SwitchProps,
+  SwitchThumbProps,
   TabsContentProps,
   TabsListProps,
   TabsProps,
   TabsTriggerProps,
+  TextareaProps,
+  TooltipArrowProps,
+  TooltipContentProps,
+  TooltipPortalProps,
+  TooltipProps,
+  TooltipProviderProps,
+  TooltipTriggerProps,
 } from "../contracts/index.js";
 
 export type ButtonComponent = ComponentType<ButtonProps>;
@@ -114,3 +143,90 @@ export const REQUIRED_COMPONENTS = [
 
 /** A design system component that may carry additional system-specific members. */
 export type DesignSystemComponent = DesignSystemComponents[DesignSystemComponentName];
+
+/* -------------------------------------------------------------------------- */
+/* V2 additive contract                                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The V2 contract is strictly additive: it keeps every V1 entry (and therefore
+ * every existing V1 system) valid while adding six more required components.
+ */
+export type TextareaComponent = ComponentType<TextareaProps>;
+
+export type RadioGroupComponent = ComponentType<RadioGroupProps> & {
+  Item: ComponentType<RadioGroupItemProps>;
+  Indicator: ComponentType<RadioGroupIndicatorProps>;
+};
+
+export type SwitchComponent = ComponentType<SwitchProps> & {
+  Thumb: ComponentType<SwitchThumbProps>;
+};
+
+export type DropdownMenuComponent = ComponentType<DropdownMenuProps> & {
+  Trigger: ComponentType<DropdownMenuTriggerProps>;
+  Portal: ComponentType<DropdownMenuPortalProps>;
+  Content: ComponentType<DropdownMenuContentProps>;
+  Group: ComponentType<DropdownMenuGroupProps>;
+  Label: ComponentType<DropdownMenuLabelProps>;
+  Item: ComponentType<DropdownMenuItemProps>;
+  CheckboxItem: ComponentType<DropdownMenuCheckboxItemProps>;
+  RadioGroup: ComponentType<DropdownMenuRadioGroupProps>;
+  RadioItem: ComponentType<DropdownMenuRadioItemProps>;
+  ItemIndicator: ComponentType<DropdownMenuItemIndicatorProps>;
+  Separator: ComponentType<DropdownMenuSeparatorProps>;
+  Arrow: ComponentType<DropdownMenuArrowProps>;
+  Sub: ComponentType<DropdownMenuSubProps>;
+  SubTrigger: ComponentType<DropdownMenuSubTriggerProps>;
+  SubContent: ComponentType<DropdownMenuSubContentProps>;
+};
+
+export type TooltipComponent = ComponentType<TooltipProps> & {
+  Provider: ComponentType<TooltipProviderProps>;
+  Trigger: ComponentType<TooltipTriggerProps>;
+  Portal: ComponentType<TooltipPortalProps>;
+  Content: ComponentType<TooltipContentProps>;
+  Arrow: ComponentType<TooltipArrowProps>;
+};
+
+export type SeparatorComponent = ComponentType<SeparatorProps>;
+
+/**
+ * The V2 shared component contract.
+ *
+ * It extends {@link DesignSystemComponents} so a V2 component map is also a
+ * valid V1 map, which keeps downstream V1 consumers able to render a V2 system
+ * without changing the interface. New systems should satisfy this contract;
+ * existing systems remain V1 and are unaffected.
+ */
+export interface DesignSystemComponentsV2 extends DesignSystemComponents {
+  Textarea: TextareaComponent;
+  RadioGroup: RadioGroupComponent;
+  Switch: SwitchComponent;
+  DropdownMenu: DropdownMenuComponent;
+  Tooltip: TooltipComponent;
+  Separator: SeparatorComponent;
+}
+
+export type DesignSystemComponentNameV2 = keyof DesignSystemComponentsV2;
+
+/** The fourteen required V2 component names, in canonical order. */
+export const REQUIRED_COMPONENTS_V2 = [
+  "Button",
+  "Input",
+  "Textarea",
+  "Card",
+  "Badge",
+  "Checkbox",
+  "RadioGroup",
+  "Switch",
+  "Select",
+  "Tabs",
+  "Dialog",
+  "DropdownMenu",
+  "Tooltip",
+  "Separator",
+] as const satisfies readonly DesignSystemComponentNameV2[];
+
+/** A V2 design system component that may carry additional system-specific members. */
+export type DesignSystemComponentV2 = DesignSystemComponentsV2[DesignSystemComponentNameV2];

@@ -1,4 +1,4 @@
-import type { DesignSystemComponents } from "./components.js";
+import type { DesignSystemComponents, DesignSystemComponentsV2 } from "./components.js";
 import type { DesignLanguage, DesignSystemRules } from "./manifest.js";
 
 export interface DesignSystemMeta {
@@ -15,8 +15,12 @@ export interface DesignSystemMeta {
  * The data-driven contract is the `components` map: both applications render the
  * same JSX tree and only swap which registered system object is provided, so the
  * interface structure never changes when the system changes.
+ *
+ * `TComponents` defaults to the V1 {@link DesignSystemComponents} map, so
+ * existing V1 systems and consumers keep working unchanged. V2 systems
+ * instantiate it with {@link DesignSystemComponentsV2} via `defineDesignSystemV2`.
  */
-export interface DesignSystem {
+export interface DesignSystem<TComponents extends DesignSystemComponents = DesignSystemComponents> {
   /** Stable machine identifier, e.g. `"system-a"`. */
   id: string;
   /** Human readable name, e.g. `"System A"`. */
@@ -25,13 +29,40 @@ export interface DesignSystem {
   packageName: string;
   /** Package version. */
   version: string;
-  /** The eight required V1 components. */
-  components: DesignSystemComponents;
+  /** The required components for the declared contract. */
+  components: TComponents;
+  /** Identifies which component contract the map satisfies. Defaults to V1. */
+  componentContract?: "v1" | "v2";
   meta?: DesignSystemMeta;
 }
 
 /** Identity helper that preserves the literal type of the definition. */
 export function defineDesignSystem<const T extends DesignSystem>(system: T): T {
+  return system;
+}
+
+/**
+ * A V2 design system: the fourteen-component contract plus an explicit marker.
+ *
+ * The marker lets tooling distinguish a V2 system from a V1 one without
+ * inspecting the component map at runtime.
+ */
+export type DesignSystemV2 = DesignSystem<DesignSystemComponentsV2> & {
+  componentContract: "v2";
+};
+
+/**
+ * Identity helper for V2 design systems.
+ *
+ * The constraint enforces the full {@link DesignSystemComponentsV2} shape and the
+ * `"v2"` marker while `const T` preserves the literal definition (like
+ * {@link defineDesignSystem}).
+ *
+ * An `isDesignSystemV2` runtime guard is intentionally deferred: `DesignSystem`
+ * always types `components` as the V1 map, so a marker check alone could not
+ * soundly narrow `components` to the V2 map.
+ */
+export function defineDesignSystemV2<const T extends DesignSystemV2>(system: T): T {
   return system;
 }
 

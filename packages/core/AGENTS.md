@@ -46,10 +46,12 @@ If a change would give core a visual opinion, it belongs in a design system pack
 - Runtime code that touches the DOM or React hooks must be marked `"use client"`.
 - Relative imports inside `src` use explicit `.js` extensions (NodeNext output).
 
-## The V1 contract
+## The V1 contract (frozen)
 
-Exactly eight components are required. Do not rename, remove, or add required
-entries without an explicit architecture decision:
+Exactly eight components are required. This contract is **frozen for existing
+systems**: do not rename, remove, or add required V1 entries. `DesignSystemComponents`,
+`DesignSystemComponentName`, and `REQUIRED_COMPONENTS` must stay as they are so
+System A, System B, Showcase, and Reference App keep compiling unchanged.
 
 ```text
 Button, Input, Card, Badge, Checkbox, Tabs, Dialog, Select
@@ -61,6 +63,34 @@ Button, Input, Card, Badge, Checkbox, Tabs, Dialog, Select
   `Select.Item`).
 - Contract types live in `src/contracts`. The assembly of all eight lives in
   `src/design-system/components.ts` as `DesignSystemComponents`.
+
+## The additive V2 contract
+
+V2 adds a second, strictly additive contract alongside V1. It does not change or
+replace `DesignSystemComponents`; new systems opt in and existing V1 systems are
+unaffected.
+
+Exactly fourteen components are required, in canonical order:
+
+```text
+Button, Input, Textarea, Card, Badge, Checkbox, RadioGroup, Switch, Select,
+Tabs, Dialog, DropdownMenu, Tooltip, Separator
+```
+
+- `DesignSystemComponentsV2 extends DesignSystemComponents`, with
+  `DesignSystemComponentNameV2`, `DesignSystemComponentV2`, and the exact
+  `REQUIRED_COMPONENTS_V2` tuple.
+- `DesignSystem` is generic with a V1 default; `DesignSystemV2` and
+  `defineDesignSystemV2` express the V2 shape and marker. The registry stays
+  defaulted to V1.
+- Styling-agnostic V2 contracts live in `src/contracts` (`textarea`,
+  `radio-group`, `switch`, `dropdown-menu`, `tooltip`, `separator`).
+- Unstyled behavior-only adapters live in `src/primitives` and may re-export the
+  corresponding Radix namespace. They add no colors, tokens, spacing, radius,
+  shadows, surfaces, motion, or visual variants.
+- `defineDesignSystemV2` and the V2 contract are allowed in core. V2 factory
+  tooling (skills, templates, generators, validation) and V3 lifecycle tooling
+  are **not** — keep them out of core.
 
 ## Accessibility expectations
 
@@ -77,4 +107,6 @@ document the accessibility expectation next to the type. Reusable helpers in
 
 ## Scope
 
-V1 only. Do not add V2 creation tooling or V3 manifest/lifecycle tooling.
+Core owns the V1 contract and the additive V2 contract/adapters. Do not add V2
+factory tooling (create-design-system skills, templates, generators, validation)
+or V3 manifest/lifecycle tooling to core.
