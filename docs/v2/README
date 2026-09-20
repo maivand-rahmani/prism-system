@@ -11,13 +11,17 @@
   `templates/design-system`, генератор `pnpm ds:create`, регистрация
   `pnpm ds:register` и manifest `config/design-systems.json` существуют и покрыты
   deterministic tooling.
+- **V2 — Phase 3 реализован (skill и Design Brief).** Переносимый skill
+  `skills/create-design-system/SKILL.md`, Design Interview и схема Design Brief
+  `design-brief.schema.json` реализованы.
 
 Остальные срезы V2 пока не реализованы:
 
-- переносимый skill `create-design-system` и Design Interview;
 - deterministic validation пакетов (`pnpm ds:check`);
 - интеграция новых систем в Showcase и Reference App;
 - подготовка release (`pnpm ds:release`).
+
+Перечисленные срезы остаются pending, поэтому end-to-end V2 ещё не завершён.
 
 AI runtime при этом не вводится: AI остаётся внешним coding-agent, как описано ниже.
 

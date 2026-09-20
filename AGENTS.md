@@ -26,7 +26,7 @@ design-systems/
 │   └── system-b/          # @prism-system/ui-system-b — test design system
 └── docs/
     ├── v1/                # V1 foundation spec
-    ├── v2/                # V2 factory spec (foundation implemented)
+    ├── v2/                # V2 factory spec (factory + skill implemented)
     └── v3/                # V3 consumer lifecycle spec (planned, not implemented)
 ```
 
@@ -114,12 +114,14 @@ Wrong:
   `@prism-system/ui-system-a` and `@prism-system/ui-system-b`, Showcase, and Reference App.
   Packages build, typecheck, and publish, and the package/release setup (Changesets plus
   the GitHub OIDC release workflow) is established.
-- **V2 — in progress (factory foundation implemented).** The canonical package template
-  (`templates/design-system`), the deterministic generators `pnpm ds:create` and
-  `pnpm ds:register`, and the design-system manifest `config/design-systems.json` are
-  implemented. The portable `create-design-system` skill and its Design Interview,
-  deterministic validation, Showcase / Reference App integration, and release
-  preparation remain pending.
+- **V2 — in progress.** The factory foundation is implemented: the canonical package
+  template (`templates/design-system`), the deterministic generators `pnpm ds:create` and
+  `pnpm ds:register`, and the design-system manifest `config/design-systems.json`. The
+  portable `create-design-system` skill (`skills/create-design-system/SKILL.md`) with its
+  Design Interview and Design Brief schema (`design-brief.schema.json`) is implemented as
+  well (Phase 3). Still pending: deterministic validation (`pnpm ds:check`), automatic
+  Showcase / Reference App integration, and release preparation (`pnpm ds:release`), so
+  end-to-end V2 is not complete.
 - **V3 — not implemented.** V3 lifecycle tooling (consumer/manifest tooling, strict-mode
   usage checks) lives in `docs/v3` as a specification only.
 - Do not scaffold V2 or V3 tooling beyond the implemented V2 factory foundation unless

@@ -77,15 +77,19 @@ See each package's `README.md` and `AGENTS.md` for details.
   the npm package/release setup. See `docs/v1`.
 - **V2 — Creation (in progress):** repeatable workflow for creating new design systems.
   The factory foundation is implemented — the canonical template, `ds:create`,
-  `ds:register`, and the design-system manifest. The portable skill and Design Interview,
-  validation, app integration, and release preparation remain. See `docs/v2`.
+  `ds:register`, and the design-system manifest. The portable `create-design-system` skill
+  with its Design Interview and Design Brief schema is implemented too (Phase 3). Still
+  pending: `pnpm ds:check` validation, automatic Showcase / Reference App integration,
+  and `pnpm ds:release` release preparation. See `docs/v2`.
 - **V3 — Consumption & lifecycle (planned, specification only):** using and evolving
   systems in real products. See `docs/v3`.
 
 V1 is implemented and released. For V2 the factory foundation (canonical template,
-`ds:create`, `ds:register`, manifest) is implemented, while the portable skill and
-interview, validation, app integration, and release preparation are still in progress.
-V3 is a specification only and is intentionally **not implemented yet**.
+`ds:create`, `ds:register`, manifest) plus the portable `create-design-system` skill,
+Design Interview, and Design Brief schema are implemented. Validation (`pnpm ds:check`),
+automatic Showcase / Reference App integration, and release preparation
+(`pnpm ds:release`) remain pending, so end-to-end V2 is not complete. V3 is a
+specification only and is intentionally **not implemented yet**.
 
 ## Releases
 

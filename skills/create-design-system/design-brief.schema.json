@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/maivand-rahmani/prism-system/skills/create-design-system/design-brief.schema.json",
+  "title": "Design Brief",
+  "description": "Structured outcome of the create-design-system Design Interview. It is the visual contract for a generated design-system package. `pnpm ds:create --brief <path>` reads this file, preserves its fields, and writes a normalized copy to the generated package as design-brief.json. Unknown extra fields are allowed so the interview can record decisions this schema does not yet enumerate.",
+  "type": "object",
+  "required": [
+    "project",
+    "product",
+    "audience",
+    "platform",
+    "interfaceType",
+    "dataDensity",
+    "direction",
+    "references",
+    "foundations",
+    "components",
+    "avoid"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "project": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-facing name of the product or project the design system serves. The generator uses it as the package display name when --name is omitted and writes it into README.md and AGENTS.md.",
+      "examples": ["Pulse"]
+    },
+    "product": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One-sentence description of what the product is.",
+      "examples": ["Developer productivity application for inspecting CI pipelines"]
+    },
+    "audience": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Primary users of the product and the context in which they use it.",
+      "examples": ["Professional developers working long sessions on desktop"]
+    },
+    "platform": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Primary platform(s) the interface targets.",
+      "examples": ["responsive web", "desktop app", "mobile web", "cross-platform"]
+    },
+    "interfaceType": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The kind of interface being designed.",
+      "examples": ["data console", "editor", "dashboard", "settings surface"]
+    },
+    "dataDensity": {
+      "type": "string",
+      "minLength": 1,
+      "description": "How information-dense the interface is expected to be. Drives spacing, control height, and typography scale decisions.",
+      "examples": ["low", "medium", "high"]
+    },
+    "direction": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Short adjectives describing the intended feel, such as compact, technical, dark-first, restrained, low visual noise. The generator joins these into the package visual direction.",
+      "examples": [["compact", "technical", "dark-first", "restrained", "low visual noise"]]
+    },
+    "references": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Existing products or interfaces the user likes visually, used as shared vocabulary for the visual direction.",
+      "examples": [["Linear", "Raycast"]]
+    },
+    "foundations": {
+      "type": "object",
+      "description": "Concrete visual foundation decisions for the system. Extra fields are allowed so the interview can record decisions this schema does not yet enumerate.",
+      "additionalProperties": true,
+      "required": [
+        "accentDirection",
+        "colorTemperature",
+        "contrast",
+        "typographyCharacter",
+        "dominantRadius",
+        "surfaceModel",
+        "borders",
+        "elevation",
+        "motionIntensity"
+      ],
+      "properties": {
+        "accentDirection": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Intended accent hue and how much it is used.",
+          "examples": [
+            "cool blue",
+            "warm amber, used sparingly",
+            "monochrome with one signal accent"
+          ]
+        },
+        "colorTemperature": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Overall temperature of the palette.",
+          "examples": ["cool", "neutral", "warm"]
+        },
+        "contrast": {
+          "type": "string",
+          "minLength": 1,
+          "description": "How much contrast surfaces and text should carry.",
+          "examples": ["low-contrast surfaces, strong text", "high contrast, crisp lines"]
+        },
+        "typographyCharacter": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Personality and hierarchy of the type system.",
+          "examples": ["neutral grotesk with strong hierarchy and dense body text"]
+        },
+        "dominantRadius": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Typical corner radius of controls and surfaces.",
+          "examples": ["compact (4-6px)", "medium (8-10px)", "pill-heavy"]
+        },
+        "surfaceModel": {
+          "type": "string",
+          "minLength": 1,
+          "description": "How surfaces stack and separate from each other.",
+          "examples": ["flat surfaces with subtle elevation", "layered cards with visible borders"]
+        },
+        "borders": {
+          "type": "string",
+          "minLength": 1,
+          "description": "How visible borders should be.",
+          "examples": ["visible 1px hairlines", "minimal borders, rely on surface separation"]
+        },
+        "elevation": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Shadow and elevation approach.",
+          "examples": ["subtle elevation, no heavy shadows", "flat, borders only"]
+        },
+        "motionIntensity": {
+          "type": "string",
+          "minLength": 1,
+          "description": "How much motion the system should use.",
+          "examples": ["minimal 120-180ms transitions", "expressive with spring easing"]
+        }
+      }
+    },
+    "components": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Components and composition scenarios the system should cover. The fourteen required V2 components are always generated, so list product-specific additions and the scenarios they must support here.",
+      "examples": [["CommandBar", "MetricCard", "StatusIndicator", "dense data table toolbar"]]
+    },
+    "avoid": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Visual decisions that must be avoided. The generator joins these into the package avoid list in README.md and AGENTS.md.",
+      "examples": [
+        [
+          "oversized cards",
+          "heavy gradients",
+          "excessive glass",
+          "pill-heavy UI",
+          "generic SaaS dashboard"
+        ]
+      ]
+    }
+  },
+  "$defs": {
+    "stringArray": {
+      "type": "array",
+      "description": "Ordered list of non-empty strings.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    }
+  }
+}

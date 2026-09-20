@@ -12,14 +12,25 @@ compose the components rather than replace their appearance.
 
 ## Available components
 
-The public API is exactly the V2 contract in canonical order:
+The package must always export the fourteen required V2 contract components, in
+canonical order:
 
 `Button`, `Input`, `Textarea`, `Card`, `Badge`, `Checkbox`, `RadioGroup`,
 `Switch`, `Select`, `Tabs`, `Dialog`, `DropdownMenu`, `Tooltip`, `Separator`.
 
 Each component also exposes its documented compound static members (for example
-`Card.Header`, `Tabs.List`, `Dialog.Content`, `DropdownMenu.Item`). Preserve the
-full fourteen-component contract; never remove or rename a required component.
+`Card.Header`, `Tabs.List`, `Dialog.Content`, `DropdownMenu.Item`). These
+required exports are fixed: never rename, remove, or alter one to make room for
+something else.
+
+## Optional additions
+
+Beyond the required contract, this package may add clearly additive,
+product-specific components. Keep them package-local — for example a separate
+module under `src/components` — and export them additively, either from the
+package root or from a package-owned module. An addition must never rename,
+remove, or change a required export, and it must not depend on another design
+system or app.
 
 ## Extension points
 
@@ -27,7 +38,8 @@ Improve the system here, and only here:
 
 - `src/tokens` — colors, typography, spacing, radius, borders, shadows, motion.
 - `src/styles` — surface, state, and composition rules.
-- `src/components` — component appearance, variants, and states.
+- `src/components` — component appearance, variants, states, and optional
+  additive components.
 
 New reusable visual patterns belong in this package. Product-specific
 compositions belong to the consuming app.
