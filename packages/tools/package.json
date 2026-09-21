@@ -1,6 +1,6 @@
 {
   "name": "@prism-system/tools",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Published tooling for @prism-system design systems: search and inspect the npm registry (read-only), explicitly install (npm/pnpm), and configure/validate consumers with prism-ds. No postinstall, no source copying, no publishing.",
   "license": "MIT",
   "repository": {
