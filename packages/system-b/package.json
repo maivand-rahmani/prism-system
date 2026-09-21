@@ -1,6 +1,6 @@
 {
   "name": "@prism-system/ui-system-b",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "description": "A contrasty, expressive visual system built on @prism-system/ui-core.",
   "license": "MIT",
   "prismSystem": {
