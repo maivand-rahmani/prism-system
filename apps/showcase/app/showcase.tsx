@@ -363,15 +363,16 @@ function ComponentsSection({ system }: { system: RegisteredSystem }) {
               <Card.Description>Related choices with one active direction.</Card.Description>
             </Card.Header>
             <Card.Content>
-              <RadioGroup aria-label="Density" defaultValue="balanced">
-                <div className="control-row">
-                  <RadioGroup.Item value="quiet">
-                    Quiet <RadioGroup.Indicator />
-                  </RadioGroup.Item>
-                  <RadioGroup.Item value="balanced">
-                    Balanced <RadioGroup.Indicator />
-                  </RadioGroup.Item>
-                </div>
+              <RadioGroup aria-label="Density" defaultValue="balanced" orientation="vertical">
+                <RadioGroup.Item value="quiet">
+                  <span>Quiet</span>
+                </RadioGroup.Item>
+                <RadioGroup.Item value="balanced">
+                  <span>Balanced</span>
+                </RadioGroup.Item>
+                <RadioGroup.Item value="expressive" disabled>
+                  <span>Expressive (unavailable)</span>
+                </RadioGroup.Item>
               </RadioGroup>
             </Card.Content>
           </Card>
@@ -381,11 +382,15 @@ function ComponentsSection({ system }: { system: RegisteredSystem }) {
               <Card.Description>A compact control for an immediate preference.</Card.Description>
             </Card.Header>
             <Card.Content>
-              <div className="control-row">
-                <Switch aria-label="Email updates" defaultChecked>
-                  <Switch.Thumb />
-                </Switch>
-                <span>Weekly updates</span>
+              <div className="checkbox-stack">
+                <div className="control-row">
+                  <Switch aria-label="Email updates" defaultChecked />
+                  <span>Weekly updates</span>
+                </div>
+                <div className="control-row">
+                  <Switch aria-label="SMS updates" disabled />
+                  <span>SMS updates (unavailable)</span>
+                </div>
               </div>
             </Card.Content>
           </Card>

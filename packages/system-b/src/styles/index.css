@@ -326,8 +326,17 @@
 }
 .maivand-b-checkbox {
   align-items: flex-start;
+  border: 1px solid transparent;
+  border-radius: var(--maivand-b-radius-md);
   display: flex;
   gap: 10px;
+  min-height: 46px;
+  padding: 9px 11px;
+  transition:
+    background var(--maivand-b-fast) var(--maivand-b-ease),
+    border-color var(--maivand-b-fast) var(--maivand-b-ease),
+    box-shadow var(--maivand-b-fast) var(--maivand-b-ease);
+  width: 100%;
 }
 .maivand-b-checkbox-input {
   align-items: center;
@@ -335,11 +344,26 @@
   border: 0;
   cursor: pointer;
   display: flex;
+  height: 28px;
+  justify-content: center;
+  margin: -1px 0 0 -2px;
   padding: 0;
+  width: 28px;
 }
 .maivand-b-checkbox-input:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+.maivand-b-checkbox:has(.maivand-b-checkbox-input:hover:not(:disabled)) {
+  background: var(--maivand-b-surface-muted);
+  border-color: var(--maivand-b-line);
+  box-shadow: var(--maivand-b-shadow-sm);
+}
+.maivand-b-checkbox:has(.maivand-b-checkbox-input:focus-visible) {
+  border-color: var(--maivand-b-focus);
+}
+.maivand-b-checkbox:has(.maivand-b-checkbox-input:disabled) .maivand-b-checkbox-copy {
+  opacity: 0.58;
 }
 .maivand-b-checkbox-box {
   align-items: center;
@@ -368,8 +392,12 @@
   line-height: 1;
 }
 .maivand-b-checkbox-copy {
+  cursor: pointer;
   display: grid;
+  flex: 1;
   gap: 3px;
+  min-width: 0;
+  padding-top: 2px;
 }
 .maivand-b-checkbox-label {
   font-size: 14px;
@@ -633,28 +661,35 @@
   align-items: center;
   background: var(--maivand-b-surface);
   border: 1px solid var(--maivand-b-line);
-  border-radius: 50%;
+  border-radius: var(--maivand-b-radius-md);
   color: var(--maivand-b-ink);
   cursor: pointer;
-  display: inline-flex;
-  flex: none;
-  height: 20px;
-  justify-content: center;
-  padding: 0;
+  display: flex;
+  gap: 10px;
+  min-height: 48px;
+  min-width: 0;
+  padding: 10px 12px;
   transition:
     background var(--maivand-b-fast) var(--maivand-b-ease),
     border-color var(--maivand-b-fast) var(--maivand-b-ease),
-    box-shadow var(--maivand-b-fast) var(--maivand-b-ease);
-  width: 20px;
+    box-shadow var(--maivand-b-fast) var(--maivand-b-ease),
+    transform var(--maivand-b-fast) var(--maivand-b-ease);
+  text-align: left;
+}
+.maivand-b-radio-item:hover:not(:disabled):not([data-disabled]) {
+  background: var(--maivand-b-surface-muted);
+  border-color: var(--maivand-b-accent-strong);
+  transform: translate(-1px, -1px);
 }
 .maivand-b-radio-item:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--maivand-b-focus) 45%, transparent);
   outline-offset: 2px;
 }
 .maivand-b-radio-item[data-state="checked"] {
-  background: var(--maivand-b-accent);
+  background: var(--maivand-b-accent-soft);
   border-color: var(--maivand-b-accent-strong);
   box-shadow: 0 0 0 3px var(--maivand-b-accent-soft);
+  color: var(--maivand-b-accent-strong);
 }
 .maivand-b-radio-item[data-disabled],
 .maivand-b-radio-item:disabled {
@@ -662,11 +697,18 @@
   opacity: 0.45;
 }
 .maivand-b-radio-indicator {
-  background: #170f14;
+  background: var(--maivand-b-accent);
   border-radius: 50%;
   display: block;
+  flex: none;
   height: 8px;
   width: 8px;
+}
+.maivand-b-radio-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
 }
 
 .maivand-b-switch {

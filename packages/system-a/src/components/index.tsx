@@ -380,6 +380,7 @@ export interface CheckboxProps extends CoreCheckboxProps {
 export const Checkbox = React.forwardRef<HTMLButtonElement, CheckboxProps>(function Checkbox(
   {
     className,
+    id: providedId,
     label,
     description,
     children,
@@ -388,32 +389,51 @@ export const Checkbox = React.forwardRef<HTMLButtonElement, CheckboxProps>(funct
     onCheckedChange,
     invalid = false,
     size = "md",
+    "aria-labelledby": ariaLabelledBy,
+    "aria-describedby": ariaDescribedBy,
     ...props
   },
   ref,
 ) {
+  const generatedId = React.useId();
+  const id = providedId || `maivand-a-checkbox-${generatedId.replace(/:/g, "")}`;
+  const copyId = `${id}-copy`;
+  const labelId = `${id}-label`;
+  const descriptionId = `${id}-description`;
+  const hasCopy = Boolean(label || description || children);
   return (
     <span className="maivand-a-ui maivand-a-checkbox">
       <CheckboxPrimitive
         ref={ref}
+        id={id}
         checked={checked}
         defaultChecked={defaultChecked}
         onCheckedChange={onCheckedChange}
         invalid={invalid}
         size={size}
         className={cn("maivand-a-checkbox-input", className)}
+        aria-labelledby={ariaLabelledBy || (label ? labelId : children ? copyId : undefined)}
+        aria-describedby={ariaDescribedBy || (description ? descriptionId : undefined)}
         {...props}
       >
         <span className="maivand-a-checkbox-box" aria-hidden="true">
           <span className="maivand-a-checkbox-mark">{checked === "indeterminate" ? "–" : "✓"}</span>
         </span>
       </CheckboxPrimitive>
-      {(label || description || children) && (
-        <span className="maivand-a-checkbox-copy">
-          {label && <span className="maivand-a-checkbox-label">{label}</span>}
-          {description && <span className="maivand-a-checkbox-description">{description}</span>}
+      {hasCopy && (
+        <label className="maivand-a-checkbox-copy" htmlFor={id} id={copyId}>
+          {label && (
+            <span className="maivand-a-checkbox-label" id={labelId}>
+              {label}
+            </span>
+          )}
+          {description && (
+            <span className="maivand-a-checkbox-description" id={descriptionId}>
+              {description}
+            </span>
+          )}
           {children}
-        </span>
+        </label>
       )}
     </span>
   );
@@ -802,14 +822,21 @@ function RadioGroupRoot({ className, ...props }: RadioGroupProps) {
 }
 export const RadioGroupItem = React.forwardRef<HTMLButtonElement, RadioGroupItemProps>(
   function RadioGroupItem({ className, children, ...props }, ref) {
+    const childArray = React.Children.toArray(children);
+    const indicators = childArray.filter(
+      (child) => React.isValidElement(child) && child.type === RadioGroupIndicator,
+    );
+    const content = childArray.filter(
+      (child) => !(React.isValidElement(child) && child.type === RadioGroupIndicator),
+    );
     return (
       <RadioGroupItemPrimitive
         ref={ref}
         className={cn("maivand-a-radio-item", className)}
         {...props}
       >
-        <RadioGroupIndicator />
-        {children}
+        {indicators.length > 0 ? indicators : <RadioGroupIndicator />}
+        <span className="maivand-a-radio-copy">{content}</span>
       </RadioGroupItemPrimitive>
     );
   },
@@ -837,6 +864,9 @@ const SwitchRoot = React.forwardRef<HTMLButtonElement, SwitchProps>(function Swi
   { className, size = "md", invalid = false, children, ...props },
   ref,
 ) {
+  const hasThumb = React.Children.toArray(children).some(
+    (child) => React.isValidElement(child) && child.type === SwitchThumb,
+  );
   return (
     <SwitchPrimitive
       ref={ref}
@@ -846,7 +876,7 @@ const SwitchRoot = React.forwardRef<HTMLButtonElement, SwitchProps>(function Swi
       {...props}
     >
       {children}
-      <SwitchThumb />
+      {!hasThumb && <SwitchThumb />}
     </SwitchPrimitive>
   );
 });
