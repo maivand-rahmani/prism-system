@@ -1,6 +1,6 @@
 {
   "name": "@prism-system/ui-system-a",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "description": "A calm, focused visual system built on @prism-system/ui-core.",
   "prismSystem": {
     "name": "System A",
