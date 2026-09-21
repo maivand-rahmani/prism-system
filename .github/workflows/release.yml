@@ -79,7 +79,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Create version pull request
-        uses: changesets/action@52025003bf4794281597cb5b5e566485d9473389 # v1.5.0
+        uses: changesets/action@746c25e23caa47dceb6a48ee85b4cbc5a9f5f293 # v1.5.0
         with:
           version: pnpm version-packages-and-sync
           commit: "chore: version packages"
