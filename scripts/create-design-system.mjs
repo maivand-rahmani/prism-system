@@ -498,7 +498,7 @@ async function main(argv) {
 
     if (!options.noRegister) {
       try {
-        const registration = registerDesignSystem({
+        const registration = await registerDesignSystem({
           id,
           root: outputRoot,
           manifestPath: join(outputRoot, MANIFEST_RELATIVE_PATH),

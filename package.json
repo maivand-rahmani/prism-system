@@ -19,6 +19,8 @@
     "format:check": "prettier --check .",
     "ds:create": "node scripts/create-design-system.mjs",
     "ds:register": "node scripts/register-design-system.mjs",
+    "ds:check": "node scripts/validate-design-system.mjs",
+    "ds:release": "node scripts/prepare-release.mjs",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "turbo run build && changeset publish"

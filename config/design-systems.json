@@ -8,7 +8,7 @@
       "packagePath": "packages/system-a",
       "uiClass": "maivand-a-ui",
       "tokensExport": "systemATokens",
-      "contract": "v1"
+      "contract": "v2"
     },
     {
       "id": "system-b",
@@ -17,7 +17,7 @@
       "packagePath": "packages/system-b",
       "uiClass": "maivand-b-ui",
       "tokensExport": "systemBTokens",
-      "contract": "v1"
+      "contract": "v2"
     }
   ]
 }

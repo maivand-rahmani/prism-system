@@ -10,7 +10,11 @@
  * This module is both a reusable library (imported by
  * `create-design-system.mjs`) and a CLI (`pnpm ds:register <id>`).
  *
- * Deterministic derivations (chosen to match the seeded V1 systems exactly, so
+ * This tooling is V2-only: every package and manifest entry must declare
+ * `contract: "v2"`. V1 is no longer an accepted contract and is never inferred
+ * or normalized (a V1/missing contract is a hard error).
+ *
+ * Deterministic derivations (chosen to match the seeded V2 systems exactly, so
  * re-registering an existing system is idempotent):
  *   package name  -> `@prism-system/ui-<id>`
  *   tokens export -> `<camelCase(id)>Tokens`
@@ -30,6 +34,12 @@ import {
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  applyAppIntegration,
+  planAppIntegration,
+  rollbackAppIntegration,
+} from "./sync-design-system-apps.mjs";
+
 /** Lower-kebab-case system id, e.g. `pulse`, `fancy-tech`. */
 export const SYSTEM_ID_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 /** Ids that are not design systems and can never be registered. */
@@ -42,8 +52,15 @@ export const MANIFEST_RELATIVE_PATH = "config/design-systems.json";
 export const PACKAGE_SCOPE = "@prism-system/ui-";
 /** Workspace directory that holds design-system packages. */
 export const PACKAGE_DIRECTORY = "packages";
-/** Supported component contracts. */
-export const CONTRACTS = Object.freeze(["v1", "v2"]);
+/** Supported component contracts. V2 is the only contract the tooling accepts. */
+export const CONTRACTS = Object.freeze(["v2"]);
+
+/** The complete V2 `prismSystem` block every registrable package must declare. */
+const V2_PRISM_SYSTEM_FIELDS = Object.freeze(["name", "contract", "uiClass", "tokensExport"]);
+
+/** Shared, actionable description of the required `prismSystem` block. */
+const V2_PRISM_SYSTEM_EXPECTATION =
+  'Expected { "name": string, "contract": "v2", "uiClass": string, "tokensExport": string }.';
 
 /** Absolute path to the repository root (the parent directory of `scripts/`). */
 export function repoRoot() {
@@ -178,11 +195,22 @@ export function buildEntry(input) {
     packagePath: requireNonEmptyString(input.packagePath, "packagePath"),
     uiClass: requireNonEmptyString(input.uiClass, "uiClass"),
     tokensExport: requireNonEmptyString(input.tokensExport, "tokensExport"),
-    contract: input.contract ?? "v1",
+    contract: input.contract,
   };
+  if (
+    entry.contract === undefined ||
+    entry.contract === null ||
+    (typeof entry.contract === "string" && entry.contract.trim().length === 0)
+  ) {
+    throw new Error(
+      'Missing required "contract"; every design system must declare contract: "v2".',
+    );
+  }
+  entry.contract = requireNonEmptyString(entry.contract, "contract");
   if (!CONTRACTS.includes(entry.contract)) {
     throw new Error(
-      `Unsupported contract "${entry.contract}". Expected one of: ${CONTRACTS.join(", ")}.`,
+      `Unsupported contract "${entry.contract}". V2 is the only supported contract; ` +
+        `expected one of: ${CONTRACTS.join(", ")}.`,
     );
   }
   return entry;
@@ -332,7 +360,12 @@ export function upsertDesignSystem(manifest, entry) {
 /**
  * Read the optional `prismSystem` block a generated package exposes. It lets a
  * standalone `ds:register <id>` preserve the generated contract and display
- * name instead of re-deriving (and possibly downgrading) them.
+ * name instead of re-deriving them.
+ *
+ * This reader stays lenient (it returns whatever fields are present) so that
+ * validation can report each missing/incorrect field individually. Registration
+ * enforces the complete V2 block separately via
+ * {@link assertCompleteV2PrismSystem}.
  */
 function readPrismSystemMetadata(pkg, packageJsonPath) {
   const raw = pkg.prismSystem;
@@ -341,17 +374,42 @@ function readPrismSystemMetadata(pkg, packageJsonPath) {
     throw new Error(`Cannot register: "prismSystem" in ${packageJsonPath} must be an object.`);
   }
   const metadata = {};
-  for (const field of ["name", "contract", "uiClass", "tokensExport"]) {
+  for (const field of V2_PRISM_SYSTEM_FIELDS) {
     if (raw[field] === undefined || raw[field] === null) continue;
     metadata[field] = requireNonEmptyString(raw[field], `prismSystem.${field}`);
   }
-  if (metadata.contract !== undefined && !CONTRACTS.includes(metadata.contract)) {
+  return metadata;
+}
+
+/**
+ * Reject a package whose `prismSystem` metadata is not a complete V2 block.
+ *
+ * Registration is V2-only, so a missing, partial, or V1 block is a hard error
+ * rather than something to derive or downgrade to V1.
+ */
+function assertCompleteV2PrismSystem(prismSystem, packageJsonPath) {
+  if (!isPlainObject(prismSystem)) {
     throw new Error(
-      `Cannot register: unsupported "prismSystem.contract" ${JSON.stringify(metadata.contract)} ` +
-        `in ${packageJsonPath}. Expected one of: ${CONTRACTS.join(", ")}.`,
+      `Cannot register: ${packageJsonPath} is missing a complete "prismSystem" block. ` +
+        V2_PRISM_SYSTEM_EXPECTATION,
     );
   }
-  return metadata;
+  const missing = V2_PRISM_SYSTEM_FIELDS.filter(
+    (field) => typeof prismSystem[field] !== "string" || prismSystem[field].trim().length === 0,
+  );
+  if (missing.length > 0) {
+    throw new Error(
+      `Cannot register: "prismSystem" in ${packageJsonPath} is incomplete ` +
+        `(missing ${missing.join(", ")}). ${V2_PRISM_SYSTEM_EXPECTATION}`,
+    );
+  }
+  if (prismSystem.contract !== "v2") {
+    throw new Error(
+      `Cannot register: "prismSystem.contract" in ${packageJsonPath} is ` +
+        `${JSON.stringify(prismSystem.contract)}; V2 is the only supported contract and ` +
+        `V1 is no longer accepted. ${V2_PRISM_SYSTEM_EXPECTATION}`,
+    );
+  }
 }
 
 /**
@@ -420,18 +478,27 @@ export function readPackageMetadata({ id, root }) {
 /**
  * Register (add or update) exactly one design system.
  *
+ * App integration is planned and applied from the *candidate* manifest before
+ * the manifest is written. If the manifest write fails, the app bytes and new
+ * files are rolled back so the repository is never left half-synced. A root
+ * without `apps/` stays manifest-only.
+ *
  * @param {object} options
  * @param {string} options.id          Lower-kebab-case system id.
- * @param {string} [options.root]      Root holding `packages/` and `config/` (defaults to repo root).
+ * @param {string} [options.root]      Root holding `packages/`, `config/`, and `apps/` (defaults to repo root).
  * @param {string} [options.manifestPath] Explicit manifest path (defaults to `<root>/config/design-systems.json`).
  * @param {object} [options.entry]     Optional metadata overrides (name/uiClass/tokensExport/contract).
- * @returns {{ id: string, entry: object, manifestPath: string, packagePath: string, action: string, changed: boolean }}
+ * @returns {Promise<{ id: string, entry: object, manifestPath: string, packagePath: string, action: string, changed: boolean, appIntegration: { status: string, reason: string | null, changed: boolean } }>}
  */
-export function registerDesignSystem(options = {}) {
+export async function registerDesignSystem(options = {}) {
   const id = assertSystemId(options.id);
   const root = resolve(options.root ?? repoRoot());
   const manifestPath = resolve(options.manifestPath ?? join(root, MANIFEST_RELATIVE_PATH));
   const metadata = readPackageMetadata({ id, root });
+  // Registration is V2-only: refuse a missing/partial/V1 `prismSystem` block
+  // instead of deriving or downgrading the contract.
+  const packageJsonPath = join(metadata.packageDir, "package.json");
+  assertCompleteV2PrismSystem(metadata.prismSystem, packageJsonPath);
 
   const packagePath = relative(root, metadata.packageDir).split("\\").join("/");
   if (packagePath.startsWith("..") || isAbsolute(packagePath)) {
@@ -449,8 +516,9 @@ export function registerDesignSystem(options = {}) {
 
   // Precedence (highest first): explicit entry override, the package's own
   // `prismSystem` metadata, the existing manifest entry, then brief/project or
-  // derived defaults. Consulting the existing entry keeps a generated V2
-  // package from being reset to the V1 default by a standalone `ds:register`.
+  // derived defaults. Consulting the existing entry keeps a V2 package from
+  // losing generated metadata on a standalone `ds:register`. The contract is
+  // never defaulted: the complete V2 metadata above guarantees `"v2"`.
   const entry = buildEntry({
     id,
     name: firstDefined(
@@ -474,15 +542,37 @@ export function registerDesignSystem(options = {}) {
       existing?.tokensExport,
       toTokensExport(id),
     ),
-    contract: firstDefined(override.contract, packageMetadata.contract, existing?.contract, "v1"),
+    contract: firstDefined(override.contract, packageMetadata.contract, existing?.contract),
   });
 
   const { manifest, action } = upsertDesignSystem(previous, entry);
   const content = serializeManifest(manifest);
   const changed = content !== serializeManifest(previous);
-  if (changed) writeManifest({ manifestPath, content });
 
-  return { id, entry, manifestPath, packagePath, action, changed };
+  // Plan and apply app integration from the candidate manifest first. Writing
+  // the manifest last means a failed manifest write can roll the apps back.
+  const plan = await planAppIntegration({ manifest, root });
+  const applied = plan.status === "planned" ? applyAppIntegration(plan) : null;
+  try {
+    if (changed) writeManifest({ manifestPath, content });
+  } catch (error) {
+    if (applied) rollbackAppIntegration(applied);
+    throw error;
+  }
+
+  return {
+    id,
+    entry,
+    manifestPath,
+    packagePath,
+    action,
+    changed,
+    appIntegration: {
+      status: applied ? "applied" : plan.status,
+      reason: plan.reason ?? null,
+      changed: applied ? applied.changed : false,
+    },
+  };
 }
 
 /** Render the CLI help text. */
@@ -499,7 +589,7 @@ export function helpText() {
     "  <id>                  Lower-kebab-case system id (e.g. pulse).",
     "",
     "Options:",
-    "  --root <path>         Root holding packages/ and config/ (default: repo root).",
+    "  --root <path>         Root holding packages/, config/, and apps/ (default: repo root).",
     "  --manifest <path>     Explicit manifest path (default: <root>/config/design-systems.json).",
     "  -h, --help            Show this help.",
     "",
@@ -563,7 +653,7 @@ async function main(argv) {
   }
 
   try {
-    const result = registerDesignSystem({
+    const result = await registerDesignSystem({
       id: options.id,
       root: options.root,
       manifestPath: options.manifest,
@@ -573,6 +663,9 @@ async function main(argv) {
     process.stdout.write(
       `Registered "${result.entry.packageName}" (${result.id}) as ${result.action} in ${displayPath}.\n`,
     );
+    if (result.appIntegration.status === "applied" && result.appIntegration.changed) {
+      process.stdout.write("Synced Showcase and Reference App integration files.\n");
+    }
   } catch (error) {
     process.stderr.write(`${error.message}\n`);
     process.exitCode = 1;
