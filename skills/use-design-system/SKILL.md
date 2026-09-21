@@ -39,15 +39,21 @@ Follow this order; do not guess.
 4. `<package>/README.md` — installation, setup, and usage.
 5. The public TypeScript API exported by `<package>`.
 
-If `.design-system/config.json` is missing, configure the consumer first:
+If `.design-system/config.json` is missing, configure the consumer with the published
+consumer tool, then validate:
 
 ```bash
-pnpm ds:connect --cwd <consumer-root>
-pnpm ds:check-usage --cwd <consumer-root>
+npx prism-ds connect --cwd <consumer-root>
+npx prism-ds check-usage --cwd <consumer-root>
 ```
 
-`ds:connect` is configure-only: it never installs packages, edits `package.json`,
-copies component source, or mutates the design-system repository.
+Install it from npm like any other dependency (`npm install --save-dev @prism-system/tools`)
+next to the design system (`npm install @prism-system/ui-system-a`). The published tool
+never installs packages and needs no access to the design-systems repository. Inside the
+design-systems repository the same implementation is available as `pnpm ds:connect` and
+`pnpm ds:check-usage`; those are maintainer wrappers. `connect` is configure-only: it
+never installs packages, edits `package.json`, copies component source, or mutates the
+design-system repository.
 
 ## 2. Be exact about the version
 
@@ -59,8 +65,8 @@ release — read the installed manifest and the installed package's public API.
 When the product updates the package, re-run discovery and validation:
 
 ```bash
-pnpm ds:connect --cwd <consumer-root>
-pnpm ds:check-usage --cwd <consumer-root>
+npx prism-ds connect --cwd <consumer-root>
+npx prism-ds check-usage --cwd <consumer-root>
 ```
 
 ## 3. Use existing primitives through the public API
@@ -120,7 +126,7 @@ responsive rules, alignment, and page composition. Visual language changes are n
 
 ## 5. Run strict usage checks
 
-`pnpm ds:check-usage --cwd <consumer-root>` validates the product against the design
+`npx prism-ds check-usage --cwd <consumer-root>` validates the product against the design
 system deterministically, using the TypeScript AST and the manifest rules:
 
 - arbitrary colors, radii, and shadows in class tokens (including variant prefixes);
@@ -181,7 +187,7 @@ the product, and verify visually where it matters.
 - [ ] No package source, CSS, or tokens were copied into the product.
 - [ ] No component was restyled with visual overrides.
 - [ ] Product layout and business logic stayed in the product.
-- [ ] `pnpm ds:check-usage --cwd <consumer-root>` was run and reported honestly.
+- [ ] `npx prism-ds check-usage --cwd <consumer-root>` was run and reported honestly.
 - [ ] If a new reusable pattern was needed, it was proposed as a design-system change.
 - [ ] Nothing was versioned or published.
 

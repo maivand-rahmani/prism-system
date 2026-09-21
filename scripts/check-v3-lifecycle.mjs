@@ -29,13 +29,15 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join, relative, sep } from "node:path";
 
-import { repoRoot } from "./register-design-system.mjs";
+import { readJsonFile, repoRoot } from "./register-design-system.mjs";
 import { validateDesignSystem } from "./validate-design-system.mjs";
 import { inspectTarball } from "./prepare-release.mjs";
 
@@ -71,12 +73,18 @@ const CLI = {
   usage: join(ROOT, "scripts", "check-design-system-usage.mjs"),
 };
 
+const TOOLS_PACKAGE_NAME = "@prism-system/tools";
+const TOOLS_PACKAGE_DIR = join(ROOT, "packages", "tools");
+const TOOLS_EXTRACT = join(EXTRACT_DIR, "tools");
+const TOOLS_CONSUMER = join(TEMP, "external-consumer");
+
 const REPO_MUTATION_WATCH = [
   "config/design-systems.json",
   "packages/system-a/package.json",
   "packages/system-a/design-system.json",
   "packages/system-b/package.json",
   "packages/system-b/design-system.json",
+  "packages/tools/package.json",
 ];
 
 function toPosix(path) {
@@ -118,6 +126,12 @@ function listFiles(dir) {
   return out;
 }
 
+function hashTree(dir) {
+  return listFiles(dir)
+    .map((file) => `${file}:${hashFile(join(dir, file))}`)
+    .join("\n");
+}
+
 function hashConsumer(dir) {
   const files = ["package.json", "AGENTS.md"];
   for (const file of listFiles(join(dir, ".design-system"))) files.push(`.design-system/${file}`);
@@ -126,6 +140,43 @@ function hashConsumer(dir) {
     .sort()
     .map((file) => `${file}:${hashFile(join(dir, file))}`)
     .join("\n");
+}
+
+/**
+ * Stage a package's declared runtime dependencies into an isolated consumer
+ * node_modules from the already-installed workspace, so the packed tools CLI can
+ * run without installing from the network or touching the repository.
+ */
+function stageRuntimeDependencies(consumerRoot, dependencies) {
+  const requireFromRoot = createRequire(join(ROOT, "package.json"));
+  for (const name of Object.keys(dependencies ?? {})) {
+    const target = join(consumerRoot, "node_modules", ...name.split("/"));
+    mkdirSync(dirname(target), { recursive: true });
+    const entry = requireFromRoot.resolve(name);
+    let dir = dirname(entry);
+    for (;;) {
+      if (existsSync(join(dir, "package.json"))) break;
+      const parent = dirname(dir);
+      assert(parent !== dir, `could not locate the installed package directory for ${name}`);
+      dir = parent;
+    }
+    const source = realpathSync.native(dir);
+    try {
+      symlinkSync(source, target, process.platform === "win32" ? "junction" : "dir");
+    } catch {
+      cpSync(source, target, { recursive: true });
+    }
+  }
+}
+
+/** Read the entry list of a tarball via the system `tar`. */
+function tarballEntries(tarballPath) {
+  const result = runTar(["-tzf", tarballPath]);
+  assert(result.status === 0, `tar -tzf failed: ${output(result)}`);
+  return (result.stdout ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -383,6 +434,274 @@ for (const target of targets) {
     checkConsumerLifecycle(target);
   });
 }
+
+/* -------------------------------------------------------------------------- */
+/* External boundary: packed @prism-system/tools from an isolated consumer    */
+/* -------------------------------------------------------------------------- */
+
+let toolsExtractedDir = null;
+let toolsPackageJson = null;
+
+runCheck("pack and inspect the @prism-system/tools artifact", () => {
+  assert(existsSync(TOOLS_PACKAGE_DIR), "packages/tools is missing");
+  const pack = runPnpm(["pack", "--pack-destination", PACK_DIR], { cwd: TOOLS_PACKAGE_DIR });
+  assert(pack.status === 0, `pnpm pack failed for @prism-system/tools: ${output(pack)}`);
+  const tarball = readdirSync(PACK_DIR).find(
+    (name) => name.includes("tools") && name.endsWith(".tgz"),
+  );
+  assert(tarball, "no @prism-system/tools tarball was produced");
+  const tarballPath = join(PACK_DIR, tarball);
+  const entries = tarballEntries(tarballPath);
+  for (const entry of entries) {
+    assert(entry.startsWith("package/"), `tools entry outside package/: ${entry}`);
+    const rel = entry.slice("package/".length);
+    const allowed =
+      rel === "package.json" ||
+      rel === "README.md" ||
+      rel === "AGENTS.md" ||
+      rel === "LICENSE" ||
+      rel.startsWith("bin/") ||
+      rel.startsWith("src/");
+    assert(allowed, `unexpected @prism-system/tools tarball path: ${entry}`);
+    assert(
+      !/(^|\/)(packages|apps|scripts|templates|TEMP|node_modules)\//.test(rel),
+      `source path leaked into the tools tarball: ${entry}`,
+    );
+  }
+  for (const required of [
+    "package/bin/prism-ds.mjs",
+    "package/src/cli.mjs",
+    "package/README.md",
+    "package/AGENTS.md",
+    "package/LICENSE",
+  ]) {
+    assert(entries.includes(required), `tools tarball is missing ${required}`);
+  }
+
+  rmSync(TOOLS_EXTRACT, { recursive: true, force: true });
+  mkdirSync(TOOLS_EXTRACT, { recursive: true });
+  const extract = runTar(["-xzf", tarballPath, "-C", TOOLS_EXTRACT]);
+  assert(extract.status === 0, `failed to extract @prism-system/tools: ${output(extract)}`);
+  const extracted = join(TOOLS_EXTRACT, "package");
+  const pkg = readJsonFile(join(extracted, "package.json"));
+  assert(pkg.name === TOOLS_PACKAGE_NAME, "tools package identity mismatch");
+  assert(typeof pkg.bin?.["prism-ds"] === "string", "tools must declare the prism-ds bin");
+  const binRel = pkg.bin["prism-ds"].replace(/^\.\//, "");
+  assert(existsSync(join(extracted, binRel)), `tools bin target is missing: ${binRel}`);
+  const rootExport = typeof pkg.exports === "object" ? pkg.exports["."] : pkg.exports;
+  const exportTarget =
+    typeof rootExport === "string" ? rootExport : (rootExport?.import ?? rootExport?.default);
+  assert(typeof exportTarget === "string", "tools exports['.'] is missing");
+  assert(
+    existsSync(join(extracted, exportTarget.replace(/^\.\//, ""))),
+    `tools exports['.'] target is missing: ${exportTarget}`,
+  );
+  assert(pkg.dependencies?.typescript, "typescript must be a declared runtime dependency");
+  for (const rel of listFiles(extracted)) {
+    if (!/\.(mjs|js|json|md)$/.test(rel)) continue;
+    const text = readFileSync(join(extracted, rel), "utf8");
+    assert(!text.includes(ROOT), `shipped tools file ${rel} references the repository root`);
+  }
+  toolsExtractedDir = extracted;
+  toolsPackageJson = pkg;
+});
+
+function installPackedPackage(consumerRoot, packageName, sourceDir) {
+  const target = join(consumerRoot, "node_modules", ...packageName.split("/"));
+  mkdirSync(dirname(target), { recursive: true });
+  cpSync(sourceDir, target, { recursive: true });
+}
+
+function hydrateExternalToolsConsumer() {
+  assert(toolsExtractedDir, "the tools artifact was not extracted");
+  const systemA = targets.find((target) => target.id === "system-a");
+  assert(systemA?.extractedPackageDir, "packed System A is required for the external consumer");
+  rmSync(TOOLS_CONSUMER, { recursive: true, force: true });
+  mkdirSync(join(TOOLS_CONSUMER, "src"), { recursive: true });
+  writeFileSync(
+    join(TOOLS_CONSUMER, "package.json"),
+    `${JSON.stringify(
+      {
+        name: "external-tools-consumer",
+        version: "0.0.0",
+        private: true,
+        dependencies: { [systemA.packageName]: "*", [TOOLS_PACKAGE_NAME]: "*" },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  writeFileSync(join(TOOLS_CONSUMER, "AGENTS.md"), "# External consumer\n\nUser content.\n");
+  writeFileSync(join(TOOLS_CONSUMER, "src", "clean.tsx"), CLEAN_SOURCE);
+  installPackedPackage(TOOLS_CONSUMER, systemA.packageName, systemA.extractedPackageDir);
+  installPackedPackage(TOOLS_CONSUMER, TOOLS_PACKAGE_NAME, toolsExtractedDir);
+  stageRuntimeDependencies(TOOLS_CONSUMER, toolsPackageJson.dependencies);
+  return systemA;
+}
+
+runCheck("packed @prism-system/tools drives an isolated external consumer", () => {
+  const systemA = hydrateExternalToolsConsumer();
+  const installedToolsDir = join(TOOLS_CONSUMER, "node_modules", "@prism-system", "tools");
+  const toolsBin = join(installedToolsDir, toolsPackageJson.bin["prism-ds"].replace(/^\.\//, ""));
+  assert(existsSync(toolsBin), `extracted prism-ds bin is missing at ${toolsBin}`);
+  const runToolsBin = (args) =>
+    spawnSync(process.execPath, [toolsBin, ...args], { cwd: TOOLS_CONSUMER, encoding: "utf8" });
+
+  const consumerPackageJson = join(TOOLS_CONSUMER, "package.json");
+  const packageHashBefore = hashFile(consumerPackageJson);
+  const dependencyBefore = JSON.parse(readFileSync(consumerPackageJson, "utf8")).dependencies;
+  const cleanSourceHashBefore = hashFile(join(TOOLS_CONSUMER, "src", "clean.tsx"));
+  const toolsTreeBefore = hashTree(installedToolsDir);
+
+  // Help + public import resolve without any repository access.
+  const help = runToolsBin(["--help"]);
+  assert(help.status === 0, `prism-ds --help failed: ${output(help)}`);
+  for (const command of ["connect", "check-usage", "doctor"]) {
+    assert(output(help).includes(command), `prism-ds --help is missing ${command}`);
+  }
+  const indexPath = `file://${join(installedToolsDir, "src", "index.mjs").replace(/\\/g, "/")}`;
+  const imported = spawnSync(
+    process.execPath,
+    [
+      "-e",
+      `import(${JSON.stringify(indexPath)}).then((m) => { if (typeof m.connectDesignSystem !== "function" || typeof m.checkUsage !== "function") process.exit(3); });`,
+    ],
+    { cwd: TOOLS_CONSUMER, encoding: "utf8" },
+  );
+  assert(imported.status === 0, `tools public import failed: ${output(imported)}`);
+
+  // Read-only doctor before connect (dependency discovery).
+  const doctorBefore = runToolsBin(["doctor", "--cwd", TOOLS_CONSUMER]);
+  assert(doctorBefore.status === 0, `doctor before connect failed: ${output(doctorBefore)}`);
+  assert(
+    /installed package/.test(output(doctorBefore)),
+    "doctor should report the installed package",
+  );
+
+  // Connect through the packed bin.
+  const connect = runToolsBin(["connect", systemA.packageName, "--cwd", TOOLS_CONSUMER]);
+  assert(connect.status === 0, `prism-ds connect failed: ${output(connect)}`);
+  const installedVersion = JSON.parse(
+    readFileSync(
+      join(TOOLS_CONSUMER, "node_modules", ...systemA.packageName.split("/"), "package.json"),
+      "utf8",
+    ),
+  ).version;
+  assert(
+    output(connect).includes(`${systemA.packageName}@${installedVersion}`),
+    "connect must report the exact version",
+  );
+
+  // Exact identity/version invariants via config + manifest.
+  const config = JSON.parse(
+    readFileSync(join(TOOLS_CONSUMER, ".design-system", "config.json"), "utf8"),
+  );
+  const manifest = JSON.parse(
+    readFileSync(
+      join(TOOLS_CONSUMER, "node_modules", ...systemA.packageName.split("/"), "design-system.json"),
+      "utf8",
+    ),
+  );
+  assert(config.package === systemA.packageName, "config package identity mismatch");
+  assert(config.manifest === "./manifest", "config manifest subpath mismatch");
+  assert(config.version === installedVersion, "config version must equal the installed version");
+  assert(
+    manifest.version === installedVersion,
+    "manifest version must equal the installed version",
+  );
+  assert(manifest.package === systemA.packageName, "manifest package identity mismatch");
+  assert(manifest.contract === "v2", "manifest contract must be v2");
+
+  // No copied source: only config + AGENTS in .design-system.
+  assert(
+    listFiles(join(TOOLS_CONSUMER, ".design-system")).join(",") === "AGENTS.md,config.json",
+    ".design-system must contain only config/AGENTS",
+  );
+  const rootAgents = readFileSync(join(TOOLS_CONSUMER, "AGENTS.md"), "utf8");
+  assert(rootAgents.includes("# External consumer"), "user content was not preserved");
+  assert(
+    rootAgents.includes("BEGIN @prism-system design system contract"),
+    "managed block was not appended",
+  );
+
+  // No consumer dependency/source/tools mutation.
+  assert(hashFile(consumerPackageJson) === packageHashBefore, "consumer package.json was mutated");
+  const dependencyAfter = JSON.parse(readFileSync(consumerPackageJson, "utf8")).dependencies;
+  assert(
+    JSON.stringify(dependencyAfter) === JSON.stringify(dependencyBefore),
+    "consumer dependencies were mutated",
+  );
+  assert(
+    hashTree(installedToolsDir) === toolsTreeBefore,
+    "the installed tools package was mutated",
+  );
+
+  // Doctor after connect.
+  const doctorAfter = runToolsBin(["doctor", "--cwd", TOOLS_CONSUMER]);
+  assert(doctorAfter.status === 0, `doctor after connect failed: ${output(doctorAfter)}`);
+  assert(/version\/identity invariants/.test(output(doctorAfter)), "doctor invariants missing");
+
+  // Strict usage: clean passes.
+  const cleanUsage = runToolsBin(["check-usage", "--cwd", TOOLS_CONSUMER]);
+  assert(
+    cleanUsage.status === 0,
+    `strict check-usage failed on clean source: ${output(cleanUsage)}`,
+  );
+
+  // Strict usage: a violation fails closed; --no-strict only warns.
+  const badPath = join(TOOLS_CONSUMER, "src", "bad.tsx");
+  writeFileSync(badPath, BAD_SOURCE);
+  const badUsage = runToolsBin(["check-usage", "--cwd", TOOLS_CONSUMER]);
+  assert(badUsage.status !== 0, "strict check-usage must fail closed on violations");
+  assert(/no-arbitrary-color/.test(output(badUsage)), "expected no-arbitrary-color diagnostic");
+  assert(
+    /no-visual-style-override/.test(output(badUsage)),
+    "expected no-visual-style-override diagnostic",
+  );
+  const relaxedUsage = runToolsBin(["check-usage", "--cwd", TOOLS_CONSUMER, "--no-strict"]);
+  assert(relaxedUsage.status === 0, "--no-strict must downgrade findings to warnings");
+  assert(/warning/.test(output(relaxedUsage)), "expected warning diagnostics");
+  rmSync(badPath);
+
+  // Repeated connect is idempotent and byte-stable.
+  const idempotentBefore = hashConsumer(TOOLS_CONSUMER);
+  const again = runToolsBin(["connect", "--cwd", TOOLS_CONSUMER]);
+  assert(again.status === 0, `repeated prism-ds connect failed: ${output(again)}`);
+  assert(/Already connected/.test(output(again)), "repeated connect should report no changes");
+  assert(hashConsumer(TOOLS_CONSUMER) === idempotentBefore, "repeated connect was not byte-stable");
+  assert(
+    hashTree(installedToolsDir) === toolsTreeBefore,
+    "repeated connect mutated the installed tools package",
+  );
+
+  // Consumer-owned source is untouched by connect/check-usage.
+  assert(
+    hashFile(join(TOOLS_CONSUMER, "src", "clean.tsx")) === cleanSourceHashBefore,
+    "consumer source changed",
+  );
+  assert(hashFile(consumerPackageJson) === packageHashBefore, "consumer package.json changed");
+
+  // Doctor fails closed with an actionable message when the package is missing.
+  const missing = join(TEMP, "external-tools-consumer-missing");
+  rmSync(missing, { recursive: true, force: true });
+  mkdirSync(join(missing, "node_modules"), { recursive: true });
+  writeFileSync(
+    join(missing, "package.json"),
+    `${JSON.stringify(
+      {
+        name: "external-tools-consumer-missing",
+        version: "0.0.0",
+        private: true,
+        dependencies: { [systemA.packageName]: "*" },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  const missingDoctor = runToolsBin(["doctor", "--cwd", missing]);
+  assert(missingDoctor.status !== 0, "doctor must fail closed when the package is missing");
+  assert(/not installed/.test(output(missingDoctor)), "doctor must give an actionable message");
+});
 
 runCheck("repository and registry were not mutated", () => {
   for (const file of REPO_MUTATION_WATCH) {

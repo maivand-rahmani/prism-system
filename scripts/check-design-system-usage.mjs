@@ -1,93 +1,45 @@
 #!/usr/bin/env node
 /**
- * `pnpm ds:check-usage` — deterministic strict usage validation for a configured
- * consumer repository. See `design-system-usage.mjs` for detection rules.
+ * Maintainer compatibility wrapper for `pnpm ds:check-usage` (not published).
+ *
+ * The strict usage checker is published in `@prism-system/tools` as
+ * `prism-ds check-usage`. This wrapper invokes that exact CLI implementation so
+ * the repository command and the external npm command can never drift.
  *
  * CLI: pnpm ds:check-usage --cwd <consumer-root> [--ignore <glob>]
+ *      [--strict|--no-strict]
  */
 
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { checkUsage, helpText } from "./design-system-usage.mjs";
+import { runCli } from "../packages/tools/src/cli.mjs";
 
-function parseArgs(argv) {
-  const options = { cwd: undefined, ignore: [], help: false };
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    if (arg === "--help" || arg === "-h") {
-      options.help = true;
-      continue;
-    }
-    if (arg.startsWith("--")) {
-      const equals = arg.indexOf("=");
-      const key = equals === -1 ? arg.slice(2) : arg.slice(2, equals);
-      let value;
-      if (equals !== -1) {
-        value = arg.slice(equals + 1);
-      } else {
-        value = argv[index + 1];
-        if (value === undefined || value.startsWith("--")) {
-          throw new Error(`Option --${key} requires a value.`);
-        }
-        index += 1;
-      }
-      if (key === "cwd") options.cwd = value;
-      else if (key === "ignore") options.ignore.push(value);
-      else throw new Error(`Unknown option: --${key}`);
-      continue;
-    }
-    throw new Error(`Unexpected argument: ${arg}`);
-  }
-  return options;
-}
-
-function report(result) {
-  if (result.findings.length > 0) {
-    for (const finding of result.findings) {
-      process.stdout.write(
-        `${finding.file}:${finding.line}:${finding.column}  ${finding.severity}  ` +
-          `${finding.ruleId}  ${finding.message}\n`,
-      );
-    }
-    process.stdout.write("\n");
-  }
-  process.stdout.write(`${result.summary}\n`);
-  if (result.ok) {
-    process.stdout.write("Usage check passed.\n");
-  } else {
-    process.stdout.write("Usage check failed.\n");
-    process.exitCode = 1;
-  }
-}
-
-function main(argv) {
-  let options;
-  try {
-    options = parseArgs(argv);
-  } catch (error) {
-    process.stderr.write(`${error.message}\n`);
-    process.exitCode = 1;
-    return;
-  }
-  if (options.help) {
-    process.stdout.write(helpText());
-    return;
-  }
-  let result;
-  try {
-    result = checkUsage({ cwd: options.cwd, ignore: options.ignore });
-  } catch (error) {
-    process.stdout.write(`Usage check failed\n\n  ${error.message}\n`);
-    process.exitCode = 1;
-    return;
-  }
-  report(result);
+/** The check-usage help text (kept for backward-compatible imports). */
+export function helpText() {
+  return [
+    "Usage: pnpm ds:check-usage --cwd <consumer-root> [options]",
+    "",
+    "Deterministically validate strict design-system usage in a configured consumer",
+    "repository. Discovers the design system through .design-system/config.json,",
+    "reads strict rules from the shipped design-system.json manifest, and scans only",
+    "TS/TSX files under the consumer root with the TypeScript AST.",
+    "",
+    "Options:",
+    "  --cwd <path>          Consumer root (required; never defaults to a repo root).",
+    "  --ignore <glob>       Additional root-relative ignore glob (repeatable).",
+    "  --strict              Force strict mode (overrides consumer config).",
+    "  --no-strict           Force non-strict mode (overrides consumer config).",
+    "  -h, --help            Show this help.",
+    "",
+    "The published equivalent is: prism-ds check-usage --cwd <consumer-root>.",
+    "",
+  ].join("\n");
 }
 
 const invokedDirectly =
   process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (invokedDirectly) {
-  main(process.argv.slice(2));
+  await runCli(["check-usage", ...process.argv.slice(2)]);
 }

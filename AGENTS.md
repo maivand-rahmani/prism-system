@@ -23,7 +23,8 @@ design-systems/
 ├── packages/
 │   ├── core/              # @prism-system/ui-core  — unstyled shared foundation
 │   ├── system-a/          # @prism-system/ui-system-a — test design system
-│   └── system-b/          # @prism-system/ui-system-b — test design system
+│   ├── system-b/          # @prism-system/ui-system-b — test design system
+│   └── tools/             # @prism-system/tools — published consumer tooling (prism-ds)
 └── docs/
     ├── v1/                # V1 foundation spec
     ├── v2/                # V2 spec (factory + skill + validation/integration/release tooling implemented)
@@ -39,6 +40,10 @@ design-systems/
 - Each `@prism-system/ui-system-*` package owns the **entire visual language**: tokens,
   styling, variants, states, and the concrete implementations of the shared
   component contract. It consumes `@prism-system/ui-core` and nothing from other systems.
+- `@prism-system/tools` is the **published consumer-side tooling** (the `prism-ds`
+  executable), not a UI package. It is independent of `@prism-system/ui-core` and every
+  design system, imports no repository source at runtime, and never installs packages,
+  edits consumer dependencies, copies source, or publishes.
 - `apps/*` only compose. They own layout, placement, and reference scenarios.
   They must not restyle, copy, or override package internals.
 
@@ -131,17 +136,22 @@ Wrong:
   this tooling never publishes a package.
 - **V3 — complete.** The consumer lifecycle is implemented and covered by a
   deterministic integration check (`pnpm ds:check-v3`), which validates and packs both
-  systems, builds and packs a freshly generated template package, and exercises
-  configure-only connect, exact version discovery, strict usage validation, and
-  idempotent connect against all three packed artifacts under `TEMP/v3/` — without
-  mutating the repository or publishing.
-  Consumer lifecycle tooling is available:
-  `pnpm ds:connect [package] --cwd <consumer-root>` configures an already-installed
+  systems, builds and packs a freshly generated template package, packs the published
+  `@prism-system/tools` artifact, and exercises connect, doctor, exact version discovery,
+  strict usage validation, and idempotent connect against the packed artifacts under
+  `TEMP/v3/` — without mutating the repository or publishing.
+  Consumer lifecycle tooling is available from two equivalent entry points:
+  `pnpm ds:connect [package] --cwd <consumer-root>` / `pnpm ds:check-usage --cwd
+<consumer-root>` in this repository, and the published `@prism-system/tools` package
+  (`prism-ds connect`, `prism-ds check-usage`, `prism-ds doctor`) for external npm
+  consumers. Both share one implementation; the root `scripts/*` commands are
+  compatibility wrappers. `prism-ds connect` configures an already-installed
   `@prism-system/ui-*` package (config-first discovery, exact version/identity checks,
   `.design-system/config.json` and `.design-system/AGENTS.md`, and an idempotent managed
   block in the consumer root `AGENTS.md`; it never installs packages, edits dependencies,
-  copies source, or mutates this repository). `pnpm ds:check-usage --cwd <consumer-root>`
-  performs deterministic strict usage validation against the shipped manifest rules.
+  copies source, or mutates this repository). `prism-ds check-usage` performs
+  deterministic strict usage validation against the shipped manifest rules, and
+  `prism-ds doctor` is read-only diagnostics.
   Every package ships a generated `design-system.json` manifest exposed at `./manifest`,
   with `package.json.version` authoritative across the runtime `DesignSystem.version`,
   the manifest, and the registry (`pnpm ds:sync-versions`). The agent-agnostic lifecycle
@@ -162,7 +172,7 @@ pnpm format         # format with Prettier
 pnpm changeset      # record a release change
 ```
 
-Design-system factory and lifecycle commands:
+Design-system factory and lifecycle commands (maintainer tooling in this repository):
 
 ```bash
 pnpm ds:create <id>                 # generate a new design-system package (V2)
@@ -171,10 +181,24 @@ pnpm ds:check <id>                  # validate a package
 pnpm ds:manifest <id> [--write]     # check/regenerate the shipped manifest
 pnpm ds:sync-versions [id] [--check] # align runtime/manifest/registry versions
 pnpm ds:release <id> --approved     # prepare a release (never versions/publishes)
-pnpm ds:connect --cwd <consumer-root>     # configure a consumer repository (V3)
-pnpm ds:check-usage --cwd <consumer-root> # strict usage validation (V3)
+pnpm ds:connect --cwd <consumer-root>     # configure a consumer repository (V3 wrapper)
+pnpm ds:check-usage --cwd <consumer-root> # strict usage validation (V3 wrapper)
 pnpm ds:check-v3                    # end-to-end V3 lifecycle check (packed artifacts)
 ```
+
+Published consumer tooling (installed from npm in a product repository, not needed to
+consume a released design system from here):
+
+```bash
+npx prism-ds connect [package] --cwd <consumer-root>     # configure the consumer
+npx prism-ds check-usage --cwd <consumer-root>           # strict usage validation
+npx prism-ds doctor [package] --cwd <consumer-root>      # read-only diagnostics
+```
+
+`pnpm ds:connect` and `pnpm ds:check-usage` are compatibility wrappers around the same
+implementation that ships as `@prism-system/tools`; `ds:create`, `ds:register`,
+`ds:check`, `ds:manifest`, `ds:sync-versions`, `ds:release`, and `ds:check-v3` remain
+maintainer-only and are not published.
 
 Lifecycle skills: `skills/create-design-system/SKILL.md` (create),
 `skills/use-design-system/SKILL.md` (consume), and

@@ -1,0 +1,39 @@
+{
+  "name": "@prism-system/tools",
+  "version": "1.0.0",
+  "description": "Consumer-side tooling for @prism-system design systems: configure a consumer (connect), diagnose it (doctor), and validate strict usage (check-usage). No postinstall, no network calls, no package installation.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/maivand-rahmani/prism-system"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "bin": {
+    "prism-ds": "./bin/prism-ds.mjs"
+  },
+  "exports": {
+    ".": "./src/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "AGENTS.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "clean": "rimraf .turbo"
+  },
+  "dependencies": {
+    "typescript": "5.9.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

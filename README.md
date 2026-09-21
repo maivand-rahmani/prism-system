@@ -30,7 +30,8 @@ design-systems/
 ├── packages/
 │   ├── core/              # @prism-system/ui-core — общий «фундамент» без стилей
 │   ├── system-a/          # @prism-system/ui-system-a — дизайн-система A
-│   └── system-b/          # @prism-system/ui-system-b — дизайн-система B
+│   ├── system-b/          # @prism-system/ui-system-b — дизайн-система B
+│   └── tools/             # @prism-system/tools — инструмент потребителя (prism-ds)
 ├── templates/design-system/   # шаблон для новых дизайн-систем
 ├── fixtures/consumer-product/ # пример продукта-потребителя
 ├── skills/                # инструкции для coding-агентов (create/use/modify)
@@ -60,7 +61,8 @@ pnpm lint
 - **Правила для coding-агентов:** [`AGENTS.md`](AGENTS.md)
 - **Пакеты:** [`packages/core/README.md`](packages/core/README.md),
   [`packages/system-a/README.md`](packages/system-a/README.md),
-  [`packages/system-b/README.md`](packages/system-b/README.md)
+  [`packages/system-b/README.md`](packages/system-b/README.md),
+  [`packages/tools/README.md`](packages/tools/README.md)
 - **Приложения:** [`apps/showcase/README.md`](apps/showcase/README.md),
   [`apps/reference-app/README.md`](apps/reference-app/README.md)
 - **Skills:** [`skills/create-design-system/SKILL.md`](skills/create-design-system/SKILL.md),
@@ -87,10 +89,36 @@ pnpm lint
 | `pnpm ds:manifest <id> [--write]`      | Проверить или пересобрать `design-system.json`                 |
 | `pnpm ds:sync-versions [id] [--check]` | Синхронизировать версии (runtime / манифест / реестр)          |
 | `pnpm ds:release <id> --approved`      | Подготовить релиз (никогда не версионирует и не публикует)     |
-| `pnpm ds:connect --cwd <root>`         | Настроить продукт-потребитель (V3)                             |
+| `pnpm ds:connect --cwd <root>`         | Настроить продукт-потребитель (V3, обёртка)                    |
 | `pnpm ds:check-usage --cwd <root>`     | Проверить строгое использование дизайн-системы в продукте (V3) |
 | `pnpm ds:check-v3`                     | Сквозная проверка жизненного цикла V3 на собранных пакетах     |
 | `pnpm changeset`                       | Описать изменение для следующего релиза                        |
+
+### Инструмент для продукта (npm): `@prism-system/tools`
+
+Команды `ds:create`, `ds:register`, `ds:check`, `ds:manifest`, `ds:sync-versions`,
+`ds:release` и `ds:check-v3` — это **инструменты мейнтейнера** этого репозитория. Они не
+публикуются и не нужны, чтобы пользоваться уже выпущенной дизайн-системой.
+
+Потребительская часть жизненного цикла публикуется отдельным пакетом
+[`@prism-system/tools`](packages/tools/README.md) с исполнимым файлом `prism-ds`.
+Продукт устанавливает его обычным способом и настраивается без доступа к этому
+репозиторию:
+
+```bash
+npm install --save-dev @prism-system/tools
+npm install @prism-system/ui-system-a
+
+npx prism-ds connect @prism-system/ui-system-a --cwd .
+npx prism-ds check-usage --cwd .
+npx prism-ds doctor --cwd .
+```
+
+`prism-ds` **ничего не устанавливает**, не делает сетевых вызовов, не меняет
+`package.json`/зависимости продукта, не копирует исходники и не читает этот
+репозиторий. Публичный контракт для продукта — это `.design-system/config.json`,
+манифест `<package>/manifest` и `AGENTS.md` установленного пакета. Команды
+`pnpm ds:connect` и `pnpm ds:check-usage` — это совместимые обёртки над тем же кодом.
 
 `pnpm version-packages-and-sync` и `pnpm version-packages` — это **автоматизация
 для CI**, а не обычная команда для начинающего. Их запускает workflow, когда

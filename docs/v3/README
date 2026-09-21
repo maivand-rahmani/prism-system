@@ -535,6 +535,11 @@ pnpm ds:connect @prism-system/ui-pulse
 
 Точное название команды может измениться.
 
+В реализованной версии потребительский инструмент публикуется отдельным npm-пакетом
+`@prism-system/tools` с исполняемым файлом `prism-ds` (см. раздел «Published consumer
+tooling» в конце документа). Команда `pnpm ds:connect` остаётся совместимой обёрткой
+мейнтейнера в этом репозитории.
+
 Команда может создать:
 
 ```text
@@ -1016,3 +1021,43 @@ USE & EVOLVE
 > The Design System owns the visual language.
 
 Coding-agent должен развивать продукт внутри этого контракта, а не заново придумывать дизайн на каждой новой странице.
+
+---
+
+# Published consumer tooling (`@prism-system/tools`)
+
+Потребительская часть V3 реализована как отдельный публикуемый пакет
+`@prism-system/tools` с исполняемым файлом `prism-ds`. Это **не** UI-пакет и не
+`@prism-system/ui-core`; он не зависит ни от одной дизайн-системы.
+
+Установка и использование в продукте (только npm, без доступа к этому репозиторию):
+
+```bash
+npm install @prism-system/ui-system-a
+npm install --save-dev @prism-system/tools
+
+npx prism-ds connect @prism-system/ui-system-a --cwd .
+npx prism-ds check-usage --cwd .
+npx prism-ds doctor --cwd .
+```
+
+Гарантии пакета:
+
+```text
+no postinstall
+no network calls
+no package installation
+no dependency/package.json mutation in the consumer
+no source copying
+no access to the design-systems source repository at runtime
+```
+
+Публичный контракт потребителя: `.design-system/config.json`, манифест
+`<package>/manifest` и `AGENTS.md` установленного пакета. Пакет и его манифест
+разрешаются через Node package resolution; неизвестные версии схемы манифеста/конфига
+приводят к fail-closed.
+
+Команды `pnpm ds:connect` и `pnpm ds:check-usage` в этом репозитории — совместимые
+обёртки над той же реализацией. Остальные `ds:*` команды (`ds:create`, `ds:register`,
+`ds:check`, `ds:manifest`, `ds:sync-versions`, `ds:release`, `ds:check-v3`) остаются
+инструментами мейнтейнера и не публикуются.

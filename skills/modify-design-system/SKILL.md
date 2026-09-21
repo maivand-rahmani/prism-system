@@ -25,6 +25,12 @@ a mini design system inside one component.
 **This repository contains no AI runtime.** The user runs their own coding agent; this
 skill is the process that agent follows.
 
+This skill operates on the design-systems source repository: it edits `packages/<id>`,
+updates the generated manifest, and prepares a Changeset. It is **maintainer-only**.
+External products that merely consume a released package never need this repository; they
+use the published `@prism-system/tools` package (`prism-ds connect`, `prism-ds
+check-usage`, `prism-ds doctor`) and the installed package's `AGENTS.md`/manifest.
+
 ## 1. Read before you write
 
 Always inspect the existing system first. Do not invent a new visual language.

@@ -2,8 +2,9 @@
 
 This directory is managed by [Changesets](https://github.com/changesets/changesets).
 
-Every published package in this monorepo (`@prism-system/ui-core`, `@prism-system/ui-system-*`)
-uses Changesets for versioning and release notes.
+Every published package in this monorepo (`@prism-system/ui-core`, `@prism-system/ui-system-*`,
+and the consumer tooling `@prism-system/tools`) uses Changesets for versioning and release
+notes.
 
 ## Workflow
 

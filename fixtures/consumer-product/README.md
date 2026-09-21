@@ -30,6 +30,11 @@ pnpm ds:connect @prism-system/ui-system-a --cwd TEMP/v3/<scratch>
 and appends a managed block to `AGENTS.md`. It never installs packages, edits
 `package.json`, copies component source, or mutates the design-system repository.
 
+A real external product does not need this repository at all: it installs the
+published `@prism-system/tools` package and runs `npx prism-ds connect --cwd .`
+(see `packages/tools/README.md`). This fixture uses the repository wrapper only
+to exercise packed artifacts during maintainer validation.
+
 Because this fixture declares both supported systems in `dependencies`,
 dependency discovery deliberately fails closed with "multiple candidates" unless
 you pass a package explicitly or add `.design-system/config.json`.
