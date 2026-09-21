@@ -27,7 +27,7 @@ design-systems/
 └── docs/
     ├── v1/                # V1 foundation spec
     ├── v2/                # V2 spec (factory + skill + validation/integration/release tooling implemented)
-    └── v3/                # V3 consumer lifecycle spec (planned, not implemented)
+    └── v3/                # V3 consumer lifecycle spec (consumer tooling + lifecycle skills implemented)
 ```
 
 ## Package boundaries
@@ -129,10 +129,20 @@ Wrong:
   fourteen-component contract is the only supported contract, and both test systems now
   implement it. Versioning and publishing remain explicit Changesets and human steps;
   this tooling never publishes a package.
-- **V3 — not implemented.** V3 lifecycle tooling (consumer/manifest tooling, strict-mode
-  usage checks) lives in `docs/v3` as a specification only.
-- Do not scaffold V2 or V3 tooling beyond the implemented V2 factory tooling unless
-  explicitly asked.
+- **V3 — implemented through Phase 4.** Consumer lifecycle tooling is available:
+  `pnpm ds:connect [package] --cwd <consumer-root>` configures an already-installed
+  `@prism-system/ui-*` package (config-first discovery, exact version/identity checks,
+  `.design-system/config.json` and `.design-system/AGENTS.md`, and an idempotent managed
+  block in the consumer root `AGENTS.md`; it never installs packages, edits dependencies,
+  copies source, or mutates this repository). `pnpm ds:check-usage --cwd <consumer-root>`
+  performs deterministic strict usage validation against the shipped manifest rules.
+  Every package ships a generated `design-system.json` manifest exposed at `./manifest`,
+  with `package.json.version` authoritative across the runtime `DesignSystem.version`,
+  the manifest, and the registry (`pnpm ds:sync-versions`). The agent-agnostic lifecycle
+  skills live in `skills/`: `create-design-system` (V2), `use-design-system`, and
+  `modify-design-system`. Versioning and publishing remain explicit Changesets and human
+  steps; this tooling never publishes a package.
+- Do not scaffold V2 or V3 tooling beyond what is implemented unless explicitly asked.
 
 ## Commands
 
@@ -145,3 +155,20 @@ pnpm typecheck      # typecheck all packages
 pnpm format         # format with Prettier
 pnpm changeset      # record a release change
 ```
+
+Design-system factory and lifecycle commands:
+
+```bash
+pnpm ds:create <id>                 # generate a new design-system package (V2)
+pnpm ds:register <id>               # register/sync a package in the registry
+pnpm ds:check <id>                  # validate a package
+pnpm ds:manifest <id> [--write]     # check/regenerate the shipped manifest
+pnpm ds:sync-versions [id] [--check] # align runtime/manifest/registry versions
+pnpm ds:release <id> --approved     # prepare a release (never versions/publishes)
+pnpm ds:connect --cwd <consumer-root>     # configure a consumer repository (V3)
+pnpm ds:check-usage --cwd <consumer-root> # strict usage validation (V3)
+```
+
+Lifecycle skills: `skills/create-design-system/SKILL.md` (create),
+`skills/use-design-system/SKILL.md` (consume), and
+`skills/modify-design-system/SKILL.md` (evolve).

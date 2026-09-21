@@ -103,3 +103,6 @@ run `pnpm ds:sync-versions` from the monorepo root to align the runtime
 the registry entry in `config/design-systems.json`. `pnpm ds:sync-versions
 --check` reports drift without writing, and `pnpm ds:check system-a` fails
 closed on any remaining mismatch.
+
+For the repository lifecycle workflow, see `skills/use-design-system/SKILL.md`
+(consume) and `skills/modify-design-system/SKILL.md` (evolve).

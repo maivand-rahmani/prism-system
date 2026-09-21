@@ -18,6 +18,18 @@ repository tooling, with the visual language implemented inside that package.
 or built-in agent. The user runs their own coding agent; this skill is the process that
 agent follows.
 
+## Related lifecycle skills
+
+This repository has three agent-agnostic lifecycle skills. Follow the one that matches
+the task; do not duplicate their content here.
+
+- [`../create-design-system/SKILL.md`](../create-design-system/SKILL.md) — create a new
+  design system (this document).
+- [`../use-design-system/SKILL.md`](../use-design-system/SKILL.md) — consume an installed
+  design system correctly inside a product repository.
+- [`../modify-design-system/SKILL.md`](../modify-design-system/SKILL.md) — safely evolve
+  an existing design system.
+
 ## Repository architecture
 
 ```text
