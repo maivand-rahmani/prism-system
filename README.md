@@ -1,50 +1,51 @@
 # Maivand Design Systems
 
-A central monorepo for building **portable design systems**. The visual language of a
-product is created here, validated in isolation, and then consumed by real products as
-an npm package.
+Монорепозиторий, в котором **дизайн-системы создаются и проверяются отдельно от
+продуктов**, а затем подключаются в реальные продукты как обычный npm-пакет.
 
-## Structure
+Простыми словами: здесь живёт «внешний вид» (цвета, шрифты, отступы, состояния,
+анимации), а не бизнес-логика продукта. Продукт берёт готовую дизайн-систему и
+собирает из неё свои экраны.
+
+## Аналогия
+
+- `@prism-system/ui-core` — **фундамент и правила**. Он говорит, какие компоненты
+  обязаны быть (14 штук) и какого они типа. Но в нём нет ни одного цвета или стиля.
+- `@prism-system/ui-system-a` / `@prism-system/ui-system-b` — **готовые наборы
+  внешнего вида**. Здесь лежат цвета, шрифты, отступы, радиусы, тени, состояния и
+  анимации. Внешний вид A и B разный, а набор компонентов одинаковый.
+- `apps/showcase` — **витрина**. Показывает каждый компонент по отдельности.
+- `apps/reference-app` — **тестовая комната**. Один и тот же интерфейс собирается
+  то на System A, то на System B, чтобы различия были видны честно.
+- Продукт — **покупатель**. Он устанавливает пакет и пользуется готовым внешним
+  видом, а не переделывает его у себя.
+
+## Структура
 
 ```text
 design-systems/
 ├── apps/
-│   ├── showcase/          # component laboratory
-│   └── reference-app/     # fixed composition test bed with system switcher
+│   ├── showcase/          # витрина компонентов
+│   └── reference-app/     # тестовая сборка интерфейса
 ├── packages/
-│   ├── core/              # @prism-system/ui-core — unstyled shared foundation
-│   ├── system-a/          # @prism-system/ui-system-a — V2 test design system
-│   └── system-b/          # @prism-system/ui-system-b — V2 test design system
-└── docs/                  # V1 (archived) / V2 (active) / V3 (planned)
+│   ├── core/              # @prism-system/ui-core — общий «фундамент» без стилей
+│   ├── system-a/          # @prism-system/ui-system-a — дизайн-система A
+│   └── system-b/          # @prism-system/ui-system-b — дизайн-система B
+├── templates/design-system/   # шаблон для новых дизайн-систем
+├── fixtures/consumer-product/ # пример продукта-потребителя
+├── skills/                # инструкции для coding-агентов (create/use/modify)
+├── scripts/               # детерминированные команды (ds:*)
+├── config/                # реестр дизайн-систем
+├── schemas/               # JSON-схемы манифестов и конфигов
+└── docs/                  # спецификации V1/V2/V3 и этот гайд
 ```
 
-## How it fits together
+## Требования
 
-```text
-apps/*   ──────────►   @prism-system/ui-system-*   ──────────►   @prism-system/ui-core
+- Node.js `>= 20.19.0`
+- pnpm `>= 10` (в репозитории зафиксирован `pnpm@10.34.5`)
 
-layout,                colors, tokens,                      contracts, types,
-composition            variants, styles                     utilities, a11y, hooks
-```
-
-- The supported contract is exactly the fourteen V2 components, in canonical order:
-  `Button`, `Input`, `Textarea`, `Card`, `Badge`, `Checkbox`, `RadioGroup`, `Switch`,
-  `Select`, `Tabs`, `Dialog`, `DropdownMenu`, `Tooltip`, `Separator`.
-- `@prism-system/ui-core` is unstyled. It defines that shared contract plus common
-  utilities, accessibility helpers, and hooks. The historical eight-component V1
-  contract (`Button`, `Input`, `Card`, `Badge`, `Checkbox`, `Tabs`, `Dialog`, `Select`)
-  is archived and unsupported.
-- Each design system implements the V2 contract with its own complete visual language;
-  System A and System B are now V2.
-- Showcase inspects a system component by component; Reference App proves that the
-  same interface works when rendered with `system-a` or `system-b`.
-
-## Requirements
-
-- Node.js >= 20.19
-- pnpm >= 10 (`corepack enable` or install pnpm globally)
-
-## Getting started
+## Первый запуск
 
 ```bash
 pnpm install
@@ -53,58 +54,58 @@ pnpm typecheck
 pnpm lint
 ```
 
-## Workspace commands
+## Что почитать дальше
 
-| Command                 | Description                               |
-| ----------------------- | ----------------------------------------- |
-| `pnpm dev`              | Run all `dev` targets through Turborepo   |
-| `pnpm build`            | Build every package (dependencies first)  |
-| `pnpm typecheck`        | Typecheck every package                   |
-| `pnpm lint`             | Lint every package                        |
-| `pnpm format`           | Format the repository with Prettier       |
-| `pnpm ds:create`        | Generate a new design-system package      |
-| `pnpm ds:register`      | Register and sync a system into the apps  |
-| `pnpm ds:check`         | Validate a registered design system       |
-| `pnpm ds:release`       | Prepare a release (never version/publish) |
-| `pnpm changeset`        | Describe a change for the next release    |
-| `pnpm version-packages` | Apply pending changesets                  |
-| `pnpm release`          | Build and publish packages                |
+- **Подробный гайд для человека:** [`docs/guide.md`](docs/guide.md)
+- **Правила для coding-агентов:** [`AGENTS.md`](AGENTS.md)
+- **Пакеты:** [`packages/core/README.md`](packages/core/README.md),
+  [`packages/system-a/README.md`](packages/system-a/README.md),
+  [`packages/system-b/README.md`](packages/system-b/README.md)
+- **Приложения:** [`apps/showcase/README.md`](apps/showcase/README.md),
+  [`apps/reference-app/README.md`](apps/reference-app/README.md)
+- **Skills:** [`skills/create-design-system/SKILL.md`](skills/create-design-system/SKILL.md),
+  [`skills/use-design-system/SKILL.md`](skills/use-design-system/SKILL.md),
+  [`skills/modify-design-system/SKILL.md`](skills/modify-design-system/SKILL.md)
+- **Спецификации:** [`docs/v1/README`](docs/v1/README),
+  [`docs/v2/README`](docs/v2/README), [`docs/v3/README`](docs/v3/README)
+- **Пример продукта-потребителя:**
+  [`fixtures/consumer-product/README.md`](fixtures/consumer-product/README.md)
 
-## Packages
+## Команды
 
-| Package                     | Description                                               |
-| --------------------------- | --------------------------------------------------------- |
-| `@prism-system/ui-core`     | Unstyled contracts, types, utilities, a11y helpers, hooks |
-| `@prism-system/ui-system-a` | Test design system A (calm / minimal)                     |
-| `@prism-system/ui-system-b` | Test design system B (contrast / expressive)              |
+| Команда                                | Что делает                                                     |
+| -------------------------------------- | -------------------------------------------------------------- |
+| `pnpm install`                         | Установить зависимости workspace                               |
+| `pnpm dev`                             | Запустить все dev-цели через Turborepo                         |
+| `pnpm build`                           | Собрать все пакеты (сначала зависимости)                       |
+| `pnpm typecheck`                       | Проверить типы во всех пакетах                                 |
+| `pnpm lint`                            | Запустить линтер                                               |
+| `pnpm format`                          | Отформатировать репозиторий Prettier                           |
+| `pnpm ds:create <id>`                  | Создать новую дизайн-систему из шаблона                        |
+| `pnpm ds:register <id>`                | Зарегистрировать систему и синхронизировать приложения         |
+| `pnpm ds:check <id>`                   | Проверить пакет дизайн-системы                                 |
+| `pnpm ds:manifest <id> [--write]`      | Проверить или пересобрать `design-system.json`                 |
+| `pnpm ds:sync-versions [id] [--check]` | Синхронизировать версии (runtime / манифест / реестр)          |
+| `pnpm ds:release <id> --approved`      | Подготовить релиз (никогда не версионирует и не публикует)     |
+| `pnpm ds:connect --cwd <root>`         | Настроить продукт-потребитель (V3)                             |
+| `pnpm ds:check-usage --cwd <root>`     | Проверить строгое использование дизайн-системы в продукте (V3) |
+| `pnpm ds:check-v3`                     | Сквозная проверка жизненного цикла V3 на собранных пакетах     |
+| `pnpm changeset`                       | Описать изменение для следующего релиза                        |
 
-See each package's `README.md` and `AGENTS.md` for details.
+`pnpm version-packages-and-sync` и `pnpm version-packages` — это **автоматизация
+для CI**, а не обычная команда для начинающего. Их запускает workflow, когда
+готовит version PR.
 
-## Roadmap
+## Версионирование и публикация
 
-- **V1 — Foundation (complete; archived, unsupported):** portable design systems,
-  Showcase, Reference App, and the npm package/release setup. V1's eight-component
-  contract is historical only. See `docs/v1`.
-- **V2 — Creation (complete through Phase 4):** the repeatable factory workflow for
-  creating new design systems. Implemented: the canonical template
-  (`templates/design-system`), the deterministic generators `pnpm ds:create` and
-  `pnpm ds:register`, the portable `create-design-system` skill with its Design Interview
-  and Design Brief schema, deterministic validation (`pnpm ds:check`), manifest-driven
-  automatic Showcase / Reference App integration, and fail-closed release preparation
-  (`pnpm ds:release`). See `docs/v2`.
-- **V3 — Consumption & lifecycle (planned, specification only):** using and evolving
-  systems in real products. See `docs/v3`.
+Версионирование и публикация пакетов в npm остаются **ручными шагами,
+управляемыми человеком** через [Changesets](https://github.com/changesets/changesets):
 
-V1 is archived and unsupported: its eight-component contract is no longer accepted. The
-only supported contract is the fourteen-component V2 contract. V2 factory tooling is
-implemented through Phase 4: the canonical template, `ds:create`/`ds:register`, the
-portable skill with its Design Interview and schema, `pnpm ds:check`, automatic Showcase /
-Reference App integration, and `pnpm ds:release` preparation. This tooling never versions
-or publishes a package by itself — versioning and publishing remain explicit Changesets
-and human steps. V2 introduces no AI runtime: the coding agent stays external. V3 is a
-specification only and is intentionally **not implemented yet**.
+1. автор добавляет Changeset (`pnpm changeset`);
+2. CI готовит version PR (в нём версии синхронизируются);
+3. после ревью PR сливается;
+4. публикация запускается отдельным workflow в защищённом окружении.
 
-## Releases
-
-Versioning and publishing are handled by [Changesets](https://github.com/changesets/changesets).
-See `.changeset/README.md`.
+Локальные команды (`ds:release`, `ds:check`, `ds:check-v3`) **никогда не
+публикуют и не версионируют** пакеты сами. Подробнее — в
+[`docs/guide.md`](docs/guide.md) и [`.changeset/README.md`](.changeset/README.md).
