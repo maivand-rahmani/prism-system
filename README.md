@@ -102,23 +102,39 @@ pnpm lint
 
 Потребительская часть жизненного цикла публикуется отдельным пакетом
 [`@prism-system/tools`](packages/tools/README.md) с исполнимым файлом `prism-ds`.
-Продукт устанавливает его обычным способом и настраивается без доступа к этому
-репозиторию:
+Продукт устанавливает его обычным способом и работает без доступа к этому репозиторию:
 
 ```bash
 npm install --save-dev @prism-system/tools
 npm install @prism-system/ui-system-a
 
+# найти и изучить опубликованные системы (сеть, только чтение)
+npx prism-ds search "calm editorial"
+npx prism-ds info @prism-system/ui-system-a --json
+
+# явно установить и подключить (install/use меняют зависимости продукта)
+npx prism-ds use @prism-system/ui-system-a --cwd . --check-usage
+
+# офлайн-команды
 npx prism-ds connect @prism-system/ui-system-a --cwd .
 npx prism-ds check-usage --cwd .
 npx prism-ds doctor --cwd .
 ```
 
-`prism-ds` **ничего не устанавливает**, не делает сетевых вызовов, не меняет
-`package.json`/зависимости продукта, не копирует исходники и не читает этот
-репозиторий. Публичный контракт для продукта — это `.design-system/config.json`,
-манифест `<package>/manifest` и `AGENTS.md` установленного пакета. Команды
-`pnpm ds:connect` и `pnpm ds:check-usage` — это совместимые обёртки над тем же кодом.
+Границы возможностей `prism-ds`:
+
+- `search` и `info` — **явная сеть, только чтение**: они ничего не устанавливают, не
+  пишут в продукт и не трогают этот репозиторий;
+- `install` и `use` — **единственные команды, которые меняют зависимости продукта**;
+  они сначала проверяют точную версию в реестре, затем запускают фиксированную команду
+  npm/pnpm с `--ignore-scripts` и без пользовательских аргументов, после чего
+  проверяют установленный пакет;
+- `connect`, `check-usage` и `doctor` — **офлайн**: не устанавливают пакеты, не меняют
+  зависимости, не копируют исходники и не читают этот репозиторий.
+
+Публичный контракт для продукта — это `.design-system/config.json`, манифест
+`<package>/manifest` и `AGENTS.md` установленного пакета. Команды `pnpm ds:connect` и
+`pnpm ds:check-usage` — это совместимые обёртки над тем же кодом.
 
 `pnpm version-packages-and-sync` и `pnpm version-packages` — это **автоматизация
 для CI**, а не обычная команда для начинающего. Их запускает workflow, когда

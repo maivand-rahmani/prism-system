@@ -21,9 +21,10 @@
  * CLI: pnpm ds:check-v3
  */
 
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  chmodSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -34,6 +35,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { dirname, join, relative, sep } from "node:path";
 
@@ -77,6 +79,12 @@ const TOOLS_PACKAGE_NAME = "@prism-system/tools";
 const TOOLS_PACKAGE_DIR = join(ROOT, "packages", "tools");
 const TOOLS_EXTRACT = join(EXTRACT_DIR, "tools");
 const TOOLS_CONSUMER = join(TEMP, "external-consumer");
+
+const CATALOG_DIR = join(TEMP, "catalog");
+const CATALOG_CONSUMER = join(CATALOG_DIR, "consumer");
+const CATALOG_USE_CONSUMER = join(CATALOG_DIR, "use-consumer");
+const FAKE_BIN_DIR = join(CATALOG_DIR, "fake-bin");
+const FAKE_ARGS_FILE = join(CATALOG_DIR, "fake-args.txt");
 
 const REPO_MUTATION_WATCH = [
   "config/design-systems.json",
@@ -198,6 +206,17 @@ function assert(condition, message) {
 function runCheck(name, fn) {
   try {
     fn();
+    results.push({ name, ok: true });
+    log(`PASS ${name}`);
+  } catch (error) {
+    results.push({ name, ok: false, error: error.message });
+    log(`FAIL ${name}: ${error.message}`);
+  }
+}
+
+async function runAsyncCheck(name, fn) {
+  try {
+    await fn();
     results.push({ name, ok: true });
     log(`PASS ${name}`);
   } catch (error) {
@@ -702,6 +721,618 @@ runCheck("packed @prism-system/tools drives an isolated external consumer", () =
   assert(missingDoctor.status !== 0, "doctor must fail closed when the package is missing");
   assert(/not installed/.test(output(missingDoctor)), "doctor must give an actionable message");
 });
+
+/* -------------------------------------------------------------------------- */
+/* Catalog boundary: packed search/info/install/use against a local registry  */
+/* -------------------------------------------------------------------------- */
+
+function sha512Base64(buffer) {
+  return `sha512-${createHash("sha512").update(buffer).digest("base64")}`;
+}
+
+/** Create a fake npm/pnpm shim that records its fixed arguments and exits 0. */
+function writeFakeManager(manager) {
+  if (process.platform === "win32") {
+    const file = join(FAKE_BIN_DIR, `${manager}.cmd`);
+    writeFileSync(
+      file,
+      ["@echo off", `echo ${manager} %* >>"%FAKE_ARGS_FILE%"`, "exit /b 0", ""].join("\r\n"),
+    );
+    return file;
+  }
+  const file = join(FAKE_BIN_DIR, manager);
+  writeFileSync(file, `#!/bin/sh\nprintf '%s ' '${manager}' "$@" > "$FAKE_ARGS_FILE"\n`);
+  chmodSync(file, 0o755);
+  return file;
+}
+
+function withFakeManagerEnv() {
+  const delimiter = process.platform === "win32" ? ";" : ":";
+  return {
+    ...process.env,
+    PATH: `${FAKE_BIN_DIR}${delimiter}${process.env.PATH ?? ""}`,
+    FAKE_ARGS_FILE,
+  };
+}
+
+function readFakeArgs() {
+  if (!existsSync(FAKE_ARGS_FILE)) return [];
+  const text = readFileSync(FAKE_ARGS_FILE, "utf8").trim();
+  if (text === "") return [];
+  return text.split(/\s+/);
+}
+
+function runPackedTools(args, options = {}) {
+  const bin = join(toolsExtractedDir, toolsPackageJson.bin["prism-ds"].replace(/^\.\//, ""));
+  assert(existsSync(bin), `packed prism-ds bin is missing at ${bin}`);
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [bin, ...args], {
+      cwd: options.cwd ?? ROOT,
+      env: options.env ?? process.env,
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.on("close", (status) => resolve({ status, stdout, stderr }));
+  });
+}
+
+function makeCatalogConsumer(
+  name,
+  { packageManager, lockfiles = [], installSystemA = false, agents } = {},
+) {
+  const dir = join(CATALOG_DIR, name);
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(join(dir, "src"), { recursive: true });
+  const pkg = { name, version: "0.0.0", private: true };
+  if (packageManager !== undefined) pkg.packageManager = packageManager;
+  writeFileSync(join(dir, "package.json"), `${JSON.stringify(pkg, null, 2)}\n`);
+  writeFileSync(join(dir, "AGENTS.md"), agents ?? "# Catalog consumer\n\nUser content.\n");
+  writeFileSync(join(dir, "src", "clean.tsx"), CLEAN_SOURCE);
+  for (const lockfile of lockfiles) writeFileSync(join(dir, lockfile), "");
+  if (installSystemA) {
+    const systemA = targets.find((target) => target.id === "system-a");
+    installPackedPackage(dir, systemA.packageName, systemA.extractedPackageDir);
+  }
+  return dir;
+}
+
+/** Start an in-process HTTP registry fixture serving packed System A/B. */
+async function startRegistryFixture() {
+  const systemA = targets.find((target) => target.id === "system-a");
+  const systemB = targets.find((target) => target.id === "system-b");
+  const entries = [systemA, systemB].map((target) => {
+    const pkg = readJsonFile(join(target.extractedPackageDir, "package.json"));
+    const tarballPath = join(
+      PACK_DIR,
+      readdirSync(PACK_DIR).find((name) => name.includes(target.id) && name.endsWith(".tgz")),
+    );
+    const tarball = readFileSync(tarballPath);
+    return {
+      packageName: target.packageName,
+      version: pkg.version,
+      tarball,
+      integrity: sha512Base64(tarball),
+      tarballName: `${target.packageName.replace(/[@/]/g, "_")}.tgz`,
+    };
+  });
+
+  // A tarball without package/design-system.json, to prove fail-closed extraction.
+  const missingDir = join(CATALOG_DIR, "missing-manifest");
+  mkdirSync(join(missingDir, "package"), { recursive: true });
+  writeFileSync(
+    join(missingDir, "package", "package.json"),
+    `${JSON.stringify({ name: systemA.packageName, version: entries[0].version }, null, 2)}\n`,
+  );
+  const missingTarballPath = join(CATALOG_DIR, "missing.tgz");
+  const missingTar = runTar(["-czf", missingTarballPath, "-C", missingDir, "package"]);
+  assert(
+    missingTar.status === 0,
+    `could not build the missing-manifest tarball: ${output(missingTar)}`,
+  );
+  const missingTarball = readFileSync(missingTarballPath);
+
+  // Malformed-manifest tarballs that previously could pass partial validation.
+  function buildManifestTarball(name, mutate) {
+    const baseManifest = readJsonFile(join(systemA.extractedPackageDir, "design-system.json"));
+    const basePackage = readJsonFile(join(systemA.extractedPackageDir, "package.json"));
+    const manifest = JSON.parse(JSON.stringify(baseManifest));
+    mutate(manifest);
+    const dir = join(CATALOG_DIR, name);
+    mkdirSync(join(dir, "package"), { recursive: true });
+    writeFileSync(
+      join(dir, "package", "package.json"),
+      `${JSON.stringify({ name: basePackage.name, version: basePackage.version }, null, 2)}\n`,
+    );
+    writeFileSync(
+      join(dir, "package", "design-system.json"),
+      `${JSON.stringify(manifest, null, 2)}\n`,
+    );
+    const tarballPath = join(CATALOG_DIR, `${name}.tgz`);
+    const tar = runTar(["-czf", tarballPath, "-C", dir, "package"]);
+    assert(tar.status === 0, `could not build the ${name} tarball: ${output(tar)}`);
+    const bytes = readFileSync(tarballPath);
+    return { tarball: bytes, integrity: sha512Base64(bytes) };
+  }
+
+  const malformedTarballs = {
+    "missing-fields": buildManifestTarball("missing-fields", (manifest) => {
+      delete manifest.components.Button.variants;
+    }),
+    "unknown-field": buildManifestTarball("unknown-field", (manifest) => {
+      manifest.unexpected = true;
+      manifest.components.Button.extra = [];
+    }),
+  };
+
+  const searchObjects = entries.map((entry) => ({
+    package: {
+      name: entry.packageName,
+      version: entry.version,
+      description: `Lifecycle fixture for ${entry.packageName}`,
+      keywords: ["lifecycle", "design-system"],
+    },
+  }));
+  searchObjects.push({ package: { name: "react", version: "19.0.0" } });
+  searchObjects.push({ package: { name: "@prism-system/ui-core", version: "1.0.0" } });
+  searchObjects.push({ package: { name: "@prism-system/tools", version: "1.0.0" } });
+
+  const state = { requests: [] };
+  const server = createServer((request, response) => {
+    let pathname;
+    try {
+      pathname = decodeURIComponent(new URL(request.url, "http://localhost").pathname);
+    } catch {
+      response.statusCode = 400;
+      response.end("bad request");
+      return;
+    }
+    state.requests.push(pathname);
+
+    if (pathname === "/-/v1/search") {
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({ objects: searchObjects }));
+      return;
+    }
+
+    const match =
+      /^\/(?:(happy|bad-integrity|missing-manifest|bad-export|missing-fields|unknown-field)\/)?@prism-system\/ui-system-(a|b)$/.exec(
+        pathname,
+      );
+    if (match) {
+      const prefix = match[1] ?? "happy";
+      const entry = entries.find((candidate) => candidate.packageName.endsWith(`-${match[2]}`));
+      const metadata = {
+        name: entry.packageName,
+        version: entry.version,
+        prismSystem: { contract: "v2" },
+        exports: { "./manifest": "./design-system.json" },
+        dist: {
+          tarball: `${registryBase}/tarballs/${entry.tarballName}`,
+          integrity: entry.integrity,
+        },
+      };
+      if (prefix === "bad-integrity") {
+        metadata.dist.integrity = sha512Base64(Buffer.from("wrong"));
+      } else if (prefix === "missing-manifest") {
+        metadata.dist.tarball = `${registryBase}/missing.tgz`;
+        metadata.dist.integrity = sha512Base64(missingTarball);
+      } else if (prefix === "bad-export") {
+        metadata.exports = { ".": "./index.js" };
+      } else if (prefix === "missing-fields" || prefix === "unknown-field") {
+        metadata.dist.tarball = `${registryBase}/${prefix}.tgz`;
+        metadata.dist.integrity = malformedTarballs[prefix].integrity;
+      }
+      response.setHeader("content-type", "application/json");
+      response.end(
+        JSON.stringify({
+          name: entry.packageName,
+          "dist-tags": { latest: entry.version },
+          versions: { [entry.version]: metadata },
+        }),
+      );
+      return;
+    }
+
+    if (pathname.startsWith("/tarballs/")) {
+      const name = pathname.slice("/tarballs/".length);
+      const entry = entries.find((candidate) => candidate.tarballName === name);
+      if (entry) {
+        response.end(entry.tarball);
+        return;
+      }
+    }
+    if (pathname === "/missing.tgz") {
+      response.end(missingTarball);
+      return;
+    }
+    if (pathname === "/missing-fields.tgz" || pathname === "/unknown-field.tgz") {
+      response.end(malformedTarballs[pathname.slice(1, -".tgz".length)].tarball);
+      return;
+    }
+    response.statusCode = 404;
+    response.end("not found");
+  });
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const registryBase = `http://127.0.0.1:${server.address().port}`;
+  return { server, registryBase, state, entries, missingTarball };
+}
+
+const toolsSrcHashBefore = hashTree(join(TOOLS_PACKAGE_DIR, "src"));
+
+let fixture = null;
+try {
+  rmSync(CATALOG_DIR, { recursive: true, force: true });
+  mkdirSync(CATALOG_DIR, { recursive: true });
+  mkdirSync(FAKE_BIN_DIR, { recursive: true });
+  writeFakeManager("npm");
+  writeFakeManager("pnpm");
+  fixture = await startRegistryFixture();
+
+  await runAsyncCheck("packed search lists only supported styles and mutates nothing", async () => {
+    const consumer = makeCatalogConsumer("search", { packageManager: "npm@10.0.0" });
+    const before = hashTree(consumer);
+    const json = await runPackedTools(["search", "--registry", fixture.registryBase, "--json"]);
+    assert(json.status === 0, `search --json failed: ${output(json)}`);
+    const parsed = JSON.parse(json.stdout);
+    const names = parsed.results.map((entry) => entry.name);
+    assert(
+      names.join(",") === "@prism-system/ui-system-a,@prism-system/ui-system-b",
+      `unexpected search results: ${names.join(",")}`,
+    );
+    assert(parsed.registry === fixture.registryBase, "search registry mismatch");
+    for (const entry of parsed.results) {
+      assert(/^\d+\.\d+\.\d+/.test(entry.version), "exact result version");
+      assert(Array.isArray(entry.keywords), "allowlisted keywords");
+    }
+    const human = await runPackedTools(["search", "lifecycle", "--registry", fixture.registryBase]);
+    assert(human.status === 0, `search failed: ${output(human)}`);
+    assert(output(human).includes("@prism-system/ui-system-a"), "human search output");
+    const badSize = await runPackedTools([
+      "search",
+      "--registry",
+      fixture.registryBase,
+      "--size",
+      "0",
+    ]);
+    assert(badSize.status !== 0, "search --size 0 must fail closed");
+    assert(hashTree(consumer) === before, "search mutated the consumer");
+  });
+
+  await runAsyncCheck("packed info validates the manifest and emits stable JSON", async () => {
+    const consumer = makeCatalogConsumer("info", { packageManager: "npm@10.0.0" });
+    const before = hashTree(consumer);
+    const json = await runPackedTools([
+      "info",
+      "system-a",
+      "--registry",
+      fixture.registryBase,
+      "--json",
+    ]);
+    assert(json.status === 0, `info --json failed: ${output(json)}`);
+    const parsed = JSON.parse(json.stdout);
+    assert(parsed.package === "@prism-system/ui-system-a", "info package");
+    assert(parsed.version === fixture.entries[0].version, "info version");
+    assert(typeof parsed.name === "string" && parsed.name.length > 0, "info name");
+    assert(typeof parsed.design.density === "string", "info design density");
+    assert(Object.keys(parsed.components).length === 14, "info components");
+    assert(parsed.manifest.package === "@prism-system/ui-system-a", "info full manifest");
+    assert(parsed.manifest.contract === "v2", "info manifest contract");
+    const exact = await runPackedTools([
+      "info",
+      "@prism-system/ui-system-a",
+      fixture.entries[0].version,
+      "--registry",
+      fixture.registryBase,
+      "--json",
+    ]);
+    assert(exact.status === 0, `info exact version failed: ${output(exact)}`);
+    const human = await runPackedTools(["info", "system-a", "--registry", fixture.registryBase]);
+    assert(human.status === 0, `info failed: ${output(human)}`);
+    assert(output(human).includes("System A"), "human info output");
+    assert(hashTree(consumer) === before, "info mutated the consumer");
+  });
+
+  await runAsyncCheck("packed info fails closed on untrusted registry data", async () => {
+    const cases = [
+      {
+        args: ["info", "system-a", "--registry", `${fixture.registryBase}/bad-integrity`],
+        needle: /integrity mismatch/i,
+      },
+      {
+        args: ["info", "system-a", "--registry", `${fixture.registryBase}/missing-manifest`],
+        needle: /missing .*design-system\.json/i,
+      },
+      {
+        args: ["info", "system-a", "--registry", `${fixture.registryBase}/bad-export`],
+        needle: /exports\["\.\/manifest"\]/i,
+      },
+      {
+        args: ["info", "system-a", "--registry", `${fixture.registryBase}/missing-fields`],
+        needle: /components\.Button\.variants/i,
+      },
+      {
+        args: ["info", "system-a", "--registry", `${fixture.registryBase}/unknown-field`],
+        needle: /is not allowed/i,
+      },
+      {
+        args: ["info", "@prism-system/ui-core", "--registry", fixture.registryBase],
+        needle: /Unsupported design system package/i,
+      },
+      {
+        args: ["info", "@angular/core", "--registry", fixture.registryBase],
+        needle: /Unsupported design system package/i,
+      },
+      {
+        args: ["info", "system-a", "^1.0.0", "--registry", fixture.registryBase],
+        needle: /Invalid version/i,
+      },
+      {
+        args: ["info", "system-a", "latest", "--registry", fixture.registryBase],
+        needle: /Invalid version/i,
+      },
+    ];
+    for (const testCase of cases) {
+      const result = await runPackedTools(testCase.args);
+      assert(result.status !== 0, `expected failure for ${testCase.args.join(" ")}`);
+      assert(
+        testCase.needle.test(output(result)),
+        `expected diagnostic for ${testCase.args.join(" ")}: ${output(result)}`,
+      );
+    }
+  });
+
+  await runAsyncCheck("packed install uses fixed manager args and verifies", async () => {
+    const consumer = makeCatalogConsumer("install", {
+      packageManager: "npm@10.0.0",
+      installSystemA: true,
+    });
+    const consumerPackageBefore = hashFile(join(consumer, "package.json"));
+    rmSync(FAKE_ARGS_FILE, { force: true });
+    const result = await runPackedTools(
+      ["install", "system-a", "--cwd", consumer, "--registry", fixture.registryBase, "--exact"],
+      { env: withFakeManagerEnv() },
+    );
+    assert(result.status === 0, `install failed: ${output(result)}`);
+    const args = readFakeArgs();
+    assert(args[0] === "npm", `manager shim not invoked: ${args.join(" ")}`);
+    const fixed = args.slice(1);
+    assert(fixed[0] === "install", "npm verb");
+    assert(fixed.includes("--save-prod"), "default prod save");
+    assert(fixed.includes("--save-exact"), "--exact");
+    assert(fixed.includes("--ignore-scripts"), "--ignore-scripts");
+    assert(fixed.includes(`--registry=${fixture.registryBase}`), "registry arg");
+    assert(
+      fixed[fixed.length - 1] === `@prism-system/ui-system-a@${fixture.entries[0].version}`,
+      "exact target last",
+    );
+    assert(
+      hashFile(join(consumer, "package.json")) === consumerPackageBefore,
+      "install unexpectedly changed package.json",
+    );
+    assert(!existsSync(join(consumer, ".design-system")), "install must not connect");
+
+    const devConsumer = makeCatalogConsumer("install-dev", {
+      packageManager: "npm@10.0.0",
+      installSystemA: true,
+    });
+    rmSync(FAKE_ARGS_FILE, { force: true });
+    const dev = await runPackedTools(
+      [
+        "install",
+        "system-a",
+        "--cwd",
+        devConsumer,
+        "--registry",
+        fixture.registryBase,
+        "--save-dev",
+      ],
+      { env: withFakeManagerEnv() },
+    );
+    assert(dev.status === 0, `install --save-dev failed: ${output(dev)}`);
+    const devArgs = readFakeArgs().slice(1);
+    assert(devArgs.includes("--save-dev"), "--save-dev");
+    assert(!devArgs.includes("--save-prod"), "no prod save with --save-dev");
+  });
+
+  await runAsyncCheck("packed install fails closed without invoking the manager", async () => {
+    const ambiguous = makeCatalogConsumer("install-ambiguous", {
+      lockfiles: ["package-lock.json", "pnpm-lock.yaml"],
+    });
+    const missing = makeCatalogConsumer("install-missing-manager", {});
+    const unsupported = makeCatalogConsumer("install-unsupported", {
+      packageManager: "yarn@1.22.0",
+    });
+    const notFound = makeCatalogConsumer("install-404", {
+      packageManager: "npm@10.0.0",
+      installSystemA: true,
+    });
+    const unsafe = makeCatalogConsumer("install-unsafe", {
+      packageManager: "npm@10.0.0",
+      installSystemA: true,
+    });
+    const cases = [
+      ["install", "system-a", "--cwd", ambiguous, "--registry", fixture.registryBase],
+      ["install", "system-a", "--cwd", missing, "--registry", fixture.registryBase],
+      ["install", "system-a", "--cwd", unsupported, "--registry", fixture.registryBase],
+      ["install", "system-a", "--cwd", notFound, "--registry", `${fixture.registryBase}/nope`],
+      ["install", "system-a", "--cwd", unsafe, "--registry", `${fixture.registryBase}/evil;touch`],
+    ];
+    for (const args of cases) {
+      rmSync(FAKE_ARGS_FILE, { force: true });
+      const result = await runPackedTools(args, { env: withFakeManagerEnv() });
+      assert(result.status !== 0, `expected failure for ${args.join(" ")}`);
+      assert(readFakeArgs().length === 0, `manager was invoked for ${args.join(" ")}`);
+    }
+  });
+
+  await runAsyncCheck("packed install stops at the verification boundary", async () => {
+    const consumer = makeCatalogConsumer("install-verify", { packageManager: "npm@10.0.0" });
+    rmSync(FAKE_ARGS_FILE, { force: true });
+    const result = await runPackedTools(
+      ["install", "system-a", "--cwd", consumer, "--registry", fixture.registryBase],
+      { env: withFakeManagerEnv() },
+    );
+    assert(result.status !== 0, "verification failure must fail closed");
+    assert(/verification failed/i.test(output(result)), "verification diagnostic");
+    assert(!existsSync(join(consumer, ".design-system")), "no connect after verification failure");
+  });
+
+  await runAsyncCheck(
+    "packed install and use reject an invalid installed manifest at verify",
+    async () => {
+      const consumer = makeCatalogConsumer("install-invalid-manifest", {
+        packageManager: "npm@10.0.0",
+        installSystemA: true,
+      });
+      const installedManifestPath = join(
+        consumer,
+        "node_modules",
+        "@prism-system",
+        "ui-system-a",
+        "design-system.json",
+      );
+      const installedManifest = readJsonFile(installedManifestPath);
+      delete installedManifest.components.Button.variants;
+      writeFileSync(installedManifestPath, `${JSON.stringify(installedManifest, null, 2)}\n`);
+
+      rmSync(FAKE_ARGS_FILE, { force: true });
+      const install = await runPackedTools(
+        ["install", "system-a", "--cwd", consumer, "--registry", fixture.registryBase],
+        { env: withFakeManagerEnv() },
+      );
+      assert(install.status !== 0, "install must fail closed on an invalid installed manifest");
+      assert(/verification failed/i.test(output(install)), "install verification diagnostic");
+      assert(/components\.Button\.variants/i.test(output(install)), "shape failure evidence");
+      assert(!existsSync(join(consumer, ".design-system")), "install must not connect");
+
+      rmSync(FAKE_ARGS_FILE, { force: true });
+      const use = await runPackedTools(
+        ["use", "system-a", "--cwd", consumer, "--registry", fixture.registryBase],
+        { env: withFakeManagerEnv() },
+      );
+      assert(use.status !== 0, "use must fail closed on an invalid installed manifest");
+      assert(/boundary: verify/i.test(output(use)), "use verify boundary reported");
+      assert(!existsSync(join(consumer, ".design-system", "config.json")), "use must not connect");
+    },
+  );
+
+  await runAsyncCheck("packed use installs, connects, and checks usage", async () => {
+    const consumer = makeCatalogConsumer("use", {
+      packageManager: "pnpm@10.0.0",
+      installSystemA: true,
+    });
+    rmSync(FAKE_ARGS_FILE, { force: true });
+    const result = await runPackedTools(
+      ["use", "system-a", "--cwd", consumer, "--registry", fixture.registryBase, "--check-usage"],
+      { env: withFakeManagerEnv() },
+    );
+    assert(result.status === 0, `use failed: ${output(result)}`);
+    assert(readFakeArgs()[0] === "pnpm", "pnpm shim invoked");
+    assert(existsSync(join(consumer, ".design-system", "config.json")), "use must connect");
+    const rootAgents = readFileSync(join(consumer, "AGENTS.md"), "utf8");
+    assert(rootAgents.includes("BEGIN @prism-system design system contract"), "managed block");
+    assert(/0 error\(s\), 0 warning\(s\)/.test(output(result)), "usage summary");
+
+    const again = await runPackedTools(
+      ["use", "system-a", "--cwd", consumer, "--registry", fixture.registryBase, "--check-usage"],
+      { env: withFakeManagerEnv() },
+    );
+    assert(again.status === 0, `repeated use failed: ${output(again)}`);
+    assert(/already up to date/i.test(output(again)), "repeated use should be idempotent");
+    const markers =
+      readFileSync(join(consumer, "AGENTS.md"), "utf8").split(
+        "BEGIN @prism-system design system contract",
+      ).length - 1;
+    assert(markers === 1, "managed block must not be duplicated");
+  });
+
+  await runAsyncCheck("packed use stops at the connect boundary without rollback", async () => {
+    const consumer = makeCatalogConsumer("use-connect-fail", {
+      packageManager: "npm@10.0.0",
+      installSystemA: true,
+      agents:
+        "# Catalog consumer\n\n<!-- BEGIN @prism-system design system contract (managed) -->\npartial\n",
+    });
+    rmSync(FAKE_ARGS_FILE, { force: true });
+    const result = await runPackedTools(
+      ["use", "system-a", "--cwd", consumer, "--registry", fixture.registryBase],
+      { env: withFakeManagerEnv() },
+    );
+    assert(result.status !== 0, "connect failure must fail closed");
+    assert(/boundary: connect/i.test(output(result)), "connect boundary reported");
+    assert(/no rollback was attempted/i.test(output(result)), "no-rollback boundary message");
+    assert(
+      existsSync(join(consumer, "node_modules", "@prism-system", "ui-system-a", "package.json")),
+      "package remains installed",
+    );
+    assert(
+      !existsSync(join(consumer, ".design-system", "config.json")),
+      "config must not be written",
+    );
+  });
+
+  await runAsyncCheck("connect, doctor, and check-usage stay offline", async () => {
+    const consumer = makeCatalogConsumer("offline", {
+      packageManager: "npm@10.0.0",
+      installSystemA: true,
+    });
+    const requestsBefore = fixture.state.requests.length;
+    const connect = await runPackedTools(["connect", "system-a", "--cwd", consumer]);
+    assert(connect.status === 0, `connect failed: ${output(connect)}`);
+    const doctor = await runPackedTools(["doctor", "--cwd", consumer]);
+    assert(doctor.status === 0, `doctor failed: ${output(doctor)}`);
+    const usage = await runPackedTools(["check-usage", "--cwd", consumer]);
+    assert(usage.status === 0, `check-usage failed: ${output(usage)}`);
+    assert(
+      fixture.state.requests.length === requestsBefore,
+      "connect/doctor/check-usage made registry requests",
+    );
+    for (const command of ["connect", "doctor", "check-usage"]) {
+      const rejected = await runPackedTools([
+        command,
+        "--cwd",
+        consumer,
+        "--registry",
+        fixture.registryBase,
+      ]);
+      assert(rejected.status !== 0, `${command} must reject --registry`);
+      assert(
+        /Unknown option/i.test(output(rejected)),
+        `${command} should reject --registry as unknown`,
+      );
+    }
+  });
+
+  await runAsyncCheck("importing packed tools performs no network or manager work", () => {
+    const entry = join(toolsExtractedDir, "src", "index.mjs");
+    const script = `globalThis.fetch = undefined; import(${JSON.stringify(
+      `file://${entry.replace(/\\/g, "/")}`,
+    )}).then((m) => { if (typeof m.searchDesignSystems !== "function") process.exit(3); if (typeof m.buildInstallCommand !== "function") process.exit(4); let threw = false; try { m.buildInstallCommand({ manager: "npm", packageName: "@prism-system/ui-system-a", version: "1.0.0", registry: "https://x;rm" }); } catch { threw = true; } if (!threw) process.exit(5); });`;
+    const result = spawnSync(process.execPath, ["-e", script], {
+      cwd: TOOLS_CONSUMER,
+      encoding: "utf8",
+    });
+    assert(result.status === 0, `packed index import failed: ${output(result)}`);
+  });
+
+  await runAsyncCheck("packed catalog leaves repository source untouched", () => {
+    assert(
+      hashTree(join(TOOLS_PACKAGE_DIR, "src")) === toolsSrcHashBefore,
+      "packages/tools/src was mutated",
+    );
+  });
+} finally {
+  if (fixture !== null) {
+    await new Promise((resolve) => fixture.server.close(resolve));
+  }
+}
 
 runCheck("repository and registry were not mutated", () => {
   for (const file of REPO_MUTATION_WATCH) {

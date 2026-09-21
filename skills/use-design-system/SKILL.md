@@ -28,7 +28,7 @@ skill is the process that agent follows.
 Determine the installed design system and its exact version before writing any UI.
 Follow this order; do not guess.
 
-1. `.design-system/config.json` — the consumer contract written by `pnpm ds:connect`.
+1. `.design-system/config.json` — the consumer contract written by `connect` (or `use`).
    It records the selected `package`, the exact `version`, the `manifest` subpath
    (`./manifest`), and `strict` mode.
 2. The shipped manifest, resolved through the public export
@@ -40,20 +40,31 @@ Follow this order; do not guess.
 5. The public TypeScript API exported by `<package>`.
 
 If `.design-system/config.json` is missing, configure the consumer with the published
-consumer tool, then validate:
+tool, then validate:
 
 ```bash
 npx prism-ds connect --cwd <consumer-root>
 npx prism-ds check-usage --cwd <consumer-root>
 ```
 
-Install it from npm like any other dependency (`npm install --save-dev @prism-system/tools`)
-next to the design system (`npm install @prism-system/ui-system-a`). The published tool
-never installs packages and needs no access to the design-systems repository. Inside the
-design-systems repository the same implementation is available as `pnpm ds:connect` and
-`pnpm ds:check-usage`; those are maintainer wrappers. `connect` is configure-only: it
-never installs packages, edits `package.json`, copies component source, or mutates the
-design-system repository.
+To choose a system first, the published tool can list and inspect published styles
+(`search`/`info` are explicit network, read-only) and install one explicitly:
+
+```bash
+npx prism-ds search "calm editorial"
+npx prism-ds info @prism-system/ui-system-a
+npx prism-ds use @prism-system/ui-system-a --cwd <consumer-root> --check-usage
+```
+
+Install the tool from npm like any other dependency
+(`npm install --save-dev @prism-system/tools`) next to the design system
+(`npm install @prism-system/ui-system-a`). Only `install`/`use` may change the product's
+dependencies; `connect`, `check-usage`, and `doctor` are offline. `connect` is
+configure-only: it never installs packages, edits `package.json`, copies component source,
+or mutates the design-system repository. Inside the design-systems repository the same
+implementation is available as `pnpm ds:connect` and `pnpm ds:check-usage`; those are
+maintainer wrappers. The tool never publishes and never accesses the design-systems source
+repository at runtime.
 
 ## 2. Be exact about the version
 

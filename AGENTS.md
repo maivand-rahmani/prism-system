@@ -40,10 +40,12 @@ design-systems/
 - Each `@prism-system/ui-system-*` package owns the **entire visual language**: tokens,
   styling, variants, states, and the concrete implementations of the shared
   component contract. It consumes `@prism-system/ui-core` and nothing from other systems.
-- `@prism-system/tools` is the **published consumer-side tooling** (the `prism-ds`
-  executable), not a UI package. It is independent of `@prism-system/ui-core` and every
-  design system, imports no repository source at runtime, and never installs packages,
-  edits consumer dependencies, copies source, or publishes.
+- `@prism-system/tools` is the **published tooling** (the `prism-ds` executable), not a
+  UI package. It is independent of `@prism-system/ui-core` and every design system and
+  imports no repository source at runtime. Its `search`/`info` commands are explicit
+  network read-only; `install`/`use` are the only commands that mutate consumer
+  dependencies (via a fixed npm/pnpm command); `connect`/`check-usage`/`doctor` are
+  offline. It has no postinstall, copies no source, and never publishes.
 - `apps/*` only compose. They own layout, placement, and reference scenarios.
   They must not restyle, copy, or override package internals.
 
@@ -143,8 +145,11 @@ Wrong:
   Consumer lifecycle tooling is available from two equivalent entry points:
   `pnpm ds:connect [package] --cwd <consumer-root>` / `pnpm ds:check-usage --cwd
 <consumer-root>` in this repository, and the published `@prism-system/tools` package
-  (`prism-ds connect`, `prism-ds check-usage`, `prism-ds doctor`) for external npm
-  consumers. Both share one implementation; the root `scripts/*` commands are
+  for external npm consumers. The published CLI adds the catalog lifecycle: `prism-ds
+search` and `prism-ds info` (explicit network, read-only), `prism-ds install` and
+  `prism-ds use` (the only commands that mutate consumer dependencies, via a fixed
+  npm/pnpm command), plus the offline `prism-ds connect`, `prism-ds check-usage`, and
+  `prism-ds doctor`. Both share one implementation; the root `scripts/*` commands are
   compatibility wrappers. `prism-ds connect` configures an already-installed
   `@prism-system/ui-*` package (config-first discovery, exact version/identity checks,
   `.design-system/config.json` and `.design-system/AGENTS.md`, and an idempotent managed
@@ -190,11 +195,17 @@ Published consumer tooling (installed from npm in a product repository, not need
 consume a released design system from here):
 
 ```bash
+npx prism-ds search [query...] [--registry <url>] [--size <1..250>] [--json]  # registry search
+npx prism-ds info <package-or-id> [version] [--registry <url>] [--json]       # inspect manifest
+npx prism-ds install <package-or-id> [version] --cwd <consumer-root>          # mutate deps
+npx prism-ds use <package-or-id> [version] --cwd <consumer-root>              # install + connect
 npx prism-ds connect [package] --cwd <consumer-root>     # configure the consumer
 npx prism-ds check-usage --cwd <consumer-root>           # strict usage validation
 npx prism-ds doctor [package] --cwd <consumer-root>      # read-only diagnostics
 ```
 
+`search`/`info` are explicit network, read-only; `install`/`use` are the only commands
+that mutate consumer dependencies; `connect`/`check-usage`/`doctor` are offline.
 `pnpm ds:connect` and `pnpm ds:check-usage` are compatibility wrappers around the same
 implementation that ships as `@prism-system/tools`; `ds:create`, `ds:register`,
 `ds:check`, `ds:manifest`, `ds:sync-versions`, `ds:release`, and `ds:check-v3` remain

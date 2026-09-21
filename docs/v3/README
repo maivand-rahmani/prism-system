@@ -1036,21 +1036,37 @@ Coding-agent должен развивать продукт внутри это�
 npm install @prism-system/ui-system-a
 npm install --save-dev @prism-system/tools
 
+# каталог: поиск и изучение (явная сеть, только чтение)
+npx prism-ds search "calm editorial"
+npx prism-ds info @prism-system/ui-system-a --json
+
+# явная установка и подключение (install/use меняют зависимости продукта)
+npx prism-ds use @prism-system/ui-system-a --cwd . --check-usage
+
+# офлайн-команды
 npx prism-ds connect @prism-system/ui-system-a --cwd .
 npx prism-ds check-usage --cwd .
 npx prism-ds doctor --cwd .
 ```
 
-Гарантии пакета:
+Границы пакета:
 
 ```text
+search/info              explicit network, read-only (npm Registry)
+install/use              the only commands that mutate consumer dependencies
+connect/check-usage/doctor  offline
 no postinstall
-no network calls
-no package installation
-no dependency/package.json mutation in the consumer
 no source copying
-no access to the design-systems source repository at runtime
+no publishing
+no hidden package selection
+no runtime access to the design-systems source repository
 ```
+
+`install`/`use` определяют npm/pnpm из `packageManager` или ровно одного lockfile
+(`package-lock.json`/`pnpm-lock.yaml`), запускают фиксированную команду с
+`--ignore-scripts`, без пользовательских аргументов и без shell на POSIX, затем
+проверяют установленный пакет. `search`/`info` проверяют точную версию, `contract ===
+"v2"`, `exports["./manifest"]`, SRI-целостность и манифест `design-system.json`.
 
 Публичный контракт потребителя: `.design-system/config.json`, манифест
 `<package>/manifest` и `AGENTS.md` установленного пакета. Пакет и его манифест

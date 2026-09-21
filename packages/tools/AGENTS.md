@@ -4,13 +4,17 @@ Package-local instructions. Read the repository root `AGENTS.md` first.
 
 ## Identity
 
-`@prism-system/tools` is the **published consumer-side tooling** for `@prism-system`
-design systems. It ships the `prism-ds` executable with three commands:
+`@prism-system/tools` is the **published tooling** for `@prism-system` design systems. It
+ships the `prism-ds` executable with seven commands:
 
 ```text
-connect       configure an already-installed design system in a consumer repository
-check-usage   deterministic strict usage validation (TypeScript AST + shipped manifest)
-doctor        read-only consumer diagnostics
+search       npm Registry search for supported @prism-system/ui-* styles (network, read-only)
+info         fetch and validate a published style's manifest (network, read-only)
+install      explicitly install a style into a consumer (mutates consumer dependencies)
+use          install, verify, connect, optional strict usage check (mutates dependencies)
+connect      configure an already-installed style in a consumer (offline)
+check-usage  deterministic strict usage validation (offline; TypeScript AST + manifest)
+doctor       read-only consumer diagnostics (offline)
 ```
 
 It is not a UI package, not `@prism-system/ui-core`, and not a design system. It has no
@@ -23,6 +27,9 @@ This package owns:
 - the consumer contract implementation (`connect`) and generated config/AGENTS content;
 - the strict usage checker (`check-usage`) and its rule catalog;
 - read-only diagnostics (`doctor`);
+- the npm Registry client, catalog orchestration, and in-memory tarball/manifest
+  validation (`search`, `info`);
+- package-manager detection and fixed install-command construction (`install`, `use`);
 - the published `prism-ds` CLI and its argument handling.
 
 This package must never:
@@ -30,18 +37,35 @@ This package must never:
 - import `@prism-system/ui-core` or any `@prism-system/ui-*` design system;
 - import from `apps/*`, `scripts/*`, `templates/*`, or another package's internals;
 - read, assume, or hardcode the design-systems source repository at runtime;
-- install packages, run a postinstall, make network calls, or mutate consumer
-  dependencies or `package.json` files;
-- copy component source or styling into a consumer.
+- run a postinstall, install anything at import time, or make network calls outside an
+  explicit `search`/`info`/`install`/`use` invocation;
+- copy component source or styling into a consumer;
+- publish or version a package.
 
 The installed design-system package is resolved through Node package resolution from the
 consumer root and read only through its public `exports` (notably `./manifest`).
 
+## Network and mutation boundaries
+
+- `search`/`info` are explicit network, read-only. They never write to the consumer or
+  repository and never install.
+- `install`/`use` are the **only** commands allowed to mutate consumer dependencies. They
+  resolve and validate the exact version from the registry first, detect npm/pnpm (never a
+  silent default), run a fixed command with `--ignore-scripts`, no user-supplied extra
+  arguments, and no shell on POSIX (a constrained `cmd.exe /d /s /c` adapter on Windows),
+  then verify the installed package before `use` connects.
+- `connect`/`check-usage`/`doctor` stay offline and never edit dependencies.
+- Registry URLs are http(s), credential-free, redirect-rejected, timeout- and size-limited.
+  Tarballs are read and parsed in memory only; SRI `dist.integrity` is verified when
+  present, and manifest identity/version/contract/schema/shape fail closed.
+
 ## Runtime dependencies
 
 - TypeScript is declared as a runtime dependency and is lazy-loaded only for
-  `check-usage`; `connect` and `doctor` must not require it.
-- No other runtime dependency may be added without updating the published package.
+  `check-usage`; `connect`, `doctor`, `search`, `info`, `install`, and `use` must not
+  require it.
+- No other runtime dependency may be added without updating the published package. The
+  registry/tarball/manager code uses Node built-ins only.
 
 ## Consumer contract
 

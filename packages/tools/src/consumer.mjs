@@ -55,6 +55,7 @@ import {
   readJsonFile,
   toPackageName,
 } from "./constants.mjs";
+import { collectManifestFailures } from "./manifest.mjs";
 
 /** Consumer contract directory, relative to the consumer root. */
 export const CONSUMER_DIRECTORY = ".design-system";
@@ -439,6 +440,15 @@ export function verifyConsumerDesignSystem({ packageName, expectedVersion, insta
         installed.manifest?.schemaVersion ?? null,
       )} must be ${MANIFEST_SCHEMA_VERSION}.`,
     );
+  }
+  // Full schema-shape validation (the runtime counterpart of
+  // schemas/design-system.schema.json), in addition to the exact identity checks
+  // above. Aggregated so callers still see every failure at once.
+  for (const failure of collectManifestFailures(installed.manifest, {
+    packageName,
+    version: typeof installedVersion === "string" ? installedVersion : undefined,
+  })) {
+    failures.push(`Shipped manifest is invalid: ${failure}`);
   }
   if (expectedVersion !== null && expectedVersion !== installedVersion) {
     failures.push(
