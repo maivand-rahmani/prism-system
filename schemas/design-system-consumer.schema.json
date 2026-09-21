@@ -32,6 +32,15 @@
     "strict": {
       "type": "boolean",
       "description": "Strict usage mode. Defaults to true; layout is allowed, visual language overrides are not."
+    },
+    "ignore": {
+      "type": "array",
+      "description": "Optional root-relative globs the usage checker must skip. Ignore globs are validated and cannot escape the consumer root.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
     }
   }
 }

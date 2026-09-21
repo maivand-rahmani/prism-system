@@ -39,7 +39,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 
 import { MANIFEST_EXPORT_SUBPATH, MANIFEST_EXPORT_TARGET } from "./design-system-manifest.mjs";
 import {
@@ -179,14 +179,47 @@ export function readConsumerConfig(consumerRoot) {
   if (typeof raw.strict !== "boolean") {
     throw new Error(`Consumer config ${configPath} "strict" must be a boolean.`);
   }
+  const ignore = normalizeIgnoreGlobs(consumerRoot, raw.ignore, configPath);
   return {
     schemaVersion: CONSUMER_SCHEMA_VERSION,
     package: packageName,
     version,
     manifest: raw.manifest,
     strict: raw.strict,
+    ignore,
     path: configPath,
   };
+}
+
+/**
+ * Validate root-relative ignore globs. Rejects absolute paths, `..` segments,
+ * and any glob that resolves outside the consumer root.
+ */
+export function normalizeIgnoreGlobs(consumerRoot, value, label = "ignore") {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) {
+    throw new Error(`${label} "ignore" must be an array of root-relative glob strings.`);
+  }
+  return value.map((glob, index) => {
+    if (typeof glob !== "string" || glob.trim().length === 0) {
+      throw new Error(`${label} "ignore[${index}]" must be a non-empty string.`);
+    }
+    const text = glob.trim();
+    if (
+      isAbsolute(text) ||
+      /^[A-Za-z]:/.test(text) ||
+      text.startsWith("/") ||
+      text.startsWith("\\")
+    ) {
+      throw new Error(`${label} "ignore[${index}]" must be root-relative, not absolute: ${text}.`);
+    }
+    if (text.split(/[\\/]+/).includes("..")) {
+      throw new Error(`${label} "ignore[${index}]" must not escape the consumer root: ${text}.`);
+    }
+    // Containment check (defense in depth; also rejects symlinked parents).
+    resolveConsumerPath(consumerRoot, text);
+    return text;
+  });
 }
 
 function metadataCandidate(meta, packageJsonPath) {
@@ -377,8 +410,8 @@ export function verifyConsumerDesignSystem({ packageName, expectedVersion, insta
 /* -------------------------------------------------------------------------- */
 
 /** The canonical consumer config object. */
-export function buildConsumerConfig({ packageName, version, strict }) {
-  return {
+export function buildConsumerConfig({ packageName, version, strict, ignore }) {
+  const config = {
     $schema: CONSUMER_SCHEMA_URL,
     schemaVersion: CONSUMER_SCHEMA_VERSION,
     package: packageName,
@@ -386,6 +419,10 @@ export function buildConsumerConfig({ packageName, version, strict }) {
     manifest: MANIFEST_EXPORT_SUBPATH,
     strict,
   };
+  if (Array.isArray(ignore) && ignore.length > 0) {
+    config.ignore = [...ignore];
+  }
+  return config;
 }
 
 /** Render `<consumer-root>/.design-system/AGENTS.md`. */
@@ -549,8 +586,16 @@ export function planConnect({ cwd, package: explicitPackage, strict, check = fal
   );
   const rootAgentsPath = resolveConsumerPath(consumerRoot, "AGENTS.md");
 
+  // Preserve any configured ignore globs across re-connect so the config stays
+  // idempotent and consumer-defined ignores are not dropped.
+  const effectiveIgnore = discovered.config ? discovered.config.ignore : [];
   const configContent = `${JSON.stringify(
-    buildConsumerConfig({ packageName: discovered.packageName, version, strict: effectiveStrict }),
+    buildConsumerConfig({
+      packageName: discovered.packageName,
+      version,
+      strict: effectiveStrict,
+      ignore: effectiveIgnore,
+    }),
     null,
     2,
   )}\n`;
