@@ -53,3 +53,30 @@ Compact radii, visible purple-gray lines, offset shadows, and confident physical
 motion create an expressive interface without sacrificing keyboard clarity or
 reduced-motion behavior. Avoid light-first palettes, generic SaaS styling,
 pill-heavy layouts, heavy gradients, and consumer-app overrides.
+
+## Manifest and version
+
+Every installed System B package ships a generated `design-system.json` manifest,
+available at `@prism-system/ui-system-b/manifest`. It records the exact package
+version, the component catalog, variants, sizes, compound members, and the strict
+usage rules for this system. `package.json.version` is authoritative, and the
+manifest, the registry entry, and the runtime `DesignSystem.version` must always
+match it. Regenerate the manifest with `pnpm ds:manifest system-b --write` after
+changing the package-owned `design-system.source.json`. After `changeset version`
+changes `package.json.version`, run `pnpm ds:sync-versions` from the monorepo
+root to align the runtime version, the generated manifest, and the registry
+entry; `pnpm ds:sync-versions --check` fails without writing when they drift.
+
+## Consumer contract
+
+- **Identity:** the visual source of truth is `@prism-system/ui-system-b` at the
+  installed version.
+- **Available UI:** the fourteen V2 components above, their compound members, and
+  the tokens from `@prism-system/ui-system-b/tokens`.
+- **Usage rules:** prefer existing components, use props rather than class
+  overrides, and keep layout in the product while the visual language stays here.
+- **Restrictions:** no arbitrary colors, radius, or shadows; no duplicated
+  primitives; no local replacements for components that already exist here.
+- **Extension:** reusable visual patterns belong in the design system; product
+  and feature components stay in the product and are composed from these
+  primitives.

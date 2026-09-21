@@ -12,6 +12,12 @@
  * Validation is V2-only: the canonical fourteen-component contract is always
  * required, and a V1/missing contract on the manifest entry fails with an
  * actionable message instead of falling back to the historical eight.
+ *
+ * V3 foundation checks: the generated `design-system.json` must match a fresh
+ * build from the package-owned `design-system.source.json`, its declared
+ * compound members must match the actual public API, and `package.json.version`
+ * (authoritative) must equal the generated-manifest version, the runtime
+ * `DesignSystem.version`, and the registry entry version.
  */
 
 import { spawnSync } from "node:child_process";
@@ -22,6 +28,7 @@ import { fileURLToPath } from "node:url";
 import {
   MANIFEST_RELATIVE_PATH,
   PACKAGE_DIRECTORY,
+  V2_REQUIRED_COMPONENTS,
   assertSystemId,
   readJsonFile,
   readManifest,
@@ -31,24 +38,19 @@ import {
   toTokensExport,
   toUiClass,
 } from "./register-design-system.mjs";
+import {
+  DESIGN_SYSTEM_MANIFEST_FILENAME,
+  DESIGN_SYSTEM_SOURCE_FILENAME,
+  MANIFEST_EXPORT_SUBPATH,
+  MANIFEST_EXPORT_TARGET,
+  checkDesignSystemManifest,
+  missingRequiredPackageFiles,
+  readDesignSystemManifest,
+  readRuntimeDesignSystemVersion,
+} from "./design-system-manifest.mjs";
 
 /** The canonical fourteen V2 component names, in order. */
-export const V2_REQUIRED_COMPONENTS = Object.freeze([
-  "Button",
-  "Input",
-  "Textarea",
-  "Card",
-  "Badge",
-  "Checkbox",
-  "RadioGroup",
-  "Switch",
-  "Select",
-  "Tabs",
-  "Dialog",
-  "DropdownMenu",
-  "Tooltip",
-  "Separator",
-]);
+export { V2_REQUIRED_COMPONENTS };
 
 /** Applications every registered system must be wired into. */
 export const APP_NAMES = Object.freeze(["showcase", "reference-app"]);
@@ -60,9 +62,23 @@ const REQUIRED_FILES = Object.freeze([
   "AGENTS.md",
   "LICENSE",
   "tsconfig.json",
+  DESIGN_SYSTEM_MANIFEST_FILENAME,
+  DESIGN_SYSTEM_SOURCE_FILENAME,
   "src/index.ts",
   "src/tokens/index.ts",
   "src/styles/index.css",
+]);
+
+/** Compound components whose static members are attached via `Object.assign`. */
+const COMPOUND_COMPONENTS = Object.freeze([
+  "Card",
+  "RadioGroup",
+  "Switch",
+  "Select",
+  "Tabs",
+  "Dialog",
+  "DropdownMenu",
+  "Tooltip",
 ]);
 
 /** Component module candidates; generated packages emit `.tsx`. */
@@ -410,6 +426,13 @@ function validatePackageMetadata(context, fail) {
   if (actualPath !== context.entry.packagePath) {
     fail(`Package path "${actualPath}" does not match manifest "${context.entry.packagePath}".`);
   }
+  if (metadata.version !== context.entry.version) {
+    fail(
+      `Registry version "${context.entry.version}" does not match package.json version ` +
+        `"${metadata.version}"; package.json.version is authoritative. Re-run ` +
+        `"pnpm ds:register ${context.id}" to synchronize the registry.`,
+    );
+  }
 }
 
 function validateRequiredFiles(context, fail) {
@@ -433,8 +456,25 @@ function validateNamingAndExports(context, fail) {
     fail('package.json is missing an "exports" map.');
     return;
   }
-  for (const key of [".", "./styles.css", "./tokens"]) {
+  for (const key of [".", "./styles.css", "./tokens", MANIFEST_EXPORT_SUBPATH]) {
     if (!(key in exportsField)) fail(`package.json exports is missing "${key}".`);
+  }
+  if (exportsField[MANIFEST_EXPORT_SUBPATH] !== MANIFEST_EXPORT_TARGET) {
+    fail(
+      `package.json exports["${MANIFEST_EXPORT_SUBPATH}"] must be exactly ` +
+        `${JSON.stringify(MANIFEST_EXPORT_TARGET)} (received ${JSON.stringify(
+          exportsField[MANIFEST_EXPORT_SUBPATH] ?? null,
+        )}).`,
+    );
+  }
+}
+
+/** The published tarball must include the shipped manifest, docs, and license. */
+function validatePackageFilesField(context, fail) {
+  if (!context.pkg) return;
+  const missing = missingRequiredPackageFiles(context.pkg);
+  if (missing.length > 0) {
+    fail(`package.json "files" is missing required entries: ${missing.join(", ")}.`);
   }
 }
 
@@ -477,6 +517,95 @@ function validateContractMetadata(context, fail) {
   }
   if (!/componentContract\s*:\s*["']v2["']/.test(source)) {
     fail('V2 package src/index.ts must declare componentContract: "v2".');
+  }
+}
+
+/** Keys of the object literal passed to `Object.assign` for a compound root. */
+function readCompoundMembers(source, component) {
+  const body = extractObjectBody(source, `export const ${component} = Object.assign`);
+  if (body === null) return null;
+  return topLevelKeys(body);
+}
+
+/**
+ * Validate the generated `design-system.json` against a fresh build, and check
+ * that the explicitly declared compound members match the package's actual
+ * public API (the `Object.assign` static members). Variants and sizes are
+ * declared metadata and are never inferred from CSS or source regexes.
+ */
+function validateGeneratedManifest(context, fail) {
+  if (!context.packageDir) return;
+  const result = checkDesignSystemManifest({ id: context.id, packageDir: context.packageDir });
+  context.designSystemManifest = readDesignSystemManifest(context.packageDir);
+  if (!result.ok) {
+    for (const failure of result.failures) fail(failure);
+    return;
+  }
+
+  const componentsPath = firstExisting(
+    COMPONENT_MODULE_CANDIDATES.map((file) => join(context.packageDir, file)),
+  );
+  if (!componentsPath) return;
+  const source = readFileSync(componentsPath, "utf8");
+  const declaredComponents = result.actual?.components ?? {};
+  for (const component of COMPOUND_COMPONENTS) {
+    const declared = declaredComponents[component]?.members ?? [];
+    const actual = readCompoundMembers(source, component);
+    if (actual === null) {
+      fail(
+        `Cannot read compound members for "${component}" from ${displayPath(
+          context.root,
+          componentsPath,
+        )}; expected "export const ${component} = Object.assign".`,
+      );
+      continue;
+    }
+    const missing = declared.filter((member) => !actual.includes(member));
+    const extra = actual.filter((member) => !declared.includes(member));
+    if (missing.length > 0 || extra.length > 0) {
+      fail(
+        `Compound members for "${component}" in ${DESIGN_SYSTEM_SOURCE_FILENAME} do not match the ` +
+          `package API.${missing.length > 0 ? ` Missing: ${missing.join(", ")}.` : ""}${
+            extra.length > 0 ? ` Undeclared: ${extra.join(", ")}.` : ""
+          }`,
+      );
+    }
+  }
+}
+
+/**
+ * Enforce version equality. `package.json.version` is authoritative: the
+ * generated manifest, the runtime `DesignSystem.version`, and the registry
+ * entry must all match it.
+ */
+function validateVersionConsistency(context, fail) {
+  if (!context.pkg) return;
+  const version = context.pkg.version;
+  if (typeof version !== "string" || version.trim().length === 0) {
+    fail('package.json is missing a non-empty "version".');
+    return;
+  }
+  const manifest = context.designSystemManifest;
+  if (manifest && manifest.version !== version) {
+    fail(
+      `Generated manifest version "${manifest.version}" does not match package.json version ` +
+        `"${version}". Regenerate with "pnpm ds:manifest ${context.id} --write".`,
+    );
+  }
+  const indexPath = join(context.packageDir, "src/index.ts");
+  if (!existsSync(indexPath)) return;
+  let runtime;
+  try {
+    runtime = readRuntimeDesignSystemVersion(readFileSync(indexPath, "utf8"));
+  } catch (error) {
+    fail(`Runtime version: ${error.message}`);
+    return;
+  }
+  if (runtime !== version) {
+    fail(
+      `Runtime DesignSystem.version "${runtime}" does not match package.json version "${version}". ` +
+        `package.json.version is authoritative.`,
+    );
   }
 }
 
@@ -805,6 +934,7 @@ export function validateDesignSystem(options = {}) {
     packageJsonPath: null,
     pkg: null,
     prismSystem: null,
+    designSystemManifest: null,
     packageName: toPackageName(id),
     uiClass: toUiClass(id),
     tokensExport: toTokensExport(id),
@@ -814,7 +944,10 @@ export function validateDesignSystem(options = {}) {
   check("package metadata", () => validatePackageMetadata(context, fail));
   check("required package files", () => validateRequiredFiles(context, fail));
   check("package naming and exports", () => validateNamingAndExports(context, fail));
+  check("package files field", () => validatePackageFilesField(context, fail));
   check("contract and V2 metadata", () => validateContractMetadata(context, fail));
+  check("generated manifest", () => validateGeneratedManifest(context, fail));
+  check("version consistency", () => validateVersionConsistency(context, fail));
   check("required component exports", () => validateComponentExports(context, fail));
   check("tokens and theme", () => validateTokensAndTheme(context, fail));
   check("package boundaries", () => validatePackageBoundaries(context, fail));
@@ -844,8 +977,9 @@ export function helpText() {
   return [
     "Usage: pnpm ds:check <id> [options]",
     "",
-    "Validate a registered design system package, its docs and tokens, and its",
-    "Showcase / Reference App integration. Never mutates the manifest or package.",
+    "Validate a registered design system package, its generated design-system.json",
+    "manifest and version consistency, its docs and tokens, and its Showcase /",
+    "Reference App integration. Never mutates the manifest or package.",
     "",
     "Arguments:",
     "  <id>                  Lower-kebab-case system id (e.g. pulse).",

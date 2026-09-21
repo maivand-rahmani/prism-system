@@ -31,9 +31,10 @@
       "types": "./dist/tokens/index.d.ts",
       "import": "./dist/tokens/index.mjs",
       "require": "./dist/tokens/index.js"
-    }
+    },
+    "./manifest": "./design-system.json"
   },
-  "files": ["dist", "README.md", "AGENTS.md", "LICENSE"],
+  "files": ["dist", "README.md", "AGENTS.md", "design-system.json", "design-brief.json", "LICENSE"],
   "scripts": {
     "build": "tsup src/index.ts src/tokens/index.ts --format esm,cjs --dts --clean",
     "typecheck": "tsc --noEmit -p tsconfig.json",

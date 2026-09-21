@@ -85,3 +85,30 @@ pnpm lint
 Refine `src/tokens`, `src/styles`, and `src/components` together. Keep the
 system class on every visual component so the package can be safely consumed
 alongside another design system.
+
+## Manifest and version
+
+Every installed package ships a generated `design-system.json` manifest,
+available at `{{PACKAGE_NAME}}/manifest`. It records the exact package version,
+the component catalog, variants, sizes, compound members, and the strict usage
+rules for this system. `package.json.version` is authoritative, and the manifest,
+the registry entry, and the runtime `DesignSystem.version` must always match it.
+Regenerate the manifest with `pnpm ds:manifest {{SYSTEM_ID}} --write` after
+changing the package-owned `design-system.source.json`. After `changeset version`
+changes `package.json.version`, run `pnpm ds:sync-versions` from the monorepo
+root to align the runtime version, the generated manifest, and the registry
+entry; `pnpm ds:sync-versions --check` fails without writing when they drift.
+
+## Consumer contract
+
+- **Identity:** the visual source of truth is `{{PACKAGE_NAME}}` at the installed
+  version.
+- **Available UI:** the fourteen V2 components above, their compound members, and
+  the tokens from `{{PACKAGE_NAME}}/tokens`.
+- **Usage rules:** prefer existing components, use props rather than class
+  overrides, and keep layout in the product while the visual language stays here.
+- **Restrictions:** no arbitrary colors, radius, or shadows; no duplicated
+  primitives; no local replacements for components that already exist here.
+- **Extension:** reusable visual patterns belong in the design system; product
+  and feature components stay in the product and are composed from these
+  primitives.

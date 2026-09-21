@@ -33,12 +33,15 @@
       "types": "./dist/tokens/index.d.ts",
       "import": "./dist/tokens/index.mjs",
       "require": "./dist/tokens/index.js"
-    }
+    },
+    "./manifest": "./design-system.json"
   },
   "files": [
     "dist",
     "README.md",
     "AGENTS.md",
+    "design-system.json",
+    "design-brief.json",
     "LICENSE"
   ],
   "scripts": {

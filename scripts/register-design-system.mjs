@@ -44,8 +44,13 @@ import {
 export const SYSTEM_ID_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 /** Ids that are not design systems and can never be registered. */
 export const RESERVED_SYSTEM_IDS = Object.freeze(["core", "showcase", "reference-app"]);
-/** Manifest schema version. */
-export const MANIFEST_VERSION = 1;
+/**
+ * Registry manifest schema version.
+ *
+ * Version 2 added the required `version` field to every entry so the registry
+ * mirrors the authoritative `package.json.version` and drift can be detected.
+ */
+export const MANIFEST_VERSION = 2;
 /** Manifest location, relative to the repository (or `--root`) directory. */
 export const MANIFEST_RELATIVE_PATH = "config/design-systems.json";
 /** npm scope prefix for generated packages. */
@@ -54,6 +59,31 @@ export const PACKAGE_SCOPE = "@prism-system/ui-";
 export const PACKAGE_DIRECTORY = "packages";
 /** Supported component contracts. V2 is the only contract the tooling accepts. */
 export const CONTRACTS = Object.freeze(["v2"]);
+
+/**
+ * The canonical fourteen V2 component names, in order.
+ *
+ * This is the shared source of truth for the registry, the generated
+ * `design-system.json` manifest, and validation. It lives here (rather than in
+ * `validate-design-system.mjs`) so the manifest tooling can import it without
+ * creating a module cycle.
+ */
+export const V2_REQUIRED_COMPONENTS = Object.freeze([
+  "Button",
+  "Input",
+  "Textarea",
+  "Card",
+  "Badge",
+  "Checkbox",
+  "RadioGroup",
+  "Switch",
+  "Select",
+  "Tabs",
+  "Dialog",
+  "DropdownMenu",
+  "Tooltip",
+  "Separator",
+]);
 
 /** The complete V2 `prismSystem` block every registrable package must declare. */
 const V2_PRISM_SYSTEM_FIELDS = Object.freeze(["name", "contract", "uiClass", "tokensExport"]);
@@ -193,6 +223,10 @@ export function buildEntry(input) {
     name: requireNonEmptyString(input.name, "name"),
     packageName: requireNonEmptyString(input.packageName, "packageName"),
     packagePath: requireNonEmptyString(input.packagePath, "packagePath"),
+    // `package.json.version` is authoritative, so the registry mirrors it and
+    // validation can detect drift between the registry, the package manifest,
+    // and the generated `design-system.json`.
+    version: requireNonEmptyString(input.version, "version"),
     uiClass: requireNonEmptyString(input.uiClass, "uiClass"),
     tokensExport: requireNonEmptyString(input.tokensExport, "tokensExport"),
     contract: input.contract,
@@ -467,9 +501,17 @@ export function readPackageMetadata({ id, root }) {
     }
   }
 
+  if (typeof pkg.version !== "string" || pkg.version.trim().length === 0) {
+    throw new Error(
+      `Cannot register "${id}": ${packageJsonPath} has no "version" field; ` +
+        `package.json.version is authoritative and must be a non-empty string.`,
+    );
+  }
+
   return {
     packageDir,
     packageName: pkg.name,
+    version: pkg.version.trim(),
     name,
     prismSystem: readPrismSystemMetadata(pkg, packageJsonPath),
   };
@@ -530,6 +572,7 @@ export async function registerDesignSystem(options = {}) {
     ),
     packageName: metadata.packageName,
     packagePath,
+    version: metadata.version,
     uiClass: firstDefined(
       override.uiClass,
       packageMetadata.uiClass,

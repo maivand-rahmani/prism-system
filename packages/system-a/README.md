@@ -75,3 +75,30 @@ V2 is the only supported contract for this package. Shared behavior comes from
 `@prism-system/ui-core`; System A owns the calm, warm visual language. Consuming
 apps should compose these components rather than replace their appearance, and
 must not import another design system or copy its component styling.
+
+## Manifest and version
+
+Every installed System A package ships a generated `design-system.json` manifest,
+available at `@prism-system/ui-system-a/manifest`. It records the exact package
+version, the component catalog, variants, sizes, compound members, and the strict
+usage rules for this system. `package.json.version` is authoritative, and the
+manifest, the registry entry, and the runtime `DesignSystem.version` must always
+match it. Regenerate the manifest with `pnpm ds:manifest system-a --write` after
+changing the package-owned `design-system.source.json`. After `changeset version`
+changes `package.json.version`, run `pnpm ds:sync-versions` from the monorepo
+root to align the runtime version, the generated manifest, and the registry
+entry; `pnpm ds:sync-versions --check` fails without writing when they drift.
+
+## Consumer contract
+
+- **Identity:** the visual source of truth is `@prism-system/ui-system-a` at the
+  installed version.
+- **Available UI:** the fourteen V2 components above, their compound members, and
+  the tokens from `@prism-system/ui-system-a/tokens`.
+- **Usage rules:** prefer existing components, use props rather than class
+  overrides, and keep layout in the product while the visual language stays here.
+- **Restrictions:** no arbitrary colors, radius, or shadows; no duplicated
+  primitives; no local replacements for components that already exist here.
+- **Extension:** reusable visual patterns belong in the design system; product
+  and feature components stay in the product and are composed from these
+  primitives.

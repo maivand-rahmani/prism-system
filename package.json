@@ -20,10 +20,12 @@
     "ds:create": "node scripts/create-design-system.mjs",
     "ds:register": "node scripts/register-design-system.mjs",
     "ds:check": "node scripts/validate-design-system.mjs",
+    "ds:manifest": "node scripts/design-system-manifest.mjs",
+    "ds:sync-versions": "node scripts/sync-design-system-versions.mjs",
     "ds:release": "node scripts/prepare-release.mjs",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "turbo run build && changeset publish"
+    "release": "node scripts/sync-design-system-versions.mjs --check && turbo run build && changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "2.31.1",

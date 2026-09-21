@@ -1,0 +1,123 @@
+{
+  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system.source.schema.json",
+  "schemaVersion": 1,
+  "contract": "v2",
+  "name": "System B",
+  "components": {
+    "Button": {
+      "variants": ["primary", "secondary", "outline", "ghost", "destructive", "link"],
+      "sizes": ["sm", "md", "lg", "icon"],
+      "members": []
+    },
+    "Input": {
+      "variants": [],
+      "sizes": ["sm", "md", "lg"],
+      "members": []
+    },
+    "Textarea": {
+      "variants": [],
+      "sizes": ["sm", "md", "lg"],
+      "members": []
+    },
+    "Card": {
+      "variants": ["default", "muted", "outline", "elevated", "interactive"],
+      "sizes": [],
+      "members": ["Header", "Title", "Description", "Content", "Footer"]
+    },
+    "Badge": {
+      "variants": ["default", "secondary", "success", "warning", "danger", "info", "outline"],
+      "sizes": ["sm", "md"],
+      "members": []
+    },
+    "Checkbox": {
+      "variants": [],
+      "sizes": ["sm", "md", "lg"],
+      "members": []
+    },
+    "RadioGroup": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Item", "Indicator"]
+    },
+    "Switch": {
+      "variants": [],
+      "sizes": ["sm", "md", "lg"],
+      "members": ["Thumb"]
+    },
+    "Select": {
+      "variants": [],
+      "sizes": ["sm", "md", "lg"],
+      "members": ["Trigger", "Value", "Content", "Group", "Label", "Item", "Separator"]
+    },
+    "Tabs": {
+      "variants": [],
+      "sizes": [],
+      "members": ["List", "Trigger", "Content"]
+    },
+    "Dialog": {
+      "variants": [],
+      "sizes": [],
+      "members": [
+        "Trigger",
+        "Portal",
+        "Overlay",
+        "Content",
+        "Header",
+        "Footer",
+        "Title",
+        "Description",
+        "Close"
+      ]
+    },
+    "DropdownMenu": {
+      "variants": [],
+      "sizes": [],
+      "members": [
+        "Trigger",
+        "Portal",
+        "Content",
+        "Group",
+        "Label",
+        "Item",
+        "CheckboxItem",
+        "RadioGroup",
+        "RadioItem",
+        "ItemIndicator",
+        "Separator",
+        "Arrow",
+        "Sub",
+        "SubTrigger",
+        "SubContent"
+      ]
+    },
+    "Tooltip": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Provider", "Trigger", "Portal", "Content", "Arrow"]
+    },
+    "Separator": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    }
+  },
+  "design": {
+    "density": "compact",
+    "theme": "dark-first",
+    "radius": "small",
+    "keywords": [
+      "dark-first",
+      "high-contrast",
+      "expressive",
+      "editorial",
+      "physical motion",
+      "electric accents"
+    ]
+  },
+  "rules": {
+    "allowArbitraryColors": false,
+    "allowArbitraryRadius": false,
+    "allowArbitraryShadows": false,
+    "allowPrimitiveDuplication": false
+  }
+}

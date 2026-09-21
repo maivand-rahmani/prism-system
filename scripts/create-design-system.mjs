@@ -39,10 +39,15 @@ import {
   toTokensExport,
   toUiClass,
 } from "./register-design-system.mjs";
+import {
+  DESIGN_SYSTEM_BRIEF_FILENAME,
+  DESIGN_SYSTEM_MANIFEST_FILENAME,
+  writeDesignSystemManifest,
+} from "./design-system-manifest.mjs";
 
 const TEMPLATE_RELATIVE = join("templates", "design-system");
 const TEMPLATE_SUFFIX = ".template";
-const DESIGN_BRIEF_FILENAME = "design-brief.json";
+const DESIGN_BRIEF_FILENAME = DESIGN_SYSTEM_BRIEF_FILENAME;
 
 const PLACEHOLDER_PATTERN = /\{\{([A-Z_][A-Z0-9_]*)\}\}/g;
 const ALLOWED_PLACEHOLDERS = Object.freeze([
@@ -283,11 +288,14 @@ function renderTemplate(content, values, file) {
 /* Package creation                                                           */
 /* -------------------------------------------------------------------------- */
 
-function createPackage({ id, displayName, brief, outputRoot, templateRoot, dryRun }) {
+async function createPackage({ id, displayName, brief, outputRoot, templateRoot, dryRun }) {
   const packagesDir = join(outputRoot, PACKAGE_DIRECTORY);
   const packageDir = assertWithin(packagesDir, join(packagesDir, id), `Package path for "${id}"`);
   const templateFiles = collectTemplateFiles(templateRoot);
   const rendersBrief = templateFiles.some((file) => file.outputRelative === DESIGN_BRIEF_FILENAME);
+  const rendersManifest = templateFiles.some(
+    (file) => file.outputRelative === DESIGN_SYSTEM_MANIFEST_FILENAME,
+  );
 
   const values = {
     SYSTEM_ID: id,
@@ -300,6 +308,7 @@ function createPackage({ id, displayName, brief, outputRoot, templateRoot, dryRu
 
   const planned = [...templateFiles.map((file) => file.outputRelative)];
   if (!rendersBrief) planned.push(DESIGN_BRIEF_FILENAME);
+  if (!rendersManifest) planned.push(DESIGN_SYSTEM_MANIFEST_FILENAME);
   planned.sort();
   const existed = existsSync(packageDir);
 
@@ -332,6 +341,12 @@ function createPackage({ id, displayName, brief, outputRoot, templateRoot, dryRu
         `${JSON.stringify(sortKeysDeep(brief), null, 2)}\n`,
         "utf8",
       );
+    }
+    // The generated manifest stamps the authoritative package.json version and
+    // the package-owned design-system.source.json descriptor. It is written
+    // before the temporary directory is promoted to the package directory.
+    if (!rendersManifest) {
+      await writeDesignSystemManifest({ id, packageDir: tempDir });
     }
     renameSync(tempDir, packageDir);
   } catch (error) {
@@ -367,6 +382,8 @@ export function helpText() {
     "the .template suffix is stripped. Allowed placeholders:",
     `  ${ALLOWED_PLACEHOLDERS.map((name) => `{{${name}}}`).join(", ")}.`,
     `The generator writes ${DESIGN_BRIEF_FILENAME} only when the template does not render it.`,
+    `It always writes the generated ${DESIGN_SYSTEM_MANIFEST_FILENAME} manifest from`,
+    "design-system.source.json and the authoritative package.json version.",
     "",
   ].join("\n");
 }
@@ -464,7 +481,7 @@ async function main(argv) {
     const brief = normalizeBrief(rawBrief, displayName);
     const templateRoot = resolveTemplateRoot(outputRoot);
 
-    const result = createPackage({
+    const result = await createPackage({
       id,
       displayName,
       brief,

@@ -18,7 +18,12 @@
  *   - No Changesets versioning (`changeset version`) or publishing
  *     (`changeset publish`) is ever run from here.
  *   - The pack check writes its tarball to a temporary directory outside the
- *     package and removes it in a `finally` block.
+ *     package, inspects its contents (required files and the exact `./manifest`
+ *     export target), and removes it in a `finally` block.
+ *   - After `changeset version`, the mirrored versions (runtime
+ *     `DesignSystem.version`, generated `design-system.json`, and the registry
+ *     entry) are synchronized to the authoritative `package.json.version`
+ *     before the fail-closed validation that gates build/pack.
  *
  * Dry-run semantics: `--dry-run` runs static validation only (no package/app
  * scripts), writes nothing, and reports the commands it would have run.
@@ -49,6 +54,23 @@ import {
   repoRoot,
 } from "./register-design-system.mjs";
 import { validateDesignSystem } from "./validate-design-system.mjs";
+import {
+  DESIGN_SYSTEM_BRIEF_FILENAME,
+  DESIGN_SYSTEM_MANIFEST_FILENAME,
+  MANIFEST_EXPORT_SUBPATH,
+  MANIFEST_EXPORT_TARGET,
+  missingRequiredPackageFiles,
+} from "./design-system-manifest.mjs";
+import { syncDesignSystemVersions } from "./sync-design-system-versions.mjs";
+
+/** Files every published tarball must contain (pnpm pack prefixes `package/`). */
+export const REQUIRED_TARBALL_FILES = Object.freeze([
+  "package/README.md",
+  "package/AGENTS.md",
+  `package/${DESIGN_SYSTEM_MANIFEST_FILENAME}`,
+  `package/${DESIGN_SYSTEM_BRIEF_FILENAME}`,
+  "package/LICENSE",
+]);
 
 /** Bumps accepted on the command line. */
 export const RELEASE_BUMPS = Object.freeze(["major", "minor", "patch"]);
@@ -56,8 +78,17 @@ export const RELEASE_BUMPS = Object.freeze(["major", "minor", "patch"]);
 /** Relative strength of each bump: `major` outranks `minor`, which outranks `patch`. */
 export const BUMP_PRECEDENCE = Object.freeze({ major: 3, minor: 2, patch: 1 });
 
-/** Exact next commands a human runs after preparation succeeds. */
-export const NEXT_COMMANDS = Object.freeze(["pnpm version-packages", "pnpm build", "pnpm release"]);
+/**
+ * Exact next commands a human runs after preparation succeeds. `changeset
+ * version` rewrites package.json, so the versions must be synchronized before
+ * the package is built and published.
+ */
+export const NEXT_COMMANDS = Object.freeze([
+  "pnpm version-packages",
+  "pnpm ds:sync-versions",
+  "pnpm build",
+  "pnpm release",
+]);
 
 /* -------------------------------------------------------------------------- */
 /* Small helpers                                                              */
@@ -261,9 +292,80 @@ function runCommand({ command, args, cwd }) {
   return spawnSync(command, args, { cwd, encoding: "utf8" });
 }
 
+/** Read one file's contents from a tarball without extracting it. */
+function readTarballFile(tarballPath, entry) {
+  const result = spawnSync("tar", ["-xzOf", tarballPath, entry], { encoding: "utf8" });
+  if (result.error || result.status !== 0) {
+    return null;
+  }
+  return result.stdout ?? null;
+}
+
 /**
- * Pack the package into a temporary directory outside it, then remove the
- * temporary artifacts. Never publishes.
+ * Inspect a tarball with the system `tar`. Fails closed: when the tarball
+ * cannot be read, or the shipped `./manifest` export target is not the exact
+ * manifest file, the release is blocked rather than assumed good.
+ */
+export function inspectTarball(tarballPath) {
+  const result = spawnSync("tar", ["-tzf", tarballPath], { encoding: "utf8" });
+  if (result.error) {
+    return { ok: false, detail: `could not inspect tarball: ${result.error.message}` };
+  }
+  if (result.status !== 0) {
+    return { ok: false, detail: `could not inspect tarball: tar exited ${result.status}` };
+  }
+  const entries = (result.stdout ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  const missing = REQUIRED_TARBALL_FILES.filter((file) => !entries.includes(file));
+  if (!entries.some((entry) => entry.startsWith("package/dist/"))) {
+    missing.push("package/dist/*");
+  }
+  if (missing.length > 0) {
+    return { ok: false, detail: `tarball is missing required entries: ${missing.join(", ")}` };
+  }
+
+  // The shipped manifest subpath must point at the shipped manifest file, not
+  // merely exist. Read the packed package.json and verify the exact target.
+  const packedPackageJson = readTarballFile(tarballPath, "package/package.json");
+  if (packedPackageJson === null) {
+    return { ok: false, detail: "could not read package/package.json from the tarball" };
+  }
+  let pkg;
+  try {
+    pkg = JSON.parse(packedPackageJson);
+  } catch (error) {
+    return { ok: false, detail: `invalid package/package.json in tarball: ${error.message}` };
+  }
+  const manifestTarget = pkg?.exports?.[MANIFEST_EXPORT_SUBPATH];
+  if (manifestTarget !== MANIFEST_EXPORT_TARGET) {
+    return {
+      ok: false,
+      detail:
+        `tarball package.json exports["${MANIFEST_EXPORT_SUBPATH}"] must be exactly ` +
+        `${JSON.stringify(MANIFEST_EXPORT_TARGET)} (received ${JSON.stringify(
+          manifestTarget ?? null,
+        )})`,
+    };
+  }
+  const targetEntry = `package/${MANIFEST_EXPORT_TARGET.replace(/^\.\//, "")}`;
+  if (!entries.includes(targetEntry)) {
+    return { ok: false, detail: `tarball is missing the manifest target ${targetEntry}` };
+  }
+  const missingFiles = missingRequiredPackageFiles(pkg);
+  if (missingFiles.length > 0) {
+    return {
+      ok: false,
+      detail: `tarball package.json "files" is missing: ${missingFiles.join(", ")}`,
+    };
+  }
+  return { ok: true, detail: `${entries.length} entries` };
+}
+
+/**
+ * Pack the package into a temporary directory outside it, inspect the tarball
+ * contents, then remove the temporary artifacts. Never publishes.
  */
 function runPackCheck({ root, packageDir }) {
   const binary = packageManagerBinary(root);
@@ -288,7 +390,11 @@ function runPackCheck({ root, packageDir }) {
     if (tarballs.length === 0) {
       return { status: "failed", detail: "pnpm pack reported success but produced no tarball." };
     }
-    return { status: "verified", detail: `packed ${tarballs[0]}` };
+    const inspection = inspectTarball(join(tempDir, tarballs[0]));
+    if (!inspection.ok) {
+      return { status: "failed", detail: inspection.detail };
+    }
+    return { status: "verified", detail: `packed ${tarballs[0]} (${inspection.detail})` };
   } catch (error) {
     return { status: "failed", detail: `pnpm pack failed: ${error.message}` };
   } finally {
@@ -316,7 +422,7 @@ function blocked(base, failures, extra = {}) {
  * @param {boolean} [options.dryRun] Preview only: no writes, no scripts, no commands.
  * @returns {object} Structured release plan, or a blocked result with failures.
  */
-export function prepareRelease(options = {}) {
+export async function prepareRelease(options = {}) {
   const id = assertSystemId(options.id);
   const root = resolve(options.root ?? repoRoot());
   const dryRun = Boolean(options.dryRun);
@@ -341,6 +447,24 @@ export function prepareRelease(options = {}) {
     ]);
   }
 
+  // `changeset version` rewrites package.json, so synchronize the mirrored
+  // versions (runtime, generated manifest, registry) before the fail-closed
+  // validation that gates build/pack. Never versions and never publishes.
+  let synchronization;
+  if (dryRun) {
+    synchronization = { status: "skipped", detail: "dry run: versions are not synchronized" };
+  } else {
+    try {
+      const result = await syncDesignSystemVersions({ id, root });
+      synchronization = {
+        status: result.changed ? "synchronized" : "unchanged",
+        detail: `runtime, ${DESIGN_SYSTEM_MANIFEST_FILENAME}, and registry aligned to package.json.version`,
+      };
+    } catch (error) {
+      return blocked(base, [`Version synchronization failed: ${error.message}`]);
+    }
+  }
+
   let validation;
   try {
     validation = validateDesignSystem({ id, root, runCommands: !dryRun });
@@ -348,7 +472,7 @@ export function prepareRelease(options = {}) {
     return blocked(base, [`Validation could not run: ${error.message}`]);
   }
   if (!validation.ok) {
-    return blocked(base, validation.failures, { validation });
+    return blocked(base, validation.failures, { validation, synchronization });
   }
 
   let entry;
@@ -499,6 +623,7 @@ export function prepareRelease(options = {}) {
     if (pack.status === "failed") {
       return blocked(base, [pack.detail], {
         validation,
+        synchronization,
         build,
         pack,
         changeset,
@@ -514,6 +639,7 @@ export function prepareRelease(options = {}) {
     } catch (error) {
       return blocked(base, [`Could not write ${changeset.relativePath}: ${error.message}`], {
         validation,
+        synchronization,
         build,
         pack,
         changeset,
@@ -537,6 +663,7 @@ export function prepareRelease(options = {}) {
     nextVersion,
     summary,
     validation: { ok: validation.ok, checks: validation.checks, failures: validation.failures },
+    synchronization,
     changeset,
     build,
     pack,
@@ -552,9 +679,11 @@ export function helpText() {
   return [
     "Usage: pnpm ds:release <id> --approved [options]",
     "",
-    "Prepare a release for a registered V2 design system: validate it, plan a",
-    "Changesets entry, build, and run a fail-closed pack check. This never runs",
-    "Changesets versioning or publishing, and never commits.",
+    "Prepare a release for a registered V2 design system: synchronize runtime,",
+    "manifest, and registry versions to package.json.version, validate it, plan a",
+    "Changesets entry, build, and run a fail-closed pack check that inspects the",
+    "tarball contents (including the exact ./manifest export target). This never",
+    "runs Changesets versioning or publishing, and never commits.",
     "",
     "Arguments:",
     "  <id>                  Lower-kebab-case system id (e.g. pulse).",
@@ -671,6 +800,9 @@ function reportPlan(result) {
   process.stdout.write(`  version:    ${result.currentVersion} -> ${result.nextVersion}\n`);
   process.stdout.write(`  bump:       ${result.bump}\n`);
   process.stdout.write(`  validation: passed (${result.validation.checks.length} check(s))\n`);
+  process.stdout.write(
+    `  versions:   ${result.synchronization.status} (${result.synchronization.detail})\n`,
+  );
   for (const line of reportChangesetLines(result.changeset)) process.stdout.write(`${line}\n`);
   process.stdout.write(`  build:      ${result.build.status} (${result.build.detail})\n`);
   process.stdout.write(`  pack:       ${result.pack.status} (${result.pack.detail})\n`);
@@ -683,7 +815,7 @@ function reportPlan(result) {
   );
 }
 
-function main(argv) {
+async function main(argv) {
   let options;
   try {
     options = parseReleaseArgs(argv);
@@ -705,7 +837,7 @@ function main(argv) {
 
   let result;
   try {
-    result = prepareRelease(options);
+    result = await prepareRelease(options);
   } catch (error) {
     process.stderr.write(`${error.message}\n`);
     process.exitCode = 1;
@@ -723,5 +855,5 @@ const invokedDirectly =
   process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (invokedDirectly) {
-  main(process.argv.slice(2));
+  await main(process.argv.slice(2));
 }
