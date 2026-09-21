@@ -1,0 +1,60 @@
+{
+  "project": "System A",
+  "product": "A calm, focused design system for clear editorial product interfaces.",
+  "audience": "Product teams and end users who value readable, low-noise interfaces during focused work.",
+  "platform": "responsive web",
+  "interfaceType": "editorial application surfaces",
+  "dataDensity": "medium",
+  "direction": [
+    "calm",
+    "minimal",
+    "editorial",
+    "warm light surfaces",
+    "ink-led hierarchy",
+    "quiet borders",
+    "restrained motion",
+    "low visual noise"
+  ],
+  "references": [
+    "editorial publishing tools",
+    "calm productivity workspaces",
+    "quietly structured settings surfaces"
+  ],
+  "foundations": {
+    "accentDirection": "muted botanical green used for actions, selection, and reassurance",
+    "colorTemperature": "warm neutral",
+    "contrast": "light surfaces with readable dark ink and measured accent contrast",
+    "typographyCharacter": "refined sans-serif with an ink-led editorial hierarchy",
+    "dominantRadius": "soft small-to-medium corners with occasional generous card corners",
+    "surfaceModel": "warm white surfaces over a pale canvas, with muted fills for quiet grouping",
+    "borders": "fine, low-contrast green-gray hairlines",
+    "elevation": "subtle shadows reserved for raised cards, menus, and dialogs",
+    "motionIntensity": "restrained 140-220ms transitions with reduced-motion support"
+  },
+  "components": [
+    "Button",
+    "Input",
+    "Textarea",
+    "Card",
+    "Badge",
+    "Checkbox",
+    "RadioGroup",
+    "Switch",
+    "Select",
+    "Tabs",
+    "Dialog",
+    "DropdownMenu",
+    "Tooltip",
+    "Separator"
+  ],
+  "avoid": [
+    "harsh black-and-white contrast",
+    "heavy gradients",
+    "excessive glass effects",
+    "pill-heavy interface patterns",
+    "oversized display typography",
+    "loud motion",
+    "decorative borders",
+    "consumer-app styling overrides"
+  ]
+}

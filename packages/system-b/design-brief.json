@@ -1,0 +1,58 @@
+{
+  "project": "System B",
+  "product": "A portable React design system for products with a strong point of view and high visual voltage.",
+  "audience": "Product teams, designers, and developers building expressive interfaces for focused desktop and responsive web use.",
+  "platform": "responsive web",
+  "interfaceType": "component library and product UI",
+  "dataDensity": "medium-high",
+  "direction": [
+    "dark-first",
+    "high-contrast",
+    "expressive",
+    "editorial",
+    "physical motion",
+    "electric accents"
+  ],
+  "references": [
+    "night-mode developer tools",
+    "editorial control rooms",
+    "high-signal command interfaces"
+  ],
+  "foundations": {
+    "accentDirection": "electric coral for action, with cyan reserved for focus cues",
+    "colorTemperature": "cool night surfaces with warm coral and cream ink",
+    "contrast": "high contrast with ink-bright text, visible lines, and crisp state changes",
+    "typographyCharacter": "confident geometric grotesk with uppercase action labels and tight editorial hierarchy",
+    "dominantRadius": "compact controls at 4px, with 8px and 14px used for grouped surfaces",
+    "surfaceModel": "layered dark surfaces separated by muted planes and bright accent edges",
+    "borders": "visible, deliberate borders in purple-gray line tones",
+    "elevation": "physical offset shadows and restrained dark elevation rather than soft diffuse depth",
+    "motionIntensity": "expressive 120–260ms transitions with physical easing, reduced for motion-sensitive users"
+  },
+  "components": [
+    "Button",
+    "Input",
+    "Textarea",
+    "Card",
+    "Badge",
+    "Checkbox",
+    "RadioGroup",
+    "Switch",
+    "Select",
+    "Tabs",
+    "Dialog",
+    "DropdownMenu",
+    "Tooltip",
+    "Separator",
+    "dense form fields with labels, hints, and errors",
+    "layered menus and dialogs with keyboard-accessible states"
+  ],
+  "avoid": [
+    "light-first palettes",
+    "low-contrast text on dark surfaces",
+    "generic SaaS styling",
+    "pill-heavy layouts",
+    "heavy gradients and decorative glass",
+    "consumer-app or cross-system visual overrides"
+  ]
+}

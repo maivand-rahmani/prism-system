@@ -2,6 +2,12 @@
   "name": "@prism-system/ui-system-a",
   "version": "0.1.1",
   "description": "A calm, focused visual system built on @prism-system/ui-core.",
+  "prismSystem": {
+    "name": "System A",
+    "contract": "v2",
+    "uiClass": "maivand-a-ui",
+    "tokensExport": "systemATokens"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",

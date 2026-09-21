@@ -21,7 +21,26 @@ import {
   DialogPortal as DialogPortalPrimitive,
   DialogTitle as DialogTitlePrimitive,
   DialogTrigger as DialogTriggerPrimitive,
+  DropdownMenu as DropdownMenuPrimitive,
+  DropdownMenuArrow as DropdownMenuArrowPrimitive,
+  DropdownMenuCheckboxItem as DropdownMenuCheckboxItemPrimitive,
+  DropdownMenuContent as DropdownMenuContentPrimitive,
+  DropdownMenuGroup as DropdownMenuGroupPrimitive,
+  DropdownMenuItem as DropdownMenuItemPrimitive,
+  DropdownMenuItemIndicator as DropdownMenuItemIndicatorPrimitive,
+  DropdownMenuLabel as DropdownMenuLabelPrimitive,
+  DropdownMenuPortal as DropdownMenuPortalPrimitive,
+  DropdownMenuRadioGroup as DropdownMenuRadioGroupPrimitive,
+  DropdownMenuRadioItem as DropdownMenuRadioItemPrimitive,
+  DropdownMenuSeparator as DropdownMenuSeparatorPrimitive,
+  DropdownMenuSub as DropdownMenuSubPrimitive,
+  DropdownMenuSubContent as DropdownMenuSubContentPrimitive,
+  DropdownMenuSubTrigger as DropdownMenuSubTriggerPrimitive,
+  DropdownMenuTrigger as DropdownMenuTriggerPrimitive,
   Input as InputPrimitive,
+  RadioGroup as RadioGroupPrimitive,
+  RadioGroupIndicator as RadioGroupIndicatorPrimitive,
+  RadioGroupItem as RadioGroupItemPrimitive,
   Select as SelectPrimitive,
   SelectContent as SelectContentPrimitive,
   SelectGroup as SelectGroupPrimitive,
@@ -30,10 +49,20 @@ import {
   SelectSeparator as SelectSeparatorPrimitive,
   SelectTrigger as SelectTriggerPrimitive,
   SelectValue as SelectValuePrimitive,
+  Separator as SeparatorPrimitive,
+  Switch as SwitchPrimitive,
+  SwitchThumb as SwitchThumbPrimitive,
   Tabs as TabsPrimitive,
   TabsContent as TabsContentPrimitive,
   TabsList as TabsListPrimitive,
   TabsTrigger as TabsTriggerPrimitive,
+  Textarea as TextareaPrimitive,
+  Tooltip as TooltipPrimitive,
+  TooltipArrow as TooltipArrowPrimitive,
+  TooltipContent as TooltipContentPrimitive,
+  TooltipPortal as TooltipPortalPrimitive,
+  TooltipProvider as TooltipProviderPrimitive,
+  TooltipTrigger as TooltipTriggerPrimitive,
   cn,
   type BadgeProps as CoreBadgeProps,
   type ButtonProps as CoreButtonProps,
@@ -54,7 +83,25 @@ import {
   type DialogProps as CoreDialogProps,
   type DialogTitleProps as CoreDialogTitleProps,
   type DialogTriggerProps as CoreDialogTriggerProps,
+  type DropdownMenuArrowProps as CoreDropdownMenuArrowProps,
+  type DropdownMenuCheckboxItemProps as CoreDropdownMenuCheckboxItemProps,
+  type DropdownMenuContentProps as CoreDropdownMenuContentProps,
+  type DropdownMenuGroupProps as CoreDropdownMenuGroupProps,
+  type DropdownMenuItemIndicatorProps as CoreDropdownMenuItemIndicatorProps,
+  type DropdownMenuItemProps as CoreDropdownMenuItemProps,
+  type DropdownMenuLabelProps as CoreDropdownMenuLabelProps,
+  type DropdownMenuPortalProps as CoreDropdownMenuPortalProps,
+  type DropdownMenuProps as CoreDropdownMenuProps,
+  type DropdownMenuRadioGroupProps as CoreDropdownMenuRadioGroupProps,
+  type DropdownMenuRadioItemProps as CoreDropdownMenuRadioItemProps,
+  type DropdownMenuSeparatorProps as CoreDropdownMenuSeparatorProps,
+  type DropdownMenuSubContentProps as CoreDropdownMenuSubContentProps,
+  type DropdownMenuSubTriggerProps as CoreDropdownMenuSubTriggerProps,
+  type DropdownMenuTriggerProps as CoreDropdownMenuTriggerProps,
   type InputProps as CoreInputProps,
+  type RadioGroupIndicatorProps as CoreRadioGroupIndicatorProps,
+  type RadioGroupItemProps as CoreRadioGroupItemProps,
+  type RadioGroupProps as CoreRadioGroupProps,
   type SelectContentProps as CoreSelectContentProps,
   type SelectGroupProps as CoreSelectGroupProps,
   type SelectItemProps as CoreSelectItemProps,
@@ -63,10 +110,20 @@ import {
   type SelectSeparatorProps as CoreSelectSeparatorProps,
   type SelectTriggerProps as CoreSelectTriggerProps,
   type SelectValueProps as CoreSelectValueProps,
+  type SeparatorProps as CoreSeparatorProps,
+  type SwitchProps as CoreSwitchProps,
+  type SwitchThumbProps as CoreSwitchThumbProps,
   type TabsContentProps as CoreTabsContentProps,
   type TabsListProps as CoreTabsListProps,
   type TabsProps as CoreTabsProps,
   type TabsTriggerProps as CoreTabsTriggerProps,
+  type TextareaProps as CoreTextareaProps,
+  type TooltipArrowProps as CoreTooltipArrowProps,
+  type TooltipContentProps as CoreTooltipContentProps,
+  type TooltipPortalProps as CoreTooltipPortalProps,
+  type TooltipProps as CoreTooltipProps,
+  type TooltipProviderProps as CoreTooltipProviderProps,
+  type TooltipTriggerProps as CoreTooltipTriggerProps,
 } from "@prism-system/ui-core";
 
 export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "destructive" | "link";
@@ -202,6 +259,53 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Inp
   );
 });
 Input.displayName = "Input";
+
+export interface TextareaProps extends CoreTextareaProps {
+  label?: React.ReactNode;
+  hint?: React.ReactNode;
+  error?: React.ReactNode;
+}
+
+export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(function Textarea(
+  { className, id: providedId, label, hint, error, invalid = false, size = "md", ...props },
+  ref,
+) {
+  const generatedId = React.useId();
+  const id = providedId || `maivand-b-textarea-${generatedId.replace(/:/g, "")}`;
+  const hasError = Boolean(error || invalid);
+  const describedBy =
+    [error ? `${id}-error` : hint ? `${id}-hint` : null, props["aria-describedby"]]
+      .filter(Boolean)
+      .join(" ") || undefined;
+  return (
+    <div className="maivand-b-ui maivand-b-field">
+      {label && (
+        <label className="maivand-b-label" htmlFor={id}>
+          {label}
+        </label>
+      )}
+      <TextareaPrimitive
+        ref={ref}
+        id={id}
+        size={size}
+        invalid={hasError}
+        className={cn("maivand-b-textarea", `maivand-b-input-${size}`, className)}
+        aria-describedby={describedBy}
+        {...props}
+      />
+      {error ? (
+        <span className="maivand-b-error" id={`${id}-error`} role="alert">
+          {error}
+        </span>
+      ) : hint ? (
+        <span className="maivand-b-hint" id={`${id}-hint`}>
+          {hint}
+        </span>
+      ) : null}
+    </div>
+  );
+});
+Textarea.displayName = "Textarea";
 
 export type CardProps = CoreCardProps;
 const CardRoot = React.forwardRef<HTMLDivElement, CardProps>(function Card(
@@ -364,6 +468,82 @@ export const Checkbox = React.forwardRef<HTMLButtonElement, CheckboxProps>(funct
   );
 });
 Checkbox.displayName = "Checkbox";
+
+export type RadioGroupProps = CoreRadioGroupProps;
+export type RadioGroupItemProps = CoreRadioGroupItemProps;
+export type RadioGroupIndicatorProps = CoreRadioGroupIndicatorProps;
+
+function RadioGroupRoot({ className, ...props }: RadioGroupProps) {
+  return (
+    <RadioGroupPrimitive
+      className={cn("maivand-b-ui maivand-b-radio-group", className)}
+      {...props}
+    />
+  );
+}
+export const RadioGroupItem = React.forwardRef<HTMLButtonElement, RadioGroupItemProps>(
+  function RadioGroupItem({ className, children, ...props }, ref) {
+    return (
+      <RadioGroupItemPrimitive
+        ref={ref}
+        className={cn("maivand-b-radio-item", className)}
+        {...props}
+      >
+        <RadioGroupIndicator />
+        {children}
+      </RadioGroupItemPrimitive>
+    );
+  },
+);
+export const RadioGroupIndicator = React.forwardRef<HTMLSpanElement, RadioGroupIndicatorProps>(
+  function RadioGroupIndicator({ className, forceMount, ...props }, ref) {
+    return (
+      <RadioGroupIndicatorPrimitive
+        ref={ref}
+        className={cn("maivand-b-radio-indicator", className)}
+        {...props}
+        {...(forceMount ? { forceMount: true } : {})}
+      />
+    );
+  },
+);
+export const RadioGroup = Object.assign(RadioGroupRoot, {
+  Item: RadioGroupItem,
+  Indicator: RadioGroupIndicator,
+});
+
+export type SwitchProps = CoreSwitchProps;
+export type SwitchThumbProps = CoreSwitchThumbProps;
+const SwitchRoot = React.forwardRef<HTMLButtonElement, SwitchProps>(function Switch(
+  { className, size = "md", invalid = false, children, ...props },
+  ref,
+) {
+  return (
+    <SwitchPrimitive
+      ref={ref}
+      size={size}
+      invalid={invalid}
+      className={cn("maivand-b-ui maivand-b-switch", `maivand-b-switch-${size}`, className)}
+      {...props}
+    >
+      {children}
+      <SwitchThumb />
+    </SwitchPrimitive>
+  );
+});
+export const SwitchThumb = React.forwardRef<HTMLSpanElement, SwitchThumbProps>(function SwitchThumb(
+  { className, ...props },
+  ref,
+) {
+  return (
+    <SwitchThumbPrimitive
+      ref={ref}
+      className={cn("maivand-b-switch-thumb", className)}
+      {...props}
+    />
+  );
+});
+export const Switch = Object.assign(SwitchRoot, { Thumb: SwitchThumb });
 
 export type TabsProps = CoreTabsProps;
 function TabsRoot({ className, orientation = "horizontal", ...props }: TabsProps) {
@@ -686,3 +866,259 @@ DialogTitle.displayName = "DialogTitle";
 DialogDescription.displayName = "DialogDescription";
 DialogFooter.displayName = "DialogFooter";
 DialogOverlay.displayName = "DialogOverlay";
+
+export type DropdownMenuProps = CoreDropdownMenuProps;
+function DropdownMenuRoot(props: DropdownMenuProps) {
+  return <DropdownMenuPrimitive {...props} />;
+}
+export const DropdownMenuTrigger = React.forwardRef<
+  HTMLButtonElement,
+  CoreDropdownMenuTriggerProps
+>(function DropdownMenuTrigger({ className, ...props }, ref) {
+  return (
+    <DropdownMenuTriggerPrimitive
+      ref={ref}
+      className={cn(
+        "maivand-b-ui",
+        "maivand-b-button",
+        "maivand-b-button-outline",
+        "maivand-b-button-sm",
+        className,
+      )}
+      {...props}
+    />
+  );
+});
+export const DropdownMenuPortal = ({ forceMount, ...props }: CoreDropdownMenuPortalProps) => (
+  <DropdownMenuPortalPrimitive {...props} {...(forceMount ? { forceMount: true } : {})} />
+);
+export const DropdownMenuContent = React.forwardRef<HTMLDivElement, CoreDropdownMenuContentProps>(
+  function DropdownMenuContent({ className, forceMount, ...props }, ref) {
+    return (
+      <DropdownMenuContentPrimitive
+        ref={ref}
+        className={cn("maivand-b-ui maivand-b-menu-content", className)}
+        {...props}
+        {...(forceMount ? { forceMount: true } : {})}
+      />
+    );
+  },
+);
+export const DropdownMenuGroup = React.forwardRef<HTMLDivElement, CoreDropdownMenuGroupProps>(
+  function DropdownMenuGroup({ className, ...props }, ref) {
+    return (
+      <DropdownMenuGroupPrimitive
+        ref={ref}
+        className={cn("maivand-b-menu-group", className)}
+        {...props}
+      />
+    );
+  },
+);
+export const DropdownMenuLabel = React.forwardRef<HTMLDivElement, CoreDropdownMenuLabelProps>(
+  function DropdownMenuLabel({ className, ...props }, ref) {
+    return (
+      <DropdownMenuLabelPrimitive
+        ref={ref}
+        className={cn("maivand-b-menu-label", className)}
+        {...props}
+      />
+    );
+  },
+);
+export const DropdownMenuItem = React.forwardRef<HTMLDivElement, CoreDropdownMenuItemProps>(
+  function DropdownMenuItem({ className, ...props }, ref) {
+    return (
+      <DropdownMenuItemPrimitive
+        ref={ref}
+        className={cn("maivand-b-menu-item", className)}
+        {...props}
+      />
+    );
+  },
+);
+export const DropdownMenuCheckboxItem = React.forwardRef<
+  HTMLDivElement,
+  CoreDropdownMenuCheckboxItemProps
+>(function DropdownMenuCheckboxItem({ className, ...props }, ref) {
+  return (
+    <DropdownMenuCheckboxItemPrimitive
+      ref={ref}
+      className={cn("maivand-b-menu-item", className)}
+      {...props}
+    />
+  );
+});
+export const DropdownMenuRadioGroup = React.forwardRef<
+  HTMLDivElement,
+  CoreDropdownMenuRadioGroupProps
+>(function DropdownMenuRadioGroup({ className, ...props }, ref) {
+  return (
+    <DropdownMenuRadioGroupPrimitive
+      ref={ref}
+      className={cn("maivand-b-menu-group", className)}
+      {...props}
+    />
+  );
+});
+export const DropdownMenuRadioItem = React.forwardRef<
+  HTMLDivElement,
+  CoreDropdownMenuRadioItemProps
+>(function DropdownMenuRadioItem({ className, ...props }, ref) {
+  return (
+    <DropdownMenuRadioItemPrimitive
+      ref={ref}
+      className={cn("maivand-b-menu-item", className)}
+      {...props}
+    />
+  );
+});
+export const DropdownMenuItemIndicator = React.forwardRef<
+  HTMLSpanElement,
+  CoreDropdownMenuItemIndicatorProps
+>(function DropdownMenuItemIndicator({ className, forceMount, ...props }, ref) {
+  return (
+    <DropdownMenuItemIndicatorPrimitive
+      ref={ref}
+      className={cn("maivand-b-menu-indicator", className)}
+      {...props}
+      {...(forceMount ? { forceMount: true } : {})}
+    />
+  );
+});
+export const DropdownMenuSeparator = React.forwardRef<
+  HTMLDivElement,
+  CoreDropdownMenuSeparatorProps
+>(function DropdownMenuSeparator({ className, ...props }, ref) {
+  return (
+    <DropdownMenuSeparatorPrimitive
+      ref={ref}
+      className={cn("maivand-b-menu-separator", className)}
+      {...props}
+    />
+  );
+});
+export const DropdownMenuArrow = React.forwardRef<SVGSVGElement, CoreDropdownMenuArrowProps>(
+  function DropdownMenuArrow({ className, ...props }, ref) {
+    return (
+      <DropdownMenuArrowPrimitive
+        ref={ref}
+        className={cn("maivand-b-menu-arrow", className)}
+        {...props}
+      />
+    );
+  },
+);
+export const DropdownMenuSub = DropdownMenuSubPrimitive;
+export const DropdownMenuSubTrigger = React.forwardRef<
+  HTMLDivElement,
+  CoreDropdownMenuSubTriggerProps
+>(function DropdownMenuSubTrigger({ className, ...props }, ref) {
+  return (
+    <DropdownMenuSubTriggerPrimitive
+      ref={ref}
+      className={cn("maivand-b-menu-item", className)}
+      {...props}
+    />
+  );
+});
+export const DropdownMenuSubContent = React.forwardRef<
+  HTMLDivElement,
+  CoreDropdownMenuSubContentProps
+>(function DropdownMenuSubContent({ className, forceMount, align, ...props }, ref) {
+  // Radix SubContent accepts only start/end; center is valid in the shared API.
+  const normalizedAlign = align === "center" ? undefined : align;
+  return (
+    <DropdownMenuSubContentPrimitive
+      ref={ref}
+      align={normalizedAlign}
+      className={cn("maivand-b-ui maivand-b-menu-content", className)}
+      {...props}
+      {...(forceMount ? { forceMount: true } : {})}
+    />
+  );
+});
+export const DropdownMenu = Object.assign(DropdownMenuRoot, {
+  Trigger: DropdownMenuTrigger,
+  Portal: DropdownMenuPortal,
+  Content: DropdownMenuContent,
+  Group: DropdownMenuGroup,
+  Label: DropdownMenuLabel,
+  Item: DropdownMenuItem,
+  CheckboxItem: DropdownMenuCheckboxItem,
+  RadioGroup: DropdownMenuRadioGroup,
+  RadioItem: DropdownMenuRadioItem,
+  ItemIndicator: DropdownMenuItemIndicator,
+  Separator: DropdownMenuSeparator,
+  Arrow: DropdownMenuArrow,
+  Sub: DropdownMenuSub,
+  SubTrigger: DropdownMenuSubTrigger,
+  SubContent: DropdownMenuSubContent,
+});
+
+export type TooltipProps = CoreTooltipProps;
+export function TooltipProvider(props: CoreTooltipProviderProps) {
+  return <TooltipProviderPrimitive {...props} />;
+}
+function TooltipRoot(props: TooltipProps) {
+  return <TooltipPrimitive {...props} />;
+}
+export const TooltipTrigger = React.forwardRef<HTMLButtonElement, CoreTooltipTriggerProps>(
+  function TooltipTrigger({ className, ...props }, ref) {
+    return (
+      <TooltipTriggerPrimitive
+        ref={ref}
+        className={cn("maivand-b-ui maivand-b-tooltip-trigger", className)}
+        {...props}
+      />
+    );
+  },
+);
+export const TooltipPortal = ({ forceMount, ...props }: CoreTooltipPortalProps) => (
+  <TooltipPortalPrimitive {...props} {...(forceMount ? { forceMount: true } : {})} />
+);
+export const TooltipContent = React.forwardRef<HTMLDivElement, CoreTooltipContentProps>(
+  function TooltipContent({ className, forceMount, ...props }, ref) {
+    return (
+      <TooltipContentPrimitive
+        ref={ref}
+        className={cn("maivand-b-ui maivand-b-tooltip-content", className)}
+        {...props}
+        {...(forceMount ? { forceMount: true } : {})}
+      />
+    );
+  },
+);
+export const TooltipArrow = React.forwardRef<SVGSVGElement, CoreTooltipArrowProps>(
+  function TooltipArrow({ className, ...props }, ref) {
+    return (
+      <TooltipArrowPrimitive
+        ref={ref}
+        className={cn("maivand-b-tooltip-arrow", className)}
+        {...props}
+      />
+    );
+  },
+);
+export const Tooltip = Object.assign(TooltipRoot, {
+  Provider: TooltipProvider,
+  Trigger: TooltipTrigger,
+  Portal: TooltipPortal,
+  Content: TooltipContent,
+  Arrow: TooltipArrow,
+});
+
+export type SeparatorProps = CoreSeparatorProps;
+export const Separator = React.forwardRef<HTMLDivElement, SeparatorProps>(function Separator(
+  { className, ...props },
+  ref,
+) {
+  return (
+    <SeparatorPrimitive
+      ref={ref}
+      className={cn("maivand-b-ui maivand-b-separator", className)}
+      {...props}
+    />
+  );
+});
+Separator.displayName = "Separator";
