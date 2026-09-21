@@ -25,3 +25,5 @@ descriptor.
   validated.
 - Package `AGENTS.md` / `README.md` now describe the V3 consumer contract:
   identity, available UI, usage rules, restrictions, and extension rules.
+- Package `AGENTS.md` also cross-links the `use-design-system` and
+  `modify-design-system` lifecycle skills.

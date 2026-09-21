@@ -48,6 +48,9 @@ jobs:
       - name: Check formatting
         run: pnpm format:check
 
+      - name: Check V3 lifecycle
+        run: pnpm ds:check-v3
+
   version:
     name: Version packages
     needs: verify
@@ -78,7 +81,7 @@ jobs:
       - name: Create version pull request
         uses: changesets/action@52025003bf4794281597cb5b5e566485d9473389 # v1.5.0
         with:
-          version: pnpm version-packages
+          version: pnpm version-packages-and-sync
           commit: "chore: version packages"
           title: "chore: version packages"
         env:

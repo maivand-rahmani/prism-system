@@ -51,6 +51,9 @@ jobs:
       - name: Check formatting
         run: pnpm format:check
 
+      - name: Check V3 lifecycle
+        run: pnpm ds:check-v3
+
   publish:
     name: Publish packages
     needs: verify

@@ -24,9 +24,11 @@
     "ds:sync-versions": "node scripts/sync-design-system-versions.mjs",
     "ds:connect": "node scripts/connect-design-system.mjs",
     "ds:check-usage": "node scripts/check-design-system-usage.mjs",
+    "ds:check-v3": "node scripts/check-v3-lifecycle.mjs",
     "ds:release": "node scripts/prepare-release.mjs",
     "changeset": "changeset",
     "version-packages": "changeset version",
+    "version-packages-and-sync": "pnpm version-packages && pnpm ds:sync-versions",
     "release": "node scripts/sync-design-system-versions.mjs --check && turbo run build && changeset publish"
   },
   "devDependencies": {

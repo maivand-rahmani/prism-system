@@ -129,7 +129,13 @@ Wrong:
   fourteen-component contract is the only supported contract, and both test systems now
   implement it. Versioning and publishing remain explicit Changesets and human steps;
   this tooling never publishes a package.
-- **V3 — implemented through Phase 4.** Consumer lifecycle tooling is available:
+- **V3 — complete.** The consumer lifecycle is implemented and covered by a
+  deterministic integration check (`pnpm ds:check-v3`), which validates and packs both
+  systems, builds and packs a freshly generated template package, and exercises
+  configure-only connect, exact version discovery, strict usage validation, and
+  idempotent connect against all three packed artifacts under `TEMP/v3/` — without
+  mutating the repository or publishing.
+  Consumer lifecycle tooling is available:
   `pnpm ds:connect [package] --cwd <consumer-root>` configures an already-installed
   `@prism-system/ui-*` package (config-first discovery, exact version/identity checks,
   `.design-system/config.json` and `.design-system/AGENTS.md`, and an idempotent managed
@@ -167,6 +173,7 @@ pnpm ds:sync-versions [id] [--check] # align runtime/manifest/registry versions
 pnpm ds:release <id> --approved     # prepare a release (never versions/publishes)
 pnpm ds:connect --cwd <consumer-root>     # configure a consumer repository (V3)
 pnpm ds:check-usage --cwd <consumer-root> # strict usage validation (V3)
+pnpm ds:check-v3                    # end-to-end V3 lifecycle check (packed artifacts)
 ```
 
 Lifecycle skills: `skills/create-design-system/SKILL.md` (create),
