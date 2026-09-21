@@ -18,15 +18,15 @@ This repository is **not** an application and does not contain product business 
 ```text
 design-systems/
 ├── apps/
-│   ├── showcase/          # component laboratory (V1)
-│   └── reference-app/     # fixed composition test bed (V1)
+│   ├── showcase/          # component laboratory
+│   └── reference-app/     # fixed composition test bed
 ├── packages/
 │   ├── core/              # @prism-system/ui-core  — unstyled shared foundation
 │   ├── system-a/          # @prism-system/ui-system-a — test design system
 │   └── system-b/          # @prism-system/ui-system-b — test design system
 └── docs/
     ├── v1/                # V1 foundation spec
-    ├── v2/                # V2 factory spec (factory + skill implemented)
+    ├── v2/                # V2 spec (factory + skill + validation/integration/release tooling implemented)
     └── v3/                # V3 consumer lifecycle spec (planned, not implemented)
 ```
 
@@ -58,17 +58,20 @@ Rules:
 
 ## The shared component contract
 
-V1 fixes exactly eight required components. Every design system must export them
-with a compatible API:
+The supported contract is exactly the fourteen V2 components. Every design system must
+export them with a compatible API:
 
 ```text
-Button, Input, Card, Badge, Checkbox, Tabs, Dialog, Select
+Button, Input, Textarea, Card, Badge, Checkbox, RadioGroup, Switch, Select,
+Tabs, Dialog, DropdownMenu, Tooltip, Separator
 ```
 
-The contract types live in `@prism-system/ui-core` (`DesignSystemComponents`). A design
-system's visual result may differ completely, but its public API must remain
-interchangeable so Showcase and Reference App can switch systems without rewriting
-the interface.
+The contract types live in `@prism-system/ui-core` (`DesignSystemComponents`,
+`REQUIRED_COMPONENTS`, and the `defineDesignSystemV2` helper). A design system's visual
+result may differ completely, but its public API must remain interchangeable so Showcase
+and Reference App can switch systems without rewriting the interface. The historical
+eight-component V1 contract (`Button`, `Input`, `Card`, `Badge`, `Checkbox`, `Tabs`,
+`Dialog`, `Select`) is archived and unsupported.
 
 ## Styling ownership
 
@@ -109,22 +112,26 @@ Wrong:
 
 ## Current implementation status
 
-- **V1 — complete.** The monorepo infrastructure is in place: `@prism-system/ui-core`
-  (contracts, types, utilities, a11y helpers, common hooks), the two test design systems
-  `@prism-system/ui-system-a` and `@prism-system/ui-system-b`, Showcase, and Reference App.
-  Packages build, typecheck, and publish, and the package/release setup (Changesets plus
-  the GitHub OIDC release workflow) is established.
-- **V2 — in progress.** The factory foundation is implemented: the canonical package
-  template (`templates/design-system`), the deterministic generators `pnpm ds:create` and
-  `pnpm ds:register`, and the design-system manifest `config/design-systems.json`. The
-  portable `create-design-system` skill (`skills/create-design-system/SKILL.md`) with its
-  Design Interview and Design Brief schema (`design-brief.schema.json`) is implemented as
-  well (Phase 3). Still pending: deterministic validation (`pnpm ds:check`), automatic
-  Showcase / Reference App integration, and release preparation (`pnpm ds:release`), so
-  end-to-end V2 is not complete.
+- **V1 — complete, archived, unsupported.** The monorepo infrastructure is in place:
+  `@prism-system/ui-core` (contracts, types, utilities, a11y helpers, common hooks), the
+  two test design systems `@prism-system/ui-system-a` and `@prism-system/ui-system-b`,
+  Showcase, and Reference App. Packages build and typecheck, and the package/release
+  setup (Changesets plus the GitHub OIDC release workflow) is established. The V1
+  eight-component contract is historical only and no longer accepted.
+- **V2 — complete through Phase 4.** The factory tooling is implemented: the canonical
+  package template (`templates/design-system`), the deterministic generators
+  `pnpm ds:create` and `pnpm ds:register`, and the design-system manifest
+  `config/design-systems.json` (Phase 2); the portable `create-design-system` skill
+  (`skills/create-design-system/SKILL.md`) with its Design Interview and Design Brief
+  schema (`design-brief.schema.json`) (Phase 3); and deterministic validation
+  (`pnpm ds:check`), manifest-driven automatic Showcase / Reference App integration, and
+  fail-closed release preparation (`pnpm ds:release`) (Phase 4). The canonical V2
+  fourteen-component contract is the only supported contract, and both test systems now
+  implement it. Versioning and publishing remain explicit Changesets and human steps;
+  this tooling never publishes a package.
 - **V3 — not implemented.** V3 lifecycle tooling (consumer/manifest tooling, strict-mode
   usage checks) lives in `docs/v3` as a specification only.
-- Do not scaffold V2 or V3 tooling beyond the implemented V2 factory foundation unless
+- Do not scaffold V2 or V3 tooling beyond the implemented V2 factory tooling unless
   explicitly asked.
 
 ## Commands

@@ -9,13 +9,13 @@ an npm package.
 ```text
 design-systems/
 ├── apps/
-│   ├── showcase/          # component laboratory (V1)
-│   └── reference-app/     # fixed composition test bed with system switcher (V1)
+│   ├── showcase/          # component laboratory
+│   └── reference-app/     # fixed composition test bed with system switcher
 ├── packages/
 │   ├── core/              # @prism-system/ui-core — unstyled shared foundation
-│   ├── system-a/          # @prism-system/ui-system-a — test design system
-│   └── system-b/          # @prism-system/ui-system-b — test design system
-└── docs/                  # V1 / V2 / V3 specifications
+│   ├── system-a/          # @prism-system/ui-system-a — V2 test design system
+│   └── system-b/          # @prism-system/ui-system-b — V2 test design system
+└── docs/                  # V1 (archived) / V2 (active) / V3 (planned)
 ```
 
 ## How it fits together
@@ -27,10 +27,15 @@ layout,                colors, tokens,                      contracts, types,
 composition            variants, styles                     utilities, a11y, hooks
 ```
 
-- `@prism-system/ui-core` is unstyled. It defines the shared contract for the eight V1
-  components (`Button`, `Input`, `Card`, `Badge`, `Checkbox`, `Tabs`, `Dialog`,
-  `Select`), plus common utilities, accessibility helpers, and hooks.
-- Each design system implements that contract with its own complete visual language.
+- The supported contract is exactly the fourteen V2 components, in canonical order:
+  `Button`, `Input`, `Textarea`, `Card`, `Badge`, `Checkbox`, `RadioGroup`, `Switch`,
+  `Select`, `Tabs`, `Dialog`, `DropdownMenu`, `Tooltip`, `Separator`.
+- `@prism-system/ui-core` is unstyled. It defines that shared contract plus common
+  utilities, accessibility helpers, and hooks. The historical eight-component V1
+  contract (`Button`, `Input`, `Card`, `Badge`, `Checkbox`, `Tabs`, `Dialog`, `Select`)
+  is archived and unsupported.
+- Each design system implements the V2 contract with its own complete visual language;
+  System A and System B are now V2.
 - Showcase inspects a system component by component; Reference App proves that the
   same interface works when rendered with `system-a` or `system-b`.
 
@@ -50,16 +55,20 @@ pnpm lint
 
 ## Workspace commands
 
-| Command                 | Description                              |
-| ----------------------- | ---------------------------------------- |
-| `pnpm dev`              | Run all `dev` targets through Turborepo  |
-| `pnpm build`            | Build every package (dependencies first) |
-| `pnpm typecheck`        | Typecheck every package                  |
-| `pnpm lint`             | Lint every package                       |
-| `pnpm format`           | Format the repository with Prettier      |
-| `pnpm changeset`        | Describe a change for the next release   |
-| `pnpm version-packages` | Apply pending changesets                 |
-| `pnpm release`          | Build and publish packages               |
+| Command                 | Description                               |
+| ----------------------- | ----------------------------------------- |
+| `pnpm dev`              | Run all `dev` targets through Turborepo   |
+| `pnpm build`            | Build every package (dependencies first)  |
+| `pnpm typecheck`        | Typecheck every package                   |
+| `pnpm lint`             | Lint every package                        |
+| `pnpm format`           | Format the repository with Prettier       |
+| `pnpm ds:create`        | Generate a new design-system package      |
+| `pnpm ds:register`      | Register and sync a system into the apps  |
+| `pnpm ds:check`         | Validate a registered design system       |
+| `pnpm ds:release`       | Prepare a release (never version/publish) |
+| `pnpm changeset`        | Describe a change for the next release    |
+| `pnpm version-packages` | Apply pending changesets                  |
+| `pnpm release`          | Build and publish packages                |
 
 ## Packages
 
@@ -73,22 +82,26 @@ See each package's `README.md` and `AGENTS.md` for details.
 
 ## Roadmap
 
-- **V1 — Foundation (complete):** portable design systems, Showcase, Reference App, and
-  the npm package/release setup. See `docs/v1`.
-- **V2 — Creation (in progress):** repeatable workflow for creating new design systems.
-  The factory foundation is implemented — the canonical template, `ds:create`,
-  `ds:register`, and the design-system manifest. The portable `create-design-system` skill
-  with its Design Interview and Design Brief schema is implemented too (Phase 3). Still
-  pending: `pnpm ds:check` validation, automatic Showcase / Reference App integration,
-  and `pnpm ds:release` release preparation. See `docs/v2`.
+- **V1 — Foundation (complete; archived, unsupported):** portable design systems,
+  Showcase, Reference App, and the npm package/release setup. V1's eight-component
+  contract is historical only. See `docs/v1`.
+- **V2 — Creation (complete through Phase 4):** the repeatable factory workflow for
+  creating new design systems. Implemented: the canonical template
+  (`templates/design-system`), the deterministic generators `pnpm ds:create` and
+  `pnpm ds:register`, the portable `create-design-system` skill with its Design Interview
+  and Design Brief schema, deterministic validation (`pnpm ds:check`), manifest-driven
+  automatic Showcase / Reference App integration, and fail-closed release preparation
+  (`pnpm ds:release`). See `docs/v2`.
 - **V3 — Consumption & lifecycle (planned, specification only):** using and evolving
   systems in real products. See `docs/v3`.
 
-V1 is implemented and released. For V2 the factory foundation (canonical template,
-`ds:create`, `ds:register`, manifest) plus the portable `create-design-system` skill,
-Design Interview, and Design Brief schema are implemented. Validation (`pnpm ds:check`),
-automatic Showcase / Reference App integration, and release preparation
-(`pnpm ds:release`) remain pending, so end-to-end V2 is not complete. V3 is a
+V1 is archived and unsupported: its eight-component contract is no longer accepted. The
+only supported contract is the fourteen-component V2 contract. V2 factory tooling is
+implemented through Phase 4: the canonical template, `ds:create`/`ds:register`, the
+portable skill with its Design Interview and schema, `pnpm ds:check`, automatic Showcase /
+Reference App integration, and `pnpm ds:release` preparation. This tooling never versions
+or publishes a package by itself — versioning and publishing remain explicit Changesets
+and human steps. V2 introduces no AI runtime: the coding agent stays external. V3 is a
 specification only and is intentionally **not implemented yet**.
 
 ## Releases

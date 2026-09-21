@@ -54,6 +54,10 @@ apps/*  ──────────────►  @prism-system/ui-system-*
    product-specific components are allowed as **additions** and must not reduce,
    substitute, or otherwise change the required set.
 
+   V2 is the only supported contract. The historical eight-component V1 contract is
+   archived and unsupported: V1 systems are not accepted by this creation workflow or by
+   the apps, and existing consumers must migrate to the fourteen-component V2 contract.
+
 6. **Optional additions are package-local.** Add extra components only inside the
    generated package (`packages/<id>`), for example as a separate module under
    `src/components`. They may be exported through an additive package-owned export, but
@@ -228,33 +232,44 @@ extensions inside `packages/<id>` are expected (see Step 6).
 
 ### Step 7 — Human review loop
 
-The intended review surfaces are Showcase and Reference App, where the user judges the
-system in isolation and in composition. Automatic registration of new systems into those
-apps is a later phase and may not be available yet. If the new system does not appear in
-an app, report that integration gap; do not edit app code by hand to compensate.
+`pnpm ds:create` and `pnpm ds:register` project the manifest into both apps
+automatically, so the new system appears in Showcase and Reference App with no app edits.
+The user must review the system on both surfaces: open `/showcase/<id>` for the isolated
+component view and open Reference App to check the same interface in composition. There
+are no app overrides — if the system does not appear or looks wrong, report it and fix
+`packages/<id>`, never the app.
 
 Apply all visual feedback to `packages/<id>` only, then re-review. A system that only
 looks correct in Showcase but breaks in composition is not finished.
 
-### Step 8 — Validation handoff (current and intended)
+### Step 8 — Validation and release handoff
 
-Run the generated package's own checks now:
+`pnpm ds:check <id>` is implemented and is the required full validation command. Run it
+after the user visually approves the system:
 
 ```bash
-pnpm --filter @prism-system/ui-<id> build
-pnpm --filter @prism-system/ui-<id> typecheck
-pnpm --filter @prism-system/ui-<id> lint
+pnpm ds:check <id>
 ```
 
-`pnpm ds:check <id>` is the intended full validation command (package structure,
-naming, exports, required components, tokens, registration, README/AGENTS). It is **not
-implemented yet** — do not invent it or hand-replace it. Once it exists, run it and
-require it to pass.
+It checks package structure, naming, exports, the required components, tokens/theme,
+package boundaries, the design brief, README/AGENTS.md, and Showcase / Reference App
+integration, then runs the package and app scripts (`--no-commands` skips the script
+runs). It never mutates the manifest or the package. If adding the package changed
+workspace dependencies, run `pnpm install` first, then validate.
 
-Do not claim the system is complete while required checks are unavailable. State exactly
-which checks ran and which are still pending. `pnpm ds:release <id>` is the intended
-future release handoff; it does not exist yet. Never publish, version, or run a release
-for a new system before human approval and full validation.
+`pnpm ds:release <id> --approved` is implemented release preparation. It validates,
+builds, packs, and creates or reuses a Changeset for the package — it never runs
+versioning or publishing. Without `--approved` it refuses to write or run anything. After
+it succeeds, the remaining steps are manual:
+
+```bash
+pnpm version-packages
+pnpm build
+pnpm release
+```
+
+Never publish, version, or run a release for a new system before human approval and full
+validation.
 
 ## Stop / finish checklist
 
@@ -268,10 +283,12 @@ for a new system before human approval and full validation.
 - [ ] Optional additions, if any, are package-local and additive (no required export was
       changed).
 - [ ] Visual foundations and component refinements live only in `packages/<id>`.
-- [ ] The system was reviewed in Showcase and Reference App (or the integration gap was
-      reported).
+- [ ] The system was reviewed at `/showcase/<id>` and in Reference App, with no app
+      overrides added.
 - [ ] Generated package build, typecheck, and lint were run and reported honestly.
-- [ ] `pnpm ds:check <id>` was run if available, or its unavailability was disclosed.
+- [ ] `pnpm ds:check <id>` was run after visual approval and passed.
+- [ ] If a release was requested, `pnpm ds:release <id> --approved` prepared it (validate,
+      build, pack, Changeset) without versioning or publishing.
 - [ ] Nothing was published or versioned.
 
 ## Common failure modes
@@ -292,5 +309,6 @@ for a new system before human approval and full validation.
   components.
 - **Editing apps to compensate.** If Reference App or Showcase needs overrides, the
   system is incomplete — fix the package, not the app.
-- **Over-claiming completion.** Do not report success for `ds:check`, app integration, or
-  release until those tools actually exist and ran.
+- **Over-claiming completion.** Do not report success for `pnpm ds:check`, app
+  integration, or `pnpm ds:release` unless the actual command ran and passed. App
+  integration is automatic — never edit an app by hand to compensate.

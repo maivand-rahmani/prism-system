@@ -5,8 +5,14 @@
 Это базовый документ спецификации V2. Раздел ниже отражает текущее состояние
 реализации; сам документ описывает целевую спецификацию.
 
-- **V1 завершена.** Фундамент, `core`, тестовые design systems, Showcase, Reference App и
-  package/release setup реализованы.
+**Единственный поддерживаемый контракт — канонический 14-компонентный контракт V2.**
+Исторический восьмикомпонентный контракт V1 архивирован и не поддерживается; документация
+`docs/v1` — историческая. Ни одна V1-система не принимается workflow создания или
+приложениями.
+
+- **V1 завершена, архивирована (не поддерживается).** Фундамент, `core`, тестовые design
+  systems, Showcase, Reference App и package/release setup реализованы, но контракт V1
+  больше не поддерживается. Текущие `system-a` / `system-b` реализуют канонический V2.
 - **V2 — Phase 2 foundation реализован.** Canonical template
   `templates/design-system`, генератор `pnpm ds:create`, регистрация
   `pnpm ds:register` и manifest `config/design-systems.json` существуют и покрыты
@@ -14,14 +20,18 @@
 - **V2 — Phase 3 реализован (skill и Design Brief).** Переносимый skill
   `skills/create-design-system/SKILL.md`, Design Interview и схема Design Brief
   `design-brief.schema.json` реализованы.
+- **V2 — Phase 4 реализован (validation, app integration, release preparation).**
+  Deterministic validator `pnpm ds:check` реализован. Интеграция новых систем в
+  Showcase и Reference App выполняется статически из manifest
+  (`config/design-systems.json`): tool-owned файлы обоих приложений генерирует
+  `pnpm ds:register` (и автоматически `pnpm ds:create`), а Showcase получает
+  generic-маршрут `/showcase/<id>`. Подготовка release
+  `pnpm ds:release <id> --approved` реализована как fail-closed: она валидирует,
+  собирает, упаковывает (`pack`) и создаёт или переиспользует Changeset, но никогда
+  не запускает versioning и publishing.
 
-Остальные срезы V2 пока не реализованы:
-
-- deterministic validation пакетов (`pnpm ds:check`);
-- интеграция новых систем в Showcase и Reference App;
-- подготовка release (`pnpm ds:release`).
-
-Перечисленные срезы остаются pending, поэтому end-to-end V2 ещё не завершён.
+Factory tooling V2 завершён. Остаются workflow-шаги, требующие человека: визуальное
+утверждение системы, versioning и publishing через Changesets.
 
 AI runtime при этом не вводится: AI остаётся внешним coding-agent, как описано ниже.
 
@@ -37,11 +47,15 @@ V2 превращает репозиторий из набора дизайн-с
 - независимые design-system packages;
 - Showcase;
 - Reference App;
-- стабильный package contract;
+- стабильный package contract (в V2 расширен до канонических 14 компонентов);
 - понятная структура monorepo;
 - npm-ready packages.
 
 V2 не должна пересматривать этот фундамент.
+
+Единственное исключение — сам контракт компонентов: V2 вводит канонический
+14-компонентный контракт, а исторический восьмикомпонентный V1 архивируется и больше не
+поддерживается.
 
 Главная задача V2:
 
@@ -345,7 +359,8 @@ packages/pulse/
 └── ...
 ```
 
-Новая система должна автоматически наследовать conventions V1.
+Новая система должна автоматически наследовать инженерные conventions V1 (структура
+package, export model, build approach, naming).
 
 Agent не должен самостоятельно изобретать:
 
@@ -370,7 +385,7 @@ Agent не должен самостоятельно изобретать:
 - предсказуемости package API;
 - последующего использования coding-agent.
 
-Например базовый contract может включать:
+Базовый contract — канонические четырнадцать компонентов, в фиксированном порядке:
 
 ```text
 Button
@@ -389,7 +404,9 @@ Tooltip
 Separator
 ```
 
-Точный список фиксируется после V1.
+Это единственный поддерживаемый контракт. Все системы, включая `system-a` и `system-b`,
+обязаны предоставлять его полностью. Исторический восьмикомпонентный контракт V1
+архивирован и не принимается.
 
 Design System может иметь дополнительные компоненты.
 
