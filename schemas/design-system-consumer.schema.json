@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/maivand-rahmani/prism-system/schemas/design-system-consumer.schema.json",
+  "title": "Design System Consumer Config",
+  "description": "The consumer-side configuration written by `pnpm ds:connect` at <consumer-root>/.design-system/config.json. It records which installed @prism-system design system a product repository consumes, the exact resolved version, the public manifest subpath, and strict mode. It contains no component source or styling; the installed package remains the source of truth.",
+  "type": "object",
+  "required": ["$schema", "schemaVersion", "package", "version", "manifest", "strict"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to this schema."
+    },
+    "schemaVersion": {
+      "const": 1,
+      "description": "Consumer config schema version."
+    },
+    "package": {
+      "type": "string",
+      "pattern": "^@prism-system/ui-[a-z0-9-]+$",
+      "description": "The supported design system package the product consumes."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$",
+      "description": "Exact resolved version; equal to the installed package.json version and the shipped manifest version."
+    },
+    "manifest": {
+      "const": "./manifest",
+      "description": "The public export subpath that resolves to the shipped design-system.json manifest."
+    },
+    "strict": {
+      "type": "boolean",
+      "description": "Strict usage mode. Defaults to true; layout is allowed, visual language overrides are not."
+    }
+  }
+}

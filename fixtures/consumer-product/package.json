@@ -1,0 +1,13 @@
+{
+  "name": "@prism-system/consumer-product-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A minimal product fixture that consumes packed @prism-system design systems by public package name only.",
+  "type": "module",
+  "dependencies": {
+    "@prism-system/ui-system-a": "*",
+    "@prism-system/ui-system-b": "*",
+    "react": ">=18",
+    "react-dom": ">=18"
+  }
+}
