@@ -55,8 +55,11 @@ function SystemSelector({
         <Select.Value />
       </Select.Trigger>
       <Select.Content>
-        <Select.Item value="system-a">System A · calm</Select.Item>
-        <Select.Item value="system-b">System B · electric</Select.Item>
+        {registeredSystems.map((item) => (
+          <Select.Item key={item.id} value={item.id}>
+            {item.name}
+          </Select.Item>
+        ))}
       </Select.Content>
     </Select>
   );

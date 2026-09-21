@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+// @prism-system:styles:begin
 import "@prism-system/ui-system-a/styles.css";
 import "@prism-system/ui-system-b/styles.css";
+// @prism-system:styles:end
 import "./showcase.css";
 
 export const metadata: Metadata = {

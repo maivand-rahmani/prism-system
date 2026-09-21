@@ -134,17 +134,32 @@ function FoundationSection({ system }: { system: RegisteredSystem }) {
 }
 
 function ComponentsSection({ system }: { system: RegisteredSystem }) {
-  const { Button, Input, Card, Badge, Checkbox, Tabs, Dialog, Select } = system.components;
+  const {
+    Button,
+    Input,
+    Textarea,
+    Card,
+    Badge,
+    Checkbox,
+    RadioGroup,
+    Switch,
+    Select,
+    Tabs,
+    Dialog,
+    DropdownMenu,
+    Tooltip,
+    Separator,
+  } = system.components;
   return (
     <section className="laboratory-section" aria-labelledby="components-title">
       <div className="section-heading">
         <div>
           <p className="eyebrow">02 / components</p>
-          <h2 id="components-title">Eight pieces, one contract</h2>
+          <h2 id="components-title">The component surface</h2>
         </div>
         <p className="section-intro">
-          Every specimen below comes from the registered package. The composition stays fixed while
-          the visual language changes.
+          The complete component surface comes from the registered package. The composition stays
+          fixed while the visual language changes.
         </p>
       </div>
       <div className="component-stack">
@@ -333,12 +348,97 @@ function ComponentsSection({ system }: { system: RegisteredSystem }) {
               </Dialog>
             </Card.Content>
           </Card>
+          <Card>
+            <Card.Header>
+              <Card.Title>Textarea</Card.Title>
+              <Card.Description>Long-form notes with a clear input boundary.</Card.Description>
+            </Card.Header>
+            <Card.Content>
+              <Textarea aria-label="Project notes" placeholder="Add a short note..." rows={3} />
+            </Card.Content>
+          </Card>
+          <Card>
+            <Card.Header>
+              <Card.Title>RadioGroup</Card.Title>
+              <Card.Description>Related choices with one active direction.</Card.Description>
+            </Card.Header>
+            <Card.Content>
+              <RadioGroup aria-label="Density" defaultValue="balanced">
+                <div className="control-row">
+                  <RadioGroup.Item value="quiet">
+                    Quiet <RadioGroup.Indicator />
+                  </RadioGroup.Item>
+                  <RadioGroup.Item value="balanced">
+                    Balanced <RadioGroup.Indicator />
+                  </RadioGroup.Item>
+                </div>
+              </RadioGroup>
+            </Card.Content>
+          </Card>
+          <Card>
+            <Card.Header>
+              <Card.Title>Switch</Card.Title>
+              <Card.Description>A compact control for an immediate preference.</Card.Description>
+            </Card.Header>
+            <Card.Content>
+              <div className="control-row">
+                <Switch aria-label="Email updates" defaultChecked>
+                  <Switch.Thumb />
+                </Switch>
+                <span>Weekly updates</span>
+              </div>
+            </Card.Content>
+          </Card>
+          <Card>
+            <Card.Header>
+              <Card.Title>DropdownMenu</Card.Title>
+              <Card.Description>Contextual actions gathered behind one trigger.</Card.Description>
+            </Card.Header>
+            <Card.Content>
+              <DropdownMenu>
+                <DropdownMenu.Trigger type="button">Open actions</DropdownMenu.Trigger>
+                <DropdownMenu.Content>
+                  <DropdownMenu.Item>Rename</DropdownMenu.Item>
+                  <DropdownMenu.Item>Duplicate</DropdownMenu.Item>
+                  <DropdownMenu.Separator />
+                  <DropdownMenu.Item disabled>Archive</DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu>
+            </Card.Content>
+          </Card>
+          <Card>
+            <Card.Header>
+              <Card.Title>Tooltip</Card.Title>
+              <Card.Description>Helpful context, close at hand.</Card.Description>
+            </Card.Header>
+            <Card.Content>
+              <Tooltip.Provider>
+                <Tooltip>
+                  <Tooltip.Trigger type="button">Focus or hover</Tooltip.Trigger>
+                  <Tooltip.Content>Helpful context, close at hand.</Tooltip.Content>
+                </Tooltip>
+              </Tooltip.Provider>
+            </Card.Content>
+          </Card>
+          <Card>
+            <Card.Header>
+              <Card.Title>Separator</Card.Title>
+              <Card.Description>A quiet boundary between related content.</Card.Description>
+            </Card.Header>
+            <Card.Content>
+              <div className="control-row">
+                <span>Before</span>
+                <Separator aria-label="Content boundary" />
+                <span>After</span>
+              </div>
+            </Card.Content>
+          </Card>
         </div>
         <div className="contract-note">
           <span>✓</span>
           <p>
-            <strong>Registered surface</strong> Button, Input, Card, Badge, Checkbox, Tabs, Dialog,
-            and Select are all resolved from <code>{system.packageName}</code>.
+            <strong>Complete component surface</strong> Every specimen is resolved from the active
+            package, <code>{system.packageName}</code>.
           </p>
         </div>
       </div>
@@ -346,8 +446,8 @@ function ComponentsSection({ system }: { system: RegisteredSystem }) {
   );
 }
 
-export function Showcase() {
-  const [systemId, setSystemId] = React.useState(registeredSystems[0]!.id);
+export function Showcase({ initialSystemId }: { initialSystemId?: string } = {}) {
+  const [systemId, setSystemId] = React.useState(initialSystemId ?? registeredSystems[0]!.id);
   const system = getRegisteredSystem(systemId);
   return (
     <main className={`showcase-shell ${system.uiClass}`} data-system={system.id}>
@@ -355,7 +455,7 @@ export function Showcase() {
         <div className="brand-lockup">
           <span className="brand-mark">M</span>
           <div>
-            <p className="kicker">Maivand / V1</p>
+            <p className="kicker">Maivand / laboratory</p>
             <h1>
               Design systems
               <br />
@@ -380,7 +480,7 @@ export function Showcase() {
           states, and primitives that make each registered system unmistakably its own.
         </p>
         <div className="intro-stamp" aria-hidden="true">
-          {system.id === "system-a" ? "A / calm" : "B / electric"}
+          {system.name} / active
         </div>
       </div>
       <FoundationSection system={system} />
@@ -388,7 +488,7 @@ export function Showcase() {
       <footer className="showcase-footer">
         <span>Maivand design systems</span>
         <span>
-          V1 · {system.name} · {system.version}
+          {system.name} · {system.version}
         </span>
       </footer>
     </main>
