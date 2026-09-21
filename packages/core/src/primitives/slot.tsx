@@ -1,5 +1,7 @@
 "use client";
 
+import * as SlotPrimitiveNamespace from "@radix-ui/react-slot";
+
 /**
  * Slot composition foundation.
  *
@@ -11,4 +13,4 @@
 export { Slot, Slottable, type SlotProps } from "@radix-ui/react-slot";
 
 /** Raw Radix namespace, exposed for advanced composition in design systems. */
-export * as SlotPrimitive from "@radix-ui/react-slot";
+export const SlotPrimitive = SlotPrimitiveNamespace;

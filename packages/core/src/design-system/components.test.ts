@@ -1,11 +1,18 @@
 /**
- * Compile-time contract fixture for the additive V2 component contract.
+ * Compile-time contract fixture for the V2-only canonical component contract.
  *
  * This file is intentionally not executed by a test framework: it proves, at
  * typecheck time, that
- *  1. a full 14-entry map satisfies {@link DesignSystemComponentsV2},
- *  2. the V2 required tuple names are exact and valid, and
- *  3. the V1 contract and existing V1 systems are unchanged/additive.
+ *  1. the canonical `DesignSystemComponents` map and `REQUIRED_COMPONENTS`
+ *     tuple are the exact fourteen V2 components, in canonical order,
+ *  2. the V2-named exports are exact aliases of the canonical contract,
+ *  3. `defineDesignSystem` / `defineDesignSystemV2` accept the full fourteen-
+ *     component shape and require the `"v2"` marker, and
+ *  4. an eight-component V1-only object is rejected by both the definition
+ *     helpers and the registry.
+ *
+ * The registry's runtime marker guard is implemented in `design-system.ts`;
+ * this fixture covers its static typing, not execution.
  *
  * `tsconfig.build.json` excludes `*.test.ts`, so nothing here ships in `dist`.
  */
@@ -75,12 +82,20 @@ import type {
 import {
   REQUIRED_COMPONENTS,
   REQUIRED_COMPONENTS_V2,
+  type DesignSystemComponent,
   type DesignSystemComponentName,
   type DesignSystemComponentNameV2,
+  type DesignSystemComponentV2,
   type DesignSystemComponents,
   type DesignSystemComponentsV2,
 } from "./components.js";
-import { defineDesignSystemV2, type DesignSystemV2 } from "./design-system.js";
+import {
+  createDesignSystemRegistry,
+  defineDesignSystem,
+  defineDesignSystemV2,
+  type DesignSystem,
+  type DesignSystemV2,
+} from "./design-system.js";
 
 /** A typed component stub that accepts exactly the contract props. */
 function component<P>(_props: P): null {
@@ -165,8 +180,8 @@ const Tooltip = Object.assign(component<TooltipProps>, {
   Arrow: component<TooltipArrowProps>,
 });
 
-/** A complete synthetic V2 map; assignability is the contract assertion. */
-export const COMPONENTS_V2_FIXTURE: DesignSystemComponentsV2 = {
+/** A complete canonical (fourteen-component) map; assignability is the assertion. */
+export const COMPONENTS_FIXTURE: DesignSystemComponents = {
   Button,
   Input,
   Textarea,
@@ -183,40 +198,170 @@ export const COMPONENTS_V2_FIXTURE: DesignSystemComponentsV2 = {
   Separator,
 };
 
-/** A V2 map must also satisfy the V1 contract (strictly additive). */
-export const COMPONENTS_V2_IS_V1: DesignSystemComponents = COMPONENTS_V2_FIXTURE;
+/** A canonical map also satisfies the V2-named alias, because they are identical. */
+export const COMPONENTS_V2_FIXTURE: DesignSystemComponentsV2 = COMPONENTS_FIXTURE;
+
+/* -------------------------------------------------------------------------- */
+/* Contract / tuple assertions                                                 */
+/* -------------------------------------------------------------------------- */
 
 type Equal<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 
-/** The V1 tuple still names exactly the V1 contract keys. */
-export const V1_TUPLE_IS_EXACT: Equal<
+/** The canonical tuple names exactly the canonical contract keys. */
+export const CANONICAL_TUPLE_IS_EXACT: Equal<
   (typeof REQUIRED_COMPONENTS)[number],
   DesignSystemComponentName
 > = true;
 
-/** The V2 tuple names exactly the V2 contract keys. */
-export const V2_TUPLE_IS_EXACT: Equal<
-  (typeof REQUIRED_COMPONENTS_V2)[number],
-  DesignSystemComponentNameV2
-> = true;
+/** The canonical tuple is exactly these names, in this order. */
+export const EXPECTED_CANONICAL_TUPLE: typeof REQUIRED_COMPONENTS = [
+  "Button",
+  "Input",
+  "Textarea",
+  "Card",
+  "Badge",
+  "Checkbox",
+  "RadioGroup",
+  "Switch",
+  "Select",
+  "Tabs",
+  "Dialog",
+  "DropdownMenu",
+  "Tooltip",
+  "Separator",
+];
 
-/** The V1 and V2 tuples have 8 and 14 entries respectively. */
-export const V1_REQUIRED_COUNT: 8 = REQUIRED_COMPONENTS.length;
+/** The canonical contract has exactly fourteen entries. */
+export const CANONICAL_REQUIRED_COUNT: 14 = REQUIRED_COMPONENTS.length;
+
+/** The canonical contract is not the historical eight-component V1 set. */
+export const CANONICAL_IS_NOT_V1: Equal<
+  DesignSystemComponentName,
+  "Button" | "Input" | "Card" | "Badge" | "Checkbox" | "Tabs" | "Dialog" | "Select"
+> = false;
+
+/** Every V2-named export is an exact alias of the canonical contract. */
+export const V2_COMPONENTS_IS_CANONICAL: Equal<DesignSystemComponentsV2, DesignSystemComponents> =
+  true;
+export const V2_NAME_IS_CANONICAL: Equal<DesignSystemComponentNameV2, DesignSystemComponentName> =
+  true;
+export const V2_COMPONENT_IS_CANONICAL: Equal<DesignSystemComponentV2, DesignSystemComponent> =
+  true;
+export const V2_TUPLE_IS_CANONICAL: Equal<
+  (typeof REQUIRED_COMPONENTS_V2)[number],
+  (typeof REQUIRED_COMPONENTS)[number]
+> = true;
+export const V2_TUPLE_IS_CANONICAL_VALUE: typeof REQUIRED_COMPONENTS = REQUIRED_COMPONENTS_V2;
 export const V2_REQUIRED_COUNT: 14 = REQUIRED_COMPONENTS_V2.length;
 
-/** `defineDesignSystemV2` accepts the full V2 shape and marker. */
-export const V2_DEFINITION_FIXTURE = defineDesignSystemV2({
+/* -------------------------------------------------------------------------- */
+/* Design system definition assertions                                         */
+/* -------------------------------------------------------------------------- */
+
+/** `defineDesignSystem` accepts the full fourteen-component shape and marker. */
+export const DEFINITION_FIXTURE = defineDesignSystem({
   id: "fixture-v2",
   name: "Fixture V2",
   packageName: "@prism-system/fixture-v2",
   version: "0.0.0",
   componentContract: "v2",
-  components: COMPONENTS_V2_FIXTURE,
+  components: COMPONENTS_FIXTURE,
 });
 
-/** The accepted definition satisfies `DesignSystemV2`. */
+/** `defineDesignSystemV2` accepts the same full shape and marker. */
+export const V2_DEFINITION_FIXTURE = defineDesignSystemV2({
+  id: "fixture-v2-v2",
+  name: "Fixture V2 via defineDesignSystemV2",
+  packageName: "@prism-system/fixture-v2-v2",
+  version: "0.0.0",
+  componentContract: "v2",
+  components: COMPONENTS_FIXTURE,
+});
+
+/** The accepted definitions satisfy `DesignSystem` / `DesignSystemV2`. */
+export const DEFINITION_IS_DESIGN_SYSTEM: DesignSystem = DEFINITION_FIXTURE;
 export const V2_DEFINITION_IS_V2: DesignSystemV2 = V2_DEFINITION_FIXTURE;
 
-/** `defineDesignSystemV2` preserves the literal `id` (and the `"v2"` marker). */
-export const V2_DEFINITION_ID: "fixture-v2" = V2_DEFINITION_FIXTURE.id;
-export const V2_DEFINITION_MARKER: "v2" = V2_DEFINITION_FIXTURE.componentContract;
+/** The definition helpers preserve the literal `id` and the `"v2"` marker. */
+export const DEFINITION_ID: "fixture-v2" = DEFINITION_FIXTURE.id;
+export const DEFINITION_MARKER: "v2" = DEFINITION_FIXTURE.componentContract;
+
+/* -------------------------------------------------------------------------- */
+/* Registry assertions                                                         */
+/* -------------------------------------------------------------------------- */
+
+/** The registry accepts a full V2 system and resolves it by id. */
+export const REGISTRY_FIXTURE = createDesignSystemRegistry([DEFINITION_FIXTURE]);
+export const REGISTERED_SYSTEM: DesignSystem | undefined = REGISTRY_FIXTURE.get("fixture-v2");
+
+/* -------------------------------------------------------------------------- */
+/* Negative fixtures (compile-time only)                                       */
+/* -------------------------------------------------------------------------- */
+
+/** The historical eight-component map, kept only to prove V1 is rejected. */
+const V1_ONLY_COMPONENTS = {
+  Button,
+  Input,
+  Card,
+  Badge,
+  Checkbox,
+  Tabs,
+  Dialog,
+  Select,
+};
+
+/** An eight-component map is no longer assignable to the canonical contract. */
+// @ts-expect-error - the canonical contract requires all fourteen components.
+const _V1_ONLY_MAP: DesignSystemComponents = V1_ONLY_COMPONENTS;
+
+/** An eight-component, unmarked design-system object. */
+const V1_ONLY_SYSTEM = {
+  id: "fixture-v1-only",
+  name: "Fixture V1 only",
+  packageName: "@prism-system/fixture-v1-only",
+  version: "0.0.0",
+  components: V1_ONLY_COMPONENTS,
+};
+
+// @ts-expect-error - defineDesignSystem rejects a system with only the eight historical components.
+export const V1_ONLY_DEFINITION = defineDesignSystem(V1_ONLY_SYSTEM);
+
+// @ts-expect-error - defineDesignSystemV2 rejects a system with only the eight historical components.
+export const V1_ONLY_DEFINITION_V2 = defineDesignSystemV2(V1_ONLY_SYSTEM);
+
+/** The V2 marker is required: an unmarked fourteen-component map is rejected. */
+export const UNMARKED_SYSTEM = {
+  id: "fixture-unmarked",
+  name: "Fixture unmarked",
+  packageName: "@prism-system/fixture-unmarked",
+  version: "0.0.0",
+  components: COMPONENTS_FIXTURE,
+};
+// @ts-expect-error - componentContract is required.
+export const UNMARKED_DEFINITION = defineDesignSystem(UNMARKED_SYSTEM);
+
+/** The historical `"v1"` marker is no longer accepted. */
+export const V1_MARKER_SYSTEM = {
+  id: "fixture-v1-marker",
+  name: "Fixture V1 marker",
+  packageName: "@prism-system/fixture-v1-marker",
+  version: "0.0.0",
+  componentContract: "v1",
+  components: COMPONENTS_FIXTURE,
+};
+// @ts-expect-error - componentContract must be "v2".
+export const V1_MARKER_DEFINITION = defineDesignSystem(V1_MARKER_SYSTEM);
+
+/** The registry rejects the eight-component, unmarked object. */
+// @ts-expect-error - the registry only accepts V2 design systems.
+export const REGISTRY_REJECTS_V1 = createDesignSystemRegistry([V1_ONLY_SYSTEM]);
+
+// Keep intentionally-unused negative fixtures type-checked without lint noise.
+export type _NegativeFixtures = [
+  typeof _V1_ONLY_MAP,
+  typeof V1_ONLY_DEFINITION,
+  typeof V1_ONLY_DEFINITION_V2,
+  typeof UNMARKED_DEFINITION,
+  typeof V1_MARKER_DEFINITION,
+  typeof REGISTRY_REJECTS_V1,
+];

@@ -63,10 +63,26 @@ import type {
   TooltipTriggerProps,
 } from "../contracts/index.js";
 
+/* -------------------------------------------------------------------------- */
+/* Canonical component contracts                                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The canonical shared component contract.
+ *
+ * Every design system must provide all fourteen entries with a compatible API
+ * so Showcase and Reference App can swap systems without changing the
+ * interface. The historical eight-component V1 contract
+ * (`Button, Input, Card, Badge, Checkbox, Tabs, Dialog, Select`) is no longer an
+ * active contract: it is referenced in comments only, for migration history.
+ */
+
 export type ButtonComponent = ComponentType<ButtonProps>;
 export type InputComponent = ComponentType<InputProps>;
+export type TextareaComponent = ComponentType<TextareaProps>;
 export type BadgeComponent = ComponentType<BadgeProps>;
 export type CheckboxComponent = ComponentType<CheckboxProps>;
+export type SeparatorComponent = ComponentType<SeparatorProps>;
 
 /**
  * Compound component contracts.
@@ -80,6 +96,25 @@ export type CardComponent = ComponentType<CardProps> & {
   Description: ComponentType<CardDescriptionProps>;
   Content: ComponentType<CardContentProps>;
   Footer: ComponentType<CardFooterProps>;
+};
+
+export type RadioGroupComponent = ComponentType<RadioGroupProps> & {
+  Item: ComponentType<RadioGroupItemProps>;
+  Indicator: ComponentType<RadioGroupIndicatorProps>;
+};
+
+export type SwitchComponent = ComponentType<SwitchProps> & {
+  Thumb: ComponentType<SwitchThumbProps>;
+};
+
+export type SelectComponent = ComponentType<SelectProps> & {
+  Trigger: ComponentType<SelectTriggerProps>;
+  Value: ComponentType<SelectValueProps>;
+  Content: ComponentType<SelectContentProps>;
+  Group: ComponentType<SelectGroupProps>;
+  Label: ComponentType<SelectLabelProps>;
+  Item: ComponentType<SelectItemProps>;
+  Separator: ComponentType<SelectSeparatorProps>;
 };
 
 export type TabsComponent = ComponentType<TabsProps> & {
@@ -98,69 +133,6 @@ export type DialogComponent = ComponentType<DialogProps> & {
   Title: ComponentType<DialogTitleProps>;
   Description: ComponentType<DialogDescriptionProps>;
   Close: ComponentType<DialogCloseProps>;
-};
-
-export type SelectComponent = ComponentType<SelectProps> & {
-  Trigger: ComponentType<SelectTriggerProps>;
-  Value: ComponentType<SelectValueProps>;
-  Content: ComponentType<SelectContentProps>;
-  Group: ComponentType<SelectGroupProps>;
-  Label: ComponentType<SelectLabelProps>;
-  Item: ComponentType<SelectItemProps>;
-  Separator: ComponentType<SelectSeparatorProps>;
-};
-
-/**
- * The V1 shared component contract.
- *
- * Every design system must provide all eight entries with a compatible API so
- * Showcase and Reference App can swap systems without changing the interface.
- */
-export interface DesignSystemComponents {
-  Button: ButtonComponent;
-  Input: InputComponent;
-  Card: CardComponent;
-  Badge: BadgeComponent;
-  Checkbox: CheckboxComponent;
-  Tabs: TabsComponent;
-  Dialog: DialogComponent;
-  Select: SelectComponent;
-}
-
-export type DesignSystemComponentName = keyof DesignSystemComponents;
-
-/** The eight required V1 component names, in canonical order. */
-export const REQUIRED_COMPONENTS = [
-  "Button",
-  "Input",
-  "Card",
-  "Badge",
-  "Checkbox",
-  "Tabs",
-  "Dialog",
-  "Select",
-] as const satisfies readonly DesignSystemComponentName[];
-
-/** A design system component that may carry additional system-specific members. */
-export type DesignSystemComponent = DesignSystemComponents[DesignSystemComponentName];
-
-/* -------------------------------------------------------------------------- */
-/* V2 additive contract                                                        */
-/* -------------------------------------------------------------------------- */
-
-/**
- * The V2 contract is strictly additive: it keeps every V1 entry (and therefore
- * every existing V1 system) valid while adding six more required components.
- */
-export type TextareaComponent = ComponentType<TextareaProps>;
-
-export type RadioGroupComponent = ComponentType<RadioGroupProps> & {
-  Item: ComponentType<RadioGroupItemProps>;
-  Indicator: ComponentType<RadioGroupIndicatorProps>;
-};
-
-export type SwitchComponent = ComponentType<SwitchProps> & {
-  Thumb: ComponentType<SwitchThumbProps>;
 };
 
 export type DropdownMenuComponent = ComponentType<DropdownMenuProps> & {
@@ -189,29 +161,37 @@ export type TooltipComponent = ComponentType<TooltipProps> & {
   Arrow: ComponentType<TooltipArrowProps>;
 };
 
-export type SeparatorComponent = ComponentType<SeparatorProps>;
-
 /**
- * The V2 shared component contract.
+ * The canonical shared component contract.
  *
- * It extends {@link DesignSystemComponents} so a V2 component map is also a
- * valid V1 map, which keeps downstream V1 consumers able to render a V2 system
- * without changing the interface. New systems should satisfy this contract;
- * existing systems remain V1 and are unaffected.
+ * Exactly fourteen entries, in canonical order:
+ * `Button`, `Input`, `Textarea`, `Card`, `Badge`, `Checkbox`, `RadioGroup`,
+ * `Switch`, `Select`, `Tabs`, `Dialog`, `DropdownMenu`, `Tooltip`, `Separator`.
+ *
+ * This is the only active contract. A design system must satisfy it in full;
+ * the eight-component V1 contract is historical and unsupported.
  */
-export interface DesignSystemComponentsV2 extends DesignSystemComponents {
+export interface DesignSystemComponents {
+  Button: ButtonComponent;
+  Input: InputComponent;
   Textarea: TextareaComponent;
+  Card: CardComponent;
+  Badge: BadgeComponent;
+  Checkbox: CheckboxComponent;
   RadioGroup: RadioGroupComponent;
   Switch: SwitchComponent;
+  Select: SelectComponent;
+  Tabs: TabsComponent;
+  Dialog: DialogComponent;
   DropdownMenu: DropdownMenuComponent;
   Tooltip: TooltipComponent;
   Separator: SeparatorComponent;
 }
 
-export type DesignSystemComponentNameV2 = keyof DesignSystemComponentsV2;
+export type DesignSystemComponentName = keyof DesignSystemComponents;
 
-/** The fourteen required V2 component names, in canonical order. */
-export const REQUIRED_COMPONENTS_V2 = [
+/** The fourteen required component names, in canonical order. */
+export const REQUIRED_COMPONENTS = [
   "Button",
   "Input",
   "Textarea",
@@ -226,7 +206,23 @@ export const REQUIRED_COMPONENTS_V2 = [
   "DropdownMenu",
   "Tooltip",
   "Separator",
-] as const satisfies readonly DesignSystemComponentNameV2[];
+] as const satisfies readonly DesignSystemComponentName[];
 
-/** A V2 design system component that may carry additional system-specific members. */
-export type DesignSystemComponentV2 = DesignSystemComponentsV2[DesignSystemComponentNameV2];
+/** A design system component that may carry additional system-specific members. */
+export type DesignSystemComponent = DesignSystemComponents[DesignSystemComponentName];
+
+/* -------------------------------------------------------------------------- */
+/* V2 aliases                                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Source-compatible aliases to the canonical contract above.
+ *
+ * The V2 names are kept so existing V2 consumers keep compiling, but they are
+ * exact aliases: they must never describe a different shape than
+ * {@link DesignSystemComponents} and {@link REQUIRED_COMPONENTS}.
+ */
+export type DesignSystemComponentsV2 = DesignSystemComponents;
+export type DesignSystemComponentNameV2 = DesignSystemComponentName;
+export const REQUIRED_COMPONENTS_V2: typeof REQUIRED_COMPONENTS = REQUIRED_COMPONENTS;
+export type DesignSystemComponentV2 = DesignSystemComponent;

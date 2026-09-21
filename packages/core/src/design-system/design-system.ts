@@ -16,9 +16,11 @@ export interface DesignSystemMeta {
  * same JSX tree and only swap which registered system object is provided, so the
  * interface structure never changes when the system changes.
  *
- * `TComponents` defaults to the V1 {@link DesignSystemComponents} map, so
- * existing V1 systems and consumers keep working unchanged. V2 systems
- * instantiate it with {@link DesignSystemComponentsV2} via `defineDesignSystemV2`.
+ * This type is V2-only. `TComponents` defaults to and is constrained by the
+ * canonical fourteen-component {@link DesignSystemComponents} map, and
+ * `componentContract` is required and must be `"v2"`. The historical
+ * eight-component V1 contract is no longer representable here; see
+ * `packages/core/src/design-system/components.ts` for migration history.
  */
 export interface DesignSystem<TComponents extends DesignSystemComponents = DesignSystemComponents> {
   /** Stable machine identifier, e.g. `"system-a"`. */
@@ -29,27 +31,36 @@ export interface DesignSystem<TComponents extends DesignSystemComponents = Desig
   packageName: string;
   /** Package version. */
   version: string;
-  /** The required components for the declared contract. */
+  /** The fourteen required components for the V2 contract. */
   components: TComponents;
-  /** Identifies which component contract the map satisfies. Defaults to V1. */
-  componentContract?: "v1" | "v2";
+  /**
+   * Identifies which component contract the map satisfies.
+   *
+   * Required and always `"v2"`. The eight-component V1 contract is historical
+   * and unsupported.
+   */
+  componentContract: "v2";
   meta?: DesignSystemMeta;
 }
 
-/** Identity helper that preserves the literal type of the definition. */
+/**
+ * Identity helper that preserves the literal type of the definition.
+ *
+ * The constraint enforces the full fourteen-component V2 shape and the
+ * `"v2"` marker; an eight-component V1 object is rejected.
+ */
 export function defineDesignSystem<const T extends DesignSystem>(system: T): T {
   return system;
 }
 
 /**
- * A V2 design system: the fourteen-component contract plus an explicit marker.
+ * A V2 design system: the canonical fourteen-component contract plus the
+ * explicit `"v2"` marker.
  *
- * The marker lets tooling distinguish a V2 system from a V1 one without
- * inspecting the component map at runtime.
+ * `DesignSystem` is already V2-only, so this is a compatible alias/marker type
+ * kept for source compatibility with existing V2 consumers.
  */
-export type DesignSystemV2 = DesignSystem<DesignSystemComponentsV2> & {
-  componentContract: "v2";
-};
+export type DesignSystemV2 = DesignSystem<DesignSystemComponentsV2>;
 
 /**
  * Identity helper for V2 design systems.
@@ -57,20 +68,46 @@ export type DesignSystemV2 = DesignSystem<DesignSystemComponentsV2> & {
  * The constraint enforces the full {@link DesignSystemComponentsV2} shape and the
  * `"v2"` marker while `const T` preserves the literal definition (like
  * {@link defineDesignSystem}).
- *
- * An `isDesignSystemV2` runtime guard is intentionally deferred: `DesignSystem`
- * always types `components` as the V1 map, so a marker check alone could not
- * soundly narrow `components` to the V2 map.
  */
 export function defineDesignSystemV2<const T extends DesignSystemV2>(system: T): T {
   return system;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Registry                                                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Runtime guard for the V2 marker.
+ *
+ * TypeScript already requires `componentContract: "v2"`, but the registry is
+ * framework-agnostic and may receive plain JavaScript objects or values that
+ * bypass the type system. The marker is therefore verified at runtime so an
+ * unmarked object or any other contract is rejected instead of silently
+ * accepted.
+ */
+function assertV2DesignSystem(system: DesignSystem): void {
+  if (system == null || system.componentContract !== "v2") {
+    const id =
+      system != null && typeof system.id === "string" && system.id.length > 0
+        ? system.id
+        : "(unknown)";
+    throw new Error(
+      `Cannot register design system "${id}": componentContract must be "v2". ` +
+        `The eight-component V1 contract is historical and unsupported. ` +
+        `Declare componentContract: "v2" with the canonical fourteen components, ` +
+        `or define the system with defineDesignSystemV2.`,
+    );
+  }
 }
 
 /**
  * Minimal registry used to register systems once and resolve them by id.
  *
  * It is intentionally framework-agnostic: the same registry can back a React
- * context provider, a static list, or a lookup in a test.
+ * context provider, a static list, or a lookup in a test. It is V2-typed:
+ * registration accepts {@link DesignSystem} and rejects anything without the
+ * `"v2"` marker at runtime.
  */
 export interface DesignSystemRegistry {
   register(system: DesignSystem): void;
@@ -90,6 +127,7 @@ export function createDesignSystemRegistry(
 
   const registry: DesignSystemRegistry = {
     register(system) {
+      assertV2DesignSystem(system);
       systems.set(system.id, system);
     },
     unregister(id) {

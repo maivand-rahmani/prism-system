@@ -19,40 +19,49 @@ pnpm add @prism-system/ui-core
 
 ### Component contracts
 
-The eight required V1 components, described as TypeScript prop contracts:
+The fourteen required V2 components, described as TypeScript prop contracts:
 
 ```ts
 import type {
   ButtonProps,
   InputProps,
+  TextareaProps,
   CardProps,
   BadgeProps,
   CheckboxProps,
+  RadioGroupProps,
+  SwitchProps,
+  SelectProps,
   TabsProps,
   DialogProps,
-  SelectProps,
+  DropdownMenuProps,
+  TooltipProps,
+  SeparatorProps,
 } from "@prism-system/ui-core";
 ```
 
-Compound components (`Card`, `Tabs`, `Dialog`, `Select`) also export their
-sub-component prop types, e.g. `CardHeaderProps`, `TabsTriggerProps`,
-`DialogContentProps`, `SelectItemProps`.
+Compound components (`Card`, `RadioGroup`, `Switch`, `Select`, `Tabs`, `Dialog`,
+`DropdownMenu`, `Tooltip`) also export their sub-component prop types, e.g.
+`CardHeaderProps`, `RadioGroupItemProps`, `SwitchThumbProps`, `TabsTriggerProps`,
+`DialogContentProps`, `DropdownMenuContentProps`, `TooltipContentProps`,
+`SelectItemProps`.
 
 ### Design system contract and registry
 
 ```ts
 import {
-  defineDesignSystem,
+  defineDesignSystemV2,
   createDesignSystemRegistry,
   REQUIRED_COMPONENTS,
   type DesignSystem,
   type DesignSystemComponents,
+  type DesignSystemV2,
 } from "@prism-system/ui-core";
 ```
 
-`DesignSystemComponents` is the exact shape a system must implement. The registry
-is data-driven so Showcase and Reference App can switch systems without changing
-their JSX:
+`DesignSystemComponents` is the canonical fourteen-component shape every system must
+implement. The registry is data-driven so Showcase and Reference App can switch systems
+without changing their JSX:
 
 ```tsx
 const registry = createDesignSystemRegistry([systemA, systemB]);
@@ -112,24 +121,28 @@ Hooks and browser helpers are client-only. Import them from client components
 ## Implementing a design system
 
 ```tsx
-import { defineDesignSystem, useControllableState } from "@prism-system/ui-core";
+import { defineDesignSystemV2 } from "@prism-system/ui-core";
 import type { ButtonProps } from "@prism-system/ui-core";
 
 function Button({ variant = "primary", ...props }: ButtonProps) {
   return <button data-variant={variant} {...props} />;
 }
 
-export const systemA = defineDesignSystem({
+export const systemA = defineDesignSystemV2({
   id: "system-a",
   name: "System A",
   packageName: "@prism-system/ui-system-a",
   version: "0.0.0",
+  componentContract: "v2",
   components: {
     Button,
-    // ...the other seven required components
+    // ...the other thirteen required V2 components
   },
 });
 ```
+
+`DesignSystem` is V2-only and requires `componentContract: "v2"`. The historical
+eight-component V1 contract is archived and unsupported; do not target it.
 
 ## Build
 
@@ -141,5 +154,7 @@ pnpm lint
 
 ## Scope
 
-V1 only. V2 factory tooling and V3 lifecycle/manifest tooling are intentionally
-not implemented here; see `docs/v2` and `docs/v3`.
+The canonical fourteen-component V2 contract and its unstyled primitives. The historical
+eight-component V1 contract is archived and unsupported. V2 factory tooling and V3
+lifecycle/manifest tooling are intentionally not implemented here; see `docs/v2` and
+`docs/v3`.
