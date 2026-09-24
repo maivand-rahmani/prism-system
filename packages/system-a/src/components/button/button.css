@@ -1,0 +1,101 @@
+:where(.maivand-a-ui).maivand-a-button {
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--maivand-a-radius-sm);
+  cursor: pointer;
+  display: inline-flex;
+  gap: var(--maivand-a-spacing-scale-2);
+  justify-content: center;
+  line-height: 1;
+  transition:
+    background var(--maivand-a-motion-duration-fast) var(--maivand-a-motion-easing-standard),
+    border-color var(--maivand-a-motion-duration-fast) var(--maivand-a-motion-easing-standard),
+    color var(--maivand-a-motion-duration-fast) var(--maivand-a-motion-easing-standard),
+    box-shadow var(--maivand-a-motion-duration-fast) var(--maivand-a-motion-easing-standard),
+    transform var(--maivand-a-motion-duration-fast) var(--maivand-a-motion-easing-standard);
+}
+:where(.maivand-a-ui).maivand-a-button:focus-visible {
+  outline: 3px solid var(--maivand-a-color-border-focus);
+  outline-offset: 2px;
+}
+:where(.maivand-a-ui).maivand-a-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+:where(.maivand-a-ui).maivand-a-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+:where(.maivand-a-ui).maivand-a-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+:where(.maivand-a-ui).maivand-a-button-primary {
+  background: var(--maivand-a-color-action-primary);
+  color: var(--maivand-a-color-action-primary-text);
+  box-shadow: var(--maivand-a-shadow-sm);
+}
+:where(.maivand-a-ui).maivand-a-button-primary:hover:not(:disabled) {
+  background: var(--maivand-a-color-action-primary-hover);
+}
+:where(.maivand-a-ui).maivand-a-button-secondary {
+  background: var(--maivand-a-color-surface-sunken);
+  color: var(--maivand-a-color-text-primary);
+}
+:where(.maivand-a-ui).maivand-a-button-outline {
+  background: transparent;
+  border-color: var(--maivand-a-color-border-default);
+  color: var(--maivand-a-color-text-primary);
+}
+:where(.maivand-a-ui).maivand-a-button-ghost {
+  background: transparent;
+  color: var(--maivand-a-color-action-primary-hover);
+}
+:where(.maivand-a-ui).maivand-a-button-ghost:hover:not(:disabled) {
+  background: var(--maivand-a-color-action-secondary);
+}
+:where(.maivand-a-ui).maivand-a-button-destructive {
+  background: var(--maivand-a-color-status-danger);
+  color: var(--maivand-a-color-action-primary-text);
+}
+:where(.maivand-a-ui).maivand-a-button-link {
+  background: transparent;
+  color: var(--maivand-a-color-action-primary-hover);
+  padding-left: 0;
+  padding-right: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+:where(.maivand-a-ui).maivand-a-button-full {
+  width: 100%;
+}
+:where(.maivand-a-ui).maivand-a-button-sm {
+  min-height: 32px;
+  padding: 0 var(--maivand-a-spacing-scale-3);
+  font-size: var(--maivand-a-typography-size-xs);
+}
+:where(.maivand-a-ui).maivand-a-button-md {
+  min-height: 40px;
+  padding: 0 var(--maivand-a-spacing-scale-4);
+  font-size: var(--maivand-a-typography-size-md);
+}
+:where(.maivand-a-ui).maivand-a-button-lg {
+  min-height: 48px;
+  padding: 0 20px;
+  font-size: var(--maivand-a-typography-size-lg);
+}
+:where(.maivand-a-ui).maivand-a-button-icon {
+  min-width: 40px;
+  padding: 0;
+}
+:where(.maivand-a-ui).maivand-a-spinner {
+  animation: maivand-a-spin 0.75s linear infinite;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  height: 14px;
+  width: 14px;
+}
+@keyframes maivand-a-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

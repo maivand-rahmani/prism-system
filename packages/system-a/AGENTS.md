@@ -1,9 +1,10 @@
 # System A package rules
 
-System A is calm, minimal, and editorial. Keep surfaces warm and light,
-contrast readable, borders quiet, and motion short. All visual decisions live
-in this package's tokens and stylesheet; consuming apps should compose the
-components rather than replace their visual language.
+`@prism-system/ui-system-a` is an independent V4 design system. System A is calm,
+minimal, and editorial. Keep surfaces warm and light, contrast readable, borders
+quiet, and motion short. All visual decisions live in this package's tokens and
+stylesheets; consuming apps should compose the components rather than replace
+their visual language.
 
 ## Visual direction
 
@@ -14,47 +15,63 @@ components rather than replace their visual language.
   pill-heavy patterns, oversized display type, loud motion, decorative borders,
   and consumer-app styling overrides.
 
-The public API is the canonical fourteen-component V2 contract, in order:
-`Button`, `Input`, `Textarea`, `Card`, `Badge`, `Checkbox`, `RadioGroup`,
-`Switch`, `Select`, `Tabs`, `Dialog`, `DropdownMenu`, `Tooltip`, `Separator`.
-Compound statics such as `Card.Header`, `RadioGroup.Item`,
-`RadioGroup.Indicator`, `Switch.Thumb`, `Select.Item`, `Tabs.Trigger`,
-`Dialog.Content`, the full `DropdownMenu` API (`Trigger`, `Portal`, `Content`,
-`Group`, `Label`, `Item`, `CheckboxItem`, `RadioGroup`, `RadioItem`,
-`ItemIndicator`, `Separator`, `Arrow`, `Sub`, `SubTrigger`, `SubContent`), and
-the full `Tooltip` API (`Provider`, `Trigger`, `Portal`, `Content`, `Arrow`)
-are required and must be preserved. V2 is the only supported contract. Shared
-behavior and class-name composition come from
-`@prism-system/ui-core`; System A owns every color, type, radius, shadow, state, and
-motion value. Do not import another design system or restyle components in an app.
+## Available components
 
-The complete compound surface also includes `Card.Title`, `Card.Description`,
-`Card.Content`, `Card.Footer`; `Select.Trigger`, `Select.Value`,
-`Select.Content`, `Select.Group`, `Select.Label`, and `Select.Separator`;
-`Tabs.List`, `Tabs.Trigger`, and `Tabs.Content`; and `Dialog.Trigger`,
-`Dialog.Portal`, `Dialog.Overlay`, `Dialog.Header`, `Dialog.Footer`,
-`Dialog.Title`, `Dialog.Description`, and `Dialog.Close`.
+The package always exports the twenty required V4 contract components, in canonical
+order:
+
+`Button`, `Input`, `Textarea`, `Card`, `Badge`, `Checkbox`, `RadioGroup`,
+`Switch`, `Select`, `Tabs`, `Dialog`, `DropdownMenu`, `Tooltip`, `Separator`,
+`Heading`, `Text`, `Link`, `Container`, `Stack`, `FormField`.
+
+The fourteen V2 names keep their existing public API. These required exports are
+fixed: never rename, remove, or alter one to make room for something else. Do not
+maintain a second component catalog here or in `README.md`: variants, sizes, and
+compound members are published by the generated `design-system.json` manifest
+(`@prism-system/ui-system-a/manifest`), and the live catalog is the Showcase route
+`/showcase/system-a`.
+
+## Optional additions
+
+System A declares these optional V4 capabilities, and only these: `Grid`, `Fieldset`,
+`Alert`, `Progress`, `Accordion`, `Pagination`, and `Table`. Optional components are
+real capabilities, not stubs; an omitted optional name means it is unavailable. Do not
+add another optional component without implementing real behavior, local CSS, a public
+export, a runtime entry, and a descriptor entry — then regenerate the manifest so the
+declared set and the Showcase stay in sync.
 
 ## Extension points
 
-Improve the system only in its package-owned layers:
+Improve the system here, and only here:
 
-- `src/tokens` for colors, typography, spacing, radius, borders, shadows, and motion.
-- `src/styles` for component surfaces, states, and composition rules.
-- `src/components` for appearance, variants, states, and additive reusable patterns.
+- `tokens.source.json` — colors, typography, spacing, containers, breakpoints,
+  layers, radius, shadows, and motion. Regenerate derived token artifacts with
+  `pnpm ds:manifest system-a --write`; never hand-edit generated files.
+- `src/styles` — base scope, surface, state, and composition rules.
+- `src/components` — component appearance, variants, states, and optional
+  additive components. Each component lives in its own
+  `src/components/<kebab>/` folder with `<Name>.tsx`, `<kebab>.css`, and
+  `index.ts`.
 
 Additions must remain package-local and additive. Product-specific compositions
 belong in consuming apps, while shared behavior and accessibility should come
 from `@prism-system/ui-core` rather than duplicated primitives.
 
-## Package boundaries
+## Rules
 
-System A may depend on `@prism-system/ui-core` and React only. It must not import
-System B, another design system, app code, or app-owned styles. Consuming apps own
-layout and composition; they must use System A props instead of copying its CSS,
-overriding its visual language, or styling package internals.
+1. Use `@prism-system/ui-core` primitives, contract types, and `cn` before
+   writing a new primitive.
+2. Keep every visual decision — colors, typography, spacing, radius, borders,
+   shadows, states, motion — in this package. Consume the system through props,
+   not through className overrides.
+3. Do not import another design system or app code. Use only
+   `@prism-system/ui-core` and React.
+4. Avoid arbitrary colors, radii, and shadows, and do not duplicate primitives
+   that core already provides.
+5. Preserve compound static members and normalize optional Radix `forceMount`
+   values before passing them to primitives.
 
-## Consumer contract (V3)
+## Consumer contract (V4)
 
 `@prism-system/ui-system-a` is the visual source of truth for products that adopt
 it. An external coding agent consuming this package must:
@@ -65,9 +82,11 @@ it. An external coding agent consuming this package must:
    `@prism-system/ui-system-a/manifest`) records the same exact version, the
    component catalog, variants, sizes, compound members, and the strict usage
    rules below. Read the manifest and this file before writing UI.
-2. **Use the public API.** Import the fourteen V2 components from the package
-   root and design tokens from `@prism-system/ui-system-a/tokens`. Never import
-   package internals or paths that are not part of the `exports` map.
+2. **Use the public API.** Import the twenty required V4 components from the
+   package root and design tokens from `@prism-system/ui-system-a/tokens`.
+   Import ordinary CSS from `@prism-system/ui-system-a/styles.css`; Tailwind v4
+   products may additionally load `@prism-system/ui-system-a/tailwind.css`. Never
+   import package internals or paths that are not part of the `exports` map.
 3. **Keep the visual language here.** Colors, typography, spacing, radius,
    borders, shadows, surfaces, states, variants, and motion belong to this
    package. Consumers compose with props; they must not restyle components or
@@ -99,10 +118,10 @@ export.
 
 `package.json.version` is authoritative. After `changeset version` rewrites it,
 run `pnpm ds:sync-versions` from the monorepo root to align the runtime
-`DesignSystem.version` in `src/index.ts`, the generated `design-system.json`, and
-the registry entry in `config/design-systems.json`. `pnpm ds:sync-versions
---check` reports drift without writing, and `pnpm ds:check system-a` fails
-closed on any remaining mismatch.
+`DesignSystem.version` in `src/design-system.ts`, the generated
+`design-system.json`, and the registry entry in `config/design-systems.json`.
+`pnpm ds:sync-versions --check` reports drift without writing, and
+`pnpm ds:check system-a` fails closed on any remaining mismatch.
 
 For the repository lifecycle workflow, see `skills/use-design-system/SKILL.md`
 (consume) and `skills/modify-design-system/SKILL.md` (evolve).

@@ -1,0 +1,15 @@
+:where(.maivand-a-ui).maivand-a-fieldset {
+  border: 1px solid var(--maivand-a-color-border-default);
+  border-radius: var(--maivand-a-radius-md);
+  display: grid;
+  gap: var(--maivand-a-spacing-scale-4);
+  margin: 0;
+  min-width: 0;
+  padding: var(--maivand-a-spacing-scale-4);
+}
+:where(.maivand-a-ui) .maivand-a-fieldset-legend {
+  color: var(--maivand-a-color-text-primary);
+  font-size: var(--maivand-a-typography-size-sm);
+  font-weight: var(--maivand-a-typography-weight-semibold);
+  padding-inline: var(--maivand-a-spacing-scale-1);
+}

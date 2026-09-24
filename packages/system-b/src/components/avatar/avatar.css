@@ -1,0 +1,35 @@
+:where(.maivand-b-ui).maivand-b-avatar {
+  align-items: center;
+  background: var(--maivand-b-color-surface-sunken);
+  border: 1px solid var(--maivand-b-color-border-default);
+  border-radius: var(--maivand-b-radius-full);
+  color: var(--maivand-b-color-text-muted);
+  display: inline-flex;
+  flex: none;
+  font-size: var(--maivand-b-typography-size-sm);
+  font-weight: var(--maivand-b-typography-weight-semibold);
+  height: 40px;
+  justify-content: center;
+  overflow: hidden;
+  text-transform: uppercase;
+  width: 40px;
+}
+:where(.maivand-b-ui) .maivand-b-avatar-image {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+:where(.maivand-b-ui).maivand-b-avatar:not([data-status="loaded"]) .maivand-b-avatar-image {
+  display: none;
+}
+:where(.maivand-b-ui) .maivand-b-avatar-fallback {
+  align-items: center;
+  display: inline-flex;
+  height: 100%;
+  justify-content: center;
+  width: 100%;
+}
+:where(.maivand-b-ui).maivand-b-avatar[data-status="loaded"] .maivand-b-avatar-fallback {
+  display: none;
+}

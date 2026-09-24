@@ -1,0 +1,28 @@
+:where(.maivand-a-ui).maivand-a-heading {
+  color: var(--maivand-a-color-text-primary);
+  font-family: var(--maivand-a-typography-family-sans);
+  font-weight: var(--maivand-a-typography-weight-semibold);
+  line-height: var(--maivand-a-typography-line-height-tight);
+  margin: 0;
+  text-wrap: balance;
+}
+:where(.maivand-a-ui).maivand-a-heading-1 {
+  font-size: var(--maivand-a-typography-size-4xl);
+  letter-spacing: var(--maivand-a-typography-letter-spacing-tight);
+}
+:where(.maivand-a-ui).maivand-a-heading-2 {
+  font-size: var(--maivand-a-typography-size-3xl);
+  letter-spacing: var(--maivand-a-typography-letter-spacing-tight);
+}
+:where(.maivand-a-ui).maivand-a-heading-3 {
+  font-size: var(--maivand-a-typography-size-2xl);
+}
+:where(.maivand-a-ui).maivand-a-heading-4 {
+  font-size: var(--maivand-a-typography-size-xl);
+}
+:where(.maivand-a-ui).maivand-a-heading-5 {
+  font-size: var(--maivand-a-typography-size-lg);
+}
+:where(.maivand-a-ui).maivand-a-heading-6 {
+  font-size: var(--maivand-a-typography-size-md);
+}

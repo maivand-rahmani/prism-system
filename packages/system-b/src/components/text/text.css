@@ -1,0 +1,7 @@
+:where(.maivand-b-ui).maivand-b-text {
+  color: var(--maivand-b-color-text-primary);
+  font-family: var(--maivand-b-typography-family-sans);
+  font-size: var(--maivand-b-typography-size-md);
+  line-height: var(--maivand-b-typography-line-height-normal);
+  margin: 0;
+}

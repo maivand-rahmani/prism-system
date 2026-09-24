@@ -1,0 +1,28 @@
+:where(.maivand-b-ui).maivand-b-heading {
+  color: var(--maivand-b-color-text-primary);
+  font-family: var(--maivand-b-typography-family-sans);
+  font-weight: var(--maivand-b-typography-weight-bold);
+  letter-spacing: var(--maivand-b-typography-letter-spacing-tight);
+  line-height: var(--maivand-b-typography-line-height-tight);
+  margin: 0;
+}
+:where(.maivand-b-ui).maivand-b-heading-1 {
+  font-size: var(--maivand-b-typography-size-3xl);
+}
+:where(.maivand-b-ui).maivand-b-heading-2 {
+  font-size: var(--maivand-b-typography-size-2xl);
+}
+:where(.maivand-b-ui).maivand-b-heading-3 {
+  font-size: var(--maivand-b-typography-size-xl);
+}
+:where(.maivand-b-ui).maivand-b-heading-4 {
+  font-size: var(--maivand-b-typography-size-lg);
+}
+:where(.maivand-b-ui).maivand-b-heading-5 {
+  font-size: var(--maivand-b-typography-size-md);
+}
+:where(.maivand-b-ui).maivand-b-heading-6 {
+  font-size: var(--maivand-b-typography-size-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--maivand-b-typography-letter-spacing-wide);
+}

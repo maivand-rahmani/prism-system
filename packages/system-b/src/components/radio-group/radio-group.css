@@ -1,0 +1,57 @@
+:where(.maivand-b-ui).maivand-b-radio-group {
+  display: grid;
+  gap: 10px;
+}
+:where(.maivand-b-ui) .maivand-b-radio-item {
+  align-items: center;
+  background: var(--maivand-b-color-surface-raised);
+  border: 1px solid var(--maivand-b-color-border-default);
+  border-radius: var(--maivand-b-radius-md);
+  color: var(--maivand-b-color-text-primary);
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  min-height: 48px;
+  min-width: 0;
+  padding: 10px 12px;
+  transition:
+    background var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard),
+    border-color var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard),
+    box-shadow var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard),
+    transform var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard);
+  text-align: left;
+}
+:where(.maivand-b-ui) .maivand-b-radio-item:hover:not(:disabled):not([data-disabled]) {
+  background: var(--maivand-b-color-surface-sunken);
+  border-color: var(--maivand-b-color-action-primary-hover);
+  transform: translate(-1px, -1px);
+}
+:where(.maivand-b-ui) .maivand-b-radio-item:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--maivand-b-color-border-focus) 45%, transparent);
+  outline-offset: 2px;
+}
+:where(.maivand-b-ui) .maivand-b-radio-item[data-state="checked"] {
+  background: var(--maivand-b-color-action-secondary);
+  border-color: var(--maivand-b-color-action-primary-hover);
+  box-shadow: 0 0 0 3px var(--maivand-b-color-action-secondary);
+  color: var(--maivand-b-color-action-primary-hover);
+}
+:where(.maivand-b-ui) .maivand-b-radio-item[data-disabled],
+:where(.maivand-b-ui) .maivand-b-radio-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+:where(.maivand-b-ui) .maivand-b-radio-indicator {
+  background: var(--maivand-b-color-action-primary);
+  border-radius: 50%;
+  display: block;
+  flex: none;
+  height: 8px;
+  width: 8px;
+}
+:where(.maivand-b-ui) .maivand-b-radio-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
+}

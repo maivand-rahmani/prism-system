@@ -1,7 +1,7 @@
 {
-  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system.source.schema.json",
-  "schemaVersion": 1,
-  "contract": "v2",
+  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system-source-v4.schema.json",
+  "schemaVersion": 2,
+  "contract": "v4",
   "name": "System A",
   "components": {
     "Button": {
@@ -99,6 +99,71 @@
       "variants": [],
       "sizes": [],
       "members": []
+    },
+    "Heading": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Text": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Link": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Container": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Stack": {
+      "variants": ["horizontal", "vertical"],
+      "sizes": [],
+      "members": []
+    },
+    "FormField": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Label", "Control", "Description", "Error"]
+    },
+    "Grid": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Fieldset": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Legend"]
+    },
+    "Alert": {
+      "variants": ["info", "success", "warning", "danger"],
+      "sizes": [],
+      "members": ["Title", "Description"]
+    },
+    "Progress": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Accordion": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Item", "Header", "Trigger", "Content"]
+    },
+    "Pagination": {
+      "variants": [],
+      "sizes": [],
+      "members": ["List", "Item", "Link", "Previous", "Next", "Current", "Ellipsis"]
+    },
+    "Table": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Caption", "Header", "Body", "Footer", "Row", "Head", "Cell"]
     }
   },
   "design": {
@@ -121,5 +186,9 @@
     "allowArbitraryRadius": false,
     "allowArbitraryShadows": false,
     "allowPrimitiveDuplication": false
+  },
+  "docs": {
+    "readme": "./README.md",
+    "agents": "./AGENTS.md"
   }
 }

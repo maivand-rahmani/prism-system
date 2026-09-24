@@ -1,0 +1,36 @@
+:where(.maivand-a-ui).maivand-a-tooltip-trigger:focus-visible {
+  outline: 3px solid var(--maivand-a-color-border-focus);
+  outline-offset: 2px;
+}
+:where(.maivand-a-ui).maivand-a-tooltip-trigger[data-state="open"] {
+  background: var(--maivand-a-color-action-secondary);
+  color: var(--maivand-a-color-action-secondary-text);
+}
+:where(.maivand-a-ui).maivand-a-tooltip-content {
+  animation: maivand-a-tooltip-in var(--maivand-a-motion-duration-fast)
+    var(--maivand-a-motion-easing-standard);
+  background: var(--maivand-a-color-text-primary);
+  border-radius: var(--maivand-a-radius-sm);
+  color: var(--maivand-a-color-surface-raised);
+  font-size: var(--maivand-a-typography-size-xs);
+  line-height: 1.35;
+  max-width: 260px;
+  padding: 7px 9px;
+  z-index: var(--maivand-a-layers-tooltip);
+}
+:where(.maivand-a-ui).maivand-a-tooltip-content[data-state="closed"] {
+  pointer-events: none;
+}
+:where(.maivand-a-ui) .maivand-a-tooltip-arrow {
+  fill: var(--maivand-a-color-text-primary);
+}
+@keyframes maivand-a-tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

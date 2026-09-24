@@ -1,0 +1,17 @@
+:where(.maivand-b-ui).maivand-b-link {
+  color: var(--maivand-b-color-action-primary-hover);
+  cursor: pointer;
+  font-family: var(--maivand-b-typography-family-sans);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: color var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard);
+}
+:where(.maivand-b-ui).maivand-b-link:hover {
+  color: var(--maivand-b-color-action-primary);
+}
+:where(.maivand-b-ui).maivand-b-link:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--maivand-b-color-border-focus) 45%, transparent);
+  outline-offset: 2px;
+  border-radius: var(--maivand-b-radius-sm);
+}

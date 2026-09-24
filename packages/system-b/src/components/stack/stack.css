@@ -1,0 +1,17 @@
+:where(.maivand-b-ui).maivand-b-stack {
+  display: flex;
+  gap: var(--maivand-b-spacing-semantic-stack);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+:where(.maivand-b-ui).maivand-b-stack-vertical {
+  flex-direction: column;
+}
+:where(.maivand-b-ui).maivand-b-stack-horizontal {
+  flex-direction: row;
+  align-items: center;
+}
+:where(.maivand-b-ui).maivand-b-stack-wrap {
+  flex-wrap: wrap;
+}

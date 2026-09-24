@@ -1,12 +1,12 @@
 {
-  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system.schema.json",
-  "schemaVersion": 1,
+  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system-v4.schema.json",
+  "schemaVersion": 2,
   "generated": "prism-system/design-system-manifest",
-  "contract": "v2",
+  "contract": "v4",
   "id": "system-a",
   "name": "System A",
   "package": "@prism-system/ui-system-a",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -14,6 +14,7 @@
       "require": "./dist/index.js"
     },
     "./styles.css": "./dist/index.css",
+    "./tailwind.css": "./dist/tailwind.css",
     "./tokens": {
       "types": "./dist/tokens/index.d.ts",
       "import": "./dist/tokens/index.mjs",
@@ -37,6 +38,19 @@
       "DropdownMenu",
       "Tooltip",
       "Separator",
+      "Heading",
+      "Text",
+      "Link",
+      "Container",
+      "Stack",
+      "FormField",
+      "Grid",
+      "Fieldset",
+      "Alert",
+      "Progress",
+      "Accordion",
+      "Pagination",
+      "Table",
       "DesignSystem",
       "systemATokens"
     ],
@@ -138,6 +152,71 @@
       "variants": [],
       "sizes": [],
       "members": []
+    },
+    "Heading": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Text": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Link": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Container": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Stack": {
+      "variants": ["horizontal", "vertical"],
+      "sizes": [],
+      "members": []
+    },
+    "FormField": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Label", "Control", "Description", "Error"]
+    },
+    "Grid": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Fieldset": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Legend"]
+    },
+    "Alert": {
+      "variants": ["info", "success", "warning", "danger"],
+      "sizes": [],
+      "members": ["Title", "Description"]
+    },
+    "Progress": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Accordion": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Item", "Header", "Trigger", "Content"]
+    },
+    "Pagination": {
+      "variants": [],
+      "sizes": [],
+      "members": ["List", "Item", "Link", "Previous", "Next", "Current", "Ellipsis"]
+    },
+    "Table": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Caption", "Header", "Body", "Footer", "Row", "Head", "Cell"]
     }
   },
   "design": {
@@ -160,5 +239,119 @@
     "allowArbitraryRadius": false,
     "allowArbitraryShadows": false,
     "allowPrimitiveDuplication": false
+  },
+  "tokens": {
+    "groups": {
+      "themes": [
+        "light.color.text.primary",
+        "light.color.text.secondary",
+        "light.color.text.muted",
+        "light.color.text.inverse",
+        "light.color.surface.canvas",
+        "light.color.surface.raised",
+        "light.color.surface.sunken",
+        "light.color.surface.inverse",
+        "light.color.border.default",
+        "light.color.border.strong",
+        "light.color.border.focus",
+        "light.color.action.primary",
+        "light.color.action.primaryHover",
+        "light.color.action.primaryText",
+        "light.color.action.secondary",
+        "light.color.action.secondaryHover",
+        "light.color.action.secondaryText",
+        "light.color.status.info",
+        "light.color.status.success",
+        "light.color.status.warning",
+        "light.color.status.danger",
+        "dark.color.text.primary",
+        "dark.color.text.secondary",
+        "dark.color.text.muted",
+        "dark.color.text.inverse",
+        "dark.color.surface.canvas",
+        "dark.color.surface.raised",
+        "dark.color.surface.sunken",
+        "dark.color.surface.inverse",
+        "dark.color.border.default",
+        "dark.color.border.strong",
+        "dark.color.border.focus",
+        "dark.color.action.primary",
+        "dark.color.action.primaryHover",
+        "dark.color.action.primaryText",
+        "dark.color.action.secondary",
+        "dark.color.action.secondaryHover",
+        "dark.color.action.secondaryText",
+        "dark.color.status.info",
+        "dark.color.status.success",
+        "dark.color.status.warning",
+        "dark.color.status.danger"
+      ],
+      "typography": [
+        "family.sans",
+        "family.mono",
+        "size.xs",
+        "size.sm",
+        "size.md",
+        "size.lg",
+        "size.xl",
+        "size.2xl",
+        "size.3xl",
+        "size.4xl",
+        "weight.light",
+        "weight.normal",
+        "weight.medium",
+        "weight.semibold",
+        "weight.bold",
+        "lineHeight.tight",
+        "lineHeight.normal",
+        "lineHeight.relaxed",
+        "letterSpacing.tight",
+        "letterSpacing.normal",
+        "letterSpacing.wide"
+      ],
+      "spacing": [
+        "scale.0",
+        "scale.1",
+        "scale.2",
+        "scale.3",
+        "scale.4",
+        "scale.6",
+        "scale.8",
+        "scale.12",
+        "scale.16",
+        "scale.24",
+        "semantic.inline",
+        "semantic.inset",
+        "semantic.stack",
+        "semantic.section"
+      ],
+      "containers": ["narrow", "content", "wide", "full"],
+      "breakpoints": ["sm", "md", "lg", "xl"],
+      "layers": ["base", "dropdown", "sticky", "overlay", "modal", "toast", "tooltip"],
+      "radius": ["none", "sm", "md", "lg", "full"],
+      "shadow": ["sm", "md", "lg", "focus"],
+      "motion": [
+        "duration.fast",
+        "duration.normal",
+        "duration.slow",
+        "duration.reduced",
+        "easing.standard",
+        "easing.entrance",
+        "easing.exit"
+      ]
+    },
+    "artifacts": {
+      "typescript": "./tokens",
+      "css": "./styles.css",
+      "tailwind": "./tailwind.css"
+    },
+    "names": {
+      "cssVariablePrefix": "maivand-a",
+      "tailwindUtilityPrefix": "prism"
+    }
+  },
+  "docs": {
+    "readme": "./README.md",
+    "agents": "./AGENTS.md"
   }
 }

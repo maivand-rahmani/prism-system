@@ -1,0 +1,17 @@
+:where(.maivand-b-ui).maivand-b-skeleton {
+  animation: maivand-b-skeleton-pulse var(--maivand-b-motion-duration-slow)
+    var(--maivand-b-motion-easing-standard) infinite alternate;
+  background: var(--maivand-b-color-surface-sunken);
+  border-radius: var(--maivand-b-radius-sm);
+  display: block;
+  height: 1em;
+  width: 100%;
+}
+@keyframes maivand-b-skeleton-pulse {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}

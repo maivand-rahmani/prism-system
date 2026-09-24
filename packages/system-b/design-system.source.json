@@ -1,7 +1,7 @@
 {
-  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system.source.schema.json",
-  "schemaVersion": 1,
-  "contract": "v2",
+  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system-source-v4.schema.json",
+  "schemaVersion": 2,
+  "contract": "v4",
   "name": "System B",
   "components": {
     "Button": {
@@ -99,6 +99,66 @@
       "variants": [],
       "sizes": [],
       "members": []
+    },
+    "Heading": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Text": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Link": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Container": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Stack": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "FormField": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Label", "Control", "Description", "Error"]
+    },
+    "Section": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Header", "Title", "Description", "Content", "Footer"]
+    },
+    "Alert": {
+      "variants": ["info", "success", "warning", "danger"],
+      "sizes": [],
+      "members": ["Title", "Description"]
+    },
+    "Skeleton": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Toast": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Provider", "Viewport", "Root", "Title", "Description", "Action", "Close"]
+    },
+    "Avatar": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Image", "Fallback"]
+    },
+    "Breadcrumbs": {
+      "variants": [],
+      "sizes": [],
+      "members": ["List", "Item", "Link", "Current"]
     }
   },
   "design": {

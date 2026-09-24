@@ -1,0 +1,47 @@
+:where(.maivand-b-ui).maivand-b-tabs {
+  display: grid;
+  gap: 16px;
+}
+:where(.maivand-b-ui) .maivand-b-tabs-list {
+  align-items: center;
+  border-bottom: 1px solid var(--maivand-b-color-border-default);
+  display: flex;
+  gap: 20px;
+}
+:where(.maivand-b-ui) .maivand-b-tabs-trigger {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--maivand-b-color-text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 9px 1px 11px;
+  position: relative;
+}
+:where(.maivand-b-ui) .maivand-b-tabs-trigger:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--maivand-b-color-border-focus) 45%, transparent);
+  outline-offset: 2px;
+}
+:where(.maivand-b-ui) .maivand-b-tabs-trigger[data-state="active"] {
+  border-color: var(--maivand-b-color-action-primary);
+  color: var(--maivand-b-color-action-primary-hover);
+  font-weight: var(--maivand-b-typography-weight-semibold);
+}
+:where(.maivand-b-ui) .maivand-b-tabs-content {
+  animation: maivand-b-fade-in var(--maivand-b-motion-duration-normal)
+    var(--maivand-b-motion-easing-standard);
+  outline: 0;
+}
+:where(.maivand-b-ui) .maivand-b-tabs-content[hidden] {
+  display: none;
+}
+@keyframes maivand-b-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

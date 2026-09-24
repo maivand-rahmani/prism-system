@@ -1,0 +1,25 @@
+:where(.maivand-a-ui).maivand-a-form-field {
+  display: grid;
+  gap: var(--maivand-a-spacing-scale-2);
+  min-width: 0;
+}
+:where(.maivand-a-ui) .maivand-a-form-field-label {
+  color: var(--maivand-a-color-text-primary);
+  font-size: var(--maivand-a-typography-size-sm);
+  font-weight: var(--maivand-a-typography-weight-semibold);
+}
+:where(.maivand-a-ui) .maivand-a-form-field-description,
+:where(.maivand-a-ui) .maivand-a-form-field-error {
+  font-size: var(--maivand-a-typography-size-xs);
+  line-height: 1.4;
+  margin: 0;
+}
+:where(.maivand-a-ui) .maivand-a-form-field-description {
+  color: var(--maivand-a-color-text-muted);
+}
+:where(.maivand-a-ui) .maivand-a-form-field-error {
+  color: var(--maivand-a-color-status-danger);
+}
+:where(.maivand-a-ui) .maivand-a-form-field-control {
+  min-width: 0;
+}

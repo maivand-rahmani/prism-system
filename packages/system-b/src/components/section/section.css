@@ -1,0 +1,35 @@
+:where(.maivand-b-ui).maivand-b-section {
+  display: grid;
+  gap: var(--maivand-b-spacing-semantic-section);
+}
+:where(.maivand-b-ui) .maivand-b-section-header {
+  display: grid;
+  gap: 6px;
+  max-width: var(--maivand-b-containers-narrow);
+}
+:where(.maivand-b-ui) .maivand-b-section-title {
+  font-family: var(--maivand-b-typography-family-sans);
+  font-size: var(--maivand-b-typography-size-2xl);
+  font-weight: var(--maivand-b-typography-weight-bold);
+  letter-spacing: var(--maivand-b-typography-letter-spacing-tight);
+  line-height: var(--maivand-b-typography-line-height-tight);
+  margin: 0;
+}
+:where(.maivand-b-ui) .maivand-b-section-description {
+  color: var(--maivand-b-color-text-muted);
+  font-size: var(--maivand-b-typography-size-md);
+  line-height: var(--maivand-b-typography-line-height-normal);
+  margin: 0;
+}
+:where(.maivand-b-ui) .maivand-b-section-content {
+  display: grid;
+  gap: var(--maivand-b-spacing-semantic-stack);
+}
+:where(.maivand-b-ui) .maivand-b-section-footer {
+  align-items: center;
+  border-top: 1px solid var(--maivand-b-color-border-default);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding-top: var(--maivand-b-spacing-semantic-stack);
+}

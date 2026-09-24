@@ -1,0 +1,66 @@
+:where(.maivand-a-ui).maivand-a-radio-group {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+:where(.maivand-a-ui).maivand-a-radio-group[data-orientation="vertical"] {
+  display: grid;
+  gap: var(--maivand-a-spacing-scale-2);
+}
+:where(.maivand-a-ui) .maivand-a-radio-item {
+  align-items: center;
+  background: var(--maivand-a-color-surface-raised);
+  border: 1px solid var(--maivand-a-color-border-default);
+  border-radius: var(--maivand-a-radius-md);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 1 1 180px;
+  gap: 10px;
+  min-height: 44px;
+  min-width: 0;
+  padding: 9px 12px;
+  position: relative;
+  transition:
+    background var(--maivand-a-motion-duration-fast) var(--maivand-a-motion-easing-standard),
+    border-color var(--maivand-a-motion-duration-fast) var(--maivand-a-motion-easing-standard),
+    box-shadow var(--maivand-a-motion-duration-fast) var(--maivand-a-motion-easing-standard);
+  text-align: left;
+}
+:where(.maivand-a-ui) .maivand-a-radio-item:focus-visible {
+  outline: 3px solid var(--maivand-a-color-border-focus);
+  outline-offset: 2px;
+}
+:where(.maivand-a-ui) .maivand-a-radio-item:hover:not(:disabled):not([data-disabled]) {
+  background: var(--maivand-a-color-surface-sunken);
+  border-color: var(--maivand-a-color-border-strong);
+}
+:where(.maivand-a-ui) .maivand-a-radio-item[data-state="checked"] {
+  border-color: var(--maivand-a-color-action-primary);
+  background: var(--maivand-a-color-action-secondary);
+  color: var(--maivand-a-color-action-secondary-text);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--maivand-a-color-action-primary) 12%, transparent);
+}
+:where(.maivand-a-ui) .maivand-a-radio-item[data-invalid="true"],
+:where(.maivand-a-ui) .maivand-a-radio-item[aria-invalid="true"] {
+  border-color: var(--maivand-a-color-status-danger);
+}
+:where(.maivand-a-ui) .maivand-a-radio-item:disabled,
+:where(.maivand-a-ui) .maivand-a-radio-item[data-disabled] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+:where(.maivand-a-ui) .maivand-a-radio-indicator {
+  background: var(--maivand-a-color-action-primary);
+  border-radius: 50%;
+  display: block;
+  flex: none;
+  height: 9px;
+  width: 9px;
+}
+:where(.maivand-a-ui) .maivand-a-radio-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
+}

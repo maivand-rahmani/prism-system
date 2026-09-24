@@ -1,0 +1,169 @@
+"use client";
+
+import * as React from "react";
+import {
+  Select as SelectPrimitive,
+  SelectContent as SelectContentPrimitive,
+  SelectGroup as SelectGroupPrimitive,
+  SelectItem as SelectItemPrimitive,
+  SelectLabel as SelectLabelPrimitive,
+  SelectSeparator as SelectSeparatorPrimitive,
+  SelectTrigger as SelectTriggerPrimitive,
+  SelectValue as SelectValuePrimitive,
+  cn,
+  type SelectContentProps as CoreSelectContentProps,
+  type SelectGroupProps as CoreSelectGroupProps,
+  type SelectItemProps as CoreSelectItemProps,
+  type SelectLabelProps as CoreSelectLabelProps,
+  type SelectProps as CoreSelectProps,
+  type SelectSeparatorProps as CoreSelectSeparatorProps,
+  type SelectTriggerProps as CoreSelectTriggerProps,
+  type SelectValueProps as CoreSelectValueProps,
+} from "@prism-system/ui-core";
+
+export interface SelectProps extends CoreSelectProps {
+  label?: React.ReactNode;
+  hint?: React.ReactNode;
+  error?: React.ReactNode;
+  size?: "sm" | "md" | "lg";
+  className?: string;
+  id?: string;
+}
+
+const SelectFieldContext = React.createContext<string | undefined>(undefined);
+
+const SelectRoot = function Select({
+  className,
+  label,
+  hint,
+  error,
+  size: _size = "md",
+  id: providedId,
+  invalid: _invalid,
+  placeholder: _placeholder,
+  children,
+  ...props
+}: SelectProps) {
+  const generatedId = React.useId();
+  const id = providedId || `maivand-b-select-${generatedId.replace(/:/g, "")}`;
+  const messageId = `${id}-message`;
+  return (
+    <div className={cn("maivand-b-ui maivand-b-select-field", className)}>
+      {label && (
+        <label className="maivand-b-label" htmlFor={id}>
+          {label}
+        </label>
+      )}
+      <SelectFieldContext.Provider value={id}>
+        <SelectPrimitive {...props}>{children}</SelectPrimitive>
+      </SelectFieldContext.Provider>
+      {(error || hint) && (
+        <span
+          id={messageId}
+          className={error ? "maivand-b-error" : "maivand-b-hint"}
+          role={error ? "alert" : undefined}
+        >
+          {error || hint}
+        </span>
+      )}
+    </div>
+  );
+};
+SelectRoot.displayName = "Select";
+
+export const SelectTrigger = React.forwardRef<HTMLButtonElement, CoreSelectTriggerProps>(
+  function SelectTrigger({ className, size = "md", invalid = false, id: providedId, ...props }, ref) {
+    const fieldId = React.useContext(SelectFieldContext);
+    return (
+      <SelectTriggerPrimitive
+        ref={ref}
+        id={providedId || fieldId}
+        size={size}
+        invalid={invalid}
+        className={cn("maivand-b-select-trigger", `maivand-b-input-${size}`, className)}
+        {...props}
+      />
+    );
+  },
+);
+
+export const SelectValue = React.forwardRef<HTMLSpanElement, CoreSelectValueProps>(
+  function SelectValue({ className, ...props }, ref) {
+    return (
+      <SelectValuePrimitive
+        ref={ref}
+        className={cn("maivand-b-select-value", className)}
+        {...props}
+      />
+    );
+  },
+);
+
+export const SelectContent = React.forwardRef<HTMLDivElement, CoreSelectContentProps>(
+  function SelectContent({ className, forceMount, position = "popper", ...props }, ref) {
+    return (
+      <SelectContentPrimitive
+        ref={ref}
+        className={cn("maivand-b-ui maivand-b-select-content", className)}
+        position={position}
+        {...props}
+        {...(forceMount ? { forceMount: true } : {})}
+      />
+    );
+  },
+);
+
+export const SelectGroup = React.forwardRef<HTMLDivElement, CoreSelectGroupProps>(
+  function SelectGroup({ className, ...props }, ref) {
+    return (
+      <SelectGroupPrimitive
+        ref={ref}
+        className={cn("maivand-b-select-group", className)}
+        {...props}
+      />
+    );
+  },
+);
+
+export const SelectLabel = React.forwardRef<HTMLDivElement, CoreSelectLabelProps>(
+  function SelectLabel({ className, ...props }, ref) {
+    return (
+      <SelectLabelPrimitive
+        ref={ref}
+        className={cn("maivand-b-select-label", className)}
+        {...props}
+      />
+    );
+  },
+);
+
+export const SelectItem = React.forwardRef<HTMLDivElement, CoreSelectItemProps>(function SelectItem(
+  { className, ...props },
+  ref,
+) {
+  return (
+    <SelectItemPrimitive ref={ref} className={cn("maivand-b-select-item", className)} {...props} />
+  );
+});
+
+export const SelectSeparator = React.forwardRef<HTMLDivElement, CoreSelectSeparatorProps>(
+  function SelectSeparator({ className, ...props }, ref) {
+    return (
+      <SelectSeparatorPrimitive
+        ref={ref}
+        className={cn("maivand-b-select-separator", className)}
+        {...props}
+      />
+    );
+  },
+);
+
+export const Select = Object.assign(SelectRoot, {
+  Trigger: SelectTrigger,
+  Value: SelectValue,
+  Content: SelectContent,
+  Group: SelectGroup,
+  Label: SelectLabel,
+  Item: SelectItem,
+  Separator: SelectSeparator,
+});

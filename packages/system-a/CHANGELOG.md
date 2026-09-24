@@ -1,5 +1,23 @@
 # @prism-system/ui-system-a
 
+## 2.0.0
+
+### Major Changes
+
+- Release Prism V4: the visual system for whole interfaces, as an additive layer over the unchanged V2 contract.
+
+  - `@prism-system/ui-core`: the V4 contract layer — 20 required components, 12 optional contracts, `DesignSystemComponentsV4`, separate required/optional lists, `defineDesignSystemV4`, and a separate V4 registry. The V2 types, exports, and registry stay unchanged.
+  - `@prism-system/ui-system-a` / `@prism-system/ui-system-b`: all 20 required components, only the optional components each system actually declares (no stubs), `tokens.source.json` as the token source of truth, and a `schemaVersion: 2` / `contract: "v4"` manifest next to the generated ordinary `styles.css` and the Tailwind v4 `tailwind.css` bridge.
+  - Manifest readers strictly distinguish `(schemaVersion: 1, contract: "v2")` from `(schemaVersion: 2, contract: "v4")`; a missing optional component key means "unavailable".
+  - `@prism-system/tools`: offline `components`, `tokens`, `check`, and `setup-tailwind`, plus the explicit `upgrade <package> <exact-version>`; V2 and V4 are read by their own schema rules while existing command behavior and machine output stay compatible.
+
+  The V4 manifest form and public contract are not backward compatible for the systems and `ui-core`, so they take a major bump; the new tooling commands are additive, so `@prism-system/tools` takes a minor bump.
+
+### Patch Changes
+
+- Updated dependencies
+  - @prism-system/ui-core@2.0.0
+
 ## 1.1.0
 
 ### Minor Changes

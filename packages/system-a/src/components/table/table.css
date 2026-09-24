@@ -1,0 +1,29 @@
+:where(.maivand-a-ui).maivand-a-table {
+  border-collapse: collapse;
+  color: var(--maivand-a-color-text-primary);
+  font-size: var(--maivand-a-typography-size-sm);
+  width: 100%;
+}
+:where(.maivand-a-ui) .maivand-a-table-caption {
+  color: var(--maivand-a-color-text-muted);
+  font-size: var(--maivand-a-typography-size-xs);
+  padding-block: var(--maivand-a-spacing-scale-2);
+  text-align: left;
+}
+:where(.maivand-a-ui) .maivand-a-table-head {
+  background: var(--maivand-a-color-surface-sunken);
+  color: var(--maivand-a-color-text-muted);
+  font-weight: var(--maivand-a-typography-weight-semibold);
+  text-align: left;
+}
+:where(.maivand-a-ui) .maivand-a-table-head,
+:where(.maivand-a-ui) .maivand-a-table-cell {
+  border-bottom: 1px solid var(--maivand-a-color-border-default);
+  padding: var(--maivand-a-spacing-scale-2) var(--maivand-a-spacing-scale-3);
+  vertical-align: middle;
+}
+:where(.maivand-a-ui) .maivand-a-table-footer .maivand-a-table-cell {
+  border-bottom: 0;
+  border-top: 1px solid var(--maivand-a-color-border-default);
+  color: var(--maivand-a-color-text-muted);
+}

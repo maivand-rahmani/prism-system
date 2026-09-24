@@ -1,0 +1,6 @@
+:where(.maivand-a-ui).maivand-a-grid {
+  display: grid;
+  gap: var(--maivand-a-spacing-semantic-stack);
+  grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr));
+  min-width: 0;
+}

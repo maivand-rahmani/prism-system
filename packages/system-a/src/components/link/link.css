@@ -1,0 +1,15 @@
+:where(.maivand-a-ui).maivand-a-link {
+  color: var(--maivand-a-color-action-primary);
+  font: inherit;
+  text-decoration-line: underline;
+  text-decoration-thickness: from-font;
+  text-underline-offset: 0.18em;
+}
+:where(.maivand-a-ui).maivand-a-link:hover {
+  color: var(--maivand-a-color-action-primary-hover);
+}
+:where(.maivand-a-ui).maivand-a-link:focus-visible {
+  outline: 3px solid var(--maivand-a-color-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--maivand-a-radius-sm);
+}

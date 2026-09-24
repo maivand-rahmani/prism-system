@@ -1,0 +1,26 @@
+:where(.maivand-a-ui).maivand-a-stack {
+  display: flex;
+  gap: var(--maivand-a-spacing-semantic-stack);
+  min-width: 0;
+}
+:where(.maivand-a-ui).maivand-a-stack-vertical {
+  flex-direction: column;
+}
+:where(.maivand-a-ui).maivand-a-stack-horizontal {
+  align-items: center;
+  flex-direction: row;
+}
+:where(.maivand-a-ui).maivand-a-stack-wrap {
+  flex-wrap: wrap;
+}
+:where(.maivand-a-ui).maivand-a-stack:is(ul, ol) {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+@media (max-width: 40rem) {
+  :where(.maivand-a-ui).maivand-a-stack-horizontal {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

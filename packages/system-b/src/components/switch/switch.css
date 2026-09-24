@@ -1,0 +1,72 @@
+:where(.maivand-b-ui).maivand-b-switch {
+  align-items: center;
+  background: var(--maivand-b-color-surface-sunken);
+  border: 2px solid var(--maivand-b-color-border-default);
+  border-radius: var(--maivand-b-radius-full);
+  cursor: pointer;
+  display: inline-flex;
+  height: 26px;
+  justify-content: flex-start;
+  padding: 2px;
+  transition:
+    background var(--maivand-b-motion-duration-normal) var(--maivand-b-motion-easing-standard),
+    border-color var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard),
+    box-shadow var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard);
+  width: 46px;
+}
+:where(.maivand-b-ui).maivand-b-switch:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--maivand-b-color-border-focus) 45%, transparent);
+  outline-offset: 2px;
+}
+:where(.maivand-b-ui).maivand-b-switch[data-state="checked"] {
+  background: var(--maivand-b-color-action-primary);
+  border-color: var(--maivand-b-color-action-primary-hover);
+  box-shadow: var(--maivand-b-shadow-sm);
+}
+:where(.maivand-b-ui).maivand-b-switch[data-invalid="true"],
+:where(.maivand-b-ui).maivand-b-switch[aria-invalid="true"] {
+  border-color: var(--maivand-b-color-status-danger);
+}
+:where(.maivand-b-ui).maivand-b-switch[data-disabled],
+:where(.maivand-b-ui).maivand-b-switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+:where(.maivand-b-ui) .maivand-b-switch-thumb {
+  background: var(--maivand-b-color-text-primary);
+  border-radius: 50%;
+  display: block;
+  height: 18px;
+  pointer-events: none;
+  transform: translateX(0);
+  transition:
+    transform var(--maivand-b-motion-duration-normal) var(--maivand-b-motion-easing-standard),
+    background var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard);
+  width: 18px;
+}
+:where(.maivand-b-ui).maivand-b-switch[data-state="checked"] .maivand-b-switch-thumb {
+  background: var(--maivand-b-color-action-primary-text);
+  transform: translateX(20px);
+}
+:where(.maivand-b-ui).maivand-b-switch-sm {
+  height: 22px;
+  width: 38px;
+}
+:where(.maivand-b-ui).maivand-b-switch-sm .maivand-b-switch-thumb {
+  height: 14px;
+  width: 14px;
+}
+:where(.maivand-b-ui).maivand-b-switch-sm[data-state="checked"] .maivand-b-switch-thumb {
+  transform: translateX(16px);
+}
+:where(.maivand-b-ui).maivand-b-switch-lg {
+  height: 30px;
+  width: 54px;
+}
+:where(.maivand-b-ui).maivand-b-switch-lg .maivand-b-switch-thumb {
+  height: 22px;
+  width: 22px;
+}
+:where(.maivand-b-ui).maivand-b-switch-lg[data-state="checked"] .maivand-b-switch-thumb {
+  transform: translateX(24px);
+}

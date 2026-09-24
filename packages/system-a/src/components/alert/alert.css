@@ -1,0 +1,45 @@
+:where(.maivand-a-ui).maivand-a-alert {
+  border: 1px solid var(--maivand-a-color-border-default);
+  border-radius: var(--maivand-a-radius-md);
+  display: grid;
+  gap: var(--maivand-a-spacing-scale-1);
+  padding: var(--maivand-a-spacing-scale-3) var(--maivand-a-spacing-scale-4);
+}
+:where(.maivand-a-ui) .maivand-a-alert-title {
+  font-size: var(--maivand-a-typography-size-md);
+  font-weight: var(--maivand-a-typography-weight-semibold);
+  margin: 0;
+}
+:where(.maivand-a-ui) .maivand-a-alert-description {
+  font-size: var(--maivand-a-typography-size-sm);
+  line-height: var(--maivand-a-typography-line-height-normal);
+  margin: 0;
+}
+:where(.maivand-a-ui).maivand-a-alert-info {
+  background: var(--maivand-a-color-action-secondary);
+  border-color: color-mix(in srgb, var(--maivand-a-color-status-info) 28%, transparent);
+  color: var(--maivand-a-color-action-secondary-text);
+}
+:where(.maivand-a-ui).maivand-a-alert-success {
+  background: var(--maivand-a-color-action-secondary);
+  border-color: color-mix(in srgb, var(--maivand-a-color-status-success) 28%, transparent);
+  color: var(--maivand-a-color-action-secondary-text);
+}
+:where(.maivand-a-ui).maivand-a-alert-warning {
+  background: color-mix(
+    in srgb,
+    var(--maivand-a-color-status-warning) 14%,
+    var(--maivand-a-color-surface-raised)
+  );
+  border-color: color-mix(in srgb, var(--maivand-a-color-status-warning) 36%, transparent);
+  color: var(--maivand-a-color-status-warning);
+}
+:where(.maivand-a-ui).maivand-a-alert-danger {
+  background: color-mix(
+    in srgb,
+    var(--maivand-a-color-status-danger) 12%,
+    var(--maivand-a-color-surface-raised)
+  );
+  border-color: color-mix(in srgb, var(--maivand-a-color-status-danger) 36%, transparent);
+  color: var(--maivand-a-color-status-danger);
+}

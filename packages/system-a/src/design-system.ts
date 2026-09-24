@@ -1,0 +1,100 @@
+import { defineDesignSystemV4 } from "@prism-system/ui-core";
+import {
+  Accordion,
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Checkbox,
+  Container,
+  Dialog,
+  DropdownMenu,
+  Fieldset,
+  FormField,
+  Grid,
+  Heading,
+  Input,
+  Link,
+  Pagination,
+  Progress,
+  RadioGroup,
+  Select,
+  Separator,
+  Stack,
+  Switch,
+  Table,
+  Tabs,
+  Text,
+  Textarea,
+  Tooltip,
+} from "./components/index.js";
+
+/**
+ * Canonical V4 runtime map for System A.
+ *
+ * The twenty required components are always present; the optional components
+ * below are capabilities System A actually implements (Grid, Fieldset, Alert,
+ * Progress, Accordion, Pagination, Table). Any other optional V4 name is
+ * intentionally absent and therefore unavailable.
+ */
+export const DesignSystem = defineDesignSystemV4({
+  id: "system-a",
+  name: "System A",
+  packageName: "@prism-system/ui-system-a",
+  version: "2.0.0",
+  componentContract: "v4",
+  components: {
+    Button,
+    Input,
+    Textarea,
+    Card,
+    Badge,
+    Checkbox,
+    RadioGroup,
+    Switch,
+    Select,
+    Tabs,
+    Dialog,
+    DropdownMenu,
+    Tooltip,
+    Separator,
+    Heading,
+    Text,
+    Link,
+    Container,
+    Stack,
+    FormField,
+    Grid,
+    Fieldset,
+    Alert,
+    Progress,
+    Accordion,
+    Pagination,
+    Table,
+  },
+  meta: {
+    description: "A calm, focused visual system with warm surfaces and quiet rhythm.",
+    design: {
+      density: "comfortable",
+      theme: "light-first",
+      radius: "small",
+      keywords: [
+        "calm",
+        "minimal",
+        "editorial",
+        "warm light surfaces",
+        "ink-led hierarchy",
+        "quiet borders",
+        "restrained motion",
+        "low visual noise",
+      ],
+    },
+    rules: {
+      allowArbitraryColors: false,
+      allowArbitraryRadius: false,
+      allowArbitraryShadows: false,
+      allowPrimitiveDuplication: false,
+    },
+  },
+});
+export type DesignSystem = typeof DesignSystem;

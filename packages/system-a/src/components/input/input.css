@@ -1,0 +1,71 @@
+:where(.maivand-a-ui).maivand-a-field {
+  display: grid;
+  gap: 7px;
+}
+:where(.maivand-a-ui) .maivand-a-label {
+  color: var(--maivand-a-color-text-primary);
+  font-size: var(--maivand-a-typography-size-sm);
+  font-weight: var(--maivand-a-typography-weight-semibold);
+}
+:where(.maivand-a-ui) .maivand-a-hint,
+:where(.maivand-a-ui) .maivand-a-error {
+  font-size: var(--maivand-a-typography-size-xs);
+  line-height: 1.4;
+}
+:where(.maivand-a-ui) .maivand-a-hint {
+  color: var(--maivand-a-color-text-muted);
+}
+:where(.maivand-a-ui) .maivand-a-error {
+  color: var(--maivand-a-color-status-danger);
+}
+:where(.maivand-a-ui) .maivand-a-input-shell {
+  align-items: center;
+  background: var(--maivand-a-color-surface-raised);
+  border: 1px solid var(--maivand-a-color-border-default);
+  border-radius: var(--maivand-a-radius-sm);
+  display: flex;
+  min-height: 40px;
+  transition:
+    border-color var(--maivand-a-motion-duration-fast) var(--maivand-a-motion-easing-standard),
+    box-shadow var(--maivand-a-motion-duration-fast) var(--maivand-a-motion-easing-standard);
+}
+:where(.maivand-a-ui) .maivand-a-input-shell:focus-within {
+  border-color: var(--maivand-a-color-border-focus);
+}
+:where(.maivand-a-ui) .maivand-a-input-shell:has(.maivand-a-input:focus-visible) {
+  outline: 3px solid var(--maivand-a-color-border-focus);
+  outline-offset: 2px;
+}
+:where(.maivand-a-ui) .maivand-a-input-shell-error {
+  border-color: var(--maivand-a-color-status-danger);
+}
+:where(.maivand-a-ui) .maivand-a-input {
+  background: transparent;
+  border: 0;
+  color: var(--maivand-a-color-text-primary);
+  flex: 1;
+  min-width: 0;
+  outline: 0;
+  padding: 10px 12px;
+}
+:where(.maivand-a-ui) .maivand-a-input::placeholder {
+  color: var(--maivand-a-color-text-muted);
+}
+:where(.maivand-a-ui) .maivand-a-adornment {
+  color: var(--maivand-a-color-text-muted);
+  display: flex;
+  padding: 0 11px;
+}
+:where(.maivand-a-ui) .maivand-a-input-sm {
+  min-height: 34px;
+}
+:where(.maivand-a-ui) .maivand-a-input-sm .maivand-a-input {
+  padding: 7px 10px;
+  font-size: var(--maivand-a-typography-size-sm);
+}
+:where(.maivand-a-ui) .maivand-a-input-lg {
+  min-height: 48px;
+}
+:where(.maivand-a-ui) .maivand-a-input-lg .maivand-a-input {
+  padding: 13px 14px;
+}

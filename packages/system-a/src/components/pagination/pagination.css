@@ -1,0 +1,50 @@
+:where(.maivand-a-ui).maivand-a-pagination {
+  display: block;
+}
+:where(.maivand-a-ui) .maivand-a-pagination-list {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--maivand-a-spacing-scale-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+:where(.maivand-a-ui) .maivand-a-pagination-item {
+  display: flex;
+}
+:where(.maivand-a-ui) .maivand-a-pagination-link,
+:where(.maivand-a-ui) .maivand-a-pagination-current,
+:where(.maivand-a-ui) .maivand-a-pagination-ellipsis {
+  align-items: center;
+  border-radius: var(--maivand-a-radius-sm);
+  display: inline-flex;
+  font-size: var(--maivand-a-typography-size-sm);
+  justify-content: center;
+  min-height: 34px;
+  min-width: 34px;
+  padding: 0 var(--maivand-a-spacing-scale-2);
+}
+:where(.maivand-a-ui) .maivand-a-pagination-link {
+  color: var(--maivand-a-color-text-secondary);
+  text-decoration: none;
+  transition:
+    background var(--maivand-a-motion-duration-fast) var(--maivand-a-motion-easing-standard),
+    color var(--maivand-a-motion-duration-fast) var(--maivand-a-motion-easing-standard);
+}
+:where(.maivand-a-ui) .maivand-a-pagination-link:hover {
+  background: var(--maivand-a-color-surface-sunken);
+  color: var(--maivand-a-color-text-primary);
+}
+:where(.maivand-a-ui) .maivand-a-pagination-link:focus-visible {
+  outline: 3px solid var(--maivand-a-color-border-focus);
+  outline-offset: 2px;
+}
+:where(.maivand-a-ui) .maivand-a-pagination-current {
+  background: var(--maivand-a-color-action-secondary);
+  color: var(--maivand-a-color-action-secondary-text);
+  font-weight: var(--maivand-a-typography-weight-semibold);
+}
+:where(.maivand-a-ui) .maivand-a-pagination-ellipsis {
+  color: var(--maivand-a-color-text-muted);
+}

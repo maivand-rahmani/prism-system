@@ -1,0 +1,42 @@
+:where(.maivand-b-ui) .maivand-b-textarea {
+  background: var(--maivand-b-color-surface-raised);
+  border: 1px solid var(--maivand-b-color-border-default);
+  border-radius: var(--maivand-b-radius-sm);
+  color: var(--maivand-b-color-text-primary);
+  display: block;
+  line-height: 1.5;
+  min-height: 112px;
+  outline: 0;
+  padding: 10px 12px;
+  resize: vertical;
+  transition:
+    border-color var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard),
+    box-shadow var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard);
+  width: 100%;
+}
+:where(.maivand-b-ui) .maivand-b-textarea::placeholder {
+  color: #9d91aa;
+}
+:where(.maivand-b-ui) .maivand-b-textarea:focus-visible,
+:where(.maivand-b-ui) .maivand-b-textarea:focus {
+  border-color: var(--maivand-b-color-border-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--maivand-b-color-border-focus) 18%, transparent);
+}
+:where(.maivand-b-ui) .maivand-b-textarea[data-invalid="true"],
+:where(.maivand-b-ui) .maivand-b-textarea[aria-invalid="true"] {
+  border-color: var(--maivand-b-color-status-danger);
+}
+:where(.maivand-b-ui) .maivand-b-textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  resize: none;
+}
+:where(.maivand-b-ui) .maivand-b-textarea.maivand-b-input-sm {
+  min-height: 80px;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+:where(.maivand-b-ui) .maivand-b-textarea.maivand-b-input-lg {
+  min-height: 144px;
+  padding: 13px 14px;
+}

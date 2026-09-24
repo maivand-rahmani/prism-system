@@ -45,7 +45,20 @@
     "Dialog",
     "DropdownMenu",
     "Tooltip",
-    "Separator"
+    "Separator",
+    "Heading",
+    "Text",
+    "Link",
+    "Container",
+    "Stack",
+    "FormField",
+    "Grid",
+    "Fieldset",
+    "Alert",
+    "Progress",
+    "Accordion",
+    "Pagination",
+    "Table"
   ],
   "avoid": [
     "harsh black-and-white contrast",

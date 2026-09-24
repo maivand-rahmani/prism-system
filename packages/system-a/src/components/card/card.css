@@ -1,0 +1,65 @@
+:where(.maivand-a-ui).maivand-a-card {
+  background: var(--maivand-a-color-surface-raised);
+  border: 1px solid var(--maivand-a-color-border-default);
+  border-radius: var(--maivand-a-radius-lg);
+  color: var(--maivand-a-color-text-primary);
+}
+:where(.maivand-a-ui).maivand-a-card-elevated {
+  border-color: transparent;
+  box-shadow: var(--maivand-a-shadow-md);
+}
+:where(.maivand-a-ui).maivand-a-card-muted {
+  background: var(--maivand-a-color-surface-sunken);
+}
+:where(.maivand-a-ui).maivand-a-card-outline {
+  background: transparent;
+}
+:where(.maivand-a-ui).maivand-a-card-interactive {
+  cursor: pointer;
+  transition:
+    transform var(--maivand-a-motion-duration-fast) var(--maivand-a-motion-easing-standard),
+    box-shadow var(--maivand-a-motion-duration-fast) var(--maivand-a-motion-easing-standard);
+}
+:where(.maivand-a-ui).maivand-a-card-interactive:hover {
+  box-shadow: var(--maivand-a-shadow-sm);
+  transform: translateY(-2px);
+}
+:where(.maivand-a-ui).maivand-a-card-padding-none {
+  padding: 0;
+}
+:where(.maivand-a-ui).maivand-a-card-padding-sm {
+  padding: var(--maivand-a-spacing-scale-2);
+}
+:where(.maivand-a-ui).maivand-a-card-padding-md {
+  padding: var(--maivand-a-spacing-scale-4);
+}
+:where(.maivand-a-ui).maivand-a-card-padding-lg {
+  padding: 28px;
+}
+:where(.maivand-a-ui) .maivand-a-card-header {
+  display: grid;
+  gap: 5px;
+  padding: 20px 22px 0;
+}
+:where(.maivand-a-ui) .maivand-a-card-content {
+  padding: 20px 22px;
+}
+:where(.maivand-a-ui) .maivand-a-card-footer {
+  align-items: center;
+  border-top: 1px solid var(--maivand-a-color-border-default);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 14px 22px;
+}
+:where(.maivand-a-ui) .maivand-a-card-title {
+  font-size: var(--maivand-a-typography-size-lg);
+  font-weight: var(--maivand-a-typography-weight-semibold);
+  letter-spacing: var(--maivand-a-typography-letter-spacing-tight);
+  margin: 0;
+}
+:where(.maivand-a-ui) .maivand-a-card-description {
+  color: var(--maivand-a-color-text-muted);
+  font-size: var(--maivand-a-typography-size-sm);
+  margin: 0;
+}

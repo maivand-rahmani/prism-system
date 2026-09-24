@@ -1,0 +1,78 @@
+:where(.maivand-a-ui).maivand-a-menu-content {
+  animation: maivand-a-pop-in var(--maivand-a-motion-duration-fast)
+    var(--maivand-a-motion-easing-standard);
+  background: var(--maivand-a-color-surface-raised);
+  border: 1px solid var(--maivand-a-color-border-default);
+  border-radius: var(--maivand-a-radius-md);
+  box-shadow: var(--maivand-a-shadow-md);
+  min-width: 190px;
+  overflow: hidden;
+  padding: 5px;
+  z-index: var(--maivand-a-layers-dropdown);
+}
+:where(.maivand-a-ui).maivand-a-menu-content[data-state="closed"] {
+  pointer-events: none;
+}
+:where(.maivand-a-ui) .maivand-a-menu-group {
+  padding: 3px 0;
+}
+:where(.maivand-a-ui) .maivand-a-menu-item {
+  align-items: center;
+  border-radius: var(--maivand-a-radius-sm);
+  cursor: pointer;
+  display: flex;
+  font-size: var(--maivand-a-typography-size-sm);
+  gap: var(--maivand-a-spacing-scale-2);
+  min-height: 34px;
+  outline: 0;
+  padding: 7px 10px;
+}
+:where(.maivand-a-ui) .maivand-a-menu-item:focus-visible {
+  outline: 3px solid var(--maivand-a-color-border-focus);
+  outline-offset: 2px;
+}
+:where(.maivand-a-ui) .maivand-a-menu-item:hover,
+:where(.maivand-a-ui) .maivand-a-menu-item[data-highlighted] {
+  background: var(--maivand-a-color-action-secondary);
+  color: var(--maivand-a-color-action-secondary-text);
+}
+:where(.maivand-a-ui) .maivand-a-menu-item[data-state="checked"] {
+  background: color-mix(
+    in srgb,
+    var(--maivand-a-color-action-secondary) 68%,
+    var(--maivand-a-color-surface-raised)
+  );
+}
+:where(.maivand-a-ui) .maivand-a-menu-item[data-disabled],
+:where(.maivand-a-ui) .maivand-a-menu-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+:where(.maivand-a-ui) .maivand-a-menu-label {
+  color: var(--maivand-a-color-text-muted);
+  font-size: var(--maivand-a-typography-size-xs);
+  font-weight: var(--maivand-a-typography-weight-semibold);
+  padding: 7px 10px 4px;
+}
+:where(.maivand-a-ui) .maivand-a-menu-indicator {
+  color: var(--maivand-a-color-action-secondary-text);
+  margin-left: auto;
+}
+:where(.maivand-a-ui) .maivand-a-menu-separator {
+  background: var(--maivand-a-color-border-default);
+  height: 1px;
+  margin: 5px 0;
+}
+:where(.maivand-a-ui) .maivand-a-menu-arrow {
+  fill: var(--maivand-a-color-surface-raised);
+}
+@keyframes maivand-a-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

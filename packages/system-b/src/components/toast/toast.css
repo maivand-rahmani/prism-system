@@ -1,0 +1,83 @@
+:where(.maivand-b-ui).maivand-b-toast-viewport {
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  max-width: min(420px, 100vw);
+  padding: 20px;
+  position: fixed;
+  right: 0;
+  width: 100%;
+  z-index: var(--maivand-b-layers-toast);
+}
+:where(.maivand-b-ui).maivand-b-toast {
+  animation: maivand-b-toast-in var(--maivand-b-motion-duration-normal)
+    var(--maivand-b-motion-easing-standard);
+  background: var(--maivand-b-color-surface-raised);
+  border: 2px solid var(--maivand-b-color-action-primary);
+  border-radius: var(--maivand-b-radius-md);
+  box-shadow: var(--maivand-b-shadow-md);
+  color: var(--maivand-b-color-text-primary);
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+}
+:where(.maivand-b-ui) .maivand-b-toast-title {
+  font-size: var(--maivand-b-typography-size-md);
+  font-weight: var(--maivand-b-typography-weight-semibold);
+  margin: 0;
+}
+:where(.maivand-b-ui) .maivand-b-toast-description {
+  color: var(--maivand-b-color-text-muted);
+  font-size: var(--maivand-b-typography-size-sm);
+  line-height: var(--maivand-b-typography-line-height-normal);
+  margin: 0;
+}
+:where(.maivand-b-ui) .maivand-b-toast-action {
+  align-items: center;
+  align-self: start;
+  background: var(--maivand-b-color-action-primary);
+  border: 2px solid transparent;
+  border-radius: var(--maivand-b-radius-sm);
+  color: var(--maivand-b-color-action-primary-text);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: var(--maivand-b-typography-size-sm);
+  font-weight: var(--maivand-b-typography-weight-semibold);
+  justify-content: center;
+  margin-top: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+}
+:where(.maivand-b-ui) .maivand-b-toast-action:focus-visible,
+:where(.maivand-b-ui) .maivand-b-toast-close:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--maivand-b-color-border-focus) 45%, transparent);
+  outline-offset: 2px;
+}
+:where(.maivand-b-ui) .maivand-b-toast-close {
+  background: transparent;
+  border: 0;
+  color: var(--maivand-b-color-text-muted);
+  cursor: pointer;
+  font-size: var(--maivand-b-typography-size-md);
+  line-height: 1;
+  padding: 2px 6px;
+  position: absolute;
+  right: 8px;
+  top: 8px;
+}
+:where(.maivand-b-ui).maivand-b-toast {
+  position: relative;
+}
+@keyframes maivand-b-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

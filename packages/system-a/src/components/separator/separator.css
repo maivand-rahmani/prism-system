@@ -1,0 +1,11 @@
+:where(.maivand-a-ui).maivand-a-separator {
+  background: var(--maivand-a-color-border-default);
+  flex: none;
+  height: 1px;
+  width: 100%;
+}
+:where(.maivand-a-ui).maivand-a-separator[data-orientation="vertical"] {
+  height: auto;
+  min-height: 20px;
+  width: 1px;
+}

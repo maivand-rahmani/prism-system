@@ -1,0 +1,30 @@
+:where(.maivand-a-ui).maivand-a-progress {
+  background: var(--maivand-a-color-surface-sunken);
+  border-radius: var(--maivand-a-radius-full);
+  display: block;
+  height: 8px;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+:where(.maivand-a-ui) .maivand-a-progress-indicator {
+  background: var(--maivand-a-color-action-primary);
+  border-radius: var(--maivand-a-radius-full);
+  display: block;
+  height: 100%;
+  transition: width var(--maivand-a-motion-duration-normal)
+    var(--maivand-a-motion-easing-standard);
+}
+:where(.maivand-a-ui).maivand-a-progress-indeterminate .maivand-a-progress-indicator {
+  animation: maivand-a-progress-indeterminate var(--maivand-a-motion-duration-slow)
+    var(--maivand-a-motion-easing-standard) infinite;
+  width: 40%;
+}
+@keyframes maivand-a-progress-indeterminate {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(320%);
+  }
+}

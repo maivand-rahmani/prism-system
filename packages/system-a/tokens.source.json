@@ -1,0 +1,176 @@
+{
+  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/tokens.source.schema.json",
+  "schemaVersion": 1,
+  "themes": {
+    "light": {
+      "color": {
+        "text": {
+          "primary": "#1d2925",
+          "secondary": "#3f4d47",
+          "muted": "#60706a",
+          "inverse": "#ffffff"
+        },
+        "surface": {
+          "canvas": "#f7f7f3",
+          "raised": "#ffffff",
+          "sunken": "#eef1ec",
+          "inverse": "#1d2925"
+        },
+        "border": {
+          "default": "#dbe3dd",
+          "strong": "#b9c8bf",
+          "focus": "#2f6f5f"
+        },
+        "action": {
+          "primary": "#317a67",
+          "primaryHover": "#245d4f",
+          "primaryText": "#ffffff",
+          "secondary": "#e0efe9",
+          "secondaryHover": "#d4e7e1",
+          "secondaryText": "#245d4f"
+        },
+        "status": {
+          "info": "#245d4f",
+          "success": "#245d4f",
+          "warning": "#936a2c",
+          "danger": "#bd4d4d"
+        }
+      }
+    },
+    "dark": {
+      "color": {
+        "text": {
+          "primary": "#eef1ec",
+          "secondary": "#c5ceca",
+          "muted": "#9aa7a2",
+          "inverse": "#1d2925"
+        },
+        "surface": {
+          "canvas": "#141a18",
+          "raised": "#1c2421",
+          "sunken": "#101513",
+          "inverse": "#eef1ec"
+        },
+        "border": {
+          "default": "#33403a",
+          "strong": "#4d5c55",
+          "focus": "#8fc2b7"
+        },
+        "action": {
+          "primary": "#6caa98",
+          "primaryHover": "#86c2b2",
+          "primaryText": "#12201b",
+          "secondary": "#26332e",
+          "secondaryHover": "#32423c",
+          "secondaryText": "#cfe6dd"
+        },
+        "status": {
+          "info": "#8fc2b7",
+          "success": "#8fc2b7",
+          "warning": "#e0bd7f",
+          "danger": "#e29b96"
+        }
+      }
+    }
+  },
+  "typography": {
+    "family": {
+      "sans": "\"Avenir Next\", \"Segoe UI\", sans-serif",
+      "mono": "ui-monospace, SFMono-Regular, Menlo, monospace"
+    },
+    "size": {
+      "xs": "0.75rem",
+      "sm": "0.8125rem",
+      "md": "0.875rem",
+      "lg": "1rem",
+      "xl": "1.125rem",
+      "2xl": "1.25rem",
+      "3xl": "1.5rem",
+      "4xl": "1.875rem"
+    },
+    "weight": {
+      "light": 300,
+      "normal": 400,
+      "medium": 500,
+      "semibold": 600,
+      "bold": 700
+    },
+    "lineHeight": {
+      "tight": 1.15,
+      "normal": 1.45,
+      "relaxed": 1.65
+    },
+    "letterSpacing": {
+      "tight": "-0.01em",
+      "normal": "0em",
+      "wide": "0.04em"
+    }
+  },
+  "spacing": {
+    "scale": {
+      "0": "0rem",
+      "1": "0.25rem",
+      "2": "0.5rem",
+      "3": "0.75rem",
+      "4": "1rem",
+      "6": "1.5rem",
+      "8": "2rem",
+      "12": "3rem",
+      "16": "4rem",
+      "24": "6rem"
+    },
+    "semantic": {
+      "inline": "0.75rem",
+      "inset": "1.25rem",
+      "stack": "1rem",
+      "section": "3rem"
+    }
+  },
+  "containers": {
+    "narrow": "40rem",
+    "content": "68rem",
+    "wide": "80rem",
+    "full": "100%"
+  },
+  "breakpoints": {
+    "sm": "40rem",
+    "md": "48rem",
+    "lg": "64rem",
+    "xl": "80rem"
+  },
+  "layers": {
+    "base": 0,
+    "dropdown": 60,
+    "sticky": 30,
+    "overlay": 50,
+    "modal": 51,
+    "toast": 80,
+    "tooltip": 70
+  },
+  "radius": {
+    "none": "0px",
+    "sm": "8px",
+    "md": "12px",
+    "lg": "18px",
+    "full": "999px"
+  },
+  "shadow": {
+    "sm": "0 2px 8px rgba(24, 47, 39, 0.06)",
+    "md": "0 16px 40px rgba(24, 47, 39, 0.1)",
+    "lg": "0 24px 56px rgba(24, 47, 39, 0.14)",
+    "focus": "0 0 0 3px rgba(108, 170, 152, 0.35)"
+  },
+  "motion": {
+    "duration": {
+      "fast": "140ms",
+      "normal": "220ms",
+      "slow": "320ms",
+      "reduced": "0ms"
+    },
+    "easing": {
+      "standard": "cubic-bezier(0.2, 0.7, 0.2, 1)",
+      "entrance": "cubic-bezier(0.16, 1, 0.3, 1)",
+      "exit": "cubic-bezier(0.4, 0, 1, 1)"
+    }
+  }
+}

@@ -1,0 +1,60 @@
+.maivand-a-dialog-overlay {
+  align-items: center;
+  background: color-mix(in srgb, var(--maivand-a-color-surface-inverse) 32%, transparent);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: var(--maivand-a-layers-overlay);
+}
+:where(.maivand-a-ui).maivand-a-dialog-content {
+  animation: maivand-a-dialog-in var(--maivand-a-motion-duration-normal)
+    var(--maivand-a-motion-easing-standard);
+  background: var(--maivand-a-color-surface-raised);
+  border: 1px solid var(--maivand-a-color-border-default);
+  border-radius: var(--maivand-a-radius-lg);
+  box-shadow: var(--maivand-a-shadow-md);
+  left: 50%;
+  max-height: calc(100vh - 40px);
+  max-width: 520px;
+  overflow: auto;
+  padding: var(--maivand-a-spacing-scale-6);
+  position: fixed;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100vw - 40px);
+  z-index: var(--maivand-a-layers-modal);
+}
+:where(.maivand-a-ui) .maivand-a-dialog-header {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+:where(.maivand-a-ui) .maivand-a-dialog-title {
+  font-size: var(--maivand-a-typography-size-2xl);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+:where(.maivand-a-ui) .maivand-a-dialog-description {
+  color: var(--maivand-a-color-text-muted);
+  font-size: var(--maivand-a-typography-size-md);
+  line-height: var(--maivand-a-typography-line-height-normal);
+  margin: 0;
+}
+:where(.maivand-a-ui) .maivand-a-dialog-footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: var(--maivand-a-spacing-scale-6);
+}
+@keyframes maivand-a-dialog-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 8px)) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}

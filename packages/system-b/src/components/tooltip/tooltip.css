@@ -1,0 +1,29 @@
+:where(.maivand-b-ui).maivand-b-tooltip-trigger:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--maivand-b-color-border-focus) 45%, transparent);
+  outline-offset: 2px;
+}
+:where(.maivand-b-ui).maivand-b-tooltip-content {
+  animation: maivand-b-tooltip-in var(--maivand-b-motion-duration-fast)
+    var(--maivand-b-motion-easing-standard);
+  background: var(--maivand-b-color-text-primary);
+  border: 1px solid var(--maivand-b-color-action-primary);
+  border-radius: var(--maivand-b-radius-sm);
+  box-shadow: var(--maivand-b-shadow-md);
+  color: var(--maivand-b-color-action-primary-text);
+  font-size: var(--maivand-b-typography-size-sm);
+  line-height: 1.35;
+  max-width: 260px;
+  padding: 8px 10px;
+  z-index: var(--maivand-b-layers-tooltip);
+}
+:where(.maivand-b-ui) .maivand-b-tooltip-arrow {
+  fill: var(--maivand-b-color-text-primary);
+}
+@keyframes maivand-b-tooltip-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

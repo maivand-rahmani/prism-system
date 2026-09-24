@@ -1,0 +1,72 @@
+:where(.maivand-b-ui).maivand-b-field {
+  display: grid;
+  gap: 7px;
+}
+:where(.maivand-b-ui) .maivand-b-label {
+  color: var(--maivand-b-color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+:where(.maivand-b-ui) .maivand-b-hint,
+:where(.maivand-b-ui) .maivand-b-error {
+  font-size: var(--maivand-b-typography-size-sm);
+  line-height: var(--maivand-b-typography-line-height-normal);
+}
+:where(.maivand-b-ui) .maivand-b-hint {
+  color: var(--maivand-b-color-text-muted);
+}
+:where(.maivand-b-ui) .maivand-b-error {
+  color: var(--maivand-b-color-status-danger);
+}
+:where(.maivand-b-ui) .maivand-b-input-shell {
+  align-items: center;
+  background: var(--maivand-b-color-surface-raised);
+  border: 1px solid var(--maivand-b-color-border-default);
+  border-radius: var(--maivand-b-radius-sm);
+  display: flex;
+  min-height: 40px;
+  transition:
+    border-color var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard),
+    box-shadow var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard);
+}
+:where(.maivand-b-ui) .maivand-b-input-shell:focus-within {
+  border-color: var(--maivand-b-color-border-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--maivand-b-color-border-focus) 18%, transparent);
+}
+:where(.maivand-b-ui) .maivand-b-input-shell-error {
+  border-color: var(--maivand-b-color-status-danger);
+}
+:where(.maivand-b-ui) .maivand-b-input:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--maivand-b-color-border-focus) 45%, transparent);
+  outline-offset: 2px;
+}
+:where(.maivand-b-ui) .maivand-b-input {
+  background: transparent;
+  border: 0;
+  color: var(--maivand-b-color-text-primary);
+  flex: 1;
+  min-width: 0;
+  outline: 0;
+  padding: 10px 12px;
+}
+:where(.maivand-b-ui) .maivand-b-input::placeholder {
+  color: #9d91aa;
+}
+:where(.maivand-b-ui) .maivand-b-adornment {
+  color: var(--maivand-b-color-text-muted);
+  display: flex;
+  padding: 0 11px;
+}
+:where(.maivand-b-ui) .maivand-b-input-sm {
+  min-height: 34px;
+}
+:where(.maivand-b-ui) .maivand-b-input-sm .maivand-b-input {
+  padding: 7px 10px;
+  font-size: 13px;
+}
+:where(.maivand-b-ui) .maivand-b-input-lg {
+  min-height: 48px;
+}
+:where(.maivand-b-ui) .maivand-b-input-lg .maivand-b-input {
+  padding: 13px 14px;
+}
