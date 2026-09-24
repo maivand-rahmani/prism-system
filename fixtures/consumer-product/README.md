@@ -4,26 +4,39 @@ This directory is a stand-in for a real product repository that consumes a
 published `@prism-system` design system as its visual source of truth. It is not
 part of the pnpm workspace and is never built or published.
 
-It exists to exercise `pnpm ds:connect` and the generated consumer contract
-against packed `@prism-system/ui-system-a` and `@prism-system/ui-system-b`
-artifacts. Product code imports only public package names — never
-`@prism-system/ui-core` internals and never workspace source paths.
+It exists to document and exercise the consumer contract against packed
+`@prism-system/ui-system-a` and `@prism-system/ui-system-b` artifacts. Product
+code imports only public package names and public subpaths (`./styles.css`,
+`./tailwind.css`, `./manifest`, `./tokens`) — never package internals and never
+workspace source paths.
 
-## Hydrating packed artifacts
+## What is here
 
-This fixture does not bundle or vendor a design system. To try it, hydrate a
-scratch copy under `TEMP/v3/` and install packed artifacts there, for example:
+- `src/dashboard.tsx` — the same product composition rendered with each system,
+  composed only through public props.
+- `package.json` — declares both supported systems, so dependency discovery
+  deliberately fails closed with "multiple candidates" unless a package is passed
+  explicitly or `.design-system/config.json` exists.
+- `AGENTS.md` — the product-side rules an external agent should follow.
+
+## Trying the consumer lifecycle
+
+The repository's packed consumer check (`pnpm ds:check-v4-tools`) hydrates its own
+scratch copies under a fresh `TEMP/v4/tools-packed-<run-id>/` directory and runs
+`prism-ds connect`, `components`, `tokens`, `check`, `setup-tailwind`,
+`check-usage`, `doctor`, and the dependency-mutating commands against packed
+artifacts, without mutating this repository.
+
+To exercise the maintainer wrapper manually, pack the artifacts and extract them
+into a scratch copy under `TEMP/v4/`:
 
 ```bash
-pnpm --filter @prism-system/ui-system-a pack --pack-destination TEMP/v3/pack
-pnpm --filter @prism-system/ui-system-b pack --pack-destination TEMP/v3/pack
-```
+pnpm --filter @prism-system/ui-system-a pack --pack-destination TEMP/v4/pack
+pnpm --filter @prism-system/ui-system-b pack --pack-destination TEMP/v4/pack
 
-Then extract the tarball you want to consume into
-`TEMP/v3/<scratch>/node_modules/@prism-system/ui-system-a` and run:
-
-```bash
-pnpm ds:connect @prism-system/ui-system-a --cwd TEMP/v3/<scratch>
+# then extract the tarball you want to consume into
+# TEMP/v4/<scratch>/node_modules/@prism-system/ui-system-a and run:
+pnpm ds:connect @prism-system/ui-system-a --cwd TEMP/v4/<scratch>
 ```
 
 `ds:connect` writes `.design-system/config.json` and `.design-system/AGENTS.md`
@@ -31,10 +44,7 @@ and appends a managed block to `AGENTS.md`. It never installs packages, edits
 `package.json`, copies component source, or mutates the design-system repository.
 
 A real external product does not need this repository at all: it installs the
-published `@prism-system/tools` package and runs `npx prism-ds connect --cwd .`
-(see `packages/tools/README.md`). This fixture uses the repository wrapper only
-to exercise packed artifacts during maintainer validation.
-
-Because this fixture declares both supported systems in `dependencies`,
-dependency discovery deliberately fails closed with "multiple candidates" unless
-you pass a package explicitly or add `.design-system/config.json`.
+published `@prism-system/tools` package and runs `npx prism-ds use
+@prism-system/ui-system-a --cwd .` (see `packages/tools/README.md`). This fixture
+uses the repository wrapper only to exercise packed artifacts during maintainer
+validation.
