@@ -1,0 +1,155 @@
+{
+  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system.schema.json",
+  "schemaVersion": 1,
+  "generated": "prism-system/design-system-manifest",
+  "contract": "v2",
+  "id": "v2-valid",
+  "name": "V2 Valid",
+  "package": "@prism-system/ui-v2-valid",
+  "version": "1.1.0",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./styles.css": "./dist/index.css",
+    "./tokens": {
+      "types": "./dist/tokens/index.d.ts",
+      "import": "./dist/tokens/index.mjs",
+      "require": "./dist/tokens/index.js"
+    },
+    "./manifest": "./design-system.json"
+  },
+  "publicApi": {
+    ".": [
+      "Button",
+      "Input",
+      "Textarea",
+      "Card",
+      "Badge",
+      "Checkbox",
+      "RadioGroup",
+      "Switch",
+      "Select",
+      "Tabs",
+      "Dialog",
+      "DropdownMenu",
+      "Tooltip",
+      "Separator",
+      "DesignSystem",
+      "v2ValidTokens"
+    ],
+    "./tokens": ["v2ValidTokens"]
+  },
+  "components": {
+    "Button": {
+      "variants": ["primary", "secondary", "outline", "ghost", "destructive", "link"],
+      "sizes": ["sm", "md", "lg", "icon"],
+      "members": []
+    },
+    "Input": {
+      "variants": [],
+      "sizes": ["sm", "md", "lg"],
+      "members": []
+    },
+    "Textarea": {
+      "variants": [],
+      "sizes": ["sm", "md", "lg"],
+      "members": []
+    },
+    "Card": {
+      "variants": ["default", "muted", "outline", "elevated", "interactive"],
+      "sizes": [],
+      "members": ["Header", "Title", "Description", "Content", "Footer"]
+    },
+    "Badge": {
+      "variants": ["default", "secondary", "success", "warning", "danger", "info", "outline"],
+      "sizes": ["sm", "md"],
+      "members": []
+    },
+    "Checkbox": {
+      "variants": [],
+      "sizes": ["sm", "md", "lg"],
+      "members": []
+    },
+    "RadioGroup": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Item", "Indicator"]
+    },
+    "Switch": {
+      "variants": [],
+      "sizes": ["sm", "md", "lg"],
+      "members": ["Thumb"]
+    },
+    "Select": {
+      "variants": [],
+      "sizes": ["sm", "md", "lg"],
+      "members": ["Trigger", "Value", "Content", "Group", "Label", "Item", "Separator"]
+    },
+    "Tabs": {
+      "variants": [],
+      "sizes": [],
+      "members": ["List", "Trigger", "Content"]
+    },
+    "Dialog": {
+      "variants": [],
+      "sizes": [],
+      "members": [
+        "Trigger",
+        "Portal",
+        "Overlay",
+        "Content",
+        "Header",
+        "Footer",
+        "Title",
+        "Description",
+        "Close"
+      ]
+    },
+    "DropdownMenu": {
+      "variants": [],
+      "sizes": [],
+      "members": [
+        "Trigger",
+        "Portal",
+        "Content",
+        "Group",
+        "Label",
+        "Item",
+        "CheckboxItem",
+        "RadioGroup",
+        "RadioItem",
+        "ItemIndicator",
+        "Separator",
+        "Arrow",
+        "Sub",
+        "SubTrigger",
+        "SubContent"
+      ]
+    },
+    "Tooltip": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Provider", "Trigger", "Portal", "Content", "Arrow"]
+    },
+    "Separator": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    }
+  },
+  "design": {
+    "density": "comfortable",
+    "theme": "light-first",
+    "radius": "small",
+    "keywords": ["calm", "minimal", "editorial", "fixture"]
+  },
+  "rules": {
+    "allowArbitraryColors": false,
+    "allowArbitraryRadius": false,
+    "allowArbitraryShadows": false,
+    "allowPrimitiveDuplication": false
+  }
+}

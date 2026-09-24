@@ -1,0 +1,38 @@
+"use client";
+
+import * as React from "react";
+import {
+  Badge as BadgePrimitive,
+  cn,
+  type BadgeProps as CoreBadgeProps,
+} from "@prism-system/ui-core";
+
+const ui = "{{SYSTEM_CLASS}}-ui";
+
+export type BadgeProps = CoreBadgeProps;
+
+export const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(function Badge(
+  { className, variant = "default", size = "md", dot = false, asChild = false, children, ...props },
+  ref,
+) {
+  return (
+    <BadgePrimitive
+      ref={ref}
+      asChild={asChild}
+      variant={variant}
+      size={size}
+      className={cn(
+        ui,
+        "{{SYSTEM_CLASS}}-badge",
+        `{{SYSTEM_CLASS}}-badge-${variant}`,
+        `{{SYSTEM_CLASS}}-badge-${size}`,
+        className,
+      )}
+      {...props}
+    >
+      {dot && !asChild && <span className="{{SYSTEM_CLASS}}-badge-dot" aria-hidden="true" />}
+      {children}
+    </BadgePrimitive>
+  );
+});
+Badge.displayName = "Badge";

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Deterministic release preparation for a registered V2 design-system package
- * (V2 Phase 4).
+ * Deterministic release preparation for a registered V2/V4 design-system
+ * package (V2 Phase 4, extended for V4).
  *
  * This module is both a reusable library (`prepareRelease`) and a CLI
  * (`pnpm ds:release <id> --approved`). It prepares a release; it never versions,
@@ -411,7 +411,7 @@ function blocked(base, failures, extra = {}) {
 }
 
 /**
- * Prepare a release for one registered V2 design system.
+ * Prepare a release for one registered V2 or V4 design system.
  *
  * @param {object} options
  * @param {string} options.id        Lower-kebab-case system id.
@@ -486,9 +486,11 @@ export async function prepareRelease(options = {}) {
         `No manifest entry for "${id}" in ${toPosixRelative(root, join(root, MANIFEST_RELATIVE_PATH))}.`,
       ]);
     }
-    if (entry.contract !== "v2") {
+    if (entry.contract !== "v2" && entry.contract !== "v4") {
       return blocked(base, [
-        `Manifest entry "${id}" has contract "${entry.contract ?? "v1"}"; release preparation requires "v2".`,
+        `Manifest entry "${id}" has contract ${JSON.stringify(
+          entry.contract ?? null,
+        )}; release preparation requires "v2" or "v4".`,
       ]);
     }
     metadata = readPackageMetadata({ id, root });
@@ -679,7 +681,7 @@ export function helpText() {
   return [
     "Usage: pnpm ds:release <id> --approved [options]",
     "",
-    "Prepare a release for a registered V2 design system: synchronize runtime,",
+    "Prepare a release for a registered V2 or V4 design system: synchronize runtime,",
     "manifest, and registry versions to package.json.version, validate it, plan a",
     "Changesets entry, build, and run a fail-closed pack check that inspects the",
     "tarball contents (including the exact ./manifest export target). This never",

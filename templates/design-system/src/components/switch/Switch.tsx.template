@@ -1,0 +1,48 @@
+"use client";
+
+import * as React from "react";
+import {
+  Switch as SwitchPrimitive,
+  SwitchThumb as SwitchThumbPrimitive,
+  cn,
+  type SwitchProps as CoreSwitchProps,
+  type SwitchThumbProps as CoreSwitchThumbProps,
+} from "@prism-system/ui-core";
+
+const ui = "{{SYSTEM_CLASS}}-ui";
+
+export type SwitchProps = CoreSwitchProps;
+export type SwitchThumbProps = CoreSwitchThumbProps;
+
+const SwitchRoot = React.forwardRef<HTMLButtonElement, SwitchProps>(function Switch(
+  { className, size = "md", invalid = false, children, ...props },
+  ref,
+) {
+  return (
+    <SwitchPrimitive
+      ref={ref}
+      size={size}
+      invalid={invalid}
+      className={cn(ui, "{{SYSTEM_CLASS}}-switch", `{{SYSTEM_CLASS}}-switch-${size}`, className)}
+      {...props}
+    >
+      {children}
+      <SwitchThumb />
+    </SwitchPrimitive>
+  );
+});
+
+export const SwitchThumb = React.forwardRef<HTMLSpanElement, SwitchThumbProps>(function SwitchThumb(
+  { className, ...props },
+  ref,
+) {
+  return (
+    <SwitchThumbPrimitive
+      ref={ref}
+      className={cn("{{SYSTEM_CLASS}}-switch-thumb", className)}
+      {...props}
+    />
+  );
+});
+
+export const Switch = Object.assign(SwitchRoot, { Thumb: SwitchThumb });

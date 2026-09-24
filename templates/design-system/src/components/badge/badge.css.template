@@ -1,0 +1,11 @@
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-badge { align-items: center; border-radius: var(--{{SYSTEM_CLASS}}-radius-full); display: inline-flex; font-size: 11px; font-weight: 650; gap: 6px; line-height: 1; white-space: nowrap; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-badge-sm { padding: 5px 8px; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-badge-md { padding: 6px 10px; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-badge-default,
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-badge-secondary { background: var(--{{SYSTEM_CLASS}}-color-surface-sunken); color: var(--{{SYSTEM_CLASS}}-color-text-muted); }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-badge-success,
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-badge-info { background: var(--{{SYSTEM_CLASS}}-color-action-secondary); color: var(--{{SYSTEM_CLASS}}-color-action-primary-hover); }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-badge-warning { background: var(--{{SYSTEM_CLASS}}-color-surface-sunken); color: var(--{{SYSTEM_CLASS}}-color-text-primary); }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-badge-danger { background: color-mix(in srgb, var(--{{SYSTEM_CLASS}}-color-status-danger) 14%, transparent); color: var(--{{SYSTEM_CLASS}}-color-status-danger); }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-badge-outline { background: transparent; border: 1px solid var(--{{SYSTEM_CLASS}}-color-border-default); color: var(--{{SYSTEM_CLASS}}-color-text-primary); }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-badge-dot { background: currentColor; border-radius: 50%; height: 6px; width: 6px; }

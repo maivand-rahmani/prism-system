@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Canonical design-system registry for the V2 factory.
+ * Canonical design-system registry for the V2/V4 factory.
  *
  * The registry is a single deterministic JSON manifest at
  * `config/design-systems.json`. It is the source of truth for which design
@@ -10,9 +10,11 @@
  * This module is both a reusable library (imported by
  * `create-design-system.mjs`) and a CLI (`pnpm ds:register <id>`).
  *
- * This tooling is V2-only: every package and manifest entry must declare
- * `contract: "v2"`. V1 is no longer an accepted contract and is never inferred
- * or normalized (a V1/missing contract is a hard error).
+ * This tooling supports exactly two contracts: `v2` and `v4`. Every package
+ * and manifest entry must declare one of them, and the package's own
+ * `design-system.source.json` must agree with its `prismSystem.contract`. The
+ * registry never infers or relabels a contract (a V1/missing/mismatched
+ * contract is a hard error), so a V4 runtime is never recorded as V2.
  *
  * Deterministic derivations (chosen to match the seeded V2 systems exactly, so
  * re-registering an existing system is idempotent):
@@ -39,6 +41,13 @@ import {
   planAppIntegration,
   rollbackAppIntegration,
 } from "./sync-design-system-apps.mjs";
+// The canonical V4 source validation path. Registration invokes
+// `readSourceDescriptor` for V4 packages so a package whose component map or
+// token source is invalid can never be recorded in the registry or projected
+// into the apps. This import is intentionally static: the two modules form a
+// benign ESM cycle (the manifest tooling imports shared registry constants),
+// and no imported binding is read during either module's top-level evaluation.
+import { readSourceDescriptor } from "./design-system-manifest.mjs";
 
 /** Lower-kebab-case system id, e.g. `pulse`, `fancy-tech`. */
 export const SYSTEM_ID_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
@@ -57,8 +66,8 @@ export const MANIFEST_RELATIVE_PATH = "config/design-systems.json";
 export const PACKAGE_SCOPE = "@prism-system/ui-";
 /** Workspace directory that holds design-system packages. */
 export const PACKAGE_DIRECTORY = "packages";
-/** Supported component contracts. V2 is the only contract the tooling accepts. */
-export const CONTRACTS = Object.freeze(["v2"]);
+/** Supported component contracts: V2 and V4. The registry accepts no others. */
+export const CONTRACTS = Object.freeze(["v2", "v4"]);
 
 /**
  * The canonical fourteen V2 component names, in order.
@@ -85,12 +94,13 @@ export const V2_REQUIRED_COMPONENTS = Object.freeze([
   "Separator",
 ]);
 
-/** The complete V2 `prismSystem` block every registrable package must declare. */
-const V2_PRISM_SYSTEM_FIELDS = Object.freeze(["name", "contract", "uiClass", "tokensExport"]);
+/** The complete `prismSystem` block every registrable package must declare. */
+const PRISM_SYSTEM_FIELDS = Object.freeze(["name", "contract", "uiClass", "tokensExport"]);
 
-/** Shared, actionable description of the required `prismSystem` block. */
-const V2_PRISM_SYSTEM_EXPECTATION =
-  'Expected { "name": string, "contract": "v2", "uiClass": string, "tokensExport": string }.';
+/** Shared, actionable description of a required `prismSystem` block. */
+function prismSystemExpectation(contract) {
+  return `Expected { "name": string, "contract": ${JSON.stringify(contract)}, "uiClass": string, "tokensExport": string }.`;
+}
 
 /** Absolute path to the repository root (the parent directory of `scripts/`). */
 export function repoRoot() {
@@ -237,14 +247,14 @@ export function buildEntry(input) {
     (typeof entry.contract === "string" && entry.contract.trim().length === 0)
   ) {
     throw new Error(
-      'Missing required "contract"; every design system must declare contract: "v2".',
+      `Missing required "contract"; every design system must declare contract: "v2" or "v4".`,
     );
   }
   entry.contract = requireNonEmptyString(entry.contract, "contract");
   if (!CONTRACTS.includes(entry.contract)) {
     throw new Error(
-      `Unsupported contract "${entry.contract}". V2 is the only supported contract; ` +
-        `expected one of: ${CONTRACTS.join(", ")}.`,
+      `Unsupported contract "${entry.contract}". Supported contracts are: ` +
+        `${CONTRACTS.join(", ")}. V1 is no longer accepted and is never inferred.`,
     );
   }
   return entry;
@@ -398,8 +408,8 @@ export function upsertDesignSystem(manifest, entry) {
  *
  * This reader stays lenient (it returns whatever fields are present) so that
  * validation can report each missing/incorrect field individually. Registration
- * enforces the complete V2 block separately via
- * {@link assertCompleteV2PrismSystem}.
+ * enforces the complete block separately via
+ * {@link assertCompletePrismSystem}.
  */
 function readPrismSystemMetadata(pkg, packageJsonPath) {
   const raw = pkg.prismSystem;
@@ -408,7 +418,7 @@ function readPrismSystemMetadata(pkg, packageJsonPath) {
     throw new Error(`Cannot register: "prismSystem" in ${packageJsonPath} must be an object.`);
   }
   const metadata = {};
-  for (const field of V2_PRISM_SYSTEM_FIELDS) {
+  for (const field of PRISM_SYSTEM_FIELDS) {
     if (raw[field] === undefined || raw[field] === null) continue;
     metadata[field] = requireNonEmptyString(raw[field], `prismSystem.${field}`);
   }
@@ -416,32 +426,90 @@ function readPrismSystemMetadata(pkg, packageJsonPath) {
 }
 
 /**
- * Reject a package whose `prismSystem` metadata is not a complete V2 block.
+ * Read the contract declared by a package's own `design-system.source.json`.
  *
- * Registration is V2-only, so a missing, partial, or V1 block is a hard error
- * rather than something to derive or downgrade to V1.
+ * Registration uses this to validate package/source agreement, so the registry
+ * records the package's real contract instead of inferring or relabeling it.
+ * Only the two supported `(schemaVersion, contract)` pairs are accepted.
+ *
+ * @returns {"v2" | "v4"} The declared contract.
  */
-function assertCompleteV2PrismSystem(prismSystem, packageJsonPath) {
+export function readSourceContract(packageDir) {
+  const sourcePath = join(packageDir, "design-system.source.json");
+  if (!existsSync(sourcePath)) {
+    throw new Error(
+      `Cannot register: missing source descriptor at ${sourcePath}. ` +
+        `Every design system declares its contract in design-system.source.json.`,
+    );
+  }
+  let raw;
+  try {
+    raw = readJsonFile(sourcePath);
+  } catch (error) {
+    throw new Error(`Cannot register: invalid JSON in ${sourcePath}: ${error.message}`);
+  }
+  if (!isPlainObject(raw)) {
+    throw new Error(`Cannot register: ${sourcePath} must be a JSON object.`);
+  }
+  if (raw.schemaVersion === 1 && raw.contract === "v2") return "v2";
+  if (raw.schemaVersion === 2 && raw.contract === "v4") return "v4";
+  throw new Error(
+    `Cannot register: ${sourcePath} must declare (schemaVersion 1, contract "v2") or ` +
+      `(schemaVersion 2, contract "v4"); received (schemaVersion ` +
+      `${JSON.stringify(raw.schemaVersion)}, contract ${JSON.stringify(raw.contract)}).`,
+  );
+}
+
+/**
+ * Reject a package whose `prismSystem` metadata is not a complete block for the
+ * contract its source descriptor declares.
+ *
+ * A missing, partial, mismatched, or V1 block is a hard error rather than
+ * something to derive or downgrade, so a V4 package is never recorded as V2.
+ */
+function assertCompletePrismSystem(prismSystem, packageJsonPath, contract) {
+  const expectation = prismSystemExpectation(contract);
   if (!isPlainObject(prismSystem)) {
     throw new Error(
       `Cannot register: ${packageJsonPath} is missing a complete "prismSystem" block. ` +
-        V2_PRISM_SYSTEM_EXPECTATION,
+        expectation,
     );
   }
-  const missing = V2_PRISM_SYSTEM_FIELDS.filter(
+  const missing = PRISM_SYSTEM_FIELDS.filter(
     (field) => typeof prismSystem[field] !== "string" || prismSystem[field].trim().length === 0,
   );
   if (missing.length > 0) {
     throw new Error(
       `Cannot register: "prismSystem" in ${packageJsonPath} is incomplete ` +
-        `(missing ${missing.join(", ")}). ${V2_PRISM_SYSTEM_EXPECTATION}`,
+        `(missing ${missing.join(", ")}). ${expectation}`,
     );
   }
-  if (prismSystem.contract !== "v2") {
+  if (prismSystem.contract !== contract) {
     throw new Error(
       `Cannot register: "prismSystem.contract" in ${packageJsonPath} is ` +
-        `${JSON.stringify(prismSystem.contract)}; V2 is the only supported contract and ` +
-        `V1 is no longer accepted. ${V2_PRISM_SYSTEM_EXPECTATION}`,
+        `${JSON.stringify(prismSystem.contract)}; the package source descriptor declares ` +
+        `${JSON.stringify(contract)}. The package contract and its source descriptor must agree.`,
+    );
+  }
+}
+
+/**
+ * Validate a V4 package's source descriptor and semantic token source through
+ * the canonical manifest validation path.
+ *
+ * `readSourceContract` only reads the `(schemaVersion, contract)` pair, so on
+ * its own it cannot prove a V4 package is registrable. Registration must never
+ * record or app-integrate a V4 package whose component map or token source is
+ * invalid, so this runs the same strict validation the generated manifest uses
+ * (`readSourceDescriptor` -> `parseV4SourceDescriptor` + `readTokensSource`)
+ * before any manifest read, plan, apply, or write.
+ */
+function assertValidV4Source(packageDir, id) {
+  try {
+    readSourceDescriptor(packageDir);
+  } catch (error) {
+    throw new Error(
+      `Cannot register "${id}": invalid V4 source in ${packageDir}: ${error.message}`,
     );
   }
 }
@@ -537,10 +605,26 @@ export async function registerDesignSystem(options = {}) {
   const root = resolve(options.root ?? repoRoot());
   const manifestPath = resolve(options.manifestPath ?? join(root, MANIFEST_RELATIVE_PATH));
   const metadata = readPackageMetadata({ id, root });
-  // Registration is V2-only: refuse a missing/partial/V1 `prismSystem` block
-  // instead of deriving or downgrading the contract.
+  // The package's own source descriptor is authoritative for the contract.
+  // Refuse a missing/partial/mismatched/V1 `prismSystem` block instead of
+  // deriving or downgrading the contract, so a V4 runtime is never relabeled.
   const packageJsonPath = join(metadata.packageDir, "package.json");
-  assertCompleteV2PrismSystem(metadata.prismSystem, packageJsonPath);
+  const sourceContract = readSourceContract(metadata.packageDir);
+  assertCompletePrismSystem(metadata.prismSystem, packageJsonPath, sourceContract);
+  // A V4 source descriptor's `(schemaVersion, contract)` pair alone is not
+  // proof the package is registrable: validate the full component map and token
+  // source through the canonical V4 path before the candidate registry is read,
+  // planned, applied, or written.
+  if (sourceContract === "v4") {
+    assertValidV4Source(metadata.packageDir, id);
+  }
+  const override = options.entry ?? {};
+  if (override.contract !== undefined && override.contract !== sourceContract) {
+    throw new Error(
+      `Cannot register "${id}": entry contract ${JSON.stringify(override.contract)} does not ` +
+        `match the package source descriptor contract ${JSON.stringify(sourceContract)}.`,
+    );
+  }
 
   const packagePath = relative(root, metadata.packageDir).split("\\").join("/");
   if (packagePath.startsWith("..") || isAbsolute(packagePath)) {
@@ -551,16 +635,16 @@ export async function registerDesignSystem(options = {}) {
 
   const previous = readManifest({ manifestPath });
   const existing = previous.designSystems.find((system) => system.id === id);
-  const override = options.entry ?? {};
   const packageMetadata = metadata.prismSystem ?? {};
   const firstDefined = (...candidates) =>
     candidates.find((value) => value !== undefined && value !== null && value !== "");
 
   // Precedence (highest first): explicit entry override, the package's own
   // `prismSystem` metadata, the existing manifest entry, then brief/project or
-  // derived defaults. Consulting the existing entry keeps a V2 package from
-  // losing generated metadata on a standalone `ds:register`. The contract is
-  // never defaulted: the complete V2 metadata above guarantees `"v2"`.
+  // derived defaults. Consulting the existing entry keeps a package from losing
+  // generated metadata on a standalone `ds:register`. The contract is never
+  // defaulted: it is the package source descriptor's contract, validated to
+  // agree with the complete `prismSystem` block above.
   const entry = buildEntry({
     id,
     name: firstDefined(
@@ -585,7 +669,7 @@ export async function registerDesignSystem(options = {}) {
       existing?.tokensExport,
       toTokensExport(id),
     ),
-    contract: firstDefined(override.contract, packageMetadata.contract, existing?.contract),
+    contract: sourceContract,
   });
 
   const { manifest, action } = upsertDesignSystem(previous, entry);

@@ -1,0 +1,71 @@
+"use client";
+
+import * as React from "react";
+import {
+  Textarea as TextareaPrimitive,
+  cn,
+  type TextareaProps as CoreTextareaProps,
+} from "@prism-system/ui-core";
+
+const ui = "{{SYSTEM_CLASS}}-ui";
+
+interface FieldMessageProps {
+  id: string;
+  hint?: React.ReactNode;
+  error?: React.ReactNode;
+}
+
+function FieldMessage({ id, hint, error }: FieldMessageProps) {
+  if (error)
+    return (
+      <span className="{{SYSTEM_CLASS}}-error" id={`${id}-error`} role="alert">
+        {error}
+      </span>
+    );
+  if (hint)
+    return (
+      <span className="{{SYSTEM_CLASS}}-hint" id={`${id}-hint`}>
+        {hint}
+      </span>
+    );
+  return null;
+}
+
+export interface TextareaProps extends CoreTextareaProps {
+  label?: React.ReactNode;
+  hint?: React.ReactNode;
+  error?: React.ReactNode;
+}
+
+export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(function Textarea(
+  { className, id: providedId, label, hint, error, invalid = false, size = "md", ...props },
+  ref,
+) {
+  const generatedId = React.useId();
+  const id = providedId || `{{SYSTEM_CLASS}}-textarea-${generatedId.replace(/:/g, "")}`;
+  const hasError = Boolean(error || invalid);
+  const describedBy =
+    [error ? `${id}-error` : hint ? `${id}-hint` : null, props["aria-describedby"]]
+      .filter(Boolean)
+      .join(" ") || undefined;
+  return (
+    <div className={cn(ui, "{{SYSTEM_CLASS}}-field")}>
+      {label && (
+        <label className="{{SYSTEM_CLASS}}-label" htmlFor={id}>
+          {label}
+        </label>
+      )}
+      <TextareaPrimitive
+        ref={ref}
+        id={id}
+        size={size}
+        invalid={hasError}
+        className={cn("{{SYSTEM_CLASS}}-textarea", className)}
+        aria-describedby={describedBy}
+        {...props}
+      />
+      <FieldMessage id={id} hint={hint} error={error} />
+    </div>
+  );
+});
+Textarea.displayName = "Textarea";

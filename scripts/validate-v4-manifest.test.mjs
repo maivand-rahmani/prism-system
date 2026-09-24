@@ -131,19 +131,74 @@ test("an unsupported schema/contract pair fixture is rejected", () => {
   );
 });
 
-test("published V2 source and manifest remain schema-1 v2", () => {
-  const manifest = readJson(join(repoRoot, "packages", "system-a", "design-system.json"));
+test("V2 fixture source and manifest remain schema-1 v2", () => {
+  const dir = fixturePath("v2-valid");
+  const manifest = readJson(join(dir, "design-system.json"));
   assert.equal(dispatchSchemaContract(manifest, "manifest"), "v2");
   assert.equal(manifest.schemaVersion, 1);
-  const descriptor = readSourceDescriptor(join(repoRoot, "packages", "system-a"));
+  const descriptor = readSourceDescriptor(dir);
   assert.equal(descriptor.contract, "v2");
   assert.equal(Object.keys(descriptor.components).length, 14);
-  // V2 generation output is unchanged.
-  const rebuilt = buildManifest({
-    id: "system-a",
-    packageDir: join(repoRoot, "packages", "system-a"),
-  });
+  // V2 generation output is unchanged and deep-identical to the fixture.
+  const rebuilt = buildManifest({ id: "v2-valid", packageDir: dir });
   assert.deepEqual(rebuilt, manifest);
+  // The V2 manifest carries no V4 token naming block at all.
+  assert.ok(!("tokens" in rebuilt));
+});
+
+test("a generated V4 manifest publishes the canonical token naming contract", () => {
+  const a = buildManifest({ id: "v4-valid", packageDir: fixturePath("v4-valid") });
+  assert.deepEqual(a.tokens.names, {
+    cssVariablePrefix: "maivand-valid",
+    tailwindUtilityPrefix: "prism",
+  });
+  // The published names survive a full parse round-trip unchanged.
+  assert.deepEqual(parseV4Manifest(a).tokens.names, a.tokens.names);
+
+  const b = buildManifest({ id: "v4-valid-b", packageDir: fixturePath("v4-valid-b") });
+  assert.deepEqual(b.tokens.names, {
+    cssVariablePrefix: "maivand-valid-b",
+    tailwindUtilityPrefix: "prism",
+  });
+});
+
+test("a V4 manifest with missing, unknown, or malformed token names fails closed", () => {
+  const base = () => buildManifest({ id: "v4-valid", packageDir: fixturePath("v4-valid") });
+
+  const absent = base();
+  delete absent.tokens.names;
+  assert.throws(
+    () => parseV4Manifest(absent),
+    /^Error: design-system\.json "tokens" "names" must be an object\.$/,
+  );
+
+  const missing = base();
+  delete missing.tokens.names.cssVariablePrefix;
+  assert.throws(
+    () => parseV4Manifest(missing),
+    /^Error: design-system\.json "tokens" "names" is missing required field "cssVariablePrefix"\.$/,
+  );
+
+  const unknown = base();
+  unknown.tokens.names.extra = "value";
+  assert.throws(
+    () => parseV4Manifest(unknown),
+    /^Error: design-system\.json "tokens" "names" has unknown field "extra"; allowed fields are cssVariablePrefix, tailwindUtilityPrefix\.$/,
+  );
+
+  const malformedCss = base();
+  malformedCss.tokens.names.cssVariablePrefix = "Maivand Valid";
+  assert.throws(
+    () => parseV4Manifest(malformedCss),
+    /^Error: design-system\.json "tokens" "names"\.cssVariablePrefix must be a safe lower-kebab namespace \(received "Maivand Valid"\)\.$/,
+  );
+
+  const malformedTailwind = base();
+  malformedTailwind.tokens.names.tailwindUtilityPrefix = "9prism";
+  assert.throws(
+    () => parseV4Manifest(malformedTailwind),
+    /^Error: design-system\.json "tokens" "names"\.tailwindUtilityPrefix must be a safe lower-kebab namespace \(received "9prism"\)\.$/,
+  );
 });
 
 test("valid token source with references is accepted", () => {
@@ -268,6 +323,10 @@ test("a negative breakpoint is rejected", () => {
 });
 
 test("a negative letterSpacing is accepted", () => {
-  const tokens = setPath(structuredClone(validTokens()), "typography.letterSpacing.tight", "-0.05em");
+  const tokens = setPath(
+    structuredClone(validTokens()),
+    "typography.letterSpacing.tight",
+    "-0.05em",
+  );
   assert.equal(parseTokenSource(tokens).typography.letterSpacing.tight, "-0.05em");
 });

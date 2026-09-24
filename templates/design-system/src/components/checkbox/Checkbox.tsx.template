@@ -1,0 +1,62 @@
+"use client";
+
+import * as React from "react";
+import {
+  Checkbox as CheckboxPrimitive,
+  cn,
+  type CheckboxProps as CoreCheckboxProps,
+} from "@prism-system/ui-core";
+
+const ui = "{{SYSTEM_CLASS}}-ui";
+
+export interface CheckboxProps extends CoreCheckboxProps {
+  label?: React.ReactNode;
+  description?: React.ReactNode;
+}
+
+export const Checkbox = React.forwardRef<HTMLButtonElement, CheckboxProps>(function Checkbox(
+  { className, label, description, children, checked, invalid = false, size = "md", ...props },
+  ref,
+) {
+  const generatedId = React.useId().replace(/:/g, "");
+  const labelId = label ? `{{SYSTEM_CLASS}}-checkbox-label-${generatedId}` : undefined;
+  const descriptionId = description
+    ? `{{SYSTEM_CLASS}}-checkbox-description-${generatedId}`
+    : undefined;
+  return (
+    <span className={cn(ui, "{{SYSTEM_CLASS}}-checkbox")}>
+      <CheckboxPrimitive
+        ref={ref}
+        checked={checked}
+        invalid={invalid}
+        size={size}
+        className={cn("{{SYSTEM_CLASS}}-checkbox-control", className)}
+        {...props}
+        aria-labelledby={props["aria-labelledby"] || labelId}
+        aria-describedby={props["aria-describedby"] || descriptionId}
+      >
+        <span className="{{SYSTEM_CLASS}}-checkbox-box" aria-hidden="true">
+          <span className="{{SYSTEM_CLASS}}-checkbox-mark">
+            {checked === "indeterminate" ? "–" : "✓"}
+          </span>
+        </span>
+      </CheckboxPrimitive>
+      {(label || description || children) && (
+        <span className="{{SYSTEM_CLASS}}-checkbox-copy">
+          {label && (
+            <span className="{{SYSTEM_CLASS}}-checkbox-label" id={labelId}>
+              {label}
+            </span>
+          )}
+          {description && (
+            <span className="{{SYSTEM_CLASS}}-checkbox-description" id={descriptionId}>
+              {description}
+            </span>
+          )}
+          {children}
+        </span>
+      )}
+    </span>
+  );
+});
+Checkbox.displayName = "Checkbox";

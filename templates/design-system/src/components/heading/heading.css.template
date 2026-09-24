@@ -1,0 +1,7 @@
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-heading { color: var(--{{SYSTEM_CLASS}}-color-text-primary); font-family: var(--{{SYSTEM_CLASS}}-typography-family-sans); font-weight: var(--{{SYSTEM_CLASS}}-typography-weight-semibold); line-height: var(--{{SYSTEM_CLASS}}-typography-line-height-tight); margin: 0; text-wrap: balance; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-heading-1 { font-size: var(--{{SYSTEM_CLASS}}-typography-size-4xl); letter-spacing: var(--{{SYSTEM_CLASS}}-typography-letter-spacing-tight); }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-heading-2 { font-size: var(--{{SYSTEM_CLASS}}-typography-size-3xl); }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-heading-3 { font-size: var(--{{SYSTEM_CLASS}}-typography-size-2xl); }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-heading-4 { font-size: var(--{{SYSTEM_CLASS}}-typography-size-xl); }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-heading-5 { font-size: var(--{{SYSTEM_CLASS}}-typography-size-lg); }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-heading-6 { font-size: var(--{{SYSTEM_CLASS}}-typography-size-md); }

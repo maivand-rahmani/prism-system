@@ -1,0 +1,9 @@
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-switch { align-items: center; background: var(--{{SYSTEM_CLASS}}-color-border-strong); border: 0; border-radius: var(--{{SYSTEM_CLASS}}-radius-full); cursor: pointer; display: inline-flex; height: 24px; padding: 2px; transition: background var(--{{SYSTEM_CLASS}}-motion-duration-fast); width: 42px; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-switch:focus-visible { outline: 3px solid color-mix(in srgb, var(--{{SYSTEM_CLASS}}-color-border-focus) 38%, transparent); outline-offset: 2px; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-switch:disabled { cursor: not-allowed; opacity: .5; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-switch[data-state="checked"] { background: var(--{{SYSTEM_CLASS}}-color-action-primary); }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-switch-thumb { background: var(--{{SYSTEM_CLASS}}-color-surface-raised); border-radius: 50%; box-shadow: var(--{{SYSTEM_CLASS}}-shadow-sm); display: block; height: 20px; transform: translateX(0); transition: transform var(--{{SYSTEM_CLASS}}-motion-duration-fast) var(--{{SYSTEM_CLASS}}-motion-easing-standard); width: 20px; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-switch[data-state="checked"] .{{SYSTEM_CLASS}}-switch-thumb { transform: translateX(18px); }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-switch-sm { height: 20px; width: 36px; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-switch-sm .{{SYSTEM_CLASS}}-switch-thumb { height: 16px; width: 16px; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-switch-sm[data-state="checked"] .{{SYSTEM_CLASS}}-switch-thumb { transform: translateX(16px); }

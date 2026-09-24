@@ -1,0 +1,3 @@
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-link { color: var(--{{SYSTEM_CLASS}}-color-action-primary); font: inherit; text-decoration-thickness: from-font; text-underline-offset: .18em; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-link:hover { color: var(--{{SYSTEM_CLASS}}-color-action-primary-hover); }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-link:focus-visible { outline: 2px solid var(--{{SYSTEM_CLASS}}-color-border-focus); outline-offset: 3px; }

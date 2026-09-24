@@ -1,0 +1,69 @@
+"use client";
+
+import * as React from "react";
+import {
+  Tabs as TabsPrimitive,
+  TabsContent as TabsContentPrimitive,
+  TabsList as TabsListPrimitive,
+  TabsTrigger as TabsTriggerPrimitive,
+  cn,
+  type TabsContentProps as CoreTabsContentProps,
+  type TabsListProps as CoreTabsListProps,
+  type TabsProps as CoreTabsProps,
+  type TabsTriggerProps as CoreTabsTriggerProps,
+} from "@prism-system/ui-core";
+
+const ui = "{{SYSTEM_CLASS}}-ui";
+
+export type TabsProps = CoreTabsProps;
+export type TabsListProps = CoreTabsListProps;
+export type TabsTriggerProps = CoreTabsTriggerProps;
+export type TabsContentProps = CoreTabsContentProps;
+
+function TabsRoot({ className, ...props }: TabsProps) {
+  return <TabsPrimitive className={cn(ui, "{{SYSTEM_CLASS}}-tabs", className)} {...props} />;
+}
+
+export const TabsList = React.forwardRef<HTMLDivElement, TabsListProps>(function TabsList(
+  { className, ...props },
+  ref,
+) {
+  return (
+    <TabsListPrimitive
+      ref={ref}
+      className={cn("{{SYSTEM_CLASS}}-tabs-list", className)}
+      {...props}
+    />
+  );
+});
+
+export const TabsTrigger = React.forwardRef<HTMLButtonElement, TabsTriggerProps>(
+  function TabsTrigger({ className, ...props }, ref) {
+    return (
+      <TabsTriggerPrimitive
+        ref={ref}
+        className={cn("{{SYSTEM_CLASS}}-tabs-trigger", className)}
+        {...props}
+      />
+    );
+  },
+);
+
+export const TabsContent = React.forwardRef<HTMLDivElement, TabsContentProps>(
+  function TabsContent({ className, forceMount, ...props }, ref) {
+    return (
+      <TabsContentPrimitive
+        ref={ref}
+        className={cn("{{SYSTEM_CLASS}}-tabs-content", className)}
+        {...props}
+        {...(forceMount ? { forceMount: true } : {})}
+      />
+    );
+  },
+);
+
+export const Tabs = Object.assign(TabsRoot, {
+  List: TabsList,
+  Trigger: TabsTrigger,
+  Content: TabsContent,
+});

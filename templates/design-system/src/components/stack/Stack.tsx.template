@@ -1,0 +1,7 @@
+import * as React from "react";
+import type { StackProps } from "@prism-system/ui-core";
+export type { StackProps };
+export const Stack = React.forwardRef<HTMLElement, StackProps>(function Stack({ as = "div", direction = "vertical", wrap = false, className, ...props }, ref) {
+  const Tag = as as React.ElementType;
+  return <Tag ref={ref} className={["{{SYSTEM_CLASS}}-ui", "{{SYSTEM_CLASS}}-stack", `{{SYSTEM_CLASS}}-stack-${direction}`, wrap && "{{SYSTEM_CLASS}}-stack-wrap", className].filter(Boolean).join(" ")} {...props} />;
+});

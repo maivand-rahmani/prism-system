@@ -1,0 +1,6 @@
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-form-field { display: grid; gap: var(--{{SYSTEM_CLASS}}-spacing-scale-2); min-width: 0; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-form-field-label { color: var(--{{SYSTEM_CLASS}}-color-text-primary); font-size: var(--{{SYSTEM_CLASS}}-typography-size-sm); font-weight: var(--{{SYSTEM_CLASS}}-typography-weight-medium); }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-form-field-description,.{{SYSTEM_CLASS}}-form-field-error { font-size: var(--{{SYSTEM_CLASS}}-typography-size-sm); line-height: var(--{{SYSTEM_CLASS}}-typography-line-height-normal); margin: 0; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-form-field-description { color: var(--{{SYSTEM_CLASS}}-color-text-muted); }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-form-field-error { color: var(--{{SYSTEM_CLASS}}-color-status-danger); }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-form-field-control { min-width: 0; }

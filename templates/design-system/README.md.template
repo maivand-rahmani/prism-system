@@ -1,8 +1,9 @@
 # {{SYSTEM_NAME}}
 
 `{{PACKAGE_NAME}}` is a portable React design system implementing the canonical
-V2 contract. It is intentionally a small, readable starting point for the
-Design Brief below rather than a finished product language.
+V4 contract: twenty required components, with optional components available only
+when this package explicitly implements them. It is intentionally a small, readable
+starting point for the Design Brief below rather than a finished product language.
 
 ## Design brief
 
@@ -18,7 +19,9 @@ pnpm add {{PACKAGE_NAME}}
 
 The package is built for React 18+ and depends on `@prism-system/ui-core`.
 
-## Setup
+## Quickstart
+
+### Ordinary CSS
 
 Import the stylesheet once, before any components render:
 
@@ -26,10 +29,25 @@ Import the stylesheet once, before any components render:
 import "{{PACKAGE_NAME}}/styles.css";
 ```
 
-## Usage
+### Tailwind CSS v4
+
+Tailwind v4 products add the standalone token bridge. Import order matters:
+`tailwindcss` first, then the bridge, then the package styles.
+
+```css
+@import "tailwindcss";
+@import "{{PACKAGE_NAME}}/tailwind.css";
+@import "{{PACKAGE_NAME}}/styles.css";
+```
+
+The bridge does not import Tailwind itself; `prism-ds setup-tailwind --css <file>`
+installs exactly this block in a consumer CSS file. Regular-CSS consumers need no
+Tailwind.
+
+### First screen
 
 ```tsx
-import { Button, Card } from "{{PACKAGE_NAME}}";
+import { Button, Card, FormField, Input } from "{{PACKAGE_NAME}}";
 import "{{PACKAGE_NAME}}/styles.css";
 
 export function Example() {
@@ -40,21 +58,41 @@ export function Example() {
       </Card.Header>
       <Card.Content>
         <Button>Continue</Button>
+        <FormField id="email">
+          <FormField.Label>Email</FormField.Label>
+          <FormField.Control asChild><Input type="email" autoComplete="email" /></FormField.Control>
+        </FormField>
       </Card.Content>
     </Card>
   );
 }
 ```
 
-## Package API
+## Foundations
 
-The package root exports the fourteen V2 components together with their compound
-static members (for example `Card.Header`, `Tabs.List`, `Select.Item`,
-`Dialog.Content`). Design tokens are available from `{{PACKAGE_NAME}}/tokens`.
+Values live only in this package's `tokens.source.json`; the generated artifacts are
+the TypeScript token export (`{{PACKAGE_NAME}}/tokens`), the CSS variables used by the
+components, and the Tailwind bridge. The same tokens feed the Foundations section of
+the live catalog at **`/showcase/{{SYSTEM_ID}}`**.
 
-### Components
+The V4 token source mandates these groups:
 
-Every V2 design system provides the same component set:
+- **themes** — light and dark semantic color trees: `text`, `surface`, `border`,
+  `action`, `status`.
+- **typography** — families, sizes, weights, line heights, letter spacing.
+- **spacing** — scale plus semantic roles.
+- **containers** — tokenized content widths for `Container`.
+- **breakpoints** — static build-time breakpoints.
+- **layers** — z-index layers for overlays, modals, toasts, tooltips.
+- **radius**, **shadow** — surface and elevation language.
+- **motion** — durations and easing curves, including reduced-motion behavior.
+
+In a consumer, `prism-ds tokens [group]` lists the semantic token names and their
+CSS/Tailwind names from the shipped manifest without publishing values.
+
+## Components
+
+Every V4 design system provides the same twenty required components:
 
 - `Button`
 - `Input`
@@ -70,9 +108,38 @@ Every V2 design system provides the same component set:
 - `DropdownMenu`
 - `Tooltip`
 - `Separator`
+- `Heading`
+- `Text`
+- `Link`
+- `Container`
+- `Stack`
+- `FormField`
 
-Components use only `@prism-system/ui-core` for behavior and React; this package
-owns the visual tokens, CSS, and component composition.
+The fourteen V2 names keep their existing public API. Optional V4 components are
+omitted unless this package implements and declares them; the twelve optional
+contracts are capabilities, not stubs. Components use only `@prism-system/ui-core`
+for behavior and React; this package owns the visual tokens, CSS, and component
+composition.
+
+Variants, sizes, compound members, and usage rules for every component are published
+by the generated `design-system.json` manifest (`{{PACKAGE_NAME}}/manifest`) — that
+is the single source of truth. See the states, variants, and examples in the live
+catalog at **`/showcase/{{SYSTEM_ID}}`**, or read them offline with
+`prism-ds components <name>`.
+
+## Usage rules
+
+- **Compose with props.** Prefer existing components over local replacements, and use
+  component props rather than class overrides.
+- **Layout stays in the product.** `grid`, `flex`, `gap`, positioning, and responsive
+  rules are the product's job; the visual language stays here.
+- **Strict usage** disallows arbitrary colors, radius values, and shadows, duplicated
+  primitives, large visual overrides, and local replacements for components that
+  already exist here.
+- **Extension:** reusable visual patterns belong in this package; product and feature
+  components stay in the product and are composed from these primitives.
+- **Versioning:** `package.json.version` is authoritative; the manifest, the registry
+  entry, and the runtime `DesignSystem.version` must match it.
 
 ## Development
 
@@ -82,7 +149,10 @@ pnpm typecheck
 pnpm lint
 ```
 
-Refine `src/tokens`, `src/styles`, and `src/components` together. Keep the
+Edit `tokens.source.json` as the source of truth, then regenerate token exports,
+CSS variables, and the Tailwind bridge with `pnpm ds:manifest {{SYSTEM_ID}} --write`.
+Generated token artifacts are not hand-edited. Refine `src/styles` and each
+component folder together. Keep the
 system class on every visual component so the package can be safely consumed
 alongside another design system.
 
@@ -91,20 +161,20 @@ alongside another design system.
 Every installed package ships a generated `design-system.json` manifest,
 available at `{{PACKAGE_NAME}}/manifest`. It records the exact package version,
 the component catalog, variants, sizes, compound members, and the strict usage
-rules for this system. `package.json.version` is authoritative, and the manifest,
-the registry entry, and the runtime `DesignSystem.version` must always match it.
-Regenerate the manifest with `pnpm ds:manifest {{SYSTEM_ID}} --write` after
-changing the package-owned `design-system.source.json`. After `changeset version`
-changes `package.json.version`, run `pnpm ds:sync-versions` from the monorepo
-root to align the runtime version, the generated manifest, and the registry
-entry; `pnpm ds:sync-versions --check` fails without writing when they drift.
+rules for this system. Regenerate the manifest with
+`pnpm ds:manifest {{SYSTEM_ID}} --write` after changing the package-owned
+`design-system.source.json`. After `changeset version` changes
+`package.json.version`, run `pnpm ds:sync-versions` from the monorepo root to align
+the runtime version, the generated manifest, and the registry entry;
+`pnpm ds:sync-versions --check` fails without writing when they drift.
 
 ## Consumer contract
 
 - **Identity:** the visual source of truth is `{{PACKAGE_NAME}}` at the installed
   version.
-- **Available UI:** the fourteen V2 components above, their compound members, and
-  the tokens from `{{PACKAGE_NAME}}/tokens`.
+- **Available UI:** the twenty required V4 components above, any optional components
+  this package declares in its manifest, their compound members, and the tokens from
+  `{{PACKAGE_NAME}}/tokens`.
 - **Usage rules:** prefer existing components, use props rather than class
   overrides, and keep layout in the product while the visual language stays here.
 - **Restrictions:** no arbitrary colors, radius, or shadows; no duplicated

@@ -1,0 +1,2 @@
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-separator { background: var(--{{SYSTEM_CLASS}}-color-border-default); flex: none; height: 1px; width: 100%; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-separator[data-orientation="vertical"] { height: auto; min-height: 20px; width: 1px; }

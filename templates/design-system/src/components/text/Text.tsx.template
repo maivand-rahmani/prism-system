@@ -1,0 +1,6 @@
+import * as React from "react";
+import type { TextProps } from "@prism-system/ui-core";
+export type { TextProps };
+export const Text = React.forwardRef<HTMLElement, TextProps>(function Text({ as: Tag = "p", className, ...props }, ref) {
+  return <Tag ref={ref as never} className={["{{SYSTEM_CLASS}}-ui", "{{SYSTEM_CLASS}}-text", className].filter(Boolean).join(" ")} {...props} />;
+});

@@ -1,0 +1,13 @@
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-menu-content { animation: {{SYSTEM_CLASS}}-menu-in var(--{{SYSTEM_CLASS}}-motion-duration-fast) var(--{{SYSTEM_CLASS}}-motion-easing-standard); background: var(--{{SYSTEM_CLASS}}-color-surface-raised); border: 1px solid var(--{{SYSTEM_CLASS}}-color-border-default); border-radius: var(--{{SYSTEM_CLASS}}-radius-md); box-shadow: var(--{{SYSTEM_CLASS}}-shadow-md); min-width: 180px; padding: 5px; z-index: 60; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-menu-content[data-state="closed"] { pointer-events: none; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-menu-group { padding: 3px 0; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-menu-label { color: var(--{{SYSTEM_CLASS}}-color-text-muted); font-size: 11px; font-weight: 650; padding: 7px 9px 4px; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-menu-item { align-items: center; border-radius: var(--{{SYSTEM_CLASS}}-radius-sm); cursor: pointer; display: flex; font-size: 13px; gap: 8px; min-height: 32px; outline: 0; padding: 6px 9px; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-menu-item:focus-visible { outline: 3px solid color-mix(in srgb, var(--{{SYSTEM_CLASS}}-color-border-focus) 38%, transparent); outline-offset: 2px; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-menu-item:hover,
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-menu-item[data-highlighted] { background: var(--{{SYSTEM_CLASS}}-color-action-secondary); color: var(--{{SYSTEM_CLASS}}-color-action-primary-hover); }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-menu-item[data-disabled] { cursor: not-allowed; opacity: .45; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-menu-indicator { color: var(--{{SYSTEM_CLASS}}-color-action-primary-hover); margin-left: auto; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-menu-separator { background: var(--{{SYSTEM_CLASS}}-color-border-default); height: 1px; margin: 5px 0; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-menu-arrow { fill: var(--{{SYSTEM_CLASS}}-color-surface-raised); }
+@keyframes {{SYSTEM_CLASS}}-menu-in { from { opacity: 0; transform: translateY(-2px) scale(.99); } to { opacity: 1; transform: none; } }

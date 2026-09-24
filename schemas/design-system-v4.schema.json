@@ -169,10 +169,28 @@
     },
     "tokens": {
       "type": "object",
-      "description": "Flattened semantic token names (never values) grouped by token group, plus package-relative artifact paths.",
-      "required": ["groups", "artifacts"],
+      "description": "Flattened semantic token names (never values) grouped by token group, package-relative artifact paths, and the naming contract consumers read from the manifest only (`names.cssVariablePrefix` for CSS custom properties, `names.tailwindUtilityPrefix` for Tailwind utilities).",
+      "required": ["groups", "artifacts", "names"],
       "additionalProperties": false,
       "properties": {
+        "names": {
+          "type": "object",
+          "description": "The canonical token naming contract, derived by the generator from the same constants the CSS and Tailwind artifacts use. Readers must use these values from the manifest instead of guessing prefixes; both fields are safe lower-kebab namespaces.",
+          "required": ["cssVariablePrefix", "tailwindUtilityPrefix"],
+          "additionalProperties": false,
+          "properties": {
+            "cssVariablePrefix": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+              "description": "Prefix of every CSS custom property the package stylesheet defines, e.g. `maivand-a` for `--maivand-a-color-text-primary`."
+            },
+            "tailwindUtilityPrefix": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+              "description": "Namespace of every semantic Tailwind theme key the bridge aliases, e.g. `prism` for `--color-prism-text-primary`."
+            }
+          }
+        },
         "groups": {
           "type": "object",
           "required": [

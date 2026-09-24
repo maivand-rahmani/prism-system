@@ -1,0 +1,1 @@
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-text { color: var(--{{SYSTEM_CLASS}}-color-text-secondary); font-family: var(--{{SYSTEM_CLASS}}-typography-family-sans); font-size: var(--{{SYSTEM_CLASS}}-typography-size-md); line-height: var(--{{SYSTEM_CLASS}}-typography-line-height-relaxed); margin: 0; }

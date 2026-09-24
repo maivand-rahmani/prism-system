@@ -1,11 +1,11 @@
 {
   "name": "{{PACKAGE_NAME}}",
   "version": "0.1.0",
-  "description": "{{SYSTEM_NAME}} — a V2 design system built on @prism-system/ui-core.",
+  "description": "{{SYSTEM_NAME}} — a V4 design system built on @prism-system/ui-core.",
   "license": "MIT",
   "prismSystem": {
     "name": "{{SYSTEM_NAME}}",
-    "contract": "v2",
+    "contract": "v4",
     "uiClass": "{{SYSTEM_CLASS}}-ui",
     "tokensExport": "{{TOKENS_EXPORT}}"
   },
@@ -27,6 +27,7 @@
       "require": "./dist/index.js"
     },
     "./styles.css": "./dist/index.css",
+    "./tailwind.css": "./dist/tailwind.css",
     "./tokens": {
       "types": "./dist/tokens/index.d.ts",
       "import": "./dist/tokens/index.mjs",
@@ -36,7 +37,7 @@
   },
   "files": ["dist", "README.md", "AGENTS.md", "design-system.json", "design-brief.json", "LICENSE"],
   "scripts": {
-    "build": "tsup src/index.ts src/tokens/index.ts --format esm,cjs --dts --clean",
+    "build": "tsup src/index.ts src/tokens/index.ts --format esm,cjs --dts --clean && node -e \"require('node:fs').copyFileSync('src/styles/tailwind.css','dist/tailwind.css')\"",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint src"
   },

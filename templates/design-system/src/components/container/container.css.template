@@ -1,0 +1,2 @@
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-container { margin-inline: auto; max-width: var(--{{SYSTEM_CLASS}}-containers-content); padding-inline: var(--{{SYSTEM_CLASS}}-spacing-semantic-inset); width: 100%; }
+@media (min-width: 80rem) { :where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-container[data-width="wide"] { max-width: var(--{{SYSTEM_CLASS}}-containers-wide); } }

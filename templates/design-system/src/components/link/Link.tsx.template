@@ -1,0 +1,6 @@
+import * as React from "react";
+import type { LinkProps } from "@prism-system/ui-core";
+export type { LinkProps };
+export const Link = React.forwardRef<HTMLAnchorElement, LinkProps>(function Link({ className, ...props }, ref) {
+  return <a ref={ref} className={["{{SYSTEM_CLASS}}-ui", "{{SYSTEM_CLASS}}-link", className].filter(Boolean).join(" ")} {...props} />;
+});

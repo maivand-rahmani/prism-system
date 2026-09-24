@@ -26,7 +26,7 @@
  * a CLI (`pnpm ds:manifest <id> [--write]`).
  */
 
-import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -38,6 +38,13 @@ import {
   repoRoot,
   toPackageName,
 } from "./register-design-system.mjs";
+import {
+  TOKEN_NAMESPACE_PATTERN,
+  V4_TOKEN_NAME_FIELDS,
+  buildTokenArtifactFiles,
+  checkTokenArtifactFiles,
+  tokenNaming,
+} from "./design-system-tokens.mjs";
 
 /** The explicit, package-owned API descriptor. Never shipped in the tarball. */
 export const DESIGN_SYSTEM_SOURCE_FILENAME = "design-system.source.json";
@@ -452,13 +459,13 @@ function normalizeDocs(raw, label, requireCore) {
   return docs;
 }
 
-/** Validate the generated manifest's token group names and artifact paths. */
+/** Validate the generated manifest's token group names, artifacts, and naming. */
 function normalizeTokenManifest(raw) {
   const label = `${DESIGN_SYSTEM_MANIFEST_FILENAME} "tokens"`;
   if (!isPlainObject(raw)) {
     throw new Error(`${label} must be an object.`);
   }
-  assertKnownFields(raw, ["groups", "artifacts"], label);
+  assertKnownFields(raw, ["groups", "artifacts", "names"], label);
 
   const groupsLabel = `${label} "groups"`;
   if (!isPlainObject(raw.groups)) {
@@ -489,7 +496,37 @@ function normalizeTokenManifest(raw) {
     }
     artifacts[key] = value;
   }
-  return { groups, artifacts };
+
+  return { groups, artifacts, names: normalizeTokenNames(raw.names, label) };
+}
+
+/**
+ * Validate the manifest `tokens.names` block: exactly the two required naming
+ * fields, each a safe lower-kebab namespace. Missing, unknown, or malformed
+ * names fail closed so a consumer never reads a namespace the artifacts do not
+ * actually use.
+ */
+function normalizeTokenNames(raw, tokensLabel) {
+  const label = `${tokensLabel} "names"`;
+  if (!isPlainObject(raw)) {
+    throw new Error(`${label} must be an object.`);
+  }
+  assertKnownFields(raw, V4_TOKEN_NAME_FIELDS, label);
+  const names = {};
+  for (const key of V4_TOKEN_NAME_FIELDS) {
+    if (!(key in raw)) {
+      throw new Error(`${label} is missing required field "${key}".`);
+    }
+    const value = raw[key];
+    if (typeof value !== "string" || !TOKEN_NAMESPACE_PATTERN.test(value)) {
+      throw new Error(
+        `${label}.${key} must be a safe lower-kebab namespace ` +
+          `(received ${JSON.stringify(value ?? null)}).`,
+      );
+    }
+    names[key] = value;
+  }
+  return names;
 }
 
 function normalizePublicApi(raw, label) {
@@ -893,11 +930,13 @@ function resolveTokenRefs(leaves) {
 }
 
 /**
- * Validate a package-owned `tokens.source.json` (schemaVersion 1). Every leaf
- * accepts a type-appropriate literal or exactly `{"$ref": "dot.separated.path"}`.
- * Returns the raw object; token values stay package-owned.
+ * Validate a package-owned `tokens.source.json` (schemaVersion 1) and return
+ * both the raw object and its flattened leaf map. Every leaf accepts a
+ * type-appropriate literal or exactly `{"$ref": "dot.separated.path"}`. This is
+ * the single validation authority for token sources: missing targets, cycles,
+ * and type-incompatible references are all rejected here.
  */
-export function parseTokenSource(raw) {
+function validateTokenSource(raw) {
   if (!isPlainObject(raw)) {
     throw new Error(`${TOKENS_SOURCE_FILENAME} must be a JSON object.`);
   }
@@ -917,7 +956,50 @@ export function parseTokenSource(raw) {
     walkTokenNode(TOKEN_SHAPE[key], raw[key], key, leaves);
   }
   resolveTokenRefs(leaves);
-  return raw;
+  return { tokens: raw, leaves };
+}
+
+/**
+ * Validate a package-owned `tokens.source.json` (schemaVersion 1). Every leaf
+ * accepts a type-appropriate literal or exactly `{"$ref": "dot.separated.path"}`.
+ * Returns the raw object; token values stay package-owned.
+ */
+export function parseTokenSource(raw) {
+  return validateTokenSource(raw).tokens;
+}
+
+/** Assign `value` at a dot-separated path, creating intermediate objects. */
+function setAtPath(target, path, value) {
+  let cursor = target;
+  for (let index = 0; index < path.length - 1; index += 1) {
+    const key = path[index];
+    if (!isPlainObject(cursor[key])) cursor[key] = {};
+    cursor = cursor[key];
+  }
+  cursor[path[path.length - 1]] = value;
+}
+
+/** Follow a validated `$ref` chain to its ultimate literal. */
+function resolveUltimateLiteral(leaves, path) {
+  let entry = leaves.get(path);
+  while (entry.ref) entry = leaves.get(entry.ref);
+  return entry.literal;
+}
+
+/**
+ * Validate a token source and return a deep, fully resolved copy in which every
+ * `$ref` has been replaced by its ultimate literal. Reference safety is already
+ * guaranteed by {@link validateTokenSource}, so resolution can follow each
+ * chain without re-checking. Key order mirrors the canonical token shape.
+ */
+export function resolveTokenSource(raw) {
+  const { leaves } = validateTokenSource(raw);
+  const resolved = {};
+  for (const [path, entry] of leaves) {
+    const literal = entry.ref ? resolveUltimateLiteral(leaves, path) : entry.literal;
+    setAtPath(resolved, path.split("."), literal);
+  }
+  return resolved;
 }
 
 /** Read and validate the package-owned V4 `tokens.source.json`. */
@@ -950,15 +1032,20 @@ function flattenTokenNames(value, prefix = "") {
   return [prefix];
 }
 
-/** Build the manifest `tokens` block: group names plus artifact paths. */
-function buildTokenManifest(tokens) {
+/** Build the manifest `tokens` block: group names, artifact paths, and naming. */
+function buildTokenManifest(tokens, uiClass) {
   const groups = {};
   for (const key of TOKEN_GROUP_KEYS) {
     groups[key] = flattenTokenNames(tokens[key]);
   }
+  const names = normalizeTokenNames(
+    tokenNaming(uiClass),
+    `${DESIGN_SYSTEM_MANIFEST_FILENAME} "tokens"`,
+  );
   return {
     groups,
     artifacts: { typescript: "./tokens", css: "./styles.css", tailwind: "./tailwind.css" },
+    names,
   };
 }
 
@@ -1295,21 +1382,20 @@ function tokenizeRuntimeSource(source) {
 }
 
 /**
- * Locate the single `defineDesignSystemV2({ ... })` call in a source file and
- * return the span of its argument object. The first argument must be an object
- * literal and the object's closing brace must be the direct call terminator, so
- * conditional, identifier, call, member, parenthesized, type-asserted, and
- * extra-argument wrappers are rejected. Fails closed on a missing or ambiguous
- * call.
+ * Locate the single `<callName>({ ... })` call in a source file and return the
+ * span of its argument object. The first argument must be an object literal and
+ * the object's closing brace must be the direct call terminator, so conditional,
+ * identifier, call, member, parenthesized, type-asserted, and extra-argument
+ * wrappers are rejected. Fails closed on a missing or ambiguous call.
  */
-function findDesignSystemV2Object(tokens) {
+function findDesignSystemCall(tokens, callName, fileLabel) {
   const callIndexes = [];
   for (let index = 0; index < tokens.length - 1; index += 1) {
     const token = tokens[index];
     const next = tokens[index + 1];
     if (
       token.type === "ident" &&
-      token.value === "defineDesignSystemV2" &&
+      token.value === callName &&
       next.type === "punct" &&
       next.value === "("
     ) {
@@ -1317,11 +1403,11 @@ function findDesignSystemV2Object(tokens) {
     }
   }
   if (callIndexes.length === 0) {
-    throw new Error("src/index.ts does not call defineDesignSystemV2(...).");
+    throw new Error(`${fileLabel} does not call ${callName}(...).`);
   }
   if (callIndexes.length > 1) {
     throw new Error(
-      `src/index.ts contains ${callIndexes.length} defineDesignSystemV2(...) calls; ` +
+      `${fileLabel} contains ${callIndexes.length} ${callName}(...) calls; ` +
         `exactly one is required to read the runtime version unambiguously.`,
     );
   }
@@ -1330,7 +1416,7 @@ function findDesignSystemV2Object(tokens) {
   const firstArgument = tokens[argumentStart];
   if (!(firstArgument?.type === "punct" && firstArgument.value === "{")) {
     throw new Error(
-      "defineDesignSystemV2(...) must be called with a single object literal argument; " +
+      `${callName}(...) must be called with a single object literal argument; ` +
         "conditional, identifier, call, member, parenthesized, type-asserted, and other dynamic " +
         "argument wrappers are not allowed.",
     );
@@ -1350,13 +1436,13 @@ function findDesignSystemV2Object(tokens) {
     }
   }
   if (objectEnd === -1) {
-    throw new Error("defineDesignSystemV2(...) object is unterminated.");
+    throw new Error(`${callName}(...) object is unterminated.`);
   }
 
   const afterObject = tokens[objectEnd + 1];
   if (!(afterObject?.type === "punct" && afterObject.value === ")")) {
     throw new Error(
-      "defineDesignSystemV2(...) object must be the direct call argument with no extra " +
+      `${callName}(...) object must be the direct call argument with no extra ` +
         "arguments, type assertions, or trailing expressions.",
     );
   }
@@ -1366,7 +1452,7 @@ function findDesignSystemV2Object(tokens) {
     (afterCall.type === "punct" && [";", ",", ")", "]", "}"].includes(afterCall.value));
   if (!endsExpression) {
     throw new Error(
-      "defineDesignSystemV2(...) call must end the expression; a call, member access, or type " +
+      `${callName}(...) call must end the expression; a call, member access, or type ` +
         "assertion on its result is not allowed.",
     );
   }
@@ -1383,13 +1469,13 @@ function findDesignSystemV2Object(tokens) {
  * `version:` property. Nested values are skipped, so a nested `version` is
  * never mistaken for the runtime version.
  */
-function topLevelObjectProperties(tokens, open, close) {
+function topLevelObjectProperties(tokens, open, close, callName) {
   const properties = [];
   let index = open + 1;
 
   const rejectForm = (reason) => {
     throw new Error(
-      `defineDesignSystemV2(...) object contains an unsupported top-level property form ` +
+      `${callName}(...) object contains an unsupported top-level property form ` +
         `(${reason}); spreads, computed keys, getters, setters, methods, shorthand, and other ` +
         "dynamic property forms are not allowed because they can change the runtime version.",
     );
@@ -1473,35 +1559,57 @@ function topLevelObjectProperties(tokens, open, close) {
 }
 
 /**
- * Read the single top-level `version` of the `defineDesignSystemV2(...)`
- * argument. The value must be exactly one static string literal or a
+ * Runtime identity helpers. The `contract` argument defaults to `"v2"` so every
+ * existing V2 caller keeps its exact behavior and messages; V4 callers pass
+ * `"v4"` to parse the `defineDesignSystemV4(...)` call in `src/design-system.ts`.
+ */
+const RUNTIME_CONTRACTS = Object.freeze({
+  v2: Object.freeze({ callName: "defineDesignSystemV2", fileLabel: "src/index.ts" }),
+  v4: Object.freeze({ callName: "defineDesignSystemV4", fileLabel: "src/design-system.ts" }),
+});
+
+function resolveRuntimeContract(contract) {
+  const resolved = RUNTIME_CONTRACTS[contract];
+  if (!resolved) {
+    throw new Error(
+      `Unsupported runtime contract ${JSON.stringify(contract)}; expected "v2" or "v4".`,
+    );
+  }
+  return resolved;
+}
+
+/**
+ * Read the single top-level `version` of the `defineDesignSystemV2(...)` or
+ * `defineDesignSystemV4(...)` argument, selected by `contract` (default
+ * `"v2"`). The value must be exactly one static string literal or a
  * no-substitution template literal (comments around it are allowed). Fails
  * closed on a missing, duplicate, nested-only, commented-only, or dynamic
  * (concatenated, identifier, member access, call, interpolated, conditional, or
  * otherwise non-literal) version.
  *
+ * @param {string} source  Runtime source text.
+ * @param {"v2" | "v4"} [contract="v2"]  Which runtime call to read.
  * @returns {{ version: string, valueStart: number, valueEnd: number }}
  */
-export function parseRuntimeDesignSystemVersion(source) {
+export function parseRuntimeDesignSystemVersion(source, contract = "v2") {
+  const { callName, fileLabel } = resolveRuntimeContract(contract);
   const tokens = tokenizeRuntimeSource(source);
-  const span = findDesignSystemV2Object(tokens);
-  const properties = topLevelObjectProperties(tokens, span.open, span.close);
+  const span = findDesignSystemCall(tokens, callName, fileLabel);
+  const properties = topLevelObjectProperties(tokens, span.open, span.close, callName);
   const versions = properties.filter((property) => property.key === "version");
   if (versions.length === 0) {
-    throw new Error(
-      'defineDesignSystemV2(...) must declare exactly one top-level string "version".',
-    );
+    throw new Error(`${callName}(...) must declare exactly one top-level string "version".`);
   }
   if (versions.length > 1) {
     throw new Error(
-      `defineDesignSystemV2(...) declares ${versions.length} top-level "version" properties; ` +
+      `${callName}(...) declares ${versions.length} top-level "version" properties; ` +
         `exactly one is required.`,
     );
   }
   const [entry] = versions;
   if (entry.kind !== "string") {
     throw new Error(
-      'The top-level "version" in defineDesignSystemV2(...) must be exactly one static string ' +
+      `The top-level "version" in ${callName}(...) must be exactly one static string ` +
         "literal or no-substitution template literal. Concatenation, identifiers, member access, " +
         "calls, template interpolation, conditional/binary expressions, and other dynamic values " +
         "are not allowed.",
@@ -1510,17 +1618,22 @@ export function parseRuntimeDesignSystemVersion(source) {
   return { version: entry.value, valueStart: entry.valueStart, valueEnd: entry.valueEnd };
 }
 
-/** Read the runtime `DesignSystem.version` string from `src/index.ts`. */
-export function readRuntimeDesignSystemVersion(source) {
-  return parseRuntimeDesignSystemVersion(source).version;
+/**
+ * Read the runtime `DesignSystem.version` string. `contract` selects the
+ * runtime call and defaults to `"v2"` (V2: `src/index.ts` /
+ * `defineDesignSystemV2`; V4: `src/design-system.ts` / `defineDesignSystemV4`).
+ */
+export function readRuntimeDesignSystemVersion(source, contract = "v2") {
+  return parseRuntimeDesignSystemVersion(source, contract).version;
 }
 
 /**
  * Return `source` with the runtime `DesignSystem.version` set to `version`,
  * replacing only the inner string text of the validated top-level property.
+ * `contract` defaults to `"v2"` for backward compatibility.
  */
-export function syncRuntimeDesignSystemVersion(source, version) {
-  const parsed = parseRuntimeDesignSystemVersion(source);
+export function syncRuntimeDesignSystemVersion(source, version, contract = "v2") {
+  const parsed = parseRuntimeDesignSystemVersion(source, contract);
   if (parsed.version === version) return { source, changed: false };
   return {
     source: source.slice(0, parsed.valueStart) + version + source.slice(parsed.valueEnd),
@@ -1594,8 +1707,9 @@ function readPackageForManifest(packageDir, id) {
     pkg.prismSystem?.tokensExport,
     "prismSystem.tokensExport",
   );
+  const uiClass = requireNonEmptyString(pkg.prismSystem?.uiClass, "prismSystem.uiClass");
   const displayName = requireNonEmptyString(pkg.prismSystem?.name, "prismSystem.name");
-  return { pkg, version, tokensExport, displayName };
+  return { pkg, version, tokensExport, uiClass, displayName };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1608,7 +1722,7 @@ function readPackageForManifest(packageDir, id) {
  */
 export function buildManifest({ id, packageDir }) {
   const resolvedId = assertSystemId(id);
-  const { pkg, version, tokensExport, displayName } = readPackageForManifest(
+  const { pkg, version, tokensExport, uiClass, displayName } = readPackageForManifest(
     packageDir,
     resolvedId,
   );
@@ -1622,7 +1736,15 @@ export function buildManifest({ id, packageDir }) {
   }
 
   if (source.contract === "v4") {
-    return buildV4Manifest({ resolvedId, pkg, version, tokensExport, displayName, source });
+    return buildV4Manifest({
+      resolvedId,
+      pkg,
+      version,
+      tokensExport,
+      uiClass,
+      displayName,
+      source,
+    });
   }
 
   return {
@@ -1646,7 +1768,7 @@ export function buildManifest({ id, packageDir }) {
 }
 
 /** Build the canonical V4 manifest object. Pure and synchronous. */
-function buildV4Manifest({ resolvedId, pkg, version, tokensExport, displayName, source }) {
+function buildV4Manifest({ resolvedId, pkg, version, tokensExport, uiClass, displayName, source }) {
   const implementedOptional = V4_OPTIONAL_COMPONENTS.filter((name) => name in source.components);
   return {
     $schema: V4_MANIFEST_SCHEMA_URL,
@@ -1665,7 +1787,7 @@ function buildV4Manifest({ resolvedId, pkg, version, tokensExport, displayName, 
     components: source.components,
     design: source.design,
     rules: source.rules,
-    tokens: buildTokenManifest(source.tokens),
+    tokens: buildTokenManifest(source.tokens, uiClass),
     docs: { readme: "./README.md", agents: "./AGENTS.md", ...(source.docs ?? {}) },
   };
 }
@@ -1693,53 +1815,85 @@ export function readDesignSystemManifest(packageDir) {
 }
 
 /**
- * Compare the on-disk manifest with a freshly built one.
+ * Render the three V4 token artifacts for a package from its validated
+ * `tokens.source.json`. `parseTokenSource`/`resolveTokenSource` guarantee the
+ * source is type-safe and every `$ref` resolves before rendering. Pure.
+ */
+export function renderV4TokenArtifactFiles(packageDir) {
+  const pkg = readJsonFile(join(packageDir, "package.json"));
+  const tokensExport = requireNonEmptyString(
+    pkg.prismSystem?.tokensExport,
+    "prismSystem.tokensExport",
+  );
+  const uiClass = requireNonEmptyString(pkg.prismSystem?.uiClass, "prismSystem.uiClass");
+  const tokensSource = readTokensSource(packageDir);
+  const resolvedTokens = resolveTokenSource(tokensSource);
+  return buildTokenArtifactFiles({ tokensExport, uiClass, resolvedTokens });
+}
+
+/**
+ * Compare the on-disk manifest (and, for V4, the three token artifacts) with a
+ * freshly built/rendered set. V2 packages check only `design-system.json`, so
+ * their output and failure messages are unchanged.
  *
- * @returns {{ ok: boolean, failures: string[], expected: object, actual: object | null }}
+ * @returns {{ ok: boolean, failures: string[], expected: object | null, actual: object | null, tokenArtifacts: object | null }}
  */
 export function checkDesignSystemManifest({ id, packageDir }) {
   let expected;
   try {
     expected = buildManifest({ id, packageDir });
   } catch (error) {
-    return { ok: false, failures: [error.message], expected: null, actual: null };
+    return {
+      ok: false,
+      failures: [error.message],
+      expected: null,
+      actual: null,
+      tokenArtifacts: null,
+    };
   }
   const manifestPath = join(packageDir, DESIGN_SYSTEM_MANIFEST_FILENAME);
+  const failures = [];
+  let actual = null;
   if (!existsSync(manifestPath)) {
-    return {
-      ok: false,
-      failures: [
-        `Missing generated manifest ${DESIGN_SYSTEM_MANIFEST_FILENAME}; regenerate it with ` +
-          `"pnpm ds:manifest ${id} --write".`,
-      ],
-      expected,
-      actual: null,
-    };
-  }
-  let actual;
-  try {
-    actual = readJsonFile(manifestPath);
-  } catch (error) {
-    return {
-      ok: false,
-      failures: [`Invalid JSON in ${DESIGN_SYSTEM_MANIFEST_FILENAME}: ${error.message}`],
-      expected,
-      actual: null,
-    };
-  }
-  const same = JSON.stringify(canonicalize(expected)) === JSON.stringify(canonicalize(actual));
-  return {
-    ok: same,
-    failures: same
-      ? []
-      : [
+    failures.push(
+      `Missing generated manifest ${DESIGN_SYSTEM_MANIFEST_FILENAME}; regenerate it with ` +
+        `"pnpm ds:manifest ${id} --write".`,
+    );
+  } else {
+    try {
+      actual = readJsonFile(manifestPath);
+    } catch (error) {
+      failures.push(`Invalid JSON in ${DESIGN_SYSTEM_MANIFEST_FILENAME}: ${error.message}`);
+      actual = null;
+    }
+    if (actual !== null) {
+      const same = JSON.stringify(canonicalize(expected)) === JSON.stringify(canonicalize(actual));
+      if (!same) {
+        failures.push(
           `${DESIGN_SYSTEM_MANIFEST_FILENAME} is out of date with package.json and ` +
             `${DESIGN_SYSTEM_SOURCE_FILENAME}; regenerate it with ` +
             `"pnpm ds:manifest ${id} --write".`,
-        ],
-    expected,
-    actual,
-  };
+        );
+      }
+    }
+  }
+
+  let tokenArtifacts = null;
+  if (expected.contract === "v4") {
+    try {
+      const result = checkTokenArtifactFiles({
+        id,
+        packageDir,
+        files: renderV4TokenArtifactFiles(packageDir),
+      });
+      tokenArtifacts = result.artifacts;
+      failures.push(...result.failures);
+    } catch (error) {
+      failures.push(error.message);
+    }
+  }
+
+  return { ok: failures.length === 0, failures, expected, actual, tokenArtifacts };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1779,10 +1933,62 @@ export async function renderDesignSystemManifest({ id, packageDir }) {
   return { manifest, source: formatted };
 }
 
-/** Build, format, and atomically write the generated manifest. */
-export async function writeDesignSystemManifest({ id, packageDir }) {
+/**
+ * Render every generated artifact for a package without writing: the manifest
+ * source plus, for V4 only, the three token artifact descriptors. Pure except
+ * for reading package-owned inputs.
+ */
+export async function renderDesignSystemArtifacts({ id, packageDir }) {
   const { manifest, source } = await renderDesignSystemManifest({ id, packageDir });
-  writeFileAtomic(join(packageDir, DESIGN_SYSTEM_MANIFEST_FILENAME), source);
+  const tokenArtifacts = manifest.contract === "v4" ? renderV4TokenArtifactFiles(packageDir) : [];
+  return { manifest, manifestSource: source, tokenArtifacts };
+}
+
+/**
+ * Write a set of files atomically and transactionally: capture every target's
+ * previous bytes first, then write each via a temp-file rename. If any write
+ * fails, restore the captured bytes (and remove files that did not exist) so the
+ * package is never left half-generated.
+ */
+function writeFilesTransactional(writes) {
+  const backups = writes.map((write) => ({
+    path: write.path,
+    content: existsSync(write.path) ? readFileSync(write.path, "utf8") : null,
+  }));
+  try {
+    for (const write of writes) writeFileAtomic(write.path, write.content);
+  } catch (error) {
+    for (const backup of backups) {
+      try {
+        if (backup.content === null) rmSync(backup.path, { force: true });
+        else writeFileSync(backup.path, backup.content, "utf8");
+      } catch {
+        // Best-effort rollback; surface the original failure instead.
+      }
+    }
+    throw error;
+  }
+}
+
+/**
+ * Build, format, and atomically write the generated manifest. For V4 packages
+ * this also writes the three deterministic token artifacts
+ * (`src/tokens/index.ts`, `src/styles/tokens.css`, `src/styles/tailwind.css`)
+ * in one transaction. V2 packages write only `design-system.json`.
+ */
+export async function writeDesignSystemManifest({ id, packageDir }) {
+  const { manifest, manifestSource, tokenArtifacts } = await renderDesignSystemArtifacts({
+    id,
+    packageDir,
+  });
+  const writes = [
+    { path: join(packageDir, DESIGN_SYSTEM_MANIFEST_FILENAME), content: manifestSource },
+    ...tokenArtifacts.map((artifact) => ({
+      path: join(packageDir, artifact.relativePath),
+      content: artifact.content,
+    })),
+  ];
+  writeFilesTransactional(writes);
   return manifest;
 }
 

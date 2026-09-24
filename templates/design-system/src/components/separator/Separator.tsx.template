@@ -1,0 +1,26 @@
+"use client";
+
+import * as React from "react";
+import {
+  Separator as SeparatorPrimitive,
+  cn,
+  type SeparatorProps as CoreSeparatorProps,
+} from "@prism-system/ui-core";
+
+const ui = "{{SYSTEM_CLASS}}-ui";
+
+export type SeparatorProps = CoreSeparatorProps;
+
+export const Separator = React.forwardRef<HTMLDivElement, SeparatorProps>(function Separator(
+  { className, ...props },
+  ref,
+) {
+  return (
+    <SeparatorPrimitive
+      ref={ref}
+      className={cn(ui, "{{SYSTEM_CLASS}}-separator", className)}
+      {...props}
+    />
+  );
+});
+Separator.displayName = "Separator";

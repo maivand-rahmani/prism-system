@@ -1,0 +1,97 @@
+"use client";
+
+import * as React from "react";
+import {
+  Input as InputPrimitive,
+  cn,
+  type InputProps as CoreInputProps,
+} from "@prism-system/ui-core";
+
+const ui = "{{SYSTEM_CLASS}}-ui";
+
+interface FieldMessageProps {
+  id: string;
+  hint?: React.ReactNode;
+  error?: React.ReactNode;
+}
+
+function FieldMessage({ id, hint, error }: FieldMessageProps) {
+  if (error)
+    return (
+      <span className="{{SYSTEM_CLASS}}-error" id={`${id}-error`} role="alert">
+        {error}
+      </span>
+    );
+  if (hint)
+    return (
+      <span className="{{SYSTEM_CLASS}}-hint" id={`${id}-hint`}>
+        {hint}
+      </span>
+    );
+  return null;
+}
+
+export interface InputProps extends CoreInputProps {
+  label?: React.ReactNode;
+  hint?: React.ReactNode;
+  error?: React.ReactNode;
+}
+
+export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Input(
+  {
+    className,
+    id: providedId,
+    label,
+    hint,
+    error,
+    invalid = false,
+    size = "md",
+    startAdornment,
+    endAdornment,
+    ...props
+  },
+  ref,
+) {
+  const generatedId = React.useId();
+  const id = providedId || `{{SYSTEM_CLASS}}-input-${generatedId.replace(/:/g, "")}`;
+  const hasError = Boolean(error || invalid);
+  const describedBy =
+    [error ? `${id}-error` : hint ? `${id}-hint` : null, props["aria-describedby"]]
+      .filter(Boolean)
+      .join(" ") || undefined;
+
+  return (
+    <div className={cn(ui, "{{SYSTEM_CLASS}}-field")}>
+      {label && (
+        <label className="{{SYSTEM_CLASS}}-label" htmlFor={id}>
+          {label}
+        </label>
+      )}
+      <div
+        className={cn(
+          "{{SYSTEM_CLASS}}-control",
+          `{{SYSTEM_CLASS}}-control-${size}`,
+          hasError && "{{SYSTEM_CLASS}}-control-error",
+        )}
+      >
+        {startAdornment && (
+          <span className="{{SYSTEM_CLASS}}-adornment" aria-hidden="true">
+            {startAdornment}
+          </span>
+        )}
+        <InputPrimitive
+          ref={ref}
+          id={id}
+          size={size}
+          invalid={hasError}
+          className={cn("{{SYSTEM_CLASS}}-input", className)}
+          aria-describedby={describedBy}
+          {...props}
+        />
+        {endAdornment && <span className="{{SYSTEM_CLASS}}-adornment">{endAdornment}</span>}
+      </div>
+      <FieldMessage id={id} hint={hint} error={error} />
+    </div>
+  );
+});
+Input.displayName = "Input";

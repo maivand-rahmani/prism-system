@@ -1,0 +1,9 @@
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-dialog-overlay { background: rgba(24, 29, 35, .34); inset: 0; position: fixed; z-index: 50; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-dialog-content { animation: {{SYSTEM_CLASS}}-dialog-in var(--{{SYSTEM_CLASS}}-motion-duration-normal) var(--{{SYSTEM_CLASS}}-motion-easing-standard); background: var(--{{SYSTEM_CLASS}}-color-surface-raised); border: 1px solid var(--{{SYSTEM_CLASS}}-color-border-default); border-radius: var(--{{SYSTEM_CLASS}}-radius-lg); box-shadow: var(--{{SYSTEM_CLASS}}-shadow-md); left: 50%; max-height: calc(100vh - 40px); max-width: 520px; overflow: auto; padding: 24px; position: fixed; top: 50%; transform: translate(-50%, -50%); width: calc(100vw - 40px); z-index: 51; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-dialog-content[data-state="closed"] { animation-name: {{SYSTEM_CLASS}}-dialog-out; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-dialog-header { display: grid; gap: 6px; margin-bottom: 20px; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-dialog-title { font-size: 20px; letter-spacing: -.02em; margin: 0; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-dialog-description { color: var(--{{SYSTEM_CLASS}}-color-text-muted); font-size: 14px; line-height: 1.5; margin: 0; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-dialog-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+@keyframes {{SYSTEM_CLASS}}-dialog-in { from { opacity: 0; transform: translate(-50%, calc(-50% + 6px)) scale(.99); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+@keyframes {{SYSTEM_CLASS}}-dialog-out { from { opacity: 1; transform: translate(-50%, -50%) scale(1); } to { opacity: 0; transform: translate(-50%, calc(-50% + 6px)) scale(.99); } }

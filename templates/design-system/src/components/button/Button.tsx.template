@@ -1,0 +1,66 @@
+"use client";
+
+import * as React from "react";
+import {
+  Button as ButtonPrimitive,
+  cn,
+  type ButtonProps as CoreButtonProps,
+} from "@prism-system/ui-core";
+
+const ui = "{{SYSTEM_CLASS}}-ui";
+
+export interface ButtonProps extends CoreButtonProps {
+  loadingText?: string;
+}
+
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  {
+    className,
+    variant = "primary",
+    size = "md",
+    loading = false,
+    loadingText,
+    fullWidth = false,
+    leftIcon,
+    rightIcon,
+    asChild = false,
+    children,
+    disabled,
+    ...props
+  },
+  ref,
+) {
+  const content = asChild ? (
+    loadingText || children
+  ) : (
+    <>
+      {loading && <span className="{{SYSTEM_CLASS}}-spinner" aria-hidden="true" />}
+      {!loading && leftIcon}
+      <span>{loading && loadingText ? loadingText : children}</span>
+      {!loading && rightIcon}
+    </>
+  );
+
+  return (
+    <ButtonPrimitive
+      ref={ref}
+      asChild={asChild}
+      variant={variant}
+      size={size}
+      className={cn(
+        ui,
+        "{{SYSTEM_CLASS}}-button",
+        `{{SYSTEM_CLASS}}-button-${variant}`,
+        `{{SYSTEM_CLASS}}-button-${size}`,
+        fullWidth && "{{SYSTEM_CLASS}}-button-full",
+        className,
+      )}
+      {...props}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+    >
+      {content}
+    </ButtonPrimitive>
+  );
+});
+Button.displayName = "Button";

@@ -1,0 +1,28 @@
+"use client";
+import * as React from "react";
+import type { FormFieldProps, FormFieldLabelProps, FormFieldControlProps, FormFieldDescriptionProps, FormFieldErrorProps } from "@prism-system/ui-core";
+
+type FieldState = { id: string; required: boolean; disabled: boolean; invalid: boolean; describedBy: string };
+const FieldContext = React.createContext<FieldState | null>(null);
+function useField() { const value = React.useContext(FieldContext); if (!value) throw new Error("FormField parts must be used inside FormField."); return value; }
+const Root = React.forwardRef<HTMLDivElement, FormFieldProps>(function FormField({ id, required = false, disabled = false, invalid = false, className, children, ...props }, ref) {
+  const describedBy = `${id}-description${invalid ? ` ${id}-error` : ""}`;
+  const value = React.useMemo(() => ({ id, required, disabled, invalid, describedBy }), [id, required, disabled, invalid, describedBy]);
+  return <FieldContext.Provider value={value}><div ref={ref} className={["{{SYSTEM_CLASS}}-ui", "{{SYSTEM_CLASS}}-form-field", className].filter(Boolean).join(" ")} {...props}>{children}</div></FieldContext.Provider>;
+});
+const Label = React.forwardRef<HTMLLabelElement, FormFieldLabelProps>(function FormFieldLabel({ className, ...props }, ref) { const field = useField(); return <label ref={ref} htmlFor={field.id} className={["{{SYSTEM_CLASS}}-form-field-label", className].filter(Boolean).join(" ")} {...props} />; });
+const Control = React.forwardRef<HTMLDivElement, FormFieldControlProps>(function FormFieldControl({ asChild = false, className, children, ...props }, ref) {
+  const field = useField();
+  const mergedClassName = ["{{SYSTEM_CLASS}}-form-field-control", className].filter(Boolean).join(" ");
+  const owned = { id: field.id, "aria-describedby": field.describedBy || undefined, "aria-invalid": field.invalid || undefined, "aria-required": field.required || undefined, "aria-disabled": field.disabled || undefined, disabled: field.disabled || undefined };
+  if (asChild) {
+    if (!React.isValidElement(children)) throw new Error("FormField.Control with asChild requires one React element.");
+    const child = children as React.ReactElement<{ className?: string }>;
+    return React.cloneElement(child, { ...props, ...owned, className: [child.props.className, mergedClassName].filter(Boolean).join(" "), ref } as never);
+  }
+  return <div ref={ref} {...owned} className={mergedClassName} {...props}>{children}</div>;
+});
+const Description = React.forwardRef<HTMLParagraphElement, FormFieldDescriptionProps>(function FormFieldDescription({ className, ...props }, ref) { const field = useField(); return <p ref={ref} id={`${field.id}-description`} className={["{{SYSTEM_CLASS}}-form-field-description", className].filter(Boolean).join(" ")} {...props} />; });
+const FormFieldError = React.forwardRef<HTMLParagraphElement, FormFieldErrorProps>(function FormFieldError({ className, ...props }, ref) { const field = useField(); if (!field.invalid) return null; return <p ref={ref} id={`${field.id}-error`} role="alert" className={["{{SYSTEM_CLASS}}-form-field-error", className].filter(Boolean).join(" ")} {...props} />; });
+export const FormField = Object.assign(Root, { Label, Control, Description, Error: FormFieldError });
+export type { FormFieldProps, FormFieldLabelProps, FormFieldControlProps, FormFieldDescriptionProps, FormFieldErrorProps };

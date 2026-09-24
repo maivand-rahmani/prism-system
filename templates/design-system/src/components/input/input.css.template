@@ -1,0 +1,18 @@
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-field { display: grid; gap: 7px; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-label { color: var(--{{SYSTEM_CLASS}}-color-text-primary); font-size: 13px; font-weight: 650; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-hint,
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-error { font-size: 12px; line-height: 1.4; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-hint { color: var(--{{SYSTEM_CLASS}}-color-text-muted); }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-error { color: var(--{{SYSTEM_CLASS}}-color-status-danger); }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-control { align-items: center; background: var(--{{SYSTEM_CLASS}}-color-surface-raised); border: 1px solid var(--{{SYSTEM_CLASS}}-color-border-default); border-radius: var(--{{SYSTEM_CLASS}}-radius-sm); display: flex; min-height: 40px; transition: border-color var(--{{SYSTEM_CLASS}}-motion-duration-fast) var(--{{SYSTEM_CLASS}}-motion-easing-standard), box-shadow var(--{{SYSTEM_CLASS}}-motion-duration-fast) var(--{{SYSTEM_CLASS}}-motion-easing-standard); }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-control:focus-within { border-color: var(--{{SYSTEM_CLASS}}-color-border-focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--{{SYSTEM_CLASS}}-color-border-focus) 18%, transparent); }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-control-error { border-color: var(--{{SYSTEM_CLASS}}-color-status-danger); }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-input { background: transparent; border: 0; color: var(--{{SYSTEM_CLASS}}-color-text-primary); flex: 1; min-width: 0; outline: 0; padding: 10px 12px; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-input:focus-visible { outline: 3px solid color-mix(in srgb, var(--{{SYSTEM_CLASS}}-color-border-focus) 38%, transparent); outline-offset: 2px; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-input::placeholder { color: var(--{{SYSTEM_CLASS}}-color-text-muted); opacity: .7; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-input:disabled { cursor: not-allowed; opacity: .55; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-adornment { align-items: center; color: var(--{{SYSTEM_CLASS}}-color-text-muted); display: flex; padding: 0 11px; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-control-sm { min-height: 34px; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-control-sm .{{SYSTEM_CLASS}}-input { font-size: 13px; padding: 7px 10px; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-control-lg { min-height: 48px; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-control-lg .{{SYSTEM_CLASS}}-input { padding: 13px 14px; }

@@ -1,0 +1,15 @@
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-card { background: var(--{{SYSTEM_CLASS}}-color-surface-raised); border: 1px solid var(--{{SYSTEM_CLASS}}-color-border-default); border-radius: var(--{{SYSTEM_CLASS}}-radius-lg); color: var(--{{SYSTEM_CLASS}}-color-text-primary); }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-card-elevated { border-color: transparent; box-shadow: var(--{{SYSTEM_CLASS}}-shadow-md); }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-card-muted { background: var(--{{SYSTEM_CLASS}}-color-surface-sunken); }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-card-outline { background: transparent; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-card-interactive { cursor: pointer; transition: box-shadow var(--{{SYSTEM_CLASS}}-motion-duration-fast) var(--{{SYSTEM_CLASS}}-motion-easing-standard), transform var(--{{SYSTEM_CLASS}}-motion-duration-fast) var(--{{SYSTEM_CLASS}}-motion-easing-standard); }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-card-interactive:hover { box-shadow: var(--{{SYSTEM_CLASS}}-shadow-sm); transform: translateY(-1px); }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-card-padding-none { padding: 0; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-card-padding-sm { padding: 8px; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-card-padding-md { padding: 16px; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-card-padding-lg { padding: 26px; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-card-header { display: grid; gap: 5px; padding: 20px 22px 0; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-card-content { padding: 20px 22px; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-card-footer { align-items: center; border-top: 1px solid var(--{{SYSTEM_CLASS}}-color-border-default); display: flex; gap: 10px; justify-content: flex-end; padding: 14px 22px; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-card-title { font-size: 16px; font-weight: 650; letter-spacing: -.01em; margin: 0; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-card-description { color: var(--{{SYSTEM_CLASS}}-color-text-muted); font-size: 13px; line-height: 1.45; margin: 0; }

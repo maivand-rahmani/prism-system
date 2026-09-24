@@ -1,0 +1,6 @@
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-tooltip-trigger:focus-visible { outline: 3px solid color-mix(in srgb, var(--{{SYSTEM_CLASS}}-color-border-focus) 38%, transparent); outline-offset: 2px; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-tooltip-trigger[data-state="open"] { background: var(--{{SYSTEM_CLASS}}-color-action-secondary); color: var(--{{SYSTEM_CLASS}}-color-action-primary-hover); }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-tooltip-content { animation: {{SYSTEM_CLASS}}-tooltip-in var(--{{SYSTEM_CLASS}}-motion-duration-fast) var(--{{SYSTEM_CLASS}}-motion-easing-standard); background: var(--{{SYSTEM_CLASS}}-color-text-primary); border-radius: var(--{{SYSTEM_CLASS}}-radius-sm); color: var(--{{SYSTEM_CLASS}}-color-surface-raised); font-size: 12px; line-height: 1.35; max-width: 260px; padding: 7px 9px; z-index: 70; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-tooltip-content[data-state="closed"] { pointer-events: none; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-tooltip-arrow { fill: var(--{{SYSTEM_CLASS}}-color-text-primary); }
+@keyframes {{SYSTEM_CLASS}}-tooltip-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
