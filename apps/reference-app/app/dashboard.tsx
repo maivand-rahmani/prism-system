@@ -1,7 +1,99 @@
 "use client";
 
 import * as React from "react";
+import { OPTIONAL_COMPONENTS_V4 } from "@prism-system/ui-core";
+import type { REQUIRED_COMPONENTS, REQUIRED_COMPONENTS_V4 } from "@prism-system/ui-core";
 import { getRegisteredSystem, registeredSystems, type RegisteredSystem } from "./registry";
+
+type OptionalName = (typeof OPTIONAL_COMPONENTS_V4)[number];
+type RequiredV4Name = Exclude<
+  (typeof REQUIRED_COMPONENTS_V4)[number],
+  (typeof REQUIRED_COMPONENTS)[number]
+>;
+
+function hasOwn(value: object, name: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, name);
+}
+
+function tokenRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function tokenAt(value: unknown, path: string): unknown {
+  return path.split(".").reduce<unknown>((current, key) => tokenRecord(current)[key], value);
+}
+
+function hasDarkTheme(system: RegisteredSystem): boolean {
+  return Object.keys(tokenRecord(tokenAt(system.tokens, "themes.dark.color"))).length > 0;
+}
+
+function optionalComponent(system: RegisteredSystem, name: OptionalName): React.ElementType | null {
+  if (system.componentContract !== "v4") return null;
+  const component = system.components[name];
+  if (!hasOwn(system.components, name) || component == null) return null;
+  if (!hasOwn(system.manifest.components, name)) return null;
+  return component;
+}
+
+type PartComponent = React.ComponentType<Record<string, unknown>>;
+type CompoundParts = {
+  FormField: { Label: PartComponent; Control: PartComponent; Description: PartComponent };
+  Section: {
+    Header: PartComponent;
+    Title: PartComponent;
+    Description: PartComponent;
+    Content: PartComponent;
+  };
+  Fieldset: { Legend: PartComponent };
+  Alert: { Title: PartComponent; Description: PartComponent };
+  Toast: {
+    Provider: PartComponent;
+    Viewport: PartComponent;
+    Root: PartComponent;
+    Title: PartComponent;
+    Description: PartComponent;
+    Close: PartComponent;
+  };
+  Accordion: {
+    Item: PartComponent;
+    Header: PartComponent;
+    Trigger: PartComponent;
+    Content: PartComponent;
+  };
+  Avatar: { Fallback: PartComponent };
+  Breadcrumbs: {
+    List: PartComponent;
+    Item: PartComponent;
+    Link: PartComponent;
+    Current: PartComponent;
+  };
+  Pagination: {
+    List: PartComponent;
+    Item: PartComponent;
+    Previous: PartComponent;
+    Current: PartComponent;
+    Link: PartComponent;
+    Ellipsis: PartComponent;
+    Next: PartComponent;
+  };
+  Table: {
+    Caption: PartComponent;
+    Header: PartComponent;
+    Row: PartComponent;
+    Head: PartComponent;
+    Body: PartComponent;
+    Cell: PartComponent;
+  };
+};
+
+function compound<Name extends keyof CompoundParts>(
+  component: React.ElementType,
+  _name: Name,
+): PartComponent & CompoundParts[Name] {
+  return component as PartComponent & CompoundParts[Name];
+}
 
 const metrics = [
   { label: "Active members", value: "2,842", change: "+12.4%", detail: "vs. previous month" },
@@ -52,7 +144,7 @@ function SystemSelector({
   return (
     <Select value={system.id} onValueChange={onChange}>
       <Select.Trigger aria-label="Design system selector">
-        <Select.Value />
+        <Select.Value>{system.name}</Select.Value>
       </Select.Trigger>
       <Select.Content>
         {registeredSystems.map((item) => (
@@ -62,6 +154,274 @@ function SystemSelector({
         ))}
       </Select.Content>
     </Select>
+  );
+}
+
+function requiredV4Component(
+  system: RegisteredSystem,
+  name: RequiredV4Name,
+): React.ElementType | null {
+  if (system.componentContract !== "v4") return null;
+  const component = system.components[name];
+  if (!hasOwn(system.components, name) || component == null) return null;
+  if (!hasOwn(system.manifest.components, name)) return null;
+  return component;
+}
+
+function V4RequiredComposition({ system }: { system: RegisteredSystem }) {
+  const Heading = requiredV4Component(system, "Heading");
+  const Text = requiredV4Component(system, "Text");
+  const Link = requiredV4Component(system, "Link");
+  const Container = requiredV4Component(system, "Container");
+  const Stack = requiredV4Component(system, "Stack");
+  const FormFieldBase = requiredV4Component(system, "FormField");
+  if (!Heading || !Text || !Link || !Container || !Stack || !FormFieldBase) return null;
+  const FormField = compound(FormFieldBase, "FormField");
+  const { Card, Input } = system.components;
+
+  return (
+    <section className="v4-primitives" aria-labelledby="v4-primitives-title">
+      <div className="reference-section-heading">
+        <div>
+          <p className="eyebrow">Composition primitives</p>
+          <h2 id="v4-primitives-title">The rest of the required contract</h2>
+        </div>
+        <p>Six V4 building blocks, composed from the active package with no visual overrides.</p>
+      </div>
+      <Card>
+        <Card.Content>
+          <div className="v4-primitives-grid">
+            <div className="primitive-example">
+              <Heading level={3}>Heading</Heading>
+              <Text as="p">Semantic levels set the outline; the package sets the voice.</Text>
+            </div>
+            <div className="primitive-example">
+              <Heading level={3}>Text</Heading>
+              <Text as="p">Body and inline copy inherit the active system's type rules.</Text>
+            </div>
+            <div className="primitive-example">
+              <Heading level={3}>Link</Heading>
+              <Text as="p">
+                <Link href={`/showcase/${system.id}#components`}>
+                  Open this system's component catalog
+                </Link>
+              </Text>
+            </div>
+            <div className="primitive-example">
+              <Heading level={3}>Container</Heading>
+              <Container>
+                <Text as="p">Content width and padding come from system tokens.</Text>
+              </Container>
+            </div>
+            <div className="primitive-example">
+              <Heading level={3}>Stack</Heading>
+              <Stack direction="vertical">
+                <Text>Keep related actions together.</Text>
+                <Text>The system owns the rhythm.</Text>
+              </Stack>
+            </div>
+            <div className="primitive-example">
+              <Heading level={3}>FormField</Heading>
+              <FormField id="reference-workspace-email" required>
+                <FormField.Label>Email address</FormField.Label>
+                <FormField.Control asChild>
+                  <Input type="email" placeholder="name@company.com" />
+                </FormField.Control>
+                <FormField.Description>Used for workspace updates.</FormField.Description>
+              </FormField>
+            </div>
+          </div>
+        </Card.Content>
+      </Card>
+    </section>
+  );
+}
+
+function OptionalReference({ system, name }: { system: RegisteredSystem; name: OptionalName }) {
+  const Component = optionalComponent(system, name);
+  if (!Component) return null;
+
+  switch (name) {
+    case "Grid":
+      return (
+        <Component>
+          <span>Plan</span>
+          <span>Build</span>
+          <span>Review</span>
+        </Component>
+      );
+    case "Section": {
+      const Section = compound(Component, "Section");
+      return (
+        <Section>
+          <Section.Header>
+            <Section.Title>Team update</Section.Title>
+            <Section.Description>A labeled region built from this system.</Section.Description>
+          </Section.Header>
+          <Section.Content>Four people are ready to review.</Section.Content>
+        </Section>
+      );
+    }
+    case "Fieldset": {
+      const Fieldset = compound(Component, "Fieldset");
+      const { Checkbox } = system.components;
+      return (
+        <Fieldset>
+          <Fieldset.Legend>Updates</Fieldset.Legend>
+          <Checkbox label="Weekly digest" />
+          <Checkbox label="Product news" />
+        </Fieldset>
+      );
+    }
+    case "Alert": {
+      const Alert = compound(Component, "Alert");
+      return (
+        <Alert variant="success">
+          <Alert.Title>Saved</Alert.Title>
+          <Alert.Description>Your changes are up to date.</Alert.Description>
+        </Alert>
+      );
+    }
+    case "Progress":
+      return <Component aria-label="Project completion" value={72} max={100} />;
+    case "Skeleton":
+      return <Component />;
+    case "Toast": {
+      const Toast = compound(Component, "Toast");
+      return (
+        <Toast.Provider duration={null}>
+          <Toast.Viewport aria-label="Notifications">
+            <Toast.Root defaultOpen duration={null}>
+              <Toast.Title>Report saved</Toast.Title>
+              <Toast.Description>The update is ready to share.</Toast.Description>
+              <Toast.Close aria-label="Dismiss notification">×</Toast.Close>
+            </Toast.Root>
+          </Toast.Viewport>
+        </Toast.Provider>
+      );
+    }
+    case "Accordion": {
+      const Accordion = compound(Component, "Accordion");
+      return (
+        <Accordion type="single" defaultValue="members" collapsible>
+          <Accordion.Item value="members">
+            <Accordion.Header>
+              <Accordion.Trigger>Team members</Accordion.Trigger>
+            </Accordion.Header>
+            <Accordion.Content>Four people have access to this workspace.</Accordion.Content>
+          </Accordion.Item>
+        </Accordion>
+      );
+    }
+    case "Avatar": {
+      const Avatar = compound(Component, "Avatar");
+      return (
+        <Avatar aria-label="Maya Chen">
+          <Avatar.Fallback>MC</Avatar.Fallback>
+        </Avatar>
+      );
+    }
+    case "Breadcrumbs": {
+      const Breadcrumbs = compound(Component, "Breadcrumbs");
+      return (
+        <Breadcrumbs aria-label="Workspace breadcrumb">
+          <Breadcrumbs.List>
+            <Breadcrumbs.Item>
+              <Breadcrumbs.Link href="#overview">Workspace</Breadcrumbs.Link>
+            </Breadcrumbs.Item>
+            <Breadcrumbs.Item>
+              <Breadcrumbs.Link href="#projects">Projects</Breadcrumbs.Link>
+            </Breadcrumbs.Item>
+            <Breadcrumbs.Item>
+              <Breadcrumbs.Current>Atlas</Breadcrumbs.Current>
+            </Breadcrumbs.Item>
+          </Breadcrumbs.List>
+        </Breadcrumbs>
+      );
+    }
+    case "Pagination": {
+      const Pagination = compound(Component, "Pagination");
+      return (
+        <Pagination aria-label="Activity pages">
+          <Pagination.List>
+            <Pagination.Item>
+              <Pagination.Previous href="#activity">Previous</Pagination.Previous>
+            </Pagination.Item>
+            <Pagination.Item>
+              <Pagination.Current aria-current="page">1</Pagination.Current>
+            </Pagination.Item>
+            <Pagination.Item>
+              <Pagination.Link href="#activity">2</Pagination.Link>
+            </Pagination.Item>
+            <Pagination.Item>
+              <Pagination.Next href="#activity">Next</Pagination.Next>
+            </Pagination.Item>
+          </Pagination.List>
+        </Pagination>
+      );
+    }
+    case "Table": {
+      const Table = compound(Component, "Table");
+      return (
+        <Table aria-label="Work status">
+          <Table.Caption>Work status</Table.Caption>
+          <Table.Header>
+            <Table.Row>
+              <Table.Head scope="col">Item</Table.Head>
+              <Table.Head scope="col">Status</Table.Head>
+            </Table.Row>
+          </Table.Header>
+          <Table.Body>
+            <Table.Row>
+              <Table.Cell>Atlas launch</Table.Cell>
+              <Table.Cell>On track</Table.Cell>
+            </Table.Row>
+          </Table.Body>
+        </Table>
+      );
+    }
+  }
+  return null;
+}
+
+function OptionalReferenceSection({ system }: { system: RegisteredSystem }) {
+  const { Card } = system.components;
+  const available = OPTIONAL_COMPONENTS_V4.filter(
+    (name) => optionalComponent(system, name) !== null,
+  );
+  return (
+    <section className="optional-reference" aria-labelledby="optional-reference-title">
+      <div className="reference-section-heading">
+        <div>
+          <p className="eyebrow">Runtime capabilities</p>
+          <h2 id="optional-reference-title">Optional components in this system</h2>
+        </div>
+        <p>
+          Only optional components present in the active runtime and package manifest appear here.
+        </p>
+      </div>
+      {available.length > 0 ? (
+        <div className="optional-reference-grid">
+          {available.map((name) => (
+            <article className="optional-reference-item" key={name}>
+              <Card>
+                <Card.Header>
+                  <Card.Title>{name}</Card.Title>
+                  <Card.Description>Optional capability from {system.name}.</Card.Description>
+                </Card.Header>
+                <Card.Content>
+                  <OptionalReference system={system} name={name} />
+                </Card.Content>
+              </Card>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p className="optional-reference-empty">
+          This design system does not publish optional V4 components.
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -105,7 +465,7 @@ function Sidebar({
           <span>Workspace</span>
           <Select defaultValue="northstar">
             <Select.Trigger aria-label="Workspace">
-              <Select.Value />
+              <Select.Value>Northstar studio</Select.Value>
             </Select.Trigger>
             <Select.Content>
               <Select.Item value="northstar">Northstar studio</Select.Item>
@@ -124,7 +484,7 @@ function Sidebar({
             ···
           </Button>
         </div>
-        <div className="system-select">
+        <div className="system-select" id="settings">
           <span className="nav-label">Design system</span>
           <SystemSelector system={system} onChange={onChange} />
         </div>
@@ -135,8 +495,27 @@ function Sidebar({
 
 export function Dashboard() {
   const [systemId, setSystemId] = React.useState(registeredSystems[0]!.id);
+  const [darkTheme, setDarkTheme] = React.useState(false);
   const system = getRegisteredSystem(systemId);
-  const { Button, Input, Card, Badge, Checkbox, Tabs, Dialog, Select } = system.components;
+  React.useEffect(() => {
+    setDarkTheme(document.documentElement.dataset.prismTheme === "dark");
+  }, []);
+  const {
+    Button,
+    Input,
+    Textarea,
+    Card,
+    Badge,
+    Checkbox,
+    RadioGroup,
+    Switch,
+    Tabs,
+    Dialog,
+    DropdownMenu,
+    Tooltip,
+    Separator,
+    Select,
+  } = system.components;
   return (
     <main className={`dashboard-shell ${system.uiClass}`} data-system={system.id}>
       <Sidebar system={system} onChange={setSystemId} />
@@ -154,6 +533,21 @@ export function Dashboard() {
             </Button>
             <Button variant="ghost" size="icon" aria-label="Notifications">
               ♢
+            </Button>
+            <Button
+              variant="ghost"
+              aria-label={darkTheme ? "Switch to light theme" : "Switch to dark theme"}
+              aria-pressed={darkTheme}
+              disabled={!hasDarkTheme(system)}
+              onClick={() => {
+                setDarkTheme((current) => {
+                  const next = !current;
+                  document.documentElement.dataset.prismTheme = next ? "dark" : "light";
+                  return next;
+                });
+              }}
+            >
+              {darkTheme ? "Dark theme" : "Light theme"}
             </Button>
             <Button variant="primary">Share update</Button>
           </div>
@@ -194,7 +588,7 @@ export function Dashboard() {
             />
             <Select defaultValue="all">
               <Select.Trigger aria-label="Filter activity">
-                <Select.Value />
+                <Select.Value>All activity</Select.Value>
               </Select.Trigger>
               <Select.Content>
                 <Select.Item value="all">All activity</Select.Item>
@@ -204,7 +598,9 @@ export function Dashboard() {
             </Select>
             <Button variant="outline">Filter</Button>
             <Dialog>
-              <Dialog.Trigger>New report</Dialog.Trigger>
+              <Dialog.Trigger asChild>
+                <Button variant="primary">New report</Button>
+              </Dialog.Trigger>
               <Dialog.Content>
                 <Dialog.Header>
                   <Dialog.Title>Create a report</Dialog.Title>
@@ -232,6 +628,75 @@ export function Dashboard() {
               </Dialog.Content>
             </Dialog>
           </section>
+          <section className="required-control-reference" aria-labelledby="required-control-title">
+            <div className="reference-section-heading">
+              <div>
+                <p className="eyebrow">Required interactions</p>
+                <h2 id="required-control-title">Controls in context</h2>
+              </div>
+              <p>The fixed dashboard keeps the shared required controls in its composition.</p>
+            </div>
+            <div className="required-control-grid">
+              <div className="required-control-example">
+                <h3>Textarea</h3>
+                <Textarea
+                  id="dashboard-project-note"
+                  aria-label="Project note"
+                  placeholder="A short project note..."
+                  rows={2}
+                />
+              </div>
+              <div className="required-control-example">
+                <h3>RadioGroup</h3>
+                <RadioGroup
+                  aria-label="Report cadence"
+                  defaultValue="weekly"
+                  orientation="horizontal"
+                >
+                  <RadioGroup.Item value="weekly">
+                    <span>Weekly</span>
+                  </RadioGroup.Item>
+                  <RadioGroup.Item value="monthly">
+                    <span>Monthly</span>
+                  </RadioGroup.Item>
+                </RadioGroup>
+              </div>
+              <div className="required-control-example">
+                <h3>Switch</h3>
+                <div className="required-switch-row">
+                  <Switch aria-label="Include release notes" defaultChecked />
+                  <span>Include release notes</span>
+                </div>
+              </div>
+              <div className="required-control-example">
+                <h3>DropdownMenu</h3>
+                <DropdownMenu>
+                  <DropdownMenu.Trigger type="button">Project actions</DropdownMenu.Trigger>
+                  <DropdownMenu.Content>
+                    <DropdownMenu.Item>Rename</DropdownMenu.Item>
+                    <DropdownMenu.Item>Duplicate</DropdownMenu.Item>
+                  </DropdownMenu.Content>
+                </DropdownMenu>
+              </div>
+              <div className="required-control-example">
+                <h3>Tooltip</h3>
+                <Tooltip.Provider>
+                  <Tooltip>
+                    <Tooltip.Trigger type="button">Focus for a hint</Tooltip.Trigger>
+                    <Tooltip.Content>Short supporting context.</Tooltip.Content>
+                  </Tooltip>
+                </Tooltip.Provider>
+              </div>
+              <div className="required-control-example">
+                <h3>Separator</h3>
+                <div className="control-separator">
+                  <span>Budget</span>
+                  <Separator orientation="vertical" aria-label="Project detail boundary" />
+                  <span>Timeline</span>
+                </div>
+              </div>
+            </div>
+          </section>
           <section className="dashboard-columns">
             <div className="primary-column">
               <Card padding="none">
@@ -242,7 +707,12 @@ export function Dashboard() {
                   </div>
                   <Button variant="link">View all</Button>
                 </div>
-                <div className="activity-table" role="table" aria-label="Recent activity">
+                <div
+                  className="activity-table"
+                  id="activity"
+                  role="table"
+                  aria-label="Recent activity"
+                >
                   <div className="activity-head" role="row">
                     <span role="columnheader">Member</span>
                     <span role="columnheader">Activity</span>
@@ -375,6 +845,8 @@ export function Dashboard() {
               </Card.Content>
             </Card>
           </section>
+          <V4RequiredComposition system={system} />
+          <OptionalReferenceSection system={system} />
         </div>
       </div>
     </main>
