@@ -27,7 +27,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, relative, sep } from "node:path";
 
-import { V2_REQUIRED_COMPONENTS } from "./constants.mjs";
+import { CONTRACT_V4, V2_REQUIRED_COMPONENTS, V4_COMPONENT_NAMES } from "./constants.mjs";
+import { detectManifestContract } from "./manifest.mjs";
 import {
   CONSUMER_DIRECTORY,
   discoverConsumerPackage,
@@ -314,6 +315,26 @@ const LAYOUT_STYLE_PROPERTIES = Object.freeze(
 
 const CANONICAL_COMPONENTS = new Set(V2_REQUIRED_COMPONENTS);
 
+/**
+ * The canonical component names a manifest makes available, used by duplication
+ * detection. A V2 manifest provides the fourteen V2 names; a V4 manifest
+ * provides the twenty V4 required names plus only the optional capabilities the
+ * manifest actually declares (an omitted optional is not a system-provided
+ * primitive).
+ *
+ * @param {unknown} manifest
+ * @returns {string[]}
+ */
+export function componentNamesForManifest(manifest) {
+  if (detectManifestContract(manifest) !== CONTRACT_V4) {
+    return [...V2_REQUIRED_COMPONENTS];
+  }
+  const components = isPlainObject(manifest?.components) ? manifest.components : {};
+  return V4_COMPONENT_NAMES.filter((name) =>
+    Object.prototype.hasOwnProperty.call(components, name),
+  );
+}
+
 function isPlainObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -525,6 +546,7 @@ export function loadUsageContext({ cwd, ignore, strict } = {}) {
     rules: normalizeRules(installed.manifest?.rules),
     ignoreGlobs,
     manifest: installed.manifest,
+    componentNames: componentNamesForManifest(installed.manifest),
   };
 }
 
@@ -602,9 +624,16 @@ function readPropertyName(name, tsModule) {
 /**
  * Check one source text and return findings (without file-relative metadata
  * beyond positions). Exported for focused tests.
+ *
+ * `componentNames` is the set of canonical component names a local declaration
+ * or relative import must not duplicate. When omitted it defaults to the
+ * fourteen V2 names, preserving the original behavior for direct callers; the
+ * consumer checker passes the contract-appropriate set derived from the
+ * installed manifest.
  */
-export function checkSourceText({ fileName, text, rules, strict }) {
+export function checkSourceText({ fileName, text, rules, strict, componentNames }) {
   const ts = getTypeScript();
+  const canonical = componentNames === undefined ? CANONICAL_COMPONENTS : new Set(componentNames);
   const scriptKind = fileName.toLowerCase().endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   const sourceFile = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, scriptKind);
   const findings = [];
@@ -838,19 +867,19 @@ export function checkSourceText({ fileName, text, rules, strict }) {
           token: name,
         });
       };
-      if (clause.name && CANONICAL_COMPONENTS.has(clause.name.text)) {
+      if (clause.name && canonical.has(clause.name.text)) {
         flag(clause.name.text, clause.name.getStart(sourceFile));
       }
       if (clause.namedBindings && ts.isNamedImports(clause.namedBindings)) {
         for (const element of clause.namedBindings.elements) {
           const imported = element.propertyName ?? element.name;
-          if (CANONICAL_COMPONENTS.has(imported.text)) {
+          if (canonical.has(imported.text)) {
             flag(imported.text, imported.getStart(sourceFile));
           }
         }
       }
       if (clause.namedBindings && ts.isNamespaceImport(clause.namedBindings)) {
-        if (CANONICAL_COMPONENTS.has(clause.namedBindings.name.text)) {
+        if (canonical.has(clause.namedBindings.name.text)) {
           flag(clause.namedBindings.name.text, clause.namedBindings.name.getStart(sourceFile));
         }
       }
@@ -863,7 +892,7 @@ export function checkSourceText({ fileName, text, rules, strict }) {
       node.name
         ? node.name
         : null;
-    if (nameNode && ts.isIdentifier(nameNode) && CANONICAL_COMPONENTS.has(nameNode.text)) {
+    if (nameNode && ts.isIdentifier(nameNode) && canonical.has(nameNode.text)) {
       report({
         pos: node.getStart(sourceFile),
         ruleId: RULE_IDS.primitiveDuplication,
@@ -922,6 +951,7 @@ export function checkUsage({ cwd, ignore, strict } = {}) {
       text,
       rules: context.rules,
       strict: context.strict,
+      componentNames: context.componentNames,
     });
     findings.push(...fileFindings);
   }

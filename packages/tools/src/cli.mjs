@@ -7,18 +7,28 @@
  *   prism-ds search [query...] [--registry <url>] [--size <1..250>] [--json]
  *   prism-ds info <package-or-id> [version] [--registry <url>] [--json]
  *   prism-ds install <package-or-id> [version] --cwd <root> [--save-dev|--save-prod]
- *     [--exact] [--registry <url>]
+ *     [--exact] [--registry <url>] [--dry-run] [--json]
  *   prism-ds use <package-or-id> [version] --cwd <root> [install options]
  *     [--strict|--no-strict] [--ignore <glob>...] [--check-usage]
+ *     [--tailwind --css <file>] [--dry-run] [--json]
  *   prism-ds connect [package] --cwd <root> [--strict|--no-strict] [--check] [--dry-run]
  *   prism-ds check-usage --cwd <root> [--ignore <glob>] [--strict|--no-strict]
  *   prism-ds doctor [package] --cwd <root>
+ *   prism-ds components [name] --cwd <root> [--json]
+ *   prism-ds tokens [group] --cwd <root> [--json]
+ *   prism-ds check --cwd <root> [--css <file>] [--json]
+ *   prism-ds setup-tailwind --cwd <root> --css <file> [--dry-run] [--check] [--json]
+ *   prism-ds upgrade <package-or-id> <exact-version> --cwd <root>
+ *     [--dry-run] [--json] [--registry <url>] [--strict|--no-strict]
  *
- * Boundaries: `search`/`info` are explicit network, read-only. `install`/`use`
- * are the only commands that mutate consumer dependencies (via a fixed npm/pnpm
- * command). `connect`/`check-usage`/`doctor` are offline and never edit
- * dependencies. No postinstall, no source copying, no publishing, and no hidden
- * package selection. TypeScript is lazy-loaded only for `check-usage`.
+ * Boundaries: `search`/`info` are explicit network, read-only. `install`/`use`/
+ * `upgrade` are the only commands that mutate consumer dependencies (via a fixed
+ * npm/pnpm command), and `upgrade` only when explicitly invoked.
+ * `connect`/`check-usage`/`doctor`/`components`/`tokens`/`check`/`setup-tailwind`
+ * are offline; `setup-tailwind` edits only its explicit `--css` file (never on
+ * `--dry-run`/`--check`). No postinstall, no source copying, no publishing, and
+ * no hidden package selection. TypeScript is lazy-loaded only for `check-usage`
+ * and `check` (which invokes the usage checker).
  */
 
 import { readFileSync } from "node:fs";
@@ -52,22 +62,38 @@ export function helpText() {
     `  ${CLI_NAME} connect [package] --cwd <root> [options]`,
     `  ${CLI_NAME} check-usage --cwd <root> [options]`,
     `  ${CLI_NAME} doctor [package] --cwd <root>`,
+    `  ${CLI_NAME} components [name] --cwd <root> [--json]`,
+    `  ${CLI_NAME} tokens [group] --cwd <root> [--json]`,
+    `  ${CLI_NAME} check --cwd <root> [--css <file>] [--json]`,
+    `  ${CLI_NAME} setup-tailwind --cwd <root> --css <file> [--dry-run] [--check] [--json]`,
+    `  ${CLI_NAME} upgrade <package-or-id> <exact-version> --cwd <root> [options]`,
     `  ${CLI_NAME} --help`,
     "",
     "Commands:",
-    "  search       Search the npm registry for supported @prism-system/ui-* styles.",
-    "  info         Inspect a published style's manifest from the registry.",
-    "  install      Explicitly install a style into a consumer (npm or pnpm).",
-    "  use          Install, verify, and connect a style; optional strict usage check.",
-    "  connect      Configure an already-installed style in a consumer.",
-    "  check-usage  Deterministically validate strict usage with the TypeScript AST.",
-    "  doctor       Read-only diagnostics: containment, discovery, manifest, config.",
+    "  search          Search the npm registry for supported @prism-system/ui-* styles.",
+    "  info            Inspect a published style's manifest from the registry.",
+    "  install         Explicitly install a style into a consumer (npm or pnpm).",
+    "  use             Install, verify, connect a style; optional strict usage check.",
+    "  connect         Configure an already-installed style in a consumer.",
+    "  check-usage     Deterministically validate strict usage with the TypeScript AST.",
+    "  doctor          Read-only diagnostics: containment, discovery, manifest, config.",
+    "  components      Offline component catalog of the installed style.",
+    "  tokens          Offline V4 token catalog of the installed style.",
+    "  check           One offline read-only health report for a connected consumer.",
+    "  setup-tailwind  Write the Tailwind v4 bridge imports into one explicit CSS file.",
+    "  upgrade         Explicitly upgrade an installed style to an exact version.",
     "",
     "Boundaries:",
-    "  search/info              explicit network, read-only.",
-    "  install/use              the only commands that mutate consumer dependencies;",
-    "                           they run npm/pnpm with --ignore-scripts and fixed args.",
-    "  connect/check-usage/doctor  offline; never edit dependencies.",
+    "  search/info                      explicit network, read-only.",
+    "  install/use/upgrade              mutate consumer dependencies via a fixed npm/pnpm",
+    "                                   command with --ignore-scripts; upgrade does so only",
+    "                                   when explicitly invoked.",
+    "  connect/check-usage/doctor/      offline and never edit dependencies (connect writes",
+    "  components/tokens/check/         only its consumer config/AGENTS files; the others",
+    "                                   are read-only).",
+    "  setup-tailwind                   offline; the only command that edits its explicitly",
+    "                                   named --css file, and it writes nothing in --dry-run",
+    "                                   or --check.",
     "  No postinstall, no source copying, no publishing, no hidden package selection.",
     "",
     "Run a command with --help for its options.",
@@ -148,7 +174,7 @@ export function installHelpText() {
     `Usage: ${CLI_NAME} install <package-or-id> [version] --cwd <consumer-root> [options]`,
     "",
     "Explicitly install a supported design system into a consumer using npm or pnpm.",
-    "This is the only command that mutates consumer dependencies. The registry is",
+    "This is an explicit dependency-mutating command. The registry is",
     "resolved and validated first; if it fails the package manager is not invoked.",
     "",
     "Arguments:",
@@ -161,6 +187,8 @@ export function installHelpText() {
     "  --save-prod           Add as a dependency (default).",
     "  --exact               Save the exact resolved version (--save-exact).",
     "  --registry <url>      Registry base URL used for resolution and install.",
+    "  --dry-run             Resolve the exact target/command without spawning or writing.",
+    "  --json                Emit the stable structured result.",
     "  -h, --help            Show this help.",
     "",
     "The manager is detected from packageManager or exactly one supported lockfile;",
@@ -191,10 +219,137 @@ export function helpTextForUse() {
     "  --ignore <glob>       Extra root-relative ignore for --check-usage (repeatable;",
     "                        requires --check-usage).",
     "  --check-usage         Run the strict usage check after a successful connect.",
+    "  --tailwind --css <file>  Require Tailwind v4 and preflight one contained CSS file",
+    "                        before install; configure the bridge after connect.",
+    "  --dry-run             Resolve and plan without spawning or writing.",
+    "  --json                Emit the stable structured result.",
     "  -h, --help            Show this help.",
     "",
     "A failed package-manager install or verification stops before connect; a",
     "completed package-manager mutation is never rolled back automatically.",
+    "",
+  ].join("\n");
+}
+
+export function componentsHelpText() {
+  return [
+    `Usage: ${CLI_NAME} components [name] --cwd <consumer-root> [--json]`,
+    "",
+    "Offline, read-only component catalog for the design system installed in a",
+    "consumer. It reports the components declared by the installed package's public",
+    "./manifest export. It never installs, executes package code, or reaches the",
+    "network.",
+    "",
+    "Arguments:",
+    "  [name]                Optional single component name. A known-but-unavailable",
+    "                        optional is reported unavailable; an unknown name fails.",
+    "",
+    "Options:",
+    "  --cwd <path>          Consumer root (required; never defaults to a repo root).",
+    "  --json                Emit stable JSON.",
+    "  -h, --help            Show this help.",
+    "",
+  ].join("\n");
+}
+
+export function tokensHelpText() {
+  return [
+    `Usage: ${CLI_NAME} tokens [group] --cwd <consumer-root> [--json]`,
+    "",
+    "Offline, read-only token catalog for the design system installed in a consumer.",
+    "A V4 system reports its semantic token groups and generated CSS/Tailwind names;",
+    "a V2 system declares no token catalog and is reported unavailable (exit 0).",
+    "",
+    "Arguments:",
+    "  [group]               Optional V4 token group: themes, typography, spacing,",
+    "                        containers, breakpoints, layers, radius, shadow, motion.",
+    "",
+    "Options:",
+    "  --cwd <path>          Consumer root (required; never defaults to a repo root).",
+    "  --json                Emit stable JSON.",
+    "  -h, --help            Show this help.",
+    "",
+  ].join("\n");
+}
+
+export function checkHelpText() {
+  return [
+    `Usage: ${CLI_NAME} check --cwd <consumer-root> [--css <file>] [--json]`,
+    "",
+    "One offline, read-only health report for a connected consumer: config, doctor",
+    "diagnostics, public stylesheet/bridge exports, strict usage, and component",
+    "availability. The CSS import order is checked only when --css <file> is given;",
+    "otherwise the report does not scan for or guess a CSS file. Nothing is written.",
+    "",
+    "With --css the file is checked read-only against the setup-tailwind planner: the",
+    "report passes only when no import change would be written, and fails when imports",
+    "need adding or reordering.",
+    "",
+    "Options:",
+    "  --cwd <path>          Consumer root (required; never defaults to a repo root).",
+    "  --css <file>          Optional explicit CSS file to check import order on.",
+    "  --json                Emit stable JSON.",
+    "  -h, --help            Show this help.",
+    "",
+  ].join("\n");
+}
+
+export function setupTailwindHelpText() {
+  return [
+    `Usage: ${CLI_NAME} setup-tailwind --cwd <consumer-root> --css <file> [--dry-run] [--json]`,
+    `       ${CLI_NAME} setup-tailwind --check --cwd <consumer-root> --css <file> [--json]`,
+    "",
+    "Offline Tailwind v4 setup for a connected V4 consumer. It edits exactly the",
+    'explicit --css file so it loads "tailwindcss", the design-system bridge, and the',
+    "stylesheet in the required order. It never installs, runs scripts, edits",
+    "dependencies, or touches any other file.",
+    "",
+    "Modes:",
+    "  (default)             Write the managed imports into the --css file.",
+    "  --dry-run             Preview: report the planned change without writing, and",
+    "                        exit 0 whether or not changes are needed. A dry run is",
+    "                        not a check and never fails on pending changes.",
+    "  --check               Pass/fail gate: run the same planner read-only and succeed",
+    "                        only when plan.changed === false; when import changes are",
+    "                        needed, report them and exit non-zero. Unlike --dry-run,",
+    "                        pending changes are a failure.",
+    "",
+    "Options:",
+    "  --cwd <path>          Consumer root (required; never defaults to a repo root).",
+    "  --css <file>          The one existing CSS file to update (required; must stay",
+    "                        inside --cwd).",
+    '  --json                Emit stable JSON with a "mode" of "write" | "dry-run" |',
+    '                        "check"; --check still exits non-zero on pending changes.',
+    "  -h, --help            Show this help.",
+    "",
+  ].join("\n");
+}
+
+export function upgradeHelpText() {
+  return [
+    `Usage: ${CLI_NAME} upgrade <package-or-id> <exact-version> --cwd <consumer-root> [options]`,
+    "",
+    "Explicitly upgrade an installed design system to an exact registry version. This",
+    "mutates consumer dependencies through a fixed npm/pnpm command with",
+    "--ignore-scripts, only when invoked. The installed valid manifest is compared",
+    "against the validated target, and the component/token diff is reported before",
+    "any mutation.",
+    "",
+    "Arguments:",
+    "  <package-or-id>       A supported @prism-system/ui-* name or lower-kebab id.",
+    "  <exact-version>       Required exact semver of the target release.",
+    "",
+    "Options:",
+    "  --cwd <path>          Consumer root (required; never defaults to a repo root).",
+    "  --dry-run             Resolve and preview without spawning or writing.",
+    "  --json                Emit stable JSON.",
+    "  --registry <url>      Registry base URL used for resolution and install.",
+    "  --strict              Enable strict mode for the reconnect.",
+    "  --no-strict           Disable strict mode.",
+    "  -h, --help            Show this help.",
+    "",
+    "Both positionals are required; tags, ranges, aliases, and git/file/workspace",
+    "specs are rejected.",
     "",
   ].join("\n");
 }
@@ -225,6 +380,8 @@ function parseOptions(
     saveProd: false,
     exact: false,
     checkUsage: false,
+    tailwind: false,
+    css: undefined,
   };
   const booleanSet = new Set(booleans);
   const valueSet = new Set(values);
@@ -589,12 +746,25 @@ function reportInstallFailure(result) {
   process.exitCode = 1;
 }
 
+function reportInstallDryRun(result) {
+  process.stdout.write(
+    `Install dry run for ${result.package}@${result.version} (${result.manager}) in ` +
+      `${result.consumerRoot}\n`,
+  );
+  if (result.command) {
+    process.stdout.write(
+      `  command: ${[result.command.manager, ...result.command.args].join(" ")}\n`,
+    );
+  }
+  process.stdout.write("\nDry run: nothing was installed.\n");
+}
+
 export async function runInstallCommand(argv) {
   let parsed;
   try {
     parsed = parseOptions(argv, {
       maxPositionals: 2,
-      booleans: ["save-dev", "save-prod", "exact"],
+      booleans: ["save-dev", "save-prod", "exact", "dry-run", "json"],
       values: ["cwd", "registry"],
     });
   } catch (error) {
@@ -625,9 +795,19 @@ export async function runInstallCommand(argv) {
     saveDev: parsed.options.saveDev,
     exact: parsed.options.exact,
     registry: parsed.options.registry,
+    dryRun: parsed.options.dryRun,
   });
+  if (parsed.options.json) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    if (!result.ok) process.exitCode = 1;
+    return;
+  }
   if (!result.ok) {
     reportInstallFailure(result);
+    return;
+  }
+  if (result.dryRun) {
+    reportInstallDryRun(result);
     return;
   }
   process.stdout.write(
@@ -653,13 +833,42 @@ function reportUseFailure(result) {
   process.exitCode = 1;
 }
 
+function reportUseDryRun(result) {
+  const install = result.install;
+  process.stdout.write(
+    `Use dry run for ${install.package}@${install.version} (${install.manager}) in ` +
+      `${install.consumerRoot}\n\n`,
+  );
+  for (const change of result.plannedChanges) {
+    if (change.kind === "dependency") {
+      process.stdout.write(`  dependency: ${[change.manager, ...change.command.args].join(" ")}\n`);
+    } else if (change.kind === "css") {
+      process.stdout.write(
+        `  css: ${change.path} (${change.changed ? "would update" : "unchanged"})\n`,
+      );
+    } else if (change.kind === "connect") {
+      process.stdout.write(`  connect: ${change.path}\n`);
+    }
+  }
+  process.stdout.write("\nDry run: nothing was installed, connected, or written.\n");
+}
+
 export async function runUseCommand(argv) {
   let parsed;
   try {
     parsed = parseOptions(argv, {
       maxPositionals: 2,
-      booleans: ["strict", "save-dev", "save-prod", "exact", "check-usage"],
-      values: ["cwd", "registry"],
+      booleans: [
+        "strict",
+        "save-dev",
+        "save-prod",
+        "exact",
+        "check-usage",
+        "tailwind",
+        "dry-run",
+        "json",
+      ],
+      values: ["cwd", "registry", "css"],
       repeatable: ["ignore"],
     });
   } catch (error) {
@@ -693,9 +902,21 @@ export async function runUseCommand(argv) {
     strict: parsed.options.strict,
     ignore: parsed.options.ignore,
     checkUsage: parsed.options.checkUsage,
+    dryRun: parsed.options.dryRun,
+    tailwind: parsed.options.tailwind,
+    cssPath: parsed.options.css,
   });
+  if (parsed.options.json) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    if (!result.ok) process.exitCode = 1;
+    return;
+  }
   if (!result.ok) {
     reportUseFailure(result);
+    return;
+  }
+  if (result.dryRun) {
+    reportUseDryRun(result);
     return;
   }
   process.stdout.write(
@@ -710,6 +931,388 @@ export async function runUseCommand(argv) {
   if (result.usage) {
     process.stdout.write(`  usage: ${result.usage.summary}\n`);
   }
+  if (result.tailwindSetup) {
+    process.stdout.write(
+      result.tailwindSetup.changed
+        ? "  tailwind: updated the Tailwind bridge imports\n"
+        : "  tailwind: imports already up to date\n",
+    );
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* components                                                                 */
+/* -------------------------------------------------------------------------- */
+
+function reportComponentCatalog(result) {
+  const lines = [
+    `${result.package}@${result.version} — component catalog (contract ${result.contract})`,
+    `  showcase: ${result.showcase.route}`,
+    `  ${result.counts.required} required, ${result.counts.optional} optional; ` +
+      `${result.counts.available} available, ${result.counts.unavailable} unavailable`,
+    "",
+  ];
+  for (const component of result.components) {
+    const kind = component.required ? "required" : "optional";
+    const state = component.available ? "available" : "unavailable";
+    lines.push(`  ${component.name}  [${kind}] ${state}`);
+  }
+  if (result.requested) {
+    const requested = result.requested;
+    lines.push("");
+    lines.push(
+      `Requested ${requested.name}: ${requested.required ? "required" : "optional"}, ` +
+        `${requested.available ? "available" : "unavailable"}`,
+    );
+    if (requested.available) {
+      lines.push(`  variants: ${requested.variants.join(", ") || "(none)"}`);
+      lines.push(`  sizes:    ${requested.sizes.join(", ") || "(none)"}`);
+      lines.push(`  members:  ${requested.members.join(", ") || "(none)"}`);
+    }
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
+export async function runComponentsCommand(argv) {
+  let parsed;
+  try {
+    parsed = parseOptions(argv, {
+      maxPositionals: 1,
+      booleans: ["json"],
+      values: ["cwd"],
+    });
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  if (parsed.options.help) {
+    process.stdout.write(componentsHelpText());
+    return;
+  }
+  let result;
+  try {
+    const { listDesignSystemComponents } = await import("./components.mjs");
+    result = listDesignSystemComponents({
+      cwd: parsed.options.cwd,
+      name: parsed.positionals[0],
+    });
+  } catch (error) {
+    reportCommandFailure("Component catalog failed", error);
+    return;
+  }
+  if (parsed.options.json) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  }
+  process.stdout.write(`${reportComponentCatalog(result)}\n`);
+}
+
+/* -------------------------------------------------------------------------- */
+/* tokens                                                                     */
+/* -------------------------------------------------------------------------- */
+
+function reportTokenCatalog(result) {
+  const lines = [
+    `${result.package}@${result.version} — token catalog (contract ${result.contract})`,
+  ];
+  if (!result.supported) {
+    lines.push("");
+    lines.push("  token catalog unavailable");
+    lines.push(`  ${result.reason}`);
+    lines.push("");
+    return lines.join("\n");
+  }
+  lines.push(`  css prefix:      ${result.prefixes.css}`);
+  lines.push(`  tailwind prefix: ${result.prefixes.tailwind}`);
+  lines.push(`  ${result.counts.groups} group(s), ${result.counts.tokens} token(s)`);
+  lines.push("");
+  for (const group of result.groups) {
+    lines.push(`  ${group.group} (${group.tokens.length})`);
+    for (const token of group.tokens) {
+      const mapped = token.tailwind
+        ? (token.tailwind.utility ?? token.tailwind.variant ?? "(bridge variable)")
+        : "(none)";
+      lines.push(`    ${token.name}  css: ${token.cssVariable}  tailwind: ${mapped}`);
+    }
+  }
+  if (result.requested) {
+    lines.push("");
+    lines.push(
+      `Requested group ${result.requested.group}: ${result.requested.tokens.length} token(s)`,
+    );
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
+export async function runTokensCommand(argv) {
+  let parsed;
+  try {
+    parsed = parseOptions(argv, {
+      maxPositionals: 1,
+      booleans: ["json"],
+      values: ["cwd"],
+    });
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  if (parsed.options.help) {
+    process.stdout.write(tokensHelpText());
+    return;
+  }
+  let result;
+  try {
+    const { listDesignSystemTokens } = await import("./tokens.mjs");
+    result = listDesignSystemTokens({
+      cwd: parsed.options.cwd,
+      group: parsed.positionals[0],
+    });
+  } catch (error) {
+    reportCommandFailure("Token catalog failed", error);
+    return;
+  }
+  // A V2 manifest is a valid result with `supported: false`; report it and exit 0.
+  if (parsed.options.json) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  }
+  process.stdout.write(`${reportTokenCatalog(result)}\n`);
+}
+
+/* -------------------------------------------------------------------------- */
+/* check                                                                      */
+/* -------------------------------------------------------------------------- */
+
+function reportCheck(result) {
+  const lines = [result.summary, ""];
+  for (const check of result.checks) {
+    lines.push(`  [${check.status}] ${check.label}: ${check.detail}`);
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
+export async function runCheckCommand(argv) {
+  let parsed;
+  try {
+    parsed = parseOptions(argv, {
+      maxPositionals: 0,
+      booleans: ["json"],
+      values: ["cwd", "css"],
+    });
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  if (parsed.options.help) {
+    process.stdout.write(checkHelpText());
+    return;
+  }
+  let result;
+  try {
+    const { checkDesignSystem } = await import("./check.mjs");
+    result = checkDesignSystem({ cwd: parsed.options.cwd, cssPath: parsed.options.css });
+  } catch (error) {
+    reportCommandFailure("Check failed", error);
+    return;
+  }
+  if (parsed.options.json) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    if (!result.ok) process.exitCode = 1;
+    return;
+  }
+  process.stdout.write(`${reportCheck(result)}`);
+  if (result.ok) {
+    process.stdout.write("Check passed.\n");
+  } else {
+    process.stdout.write("Check failed.\n");
+    process.exitCode = 1;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* setup-tailwind                                                             */
+/* -------------------------------------------------------------------------- */
+
+export async function runSetupTailwindCommand(argv) {
+  let parsed;
+  try {
+    parsed = parseOptions(argv, {
+      maxPositionals: 0,
+      booleans: ["dry-run", "check", "json"],
+      values: ["cwd", "css"],
+    });
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  if (parsed.options.help) {
+    process.stdout.write(setupTailwindHelpText());
+    return;
+  }
+  if (parsed.options.check && parsed.options.dryRun) {
+    process.stderr.write("--check and --dry-run are mutually exclusive.\n");
+    process.exitCode = 1;
+    return;
+  }
+  const mode = parsed.options.check ? "check" : parsed.options.dryRun ? "dry-run" : "write";
+  const { setupTailwind } = await import("./tailwind-setup.mjs");
+  const result = setupTailwind({
+    cwd: parsed.options.cwd,
+    cssPath: parsed.options.css,
+    dryRun: mode !== "write",
+  });
+  // `--check` passes iff the planner would change nothing; a plain `--dry-run`
+  // is only a preview and never fails on pending changes; the dry run itself
+  // never writes, so `result.changed` is always false.
+  const pending = result.ok && (result.plan?.changed === true || result.changes.length > 0);
+  const passed = result.ok && (mode !== "check" || !pending);
+  if (parsed.options.json) {
+    // `mode` makes the read-only gate (`--check`) distinguishable from the
+    // preview (`--dry-run`) and the write mode, whose helper result is otherwise
+    // identical. `--check` still exits non-zero when changes are pending.
+    process.stdout.write(`${JSON.stringify({ mode, ...result }, null, 2)}\n`);
+    if (!passed) process.exitCode = 1;
+    return;
+  }
+  if (!result.ok) {
+    process.stdout.write("Tailwind setup failed\n\n");
+    for (const failure of result.failures) process.stdout.write(`  ${failure}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  if (mode === "check") {
+    if (pending) {
+      process.stdout.write(
+        `Tailwind setup check failed: CSS imports need adding or reordering in ` +
+          `${result.plan.cssPath} (this check changed nothing).\n`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+    process.stdout.write(
+      `Tailwind setup check passed: ${result.plan.cssPath} already loads the required imports.\n`,
+    );
+    return;
+  }
+  if (mode === "dry-run") {
+    process.stdout.write(
+      pending
+        ? `Tailwind setup dry run: CSS imports need adding or reordering in ` +
+            `${result.plan.cssPath}; a --check would fail and exit non-zero.\n`
+        : `Tailwind setup dry run: no changes needed; ${result.plan.cssPath} already ` +
+            "loads the required imports.\n",
+    );
+    process.stdout.write("Dry run: nothing was written (preview only; exit 0).\n");
+    return;
+  }
+  process.stdout.write(
+    result.changed
+      ? `Updated ${result.plan.cssPath} to load the required imports.\n`
+      : `No changes needed; ${result.plan.cssPath} already loads the required imports.\n`,
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* upgrade                                                                    */
+/* -------------------------------------------------------------------------- */
+
+function reportUpgradeFailure(result) {
+  process.stdout.write(`Upgrade failed (boundary: ${result.boundary ?? "unknown"})\n\n`);
+  for (const failure of result.failures) process.stdout.write(`  ${failure}\n`);
+  if (Array.isArray(result.preview) && result.preview.length > 0) {
+    process.stdout.write("\n");
+    for (const line of result.preview) process.stdout.write(`  ${line}\n`);
+  }
+  process.stdout.write("\nA failed registry step changed no dependencies.\n");
+  process.exitCode = 1;
+}
+
+function reportUpgradeDryRun(result) {
+  process.stdout.write(
+    `Upgrade dry run: ${result.package} ${result.fromVersion} -> ${result.toVersion}\n\n`,
+  );
+  for (const line of result.preview) process.stdout.write(`  ${line}\n`);
+  process.stdout.write("\n  planned changes:\n");
+  for (const change of result.plannedChanges) {
+    if (change.kind === "dependency") {
+      process.stdout.write(
+        `    dependency: ${[change.command.manager, ...change.command.args].join(" ")}\n`,
+      );
+    } else {
+      process.stdout.write(`    ${change.kind}: ${change.path}\n`);
+    }
+  }
+  process.stdout.write("\nDry run: nothing was installed or written.\n");
+}
+
+export async function runUpgradeCommand(argv) {
+  let parsed;
+  try {
+    parsed = parseOptions(argv, {
+      maxPositionals: 2,
+      booleans: ["strict", "dry-run", "json"],
+      values: ["cwd", "registry"],
+    });
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  if (parsed.options.help) {
+    process.stdout.write(upgradeHelpText());
+    return;
+  }
+  const target = parsed.positionals[0];
+  const version = parsed.positionals[1];
+  if (target === undefined || target.trim() === "") {
+    process.stderr.write("upgrade requires a package or system id.\n");
+    process.exitCode = 1;
+    return;
+  }
+  if (version === undefined || version.trim() === "") {
+    process.stderr.write("upgrade requires an explicit exact <version>.\n");
+    process.exitCode = 1;
+    return;
+  }
+  const { upgradeDesignSystem } = await import("./catalog.mjs");
+  const result = await upgradeDesignSystem({
+    cwd: parsed.options.cwd,
+    package: target,
+    version,
+    strict: parsed.options.strict,
+    registry: parsed.options.registry,
+    dryRun: parsed.options.dryRun,
+  });
+  if (parsed.options.json) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    if (!result.ok) process.exitCode = 1;
+    return;
+  }
+  if (!result.ok) {
+    reportUpgradeFailure(result);
+    return;
+  }
+  if (result.dryRun) {
+    reportUpgradeDryRun(result);
+    return;
+  }
+  process.stdout.write(
+    `Upgraded ${result.package} ${result.fromVersion} -> ${result.toVersion} with ` +
+      `${result.manager} in ${result.consumerRoot}.\n`,
+  );
+  process.stdout.write(`  registry: ${result.registry}\n`);
+  process.stdout.write(
+    result.connect?.changed
+      ? "  connected: consumer contract written\n"
+      : "  connected: already up to date\n",
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -752,6 +1355,26 @@ export async function runCli(argv) {
   }
   if (command === "doctor") {
     runDoctorCommand(rest);
+    return;
+  }
+  if (command === "components") {
+    await runComponentsCommand(rest);
+    return;
+  }
+  if (command === "tokens") {
+    await runTokensCommand(rest);
+    return;
+  }
+  if (command === "check") {
+    await runCheckCommand(rest);
+    return;
+  }
+  if (command === "setup-tailwind") {
+    await runSetupTailwindCommand(rest);
+    return;
+  }
+  if (command === "upgrade") {
+    await runUpgradeCommand(rest);
     return;
   }
   process.stderr.write(`Unknown command: ${command}. Run "${CLI_NAME} --help".\n`);

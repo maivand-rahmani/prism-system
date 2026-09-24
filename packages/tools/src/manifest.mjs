@@ -10,11 +10,25 @@
  */
 
 import {
+  CONTRACT_V2,
+  CONTRACT_V4,
   MANIFEST_SCHEMA_VERSION,
+  MANIFEST_V4_SCHEMA_VERSION,
   PACKAGE_SCOPE,
   RESERVED_SYSTEM_IDS,
   SYSTEM_ID_PATTERN,
+  TOKEN_NAMESPACE_PATTERN,
   V2_REQUIRED_COMPONENTS,
+  V4_COMPONENT_FIELDS,
+  V4_COMPONENT_NAMES,
+  V4_COMPONENT_OPTIONAL_FIELDS,
+  V4_COMPONENT_REQUIRED_FIELDS,
+  V4_DOC_FIELDS,
+  V4_REQUIRED_COMPONENTS,
+  V4_REQUIRED_DOC_FIELDS,
+  V4_TOKEN_ARTIFACT_FIELDS,
+  V4_TOKEN_GROUP_KEYS,
+  V4_TOKEN_NAME_FIELDS,
 } from "./constants.mjs";
 import { isExactSemver } from "./semver.mjs";
 
@@ -36,6 +50,13 @@ export const MANIFEST_TOP_LEVEL_KEYS = Object.freeze([
   "components",
   "design",
   "rules",
+]);
+
+/** Exactly the allowed top-level V4 manifest keys (the V2 keys plus `tokens`/`docs`). */
+export const MANIFEST_V4_TOP_LEVEL_KEYS = Object.freeze([
+  ...MANIFEST_TOP_LEVEL_KEYS,
+  "tokens",
+  "docs",
 ]);
 
 /** Exactly the allowed per-component keys. */
@@ -76,19 +97,42 @@ export function isUniqueStringArray(value) {
   return true;
 }
 
-/** Record missing and disallowed keys for an object with `additionalProperties:false`. */
-function collectExactKeys(value, requiredKeys, prefix, failures) {
-  const keys = Object.keys(value);
+/** True for an own property of an object. */
+function hasOwn(value, key) {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+/**
+ * Record missing required keys and disallowed extra keys for an object with
+ * `additionalProperties:false`. `allowedKeys` may be wider than `requiredKeys`
+ * when some fields are optional (for example V4 component metadata).
+ */
+function collectAllowedKeys(value, allowedKeys, requiredKeys, prefix, failures) {
   for (const key of requiredKeys) {
-    if (!Object.prototype.hasOwnProperty.call(value, key)) {
+    if (!hasOwn(value, key)) {
       failures.push(`${prefix}${key} is required.`);
     }
   }
-  for (const key of keys) {
-    if (!requiredKeys.includes(key)) {
+  for (const key of Object.keys(value)) {
+    if (!allowedKeys.includes(key)) {
       failures.push(`${prefix}${key} is not allowed.`);
     }
   }
+}
+
+/** Record missing and disallowed keys for an object with `additionalProperties:false`. */
+function collectExactKeys(value, requiredKeys, prefix, failures) {
+  collectAllowedKeys(value, requiredKeys, requiredKeys, prefix, failures);
+}
+
+/** True for a package-relative path like `./README.md`. */
+function isPackageRelativePath(value) {
+  return typeof value === "string" && value.startsWith("./") && value.length > 2;
+}
+
+/** True for a safe lower-kebab token namespace like `maivand-a` or `prism`. */
+function isSafeTokenNamespace(value) {
+  return typeof value === "string" && TOKEN_NAMESPACE_PATTERN.test(value);
 }
 
 function collectPackageNameFailures(value, failures) {
@@ -170,15 +214,170 @@ function collectRulesFailures(value, failures) {
 }
 
 /**
- * Collect every schema violation for a manifest as actionable strings.
- *
- * @param {unknown} manifest
- * @param {{ packageName?: string, version?: string }} [options] When provided,
- *   enforce exact package identity and version equality as well.
- * @returns {string[]}
+ * Strict `(schemaVersion, contract)` pair dispatch. Only `(1, "v2")` and
+ * `(2, "v4")` are recognized; every other pair (including missing fields)
+ * returns `null` so callers can fail closed without silently mixing contracts.
  */
-export function collectManifestFailures(manifest, { packageName, version } = {}) {
-  if (!isPlainObject(manifest)) return ["manifest must be a JSON object."];
+export function detectManifestContract(manifest) {
+  if (!isPlainObject(manifest)) return null;
+  if (manifest.schemaVersion === MANIFEST_SCHEMA_VERSION && manifest.contract === CONTRACT_V2) {
+    return CONTRACT_V2;
+  }
+  if (manifest.schemaVersion === MANIFEST_V4_SCHEMA_VERSION && manifest.contract === CONTRACT_V4) {
+    return CONTRACT_V4;
+  }
+  return null;
+}
+
+function unsupportedManifestPairMessage(manifest) {
+  const show = (value) => (value === undefined ? "undefined" : JSON.stringify(value));
+  return (
+    `Unsupported schema/contract pair (${show(manifest.schemaVersion)}, ` +
+    `${show(manifest.contract)}); expected (${MANIFEST_SCHEMA_VERSION}, ` +
+    `${JSON.stringify(CONTRACT_V2)}) or (${MANIFEST_V4_SCHEMA_VERSION}, ` +
+    `${JSON.stringify(CONTRACT_V4)}).`
+  );
+}
+
+/** Collect the V4 component-map violations (twenty required, known optionals only). */
+function collectV4ComponentFailures(value, failures) {
+  if (!isPlainObject(value)) {
+    failures.push("components must be an object.");
+    return;
+  }
+  const declared = Object.keys(value);
+  for (const name of V4_REQUIRED_COMPONENTS) {
+    if (!hasOwn(value, name)) failures.push(`components.${name} is required.`);
+  }
+  for (const name of declared) {
+    if (!V4_COMPONENT_NAMES.includes(name)) {
+      failures.push(`components.${name} is not allowed.`);
+    }
+  }
+  for (const name of V4_COMPONENT_NAMES) {
+    if (!hasOwn(value, name)) continue;
+    const component = value[name];
+    if (!isPlainObject(component)) {
+      failures.push(`components.${name} must be an object.`);
+      continue;
+    }
+    collectAllowedKeys(
+      component,
+      V4_COMPONENT_FIELDS,
+      V4_COMPONENT_REQUIRED_FIELDS,
+      `components.${name}.`,
+      failures,
+    );
+    for (const field of V4_COMPONENT_REQUIRED_FIELDS) {
+      if (!isUniqueStringArray(component[field])) {
+        failures.push(`components.${name}.${field} must be an array of unique non-empty strings.`);
+      }
+    }
+    for (const field of V4_COMPONENT_OPTIONAL_FIELDS) {
+      if (component[field] !== undefined && !isNonEmptyString(component[field])) {
+        failures.push(`components.${name}.${field} must be a non-empty string.`);
+      }
+    }
+  }
+}
+
+/** Collect the V4 `tokens` block violations (nine groups, three artifact paths, naming). */
+function collectV4TokenFailures(value, failures) {
+  if (!isPlainObject(value)) {
+    failures.push("tokens must be an object.");
+    return;
+  }
+  collectExactKeys(value, ["groups", "artifacts", "names"], "tokens.", failures);
+  if (!isPlainObject(value.groups)) {
+    failures.push("tokens.groups must be an object.");
+  } else {
+    collectExactKeys(value.groups, V4_TOKEN_GROUP_KEYS, "tokens.groups.", failures);
+    for (const key of V4_TOKEN_GROUP_KEYS) {
+      if (hasOwn(value.groups, key) && !isUniqueStringArray(value.groups[key])) {
+        failures.push(`tokens.groups.${key} must be an array of unique non-empty strings.`);
+      }
+    }
+  }
+  if (!isPlainObject(value.artifacts)) {
+    failures.push("tokens.artifacts must be an object.");
+  } else {
+    collectExactKeys(value.artifacts, V4_TOKEN_ARTIFACT_FIELDS, "tokens.artifacts.", failures);
+    for (const key of V4_TOKEN_ARTIFACT_FIELDS) {
+      if (hasOwn(value.artifacts, key) && !isPackageRelativePath(value.artifacts[key])) {
+        failures.push(
+          `tokens.artifacts.${key} must be a package-relative path starting with "./".`,
+        );
+      }
+    }
+  }
+  if (!isPlainObject(value.names)) {
+    failures.push("tokens.names must be an object.");
+  } else {
+    collectExactKeys(value.names, V4_TOKEN_NAME_FIELDS, "tokens.names.", failures);
+    for (const key of V4_TOKEN_NAME_FIELDS) {
+      if (hasOwn(value.names, key) && !isSafeTokenNamespace(value.names[key])) {
+        failures.push(`tokens.names.${key} must be a safe lower-kebab namespace.`);
+      }
+    }
+  }
+}
+
+/** Collect the V4 `docs` block violations (readme/agents required, known keys only). */
+function collectV4DocsFailures(value, failures) {
+  if (!isPlainObject(value)) {
+    failures.push("docs must be an object.");
+    return;
+  }
+  collectAllowedKeys(value, V4_DOC_FIELDS, V4_REQUIRED_DOC_FIELDS, "docs.", failures);
+  for (const key of V4_DOC_FIELDS) {
+    if (hasOwn(value, key) && !isPackageRelativePath(value[key])) {
+      failures.push(`docs.${key} must be a package-relative path starting with "./".`);
+    }
+  }
+}
+
+/** Collect every V4 manifest violation as actionable strings. */
+function collectV4ManifestFailures(manifest, { packageName, version } = {}) {
+  const failures = [];
+  collectExactKeys(manifest, MANIFEST_V4_TOP_LEVEL_KEYS, "", failures);
+  if (!isNonEmptyString(manifest.$schema)) failures.push("$schema must be a non-empty string.");
+  if (manifest.schemaVersion !== MANIFEST_V4_SCHEMA_VERSION) {
+    failures.push(`schemaVersion must be ${MANIFEST_V4_SCHEMA_VERSION}.`);
+  }
+  if (manifest.generated !== MANIFEST_GENERATED_MARKER) {
+    failures.push(`generated must be "${MANIFEST_GENERATED_MARKER}".`);
+  }
+  if (manifest.contract !== CONTRACT_V4) failures.push('contract must be "v4".');
+  if (typeof manifest.id !== "string" || !SYSTEM_ID_PATTERN.test(manifest.id)) {
+    failures.push("id must be lower-kebab-case.");
+  }
+  if (!isNonEmptyString(manifest.name)) failures.push("name must be a non-empty string.");
+  collectPackageNameFailures(manifest.package, failures);
+  if (packageName !== undefined && manifest.package !== packageName) {
+    failures.push(
+      `package ${JSON.stringify(manifest.package ?? null)} does not match "${packageName}".`,
+    );
+  }
+  if (!isExactSemver(manifest.version)) failures.push("version must be an exact semver.");
+  if (version !== undefined && manifest.version !== version) {
+    failures.push(
+      `version ${JSON.stringify(manifest.version ?? null)} does not match ${JSON.stringify(version)}.`,
+    );
+  }
+  if (!isPlainObject(manifest.exports) || Object.keys(manifest.exports).length === 0) {
+    failures.push("exports must be a non-empty object.");
+  }
+  collectPublicApiFailures(manifest.publicApi, failures);
+  collectV4ComponentFailures(manifest.components, failures);
+  collectDesignFailures(manifest.design, failures);
+  collectRulesFailures(manifest.rules, failures);
+  collectV4TokenFailures(manifest.tokens, failures);
+  collectV4DocsFailures(manifest.docs, failures);
+  return failures;
+}
+
+/** Collect every V2 manifest violation as actionable strings (unchanged behavior). */
+function collectV2ManifestFailures(manifest, { packageName, version } = {}) {
   const failures = [];
 
   collectExactKeys(manifest, MANIFEST_TOP_LEVEL_KEYS, "", failures);
@@ -189,7 +388,7 @@ export function collectManifestFailures(manifest, { packageName, version } = {})
   if (manifest.generated !== MANIFEST_GENERATED_MARKER) {
     failures.push(`generated must be "${MANIFEST_GENERATED_MARKER}".`);
   }
-  if (manifest.contract !== "v2") failures.push('contract must be "v2".');
+  if (manifest.contract !== CONTRACT_V2) failures.push('contract must be "v2".');
   if (typeof manifest.id !== "string" || !SYSTEM_ID_PATTERN.test(manifest.id)) {
     failures.push("id must be lower-kebab-case.");
   }
@@ -215,6 +414,28 @@ export function collectManifestFailures(manifest, { packageName, version } = {})
   collectRulesFailures(manifest.rules, failures);
 
   return failures;
+}
+
+/**
+ * Collect every schema violation for a manifest as actionable strings.
+ *
+ * Dispatch is strict on the `(schemaVersion, contract)` pair: `(1, "v2")` uses
+ * the fourteen-component V2 rules, `(2, "v4")` uses the twenty-plus-optional V4
+ * rules, and any other pair fails closed with a single dispatch failure.
+ *
+ * @param {unknown} manifest
+ * @param {{ packageName?: string, version?: string }} [options] When provided,
+ *   enforce exact package identity and version equality as well.
+ * @returns {string[]}
+ */
+export function collectManifestFailures(manifest, { packageName, version } = {}) {
+  if (!isPlainObject(manifest)) return ["manifest must be a JSON object."];
+  const contract = detectManifestContract(manifest);
+  if (contract === CONTRACT_V4)
+    return collectV4ManifestFailures(manifest, { packageName, version });
+  if (contract === CONTRACT_V2)
+    return collectV2ManifestFailures(manifest, { packageName, version });
+  return [unsupportedManifestPairMessage(manifest)];
 }
 
 /**

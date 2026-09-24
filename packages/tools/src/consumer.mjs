@@ -25,7 +25,9 @@
  * monorepo layout or importing package internals. Verification requires exact
  * equality among the consumer config version (when present), the installed
  * `package.json` version, the shipped `design-system.json` version, and the
- * package identity.
+ * package identity. The shipped manifest must be exactly one of the two
+ * supported `(schemaVersion, contract)` pairs — `(1, "v2")` or `(2, "v4")`; any
+ * other pair fails closed.
  *
  * This module is both a library and the implementation behind the `prism-ds`
  * CLI. It never falls back to a repository root: every entry point requires an
@@ -45,9 +47,12 @@ import {
 import { dirname, isAbsolute, join, resolve } from "node:path";
 
 import {
+  CONTRACT_V2,
+  CONTRACT_V4,
   MANIFEST_EXPORT_SUBPATH,
   MANIFEST_EXPORT_TARGET,
   MANIFEST_SCHEMA_VERSION,
+  MANIFEST_V4_SCHEMA_VERSION,
   PACKAGE_SCOPE,
   RESERVED_SYSTEM_IDS,
   SYSTEM_ID_PATTERN,
@@ -55,7 +60,7 @@ import {
   readJsonFile,
   toPackageName,
 } from "./constants.mjs";
-import { collectManifestFailures } from "./manifest.mjs";
+import { collectManifestFailures, detectManifestContract } from "./manifest.mjs";
 
 /** Consumer contract directory, relative to the consumer root. */
 export const CONSUMER_DIRECTORY = ".design-system";
@@ -405,7 +410,11 @@ export function resolveInstalledDesignSystem({ consumerRoot, packageName }) {
 }
 
 /**
- * Require exact version/identity equality. Throws with every failure aggregated.
+ * Require exact version/identity equality and a recognized contract/schema
+ * pair. Accepts both supported contracts `(1, "v2")` and `(2, "v4")`; any other
+ * pair fails closed. Throws with every failure aggregated.
+ *
+ * @returns {{ version: string, contract: "v2" | "v4" }}
  */
 export function verifyConsumerDesignSystem({ packageName, expectedVersion, installed }) {
   const failures = [];
@@ -427,19 +436,26 @@ export function verifyConsumerDesignSystem({ packageName, expectedVersion, insta
       )} does not match installed version ${JSON.stringify(installedVersion ?? null)}.`,
     );
   }
-  if (installed.manifest?.contract !== "v2") {
-    failures.push(
-      `Shipped manifest contract ${JSON.stringify(
-        installed.manifest?.contract ?? null,
-      )} must be "v2".`,
-    );
-  }
-  if (installed.manifest?.schemaVersion !== MANIFEST_SCHEMA_VERSION) {
-    failures.push(
-      `Shipped manifest schemaVersion ${JSON.stringify(
-        installed.manifest?.schemaVersion ?? null,
-      )} must be ${MANIFEST_SCHEMA_VERSION}.`,
-    );
+  // The manifest must be exactly one of the two supported contract/schema pairs:
+  // (schemaVersion 1, contract "v2") or (schemaVersion 2, contract "v4"). Any
+  // other pair fails closed here; for a recognized pair the full shape
+  // validation below reports the specific invalid fields.
+  const contract = detectManifestContract(installed.manifest);
+  if (contract === null) {
+    if (installed.manifest?.contract !== CONTRACT_V2) {
+      failures.push(
+        `Shipped manifest contract ${JSON.stringify(
+          installed.manifest?.contract ?? null,
+        )} must be "v2" or "v4".`,
+      );
+    }
+    if (installed.manifest?.schemaVersion !== MANIFEST_SCHEMA_VERSION) {
+      failures.push(
+        `Shipped manifest schemaVersion ${JSON.stringify(
+          installed.manifest?.schemaVersion ?? null,
+        )} must be ${MANIFEST_SCHEMA_VERSION} (v2) or ${MANIFEST_V4_SCHEMA_VERSION} (v4).`,
+      );
+    }
   }
   // Full schema-shape validation (the runtime counterpart of
   // schemas/design-system.schema.json), in addition to the exact identity checks
@@ -459,7 +475,7 @@ export function verifyConsumerDesignSystem({ packageName, expectedVersion, insta
   if (failures.length > 0) {
     throw new Error(failures.join(" "));
   }
-  return { version: installedVersion };
+  return { version: installedVersion, contract };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -483,8 +499,18 @@ export function buildConsumerConfig({ packageName, version, strict, ignore }) {
 }
 
 /** Render `<consumer-root>/.design-system/AGENTS.md`. */
-export function renderConsumerAgents({ packageName, version, strict }) {
+export function renderConsumerAgents({ packageName, version, strict, contract }) {
   const manifestRequest = `${packageName}${MANIFEST_EXPORT_SUBPATH.replace(/^\./, "")}`;
+  const importPaths = [
+    `\`${packageName}\``,
+    `\`${packageName}/tokens\``,
+    `\`${packageName}/styles.css\``,
+  ];
+  if (contract === CONTRACT_V4) importPaths.push(`\`${packageName}/tailwind.css\``);
+  importPaths.push(`\`${manifestRequest}\``);
+  const importList = `${importPaths.slice(0, -1).join(", ")}, and ${
+    importPaths[importPaths.length - 1]
+  }`;
   return [
     "# Design system consumer contract",
     "",
@@ -497,6 +523,7 @@ export function renderConsumerAgents({ packageName, version, strict }) {
     "",
     `- Package: \`${packageName}\``,
     `- Version: \`${version}\``,
+    ...(contract ? [`- Contract: \`${contract}\``] : []),
     `- Manifest: \`${manifestRequest}\``,
     `- Strict mode: \`${strict}\``,
     "",
@@ -512,7 +539,7 @@ export function renderConsumerAgents({ packageName, version, strict }) {
     "",
     "## Rules",
     "",
-    `- Import only from \`${packageName}\`, \`${packageName}/tokens\`, \`${packageName}/styles.css\`, and \`${manifestRequest}\`. Never import package internals.`,
+    `- Import only from ${importList}. Never import package internals.`,
     "- Compose existing components with props. Do not restyle them, copy package CSS, or override the visual language.",
     "- Layout (`grid`, `flex`, `gap`, responsive rules, positioning, page composition) belongs to the product. Colors, typography, spacing, radius, borders, shadows, states, variants, and motion belong to the design system.",
     "- In strict mode, do not introduce arbitrary colors, radius, or shadows, do not duplicate primitives, and do not create local replacements for components the design system already provides.",
@@ -523,14 +550,17 @@ export function renderConsumerAgents({ packageName, version, strict }) {
 }
 
 /** Render the managed contract block appended to the consumer root AGENTS.md. */
-export function buildManagedBlock({ packageName, version, strict }) {
+export function buildManagedBlock({ packageName, version, strict, contract }) {
   const manifestRequest = `${packageName}${MANIFEST_EXPORT_SUBPATH.replace(/^\./, "")}`;
+  const mode = contract
+    ? `contract \`${contract}\`, strict mode: \`${strict}\``
+    : `strict mode: \`${strict}\``;
   return [
     MANAGED_BLOCK_BEGIN,
     "## Design system (managed)",
     "",
     `This project consumes \`${packageName}@${version}\` as its visual source of truth`,
-    `(strict mode: \`${strict}\`). This block is managed by \`${CLI_NAME} connect\`; do not edit`,
+    `(${mode}). This block is managed by \`${CLI_NAME} connect\`; do not edit`,
     "it by hand.",
     "",
     "Before implementing UI, read in order:",
@@ -619,7 +649,7 @@ export function planConnect({ cwd, package: explicitPackage, strict, check = fal
     consumerRoot,
     packageName: discovered.packageName,
   });
-  const { version } = verifyConsumerDesignSystem({
+  const { version, contract } = verifyConsumerDesignSystem({
     packageName: discovered.packageName,
     expectedVersion: discovered.expectedVersion,
     installed,
@@ -660,11 +690,13 @@ export function planConnect({ cwd, package: explicitPackage, strict, check = fal
     packageName: discovered.packageName,
     version,
     strict: effectiveStrict,
+    contract,
   });
   const block = buildManagedBlock({
     packageName: discovered.packageName,
     version,
     strict: effectiveStrict,
+    contract,
   });
   const rootAgentsAfter = applyManagedBlock(readIfExists(rootAgentsPath), block);
 

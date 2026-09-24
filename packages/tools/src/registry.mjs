@@ -10,7 +10,14 @@
 
 import { createHash } from "node:crypto";
 
-import { PACKAGE_SCOPE } from "./constants.mjs";
+import {
+  CONTRACT_V2,
+  CONTRACT_V4,
+  PACKAGE_SCOPE,
+  V4_COMPONENT_NAMES,
+  V4_OPTIONAL_COMPONENTS,
+  V4_REQUIRED_COMPONENTS,
+} from "./constants.mjs";
 import { isSupportedPackageName, normalizeRequestedPackage } from "./consumer.mjs";
 import { validateDesignSystemManifest } from "./manifest.mjs";
 import { assertExactSemver, compareSemverDesc, isExactSemver } from "./semver.mjs";
@@ -313,9 +320,12 @@ export function validateRegistryMetadata({ packageName, version, metadata }) {
       `metadata version ${JSON.stringify(metadata.version ?? null)} does not match ${version}.`,
     );
   }
-  if (metadata.prismSystem?.contract !== "v2") {
+  if (
+    metadata.prismSystem?.contract !== CONTRACT_V2 &&
+    metadata.prismSystem?.contract !== CONTRACT_V4
+  ) {
     failures.push(
-      `prismSystem.contract must be "v2" (received ${JSON.stringify(metadata.prismSystem?.contract ?? null)}).`,
+      `prismSystem.contract must be "v2" or "v4" (received ${JSON.stringify(metadata.prismSystem?.contract ?? null)}).`,
     );
   }
   if (metadata.exports?.["./manifest"] !== "./design-system.json") {
@@ -410,16 +420,34 @@ export async function fetchDesignSystemInfo({
     throw new Error(`Registry manifest is not valid JSON: ${error.message}`);
   }
   validateManifestShape(manifest, { packageName, version: resolvedVersion });
+  // The registry metadata contract and the shipped manifest's strict
+  // (schemaVersion, contract) pair must agree; a mismatch fails closed.
+  const declaredContract = metadata.prismSystem?.contract;
+  if (declaredContract !== undefined && declaredContract !== manifest.contract) {
+    throw new Error(
+      `Registry metadata contract ${JSON.stringify(declaredContract)} does not match the shipped ` +
+        `manifest contract ${JSON.stringify(manifest.contract ?? null)} for ` +
+        `"${packageName}@${resolvedVersion}".`,
+    );
+  }
   return { package: packageName, version: resolvedVersion, registry: registryUrl, manifest };
 }
 
-/** Build the stable, allowlisted `info --json` object (includes the full manifest). */
+/**
+ * Build the stable, allowlisted `info --json` object (includes the full manifest).
+ *
+ * V2 keeps the exact original shape. V4 adds only additive fields describing the
+ * visual design direction, the actual available components/capabilities, the
+ * flattened token groups/names, and the documentation / Showcase links, all read
+ * from the already-validated manifest.
+ */
 export function buildInfoResult(info) {
-  const design = isPlainObject(info.manifest.design) ? info.manifest.design : {};
-  return {
+  const manifest = info.manifest;
+  const design = isPlainObject(manifest.design) ? manifest.design : {};
+  const base = {
     package: info.package,
     version: info.version,
-    name: info.manifest.name,
+    name: manifest.name,
     design: {
       density: typeof design.density === "string" ? design.density : null,
       theme: typeof design.theme === "string" ? design.theme : null,
@@ -428,9 +456,30 @@ export function buildInfoResult(info) {
         ? design.keywords.filter((keyword) => typeof keyword === "string")
         : [],
     },
-    components: info.manifest.components,
-    rules: info.manifest.rules,
-    manifest: info.manifest,
+    components: manifest.components,
+    rules: manifest.rules,
+    manifest,
+  };
+  if (manifest.contract !== CONTRACT_V4) return base;
+
+  const components = isPlainObject(manifest.components) ? manifest.components : {};
+  const tokens = isPlainObject(manifest.tokens) ? manifest.tokens : {};
+  return {
+    ...base,
+    contract: CONTRACT_V4,
+    availableComponents: V4_COMPONENT_NAMES.filter((name) => name in components),
+    capabilities: {
+      required: [...V4_REQUIRED_COMPONENTS],
+      optional: V4_OPTIONAL_COMPONENTS.filter((name) => name in components),
+    },
+    tokens: {
+      groups: isPlainObject(tokens.groups) ? tokens.groups : {},
+      artifacts: isPlainObject(tokens.artifacts) ? tokens.artifacts : {},
+    },
+    docs: isPlainObject(manifest.docs) ? manifest.docs : {},
+    showcase: {
+      route: `/showcase/${manifest.id}`,
+    },
   };
 }
 
