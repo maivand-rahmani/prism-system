@@ -1,0 +1,59 @@
+{
+  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system-source-v4.schema.json",
+  "schemaVersion": 2,
+  "contract": "v4",
+  "name": "V4 Valid",
+  "components": {
+    "Button": {
+      "variants": ["primary", "secondary", "ghost"],
+      "sizes": ["sm", "md", "lg"],
+      "members": []
+    },
+    "Input": { "variants": [], "sizes": ["sm", "md", "lg"], "members": [] },
+    "Textarea": { "variants": [], "sizes": ["sm", "md", "lg"], "members": [] },
+    "Card": {
+      "variants": ["default", "outline"],
+      "sizes": [],
+      "members": ["Header", "Title", "Content", "Footer"]
+    },
+    "Badge": { "variants": ["default", "success", "danger"], "sizes": ["sm", "md"], "members": [] },
+    "Checkbox": { "variants": [], "sizes": ["sm", "md"], "members": [] },
+    "RadioGroup": { "variants": [], "sizes": [], "members": ["Item"] },
+    "Switch": { "variants": [], "sizes": ["sm", "md"], "members": ["Thumb"] },
+    "Select": { "variants": [], "sizes": ["sm", "md"], "members": ["Trigger", "Content", "Item"] },
+    "Tabs": { "variants": [], "sizes": [], "members": ["List", "Trigger", "Content"] },
+    "Dialog": { "variants": [], "sizes": [], "members": ["Trigger", "Content", "Title"] },
+    "DropdownMenu": { "variants": [], "sizes": [], "members": ["Trigger", "Content", "Item"] },
+    "Tooltip": { "variants": [], "sizes": [], "members": ["Provider", "Trigger", "Content"] },
+    "Separator": { "variants": [], "sizes": [], "members": [] },
+    "Heading": { "variants": [], "sizes": ["sm", "md", "lg"], "members": [] },
+    "Text": { "variants": ["body", "muted"], "sizes": [], "members": [] },
+    "Link": { "variants": ["default", "subtle"], "sizes": [], "members": [] },
+    "Container": { "variants": [], "sizes": ["narrow", "content", "wide", "full"], "members": [] },
+    "Stack": { "variants": [], "sizes": [], "members": [] },
+    "FormField": { "variants": [], "sizes": [], "members": ["Label", "Control", "Help", "Error"] },
+    "Grid": { "variants": [], "sizes": [], "members": [] },
+    "Alert": {
+      "variants": ["info", "success", "warning", "danger"],
+      "sizes": [],
+      "members": ["Title", "Description"]
+    }
+  },
+  "design": {
+    "density": "comfortable",
+    "theme": "dual",
+    "radius": "medium",
+    "keywords": ["calm", "editorial"]
+  },
+  "rules": {
+    "allowArbitraryColors": false,
+    "allowArbitraryRadius": false,
+    "allowArbitraryShadows": false,
+    "allowPrimitiveDuplication": false
+  },
+  "docs": {
+    "readme": "./README.md",
+    "agents": "./AGENTS.md",
+    "foundations": "./docs/foundations.md"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "@prism-system/ui-v4-valid",
+  "version": "0.0.0",
+  "description": "V4 validation fixture package.",
+  "private": true,
+  "prismSystem": {
+    "name": "V4 Valid",
+    "contract": "v4",
+    "uiClass": "maivand-valid-ui",
+    "tokensExport": "v4ValidTokens"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs"
+    },
+    "./styles.css": "./dist/index.css",
+    "./tokens": {
+      "types": "./dist/tokens/index.d.ts",
+      "import": "./dist/tokens/index.mjs"
+    },
+    "./tailwind.css": "./dist/tailwind.css",
+    "./manifest": "./design-system.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "AGENTS.md",
+    "design-system.json",
+    "design-brief.json",
+    "LICENSE"
+  ]
+}

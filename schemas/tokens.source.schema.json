@@ -1,0 +1,420 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/maivand-rahmani/prism-system/schemas/tokens.source.schema.json",
+  "title": "Design System Token Source",
+  "description": "The declarative, package-owned semantic token source at packages/<id>/tokens.source.json (V4). It declares light/dark semantic colors, typography, spacing scale and roles, container widths, breakpoints, layers, radius, shadow, and motion. Every leaf is either a type-appropriate literal or exactly {\"$ref\": \"dot.separated.path\"} to another leaf. Visual values stay in the design-system package: @prism-system/ui-core never imports this schema or a runtime for it. scripts/design-system-manifest.mjs validates it and derives the shipped token names exposed by design-system.json.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "themes",
+    "typography",
+    "spacing",
+    "containers",
+    "breakpoints",
+    "layers",
+    "radius",
+    "shadow",
+    "motion"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to this schema."
+    },
+    "schemaVersion": {
+      "const": 1,
+      "description": "Token source schema version. Bump when the shape changes."
+    },
+    "themes": {
+      "type": "object",
+      "description": "Light and dark semantic color themes. Both themes must declare the identical required semantic groups.",
+      "required": ["light", "dark"],
+      "additionalProperties": false,
+      "properties": {
+        "light": {
+          "type": "object",
+          "required": ["color"],
+          "additionalProperties": false,
+          "properties": {
+            "color": { "$ref": "#/$defs/colorSemantic" }
+          }
+        },
+        "dark": {
+          "type": "object",
+          "required": ["color"],
+          "additionalProperties": false,
+          "properties": {
+            "color": { "$ref": "#/$defs/colorSemantic" }
+          }
+        }
+      }
+    },
+    "typography": {
+      "type": "object",
+      "required": ["family", "size", "weight", "lineHeight", "letterSpacing"],
+      "additionalProperties": false,
+      "properties": {
+        "family": {
+          "type": "object",
+          "required": ["sans", "mono"],
+          "additionalProperties": false,
+          "properties": {
+            "sans": { "$ref": "#/$defs/fontFamily" },
+            "mono": { "$ref": "#/$defs/fontFamily" }
+          }
+        },
+        "size": {
+          "type": "object",
+          "required": ["xs", "sm", "md", "lg", "xl", "2xl", "3xl", "4xl"],
+          "additionalProperties": false,
+          "properties": {
+            "xs": { "$ref": "#/$defs/dimension" },
+            "sm": { "$ref": "#/$defs/dimension" },
+            "md": { "$ref": "#/$defs/dimension" },
+            "lg": { "$ref": "#/$defs/dimension" },
+            "xl": { "$ref": "#/$defs/dimension" },
+            "2xl": { "$ref": "#/$defs/dimension" },
+            "3xl": { "$ref": "#/$defs/dimension" },
+            "4xl": { "$ref": "#/$defs/dimension" }
+          }
+        },
+        "weight": {
+          "type": "object",
+          "required": ["light", "normal", "medium", "semibold", "bold"],
+          "additionalProperties": false,
+          "properties": {
+            "light": { "$ref": "#/$defs/fontWeight" },
+            "normal": { "$ref": "#/$defs/fontWeight" },
+            "medium": { "$ref": "#/$defs/fontWeight" },
+            "semibold": { "$ref": "#/$defs/fontWeight" },
+            "bold": { "$ref": "#/$defs/fontWeight" }
+          }
+        },
+        "lineHeight": {
+          "type": "object",
+          "required": ["tight", "normal", "relaxed"],
+          "additionalProperties": false,
+          "properties": {
+            "tight": { "$ref": "#/$defs/lineHeight" },
+            "normal": { "$ref": "#/$defs/lineHeight" },
+            "relaxed": { "$ref": "#/$defs/lineHeight" }
+          }
+        },
+        "letterSpacing": {
+          "type": "object",
+          "description": "Signed lengths are allowed here (and only here): negative tracking is valid.",
+          "required": ["tight", "normal", "wide"],
+          "additionalProperties": false,
+          "properties": {
+            "tight": { "$ref": "#/$defs/signedDimension" },
+            "normal": { "$ref": "#/$defs/signedDimension" },
+            "wide": { "$ref": "#/$defs/signedDimension" }
+          }
+        }
+      }
+    },
+    "spacing": {
+      "type": "object",
+      "required": ["scale", "semantic"],
+      "additionalProperties": false,
+      "properties": {
+        "scale": {
+          "type": "object",
+          "required": ["0", "1", "2", "3", "4", "6", "8", "12", "16", "24"],
+          "additionalProperties": false,
+          "properties": {
+            "0": { "$ref": "#/$defs/dimension" },
+            "1": { "$ref": "#/$defs/dimension" },
+            "2": { "$ref": "#/$defs/dimension" },
+            "3": { "$ref": "#/$defs/dimension" },
+            "4": { "$ref": "#/$defs/dimension" },
+            "6": { "$ref": "#/$defs/dimension" },
+            "8": { "$ref": "#/$defs/dimension" },
+            "12": { "$ref": "#/$defs/dimension" },
+            "16": { "$ref": "#/$defs/dimension" },
+            "24": { "$ref": "#/$defs/dimension" }
+          }
+        },
+        "semantic": {
+          "type": "object",
+          "required": ["inline", "inset", "stack", "section"],
+          "additionalProperties": false,
+          "properties": {
+            "inline": { "$ref": "#/$defs/dimension" },
+            "inset": { "$ref": "#/$defs/dimension" },
+            "stack": { "$ref": "#/$defs/dimension" },
+            "section": { "$ref": "#/$defs/dimension" }
+          }
+        }
+      }
+    },
+    "containers": {
+      "type": "object",
+      "required": ["narrow", "content", "wide", "full"],
+      "additionalProperties": false,
+      "properties": {
+        "narrow": { "$ref": "#/$defs/dimension" },
+        "content": { "$ref": "#/$defs/dimension" },
+        "wide": { "$ref": "#/$defs/dimension" },
+        "full": { "$ref": "#/$defs/dimension" }
+      }
+    },
+    "breakpoints": {
+      "type": "object",
+      "description": "Static breakpoints. Only absolute lengths (px, rem, em) are allowed; breakpoints cannot switch at runtime.",
+      "required": ["sm", "md", "lg", "xl"],
+      "additionalProperties": false,
+      "properties": {
+        "sm": { "$ref": "#/$defs/absoluteDimension" },
+        "md": { "$ref": "#/$defs/absoluteDimension" },
+        "lg": { "$ref": "#/$defs/absoluteDimension" },
+        "xl": { "$ref": "#/$defs/absoluteDimension" }
+      }
+    },
+    "layers": {
+      "type": "object",
+      "required": ["base", "dropdown", "sticky", "overlay", "modal", "toast", "tooltip"],
+      "additionalProperties": false,
+      "properties": {
+        "base": { "$ref": "#/$defs/integer" },
+        "dropdown": { "$ref": "#/$defs/integer" },
+        "sticky": { "$ref": "#/$defs/integer" },
+        "overlay": { "$ref": "#/$defs/integer" },
+        "modal": { "$ref": "#/$defs/integer" },
+        "toast": { "$ref": "#/$defs/integer" },
+        "tooltip": { "$ref": "#/$defs/integer" }
+      }
+    },
+    "radius": {
+      "type": "object",
+      "required": ["none", "sm", "md", "lg", "full"],
+      "additionalProperties": false,
+      "properties": {
+        "none": { "$ref": "#/$defs/dimension" },
+        "sm": { "$ref": "#/$defs/dimension" },
+        "md": { "$ref": "#/$defs/dimension" },
+        "lg": { "$ref": "#/$defs/dimension" },
+        "full": { "$ref": "#/$defs/dimension" }
+      }
+    },
+    "shadow": {
+      "type": "object",
+      "required": ["sm", "md", "lg", "focus"],
+      "additionalProperties": false,
+      "properties": {
+        "sm": { "$ref": "#/$defs/shadow" },
+        "md": { "$ref": "#/$defs/shadow" },
+        "lg": { "$ref": "#/$defs/shadow" },
+        "focus": { "$ref": "#/$defs/shadow" }
+      }
+    },
+    "motion": {
+      "type": "object",
+      "required": ["duration", "easing"],
+      "additionalProperties": false,
+      "properties": {
+        "duration": {
+          "type": "object",
+          "required": ["fast", "normal", "slow", "reduced"],
+          "additionalProperties": false,
+          "properties": {
+            "fast": { "$ref": "#/$defs/time" },
+            "normal": { "$ref": "#/$defs/time" },
+            "slow": { "$ref": "#/$defs/time" },
+            "reduced": { "$ref": "#/$defs/time" }
+          }
+        },
+        "easing": {
+          "type": "object",
+          "required": ["standard", "entrance", "exit"],
+          "additionalProperties": false,
+          "properties": {
+            "standard": { "$ref": "#/$defs/easing" },
+            "entrance": { "$ref": "#/$defs/easing" },
+            "exit": { "$ref": "#/$defs/easing" }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "refObject": {
+      "type": "object",
+      "description": "A reference to another token leaf by dot-separated path.",
+      "required": ["$ref"],
+      "additionalProperties": false,
+      "properties": {
+        "$ref": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+)*$"
+        }
+      }
+    },
+    "colorSemantic": {
+      "type": "object",
+      "required": ["text", "surface", "border", "action", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "object",
+          "required": ["primary", "secondary", "muted", "inverse"],
+          "additionalProperties": false,
+          "properties": {
+            "primary": { "$ref": "#/$defs/color" },
+            "secondary": { "$ref": "#/$defs/color" },
+            "muted": { "$ref": "#/$defs/color" },
+            "inverse": { "$ref": "#/$defs/color" }
+          }
+        },
+        "surface": {
+          "type": "object",
+          "required": ["canvas", "raised", "sunken", "inverse"],
+          "additionalProperties": false,
+          "properties": {
+            "canvas": { "$ref": "#/$defs/color" },
+            "raised": { "$ref": "#/$defs/color" },
+            "sunken": { "$ref": "#/$defs/color" },
+            "inverse": { "$ref": "#/$defs/color" }
+          }
+        },
+        "border": {
+          "type": "object",
+          "required": ["default", "strong", "focus"],
+          "additionalProperties": false,
+          "properties": {
+            "default": { "$ref": "#/$defs/color" },
+            "strong": { "$ref": "#/$defs/color" },
+            "focus": { "$ref": "#/$defs/color" }
+          }
+        },
+        "action": {
+          "type": "object",
+          "required": [
+            "primary",
+            "primaryHover",
+            "primaryText",
+            "secondary",
+            "secondaryHover",
+            "secondaryText"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "primary": { "$ref": "#/$defs/color" },
+            "primaryHover": { "$ref": "#/$defs/color" },
+            "primaryText": { "$ref": "#/$defs/color" },
+            "secondary": { "$ref": "#/$defs/color" },
+            "secondaryHover": { "$ref": "#/$defs/color" },
+            "secondaryText": { "$ref": "#/$defs/color" }
+          }
+        },
+        "status": {
+          "type": "object",
+          "required": ["info", "success", "warning", "danger"],
+          "additionalProperties": false,
+          "properties": {
+            "info": { "$ref": "#/$defs/color" },
+            "success": { "$ref": "#/$defs/color" },
+            "warning": { "$ref": "#/$defs/color" },
+            "danger": { "$ref": "#/$defs/color" }
+          }
+        }
+      }
+    },
+    "colorLiteral": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^;{}<>!]+$",
+      "description": "A safe CSS color literal with no declaration delimiters."
+    },
+    "color": {
+      "anyOf": [{ "$ref": "#/$defs/refObject" }, { "$ref": "#/$defs/colorLiteral" }]
+    },
+    "dimensionLiteral": {
+      "type": "string",
+      "pattern": "^(?:\\d+(?:\\.\\d+)?|\\.\\d+)(px|rem|em|ch|vw|vh|%)$",
+      "description": "A non-negative CSS length using px, rem, em, ch, vw, vh, or %."
+    },
+    "dimension": {
+      "anyOf": [{ "$ref": "#/$defs/refObject" }, { "$ref": "#/$defs/dimensionLiteral" }]
+    },
+    "signedDimensionLiteral": {
+      "type": "string",
+      "pattern": "^-?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(px|rem|em|ch|vw|vh|%)$",
+      "description": "A signed CSS length using px, rem, em, ch, vw, vh, or %. Only typography.letterSpacing accepts negative values."
+    },
+    "signedDimension": {
+      "anyOf": [{ "$ref": "#/$defs/refObject" }, { "$ref": "#/$defs/signedDimensionLiteral" }]
+    },
+    "absoluteDimensionLiteral": {
+      "type": "string",
+      "pattern": "^(?:\\d+(?:\\.\\d+)?|\\.\\d+)(px|rem|em)$",
+      "description": "A non-negative absolute CSS length using px, rem, or em."
+    },
+    "absoluteDimension": {
+      "anyOf": [{ "$ref": "#/$defs/refObject" }, { "$ref": "#/$defs/absoluteDimensionLiteral" }]
+    },
+    "timeLiteral": {
+      "type": "string",
+      "pattern": "^(?:\\d+(?:\\.\\d+)?|\\.\\d+)(ms|s)$",
+      "description": "A duration using ms or s."
+    },
+    "time": {
+      "anyOf": [{ "$ref": "#/$defs/refObject" }, { "$ref": "#/$defs/timeLiteral" }]
+    },
+    "integerLiteral": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "A non-negative integer."
+    },
+    "integer": {
+      "anyOf": [{ "$ref": "#/$defs/refObject" }, { "$ref": "#/$defs/integerLiteral" }]
+    },
+    "fontWeightLiteral": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 900,
+      "description": "A numeric font weight between 100 and 900."
+    },
+    "fontWeight": {
+      "anyOf": [{ "$ref": "#/$defs/refObject" }, { "$ref": "#/$defs/fontWeightLiteral" }]
+    },
+    "lineHeightLiteral": {
+      "anyOf": [
+        { "type": "number", "exclusiveMinimum": 0 },
+        { "$ref": "#/$defs/dimensionLiteral" }
+      ],
+      "description": "A positive unitless number or a valid length."
+    },
+    "lineHeight": {
+      "anyOf": [{ "$ref": "#/$defs/refObject" }, { "$ref": "#/$defs/lineHeightLiteral" }]
+    },
+    "fontFamilyLiteral": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^;{}<>!]+$",
+      "description": "A CSS font-family list."
+    },
+    "fontFamily": {
+      "anyOf": [{ "$ref": "#/$defs/refObject" }, { "$ref": "#/$defs/fontFamilyLiteral" }]
+    },
+    "shadowLiteral": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^;{}<>!]+$",
+      "description": "A CSS box-shadow literal with no declaration delimiters."
+    },
+    "shadow": {
+      "anyOf": [{ "$ref": "#/$defs/refObject" }, { "$ref": "#/$defs/shadowLiteral" }]
+    },
+    "easingLiteral": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^;{}<>!]+$",
+      "description": "A CSS easing function."
+    },
+    "easing": {
+      "anyOf": [{ "$ref": "#/$defs/refObject" }, { "$ref": "#/$defs/easingLiteral" }]
+    }
+  }
+}

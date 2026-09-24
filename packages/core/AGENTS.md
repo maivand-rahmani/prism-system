@@ -48,8 +48,8 @@ If a change would give core a visual opinion, it belongs in a design system pack
 
 ## The V2 contract (canonical)
 
-The only supported contract is the canonical fourteen-component V2 contract. Exactly
-fourteen components are required, in canonical order:
+The canonical V2 contract remains supported and unchanged. Exactly fourteen
+components are required, in canonical order:
 
 ```text
 Button, Input, Textarea, Card, Badge, Checkbox, RadioGroup, Switch, Select,
@@ -81,6 +81,44 @@ Tabs, Dialog, DropdownMenu, Tooltip, Separator
   (skills, templates, generators, validation) and V3 lifecycle tooling are **not** —
   keep them out of core.
 
+## The V4 contract (additive)
+
+V4 is an additional contract that coexists with V2. It never replaces, widens, or
+weakens the canonical V2 contract. Exactly twenty components are required, in plan
+order:
+
+```text
+Button, Input, Textarea, Card, Badge, Checkbox, RadioGroup, Switch, Select,
+Tabs, Dialog, DropdownMenu, Tooltip, Separator, Heading, Text, Link, Container,
+Stack, FormField
+```
+
+Twelve more are optional: `Grid`, `Section`, `Fieldset`, `Alert`, `Progress`,
+`Skeleton`, `Toast`, `Accordion`, `Avatar`, `Breadcrumbs`, `Pagination`, `Table`.
+A system implements only the optional components it declares; empty stubs are not
+allowed.
+
+- The V4 names are separate exports: `DesignSystemComponentsV4`,
+  `DesignSystemComponentNameV4`, `DesignSystemComponentV4`, `REQUIRED_COMPONENTS_V4`,
+  `OPTIONAL_COMPONENTS_V4`, `DesignSystemV4`, `DesignSystemRegistryV4`,
+  `defineDesignSystemV4`, and `createDesignSystemRegistryV4`.
+- `DesignSystemComponentsV4` is additive: the existing V2 names
+  (`DesignSystemComponents`, `DesignSystemComponentName`, `DesignSystemComponent`,
+  `REQUIRED_COMPONENTS`, `DesignSystem`, `defineDesignSystem`,
+  `DesignSystemRegistry`, `createDesignSystemRegistry`) keep their exact V2 shape.
+  The V4 registry has its own runtime guard that validates the `"v4"` marker and
+  every required key; it never widens the V2 registry.
+- V4 contract types live in `src/contracts` (`heading`, `text`, `link`,
+  `container`, `stack`, `form-field`, and the twelve optional components). The V4
+  assembly lives in `src/design-system/components.ts`, and the V4 type, helper,
+  and registry live in `src/design-system/design-system.ts`.
+- V4 stays unstyled: the added contracts use native React props and expose no
+  colors, tokens, scales, variants, or spacing. `Grid`, `Container`, and `Stack`
+  deliberately carry no layout-scale props; layout values remain in the design
+  system.
+- V4 factory and lifecycle tooling (generators, validation, manifests) is **not**
+  part of core. Do not add it here.
+
 ## The V1 contract (historical, unsupported)
 
 The historical eight-component V1 contract
@@ -103,7 +141,9 @@ document the accessibility expectation next to the type. Reusable helpers in
 
 ## Scope
 
-Core owns the canonical fourteen-component V2 contract, its unstyled adapters, and the
-historical V1 definitions kept only for migration history. Do not add V2 factory tooling
-(create-design-system skills, templates, generators, validation) or V3
-manifest/lifecycle tooling to core.
+Core owns the canonical fourteen-component V2 contract, the additive V4 contract
+(twenty required plus twelve optional), their unstyled adapters, and the historical
+V1 definitions kept only for migration history. The two contracts coexist: V4 is a
+separate set of exports and a separate registry, and does not restore V1 or replace
+V2. Do not add V2/V4 factory tooling (create-design-system skills, templates,
+generators, validation) or V3/V4 manifest/lifecycle tooling to core.

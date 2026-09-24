@@ -17,7 +17,23 @@
  * `tsconfig.build.json` excludes `*.test.ts`, so nothing here ships in `dist`.
  */
 import type {
+  AccordionContentProps,
+  AccordionHeaderProps,
+  AccordionItemProps,
+  AccordionProps,
+  AccordionTriggerProps,
+  AlertDescriptionProps,
+  AlertProps,
+  AlertTitleProps,
+  AvatarFallbackProps,
+  AvatarImageProps,
+  AvatarProps,
   BadgeProps,
+  BreadcrumbsCurrentProps,
+  BreadcrumbsItemProps,
+  BreadcrumbsLinkProps,
+  BreadcrumbsListProps,
+  BreadcrumbsProps,
   ButtonProps,
   CardContentProps,
   CardDescriptionProps,
@@ -26,6 +42,7 @@ import type {
   CardProps,
   CardTitleProps,
   CheckboxProps,
+  ContainerProps,
   DialogCloseProps,
   DialogContentProps,
   DialogDescriptionProps,
@@ -52,10 +69,35 @@ import type {
   DropdownMenuSubProps,
   DropdownMenuSubTriggerProps,
   DropdownMenuTriggerProps,
+  FieldsetLegendProps,
+  FieldsetProps,
+  FormFieldControlProps,
+  FormFieldDescriptionProps,
+  FormFieldErrorProps,
+  FormFieldLabelProps,
+  FormFieldProps,
+  GridProps,
+  HeadingProps,
   InputProps,
+  LinkProps,
+  PaginationCurrentProps,
+  PaginationEllipsisProps,
+  PaginationItemProps,
+  PaginationLinkProps,
+  PaginationListProps,
+  PaginationNextProps,
+  PaginationPreviousProps,
+  PaginationProps,
+  ProgressProps,
   RadioGroupIndicatorProps,
   RadioGroupItemProps,
   RadioGroupProps,
+  SectionContentProps,
+  SectionDescriptionProps,
+  SectionFooterProps,
+  SectionHeaderProps,
+  SectionProps,
+  SectionTitleProps,
   SelectContentProps,
   SelectGroupProps,
   SelectItemProps,
@@ -65,13 +107,31 @@ import type {
   SelectTriggerProps,
   SelectValueProps,
   SeparatorProps,
+  SkeletonProps,
+  StackProps,
   SwitchProps,
   SwitchThumbProps,
+  TableBodyProps,
+  TableCaptionProps,
+  TableCellProps,
+  TableFooterProps,
+  TableHeadProps,
+  TableHeaderProps,
+  TableProps,
+  TableRowProps,
   TabsContentProps,
   TabsListProps,
   TabsProps,
   TabsTriggerProps,
+  TextProps,
   TextareaProps,
+  ToastActionProps,
+  ToastCloseProps,
+  ToastDescriptionProps,
+  ToastProps,
+  ToastProviderProps,
+  ToastTitleProps,
+  ToastViewportProps,
   TooltipArrowProps,
   TooltipContentProps,
   TooltipPortalProps,
@@ -80,21 +140,29 @@ import type {
   TooltipTriggerProps,
 } from "../contracts/index.js";
 import {
+  OPTIONAL_COMPONENTS_V4,
   REQUIRED_COMPONENTS,
   REQUIRED_COMPONENTS_V2,
+  REQUIRED_COMPONENTS_V4,
   type DesignSystemComponent,
   type DesignSystemComponentName,
   type DesignSystemComponentNameV2,
+  type DesignSystemComponentNameV4,
   type DesignSystemComponentV2,
+  type DesignSystemComponentV4,
   type DesignSystemComponents,
   type DesignSystemComponentsV2,
+  type DesignSystemComponentsV4,
 } from "./components.js";
 import {
   createDesignSystemRegistry,
+  createDesignSystemRegistryV4,
   defineDesignSystem,
   defineDesignSystemV2,
+  defineDesignSystemV4,
   type DesignSystem,
   type DesignSystemV2,
+  type DesignSystemV4,
 } from "./design-system.js";
 
 /** A typed component stub that accepts exactly the contract props. */
@@ -364,4 +432,321 @@ export type _NegativeFixtures = [
   typeof UNMARKED_DEFINITION,
   typeof V1_MARKER_DEFINITION,
   typeof REGISTRY_REJECTS_V1,
+];
+
+/* -------------------------------------------------------------------------- */
+/* V4 fixtures                                                                 */
+/* -------------------------------------------------------------------------- */
+
+const Heading = component<HeadingProps>;
+const Text = component<TextProps>;
+const Link = component<LinkProps>;
+const Container = component<ContainerProps>;
+const Stack = component<StackProps>;
+
+const FormField = Object.assign(component<FormFieldProps>, {
+  Label: component<FormFieldLabelProps>,
+  Control: component<FormFieldControlProps>,
+  Description: component<FormFieldDescriptionProps>,
+  Error: component<FormFieldErrorProps>,
+});
+
+const Grid = component<GridProps>;
+const Progress = component<ProgressProps>;
+const Skeleton = component<SkeletonProps>;
+
+const Section = Object.assign(component<SectionProps>, {
+  Header: component<SectionHeaderProps>,
+  Title: component<SectionTitleProps>,
+  Description: component<SectionDescriptionProps>,
+  Content: component<SectionContentProps>,
+  Footer: component<SectionFooterProps>,
+});
+
+const Fieldset = Object.assign(component<FieldsetProps>, {
+  Legend: component<FieldsetLegendProps>,
+});
+
+const Alert = Object.assign(component<AlertProps>, {
+  Title: component<AlertTitleProps>,
+  Description: component<AlertDescriptionProps>,
+});
+
+const Toast = Object.assign(component<ToastProps>, {
+  Provider: component<ToastProviderProps>,
+  Viewport: component<ToastViewportProps>,
+  Root: component<ToastProps>,
+  Title: component<ToastTitleProps>,
+  Description: component<ToastDescriptionProps>,
+  Action: component<ToastActionProps>,
+  Close: component<ToastCloseProps>,
+});
+
+const Accordion = Object.assign(component<AccordionProps>, {
+  Item: component<AccordionItemProps>,
+  Header: component<AccordionHeaderProps>,
+  Trigger: component<AccordionTriggerProps>,
+  Content: component<AccordionContentProps>,
+});
+
+const Avatar = Object.assign(component<AvatarProps>, {
+  Image: component<AvatarImageProps>,
+  Fallback: component<AvatarFallbackProps>,
+});
+
+const Breadcrumbs = Object.assign(component<BreadcrumbsProps>, {
+  List: component<BreadcrumbsListProps>,
+  Item: component<BreadcrumbsItemProps>,
+  Link: component<BreadcrumbsLinkProps>,
+  Current: component<BreadcrumbsCurrentProps>,
+});
+
+const Pagination = Object.assign(component<PaginationProps>, {
+  List: component<PaginationListProps>,
+  Item: component<PaginationItemProps>,
+  Link: component<PaginationLinkProps>,
+  Previous: component<PaginationPreviousProps>,
+  Next: component<PaginationNextProps>,
+  Current: component<PaginationCurrentProps>,
+  Ellipsis: component<PaginationEllipsisProps>,
+});
+
+const Table = Object.assign(component<TableProps>, {
+  Caption: component<TableCaptionProps>,
+  Header: component<TableHeaderProps>,
+  Body: component<TableBodyProps>,
+  Footer: component<TableFooterProps>,
+  Row: component<TableRowProps>,
+  Head: component<TableHeadProps>,
+  Cell: component<TableCellProps>,
+});
+
+/** A valid V4 map with the twenty required components and no optional members. */
+export const COMPONENTS_V4_FIXTURE: DesignSystemComponentsV4 = {
+  Button,
+  Input,
+  Textarea,
+  Card,
+  Badge,
+  Checkbox,
+  RadioGroup,
+  Switch,
+  Select,
+  Tabs,
+  Dialog,
+  DropdownMenu,
+  Tooltip,
+  Separator,
+  Heading,
+  Text,
+  Link,
+  Container,
+  Stack,
+  FormField,
+};
+
+/** A valid V4 map with every optional component declared. */
+export const COMPONENTS_V4_ALL_OPTIONALS_FIXTURE: DesignSystemComponentsV4 = {
+  ...COMPONENTS_V4_FIXTURE,
+  Grid,
+  Section,
+  Fieldset,
+  Alert,
+  Progress,
+  Skeleton,
+  Toast,
+  Accordion,
+  Avatar,
+  Breadcrumbs,
+  Pagination,
+  Table,
+};
+
+/** A valid V4 map with a different optional subset. */
+export const COMPONENTS_V4_SUBSET_FIXTURE: DesignSystemComponentsV4 = {
+  ...COMPONENTS_V4_FIXTURE,
+  Grid,
+  Alert,
+  Table,
+};
+
+/* -------------------------------------------------------------------------- */
+/* V4 tuple / name assertions                                                  */
+/* -------------------------------------------------------------------------- */
+
+/** The V4 required tuple names exactly the required keys, in plan order. */
+export const EXPECTED_V4_REQUIRED_TUPLE: typeof REQUIRED_COMPONENTS_V4 = [
+  "Button",
+  "Input",
+  "Textarea",
+  "Card",
+  "Badge",
+  "Checkbox",
+  "RadioGroup",
+  "Switch",
+  "Select",
+  "Tabs",
+  "Dialog",
+  "DropdownMenu",
+  "Tooltip",
+  "Separator",
+  "Heading",
+  "Text",
+  "Link",
+  "Container",
+  "Stack",
+  "FormField",
+];
+
+/** The V4 optional tuple names exactly the optional keys, in plan order. */
+export const EXPECTED_V4_OPTIONAL_TUPLE: typeof OPTIONAL_COMPONENTS_V4 = [
+  "Grid",
+  "Section",
+  "Fieldset",
+  "Alert",
+  "Progress",
+  "Skeleton",
+  "Toast",
+  "Accordion",
+  "Avatar",
+  "Breadcrumbs",
+  "Pagination",
+  "Table",
+];
+
+/** V4 requires exactly twenty components. */
+export const V4_REQUIRED_COUNT: 20 = REQUIRED_COMPONENTS_V4.length;
+/** V4 offers exactly twelve optional components. */
+export const V4_OPTIONAL_COUNT: 12 = OPTIONAL_COMPONENTS_V4.length;
+
+/** Every V4 map key is required or optional: no stray names exist. */
+export const V4_NAME_IS_REQUIRED_OR_OPTIONAL: Equal<
+  DesignSystemComponentNameV4,
+  (typeof REQUIRED_COMPONENTS_V4)[number] | (typeof OPTIONAL_COMPONENTS_V4)[number]
+> = true;
+
+/** The V2 map and the V4 map are distinct contracts. */
+export const V2_IS_NOT_V4: Equal<DesignSystemComponentsV2, DesignSystemComponentsV4> = false;
+
+/** A required V4 component satisfies the V4 component union. */
+export const V4_COMPONENT_SAMPLE: DesignSystemComponentV4 = Button;
+
+/* -------------------------------------------------------------------------- */
+/* V4 definition / registry assertions                                         */
+/* -------------------------------------------------------------------------- */
+
+export const V4_DEFINITION_FIXTURE = defineDesignSystemV4({
+  id: "fixture-v4",
+  name: "Fixture V4",
+  packageName: "@prism-system/fixture-v4",
+  version: "0.0.0",
+  componentContract: "v4",
+  components: COMPONENTS_V4_FIXTURE,
+});
+
+export const V4_DEFINITION_WITH_OPTIONALS_FIXTURE = defineDesignSystemV4({
+  id: "fixture-v4-optionals",
+  name: "Fixture V4 with optionals",
+  packageName: "@prism-system/fixture-v4-optionals",
+  version: "0.0.0",
+  componentContract: "v4",
+  components: COMPONENTS_V4_ALL_OPTIONALS_FIXTURE,
+});
+
+/** The accepted definitions satisfy `DesignSystemV4`. */
+export const V4_DEFINITION_IS_V4: DesignSystemV4 = V4_DEFINITION_FIXTURE;
+export const V4_DEFINITION_WITH_OPTIONALS_IS_V4: DesignSystemV4 =
+  V4_DEFINITION_WITH_OPTIONALS_FIXTURE;
+
+/** `defineDesignSystemV4` preserves the literal `id` and the `"v4"` marker. */
+export const V4_DEFINITION_ID: "fixture-v4" = V4_DEFINITION_FIXTURE.id;
+export const V4_DEFINITION_MARKER: "v4" = V4_DEFINITION_FIXTURE.componentContract;
+
+/** The V4 registry accepts a V4 system and resolves it by id. */
+export const V4_REGISTRY_FIXTURE = createDesignSystemRegistryV4([V4_DEFINITION_FIXTURE]);
+export const V4_REGISTERED_SYSTEM: DesignSystemV4 | undefined =
+  V4_REGISTRY_FIXTURE.get("fixture-v4");
+
+/* -------------------------------------------------------------------------- */
+/* V4 negative fixtures (compile-time only)                                    */
+/* -------------------------------------------------------------------------- */
+
+/** A V4 map missing the six added required components. */
+const V4_MISSING_REQUIRED_COMPONENTS = {
+  Button,
+  Input,
+  Textarea,
+  Card,
+  Badge,
+  Checkbox,
+  RadioGroup,
+  Switch,
+  Select,
+  Tabs,
+  Dialog,
+  DropdownMenu,
+  Tooltip,
+  Separator,
+};
+
+// @ts-expect-error - the V4 contract requires all twenty components.
+const _V4_MISSING_REQUIRED_MAP: DesignSystemComponentsV4 = V4_MISSING_REQUIRED_COMPONENTS;
+
+const _V4_UNKNOWN_KEY_MAP: DesignSystemComponentsV4 = {
+  ...COMPONENTS_V4_FIXTURE,
+  // @ts-expect-error - unknown component names are rejected by the V4 map.
+  NotAComponent: Button,
+};
+
+// @ts-expect-error - defineDesignSystemV4 rejects a V2-shaped system.
+export const V4_REJECTS_V2 = defineDesignSystemV4(DEFINITION_FIXTURE);
+
+// @ts-expect-error - the V4 registry does not accept V2 systems.
+export const V4_REGISTRY_REJECTS_V2 = createDesignSystemRegistryV4([DEFINITION_FIXTURE]);
+
+export const V4_DEFINITION_MISSING_REQUIRED = defineDesignSystemV4({
+  id: "fixture-v4-missing",
+  name: "Fixture V4 missing required",
+  packageName: "@prism-system/fixture-v4-missing",
+  version: "0.0.0",
+  componentContract: "v4",
+  // @ts-expect-error - defineDesignSystemV4 rejects a system missing required components.
+  components: V4_MISSING_REQUIRED_COMPONENTS,
+});
+
+/** A V4 map carrying the wrong contract marker. */
+export const V4_WRONG_MARKER_SYSTEM = {
+  id: "fixture-v4-wrong-marker",
+  name: "Fixture V4 wrong marker",
+  packageName: "@prism-system/fixture-v4-wrong-marker",
+  version: "0.0.0",
+  componentContract: "v2",
+  components: COMPONENTS_V4_FIXTURE,
+};
+// @ts-expect-error - componentContract must be "v4".
+export const V4_WRONG_MARKER_DEFINITION = defineDesignSystemV4(V4_WRONG_MARKER_SYSTEM);
+
+/* -------------------------------------------------------------------------- */
+/* Avatar.Image accessibility assertion                                        */
+/* -------------------------------------------------------------------------- */
+
+/** `Avatar.Image` accepts the required text alternative. */
+export const AVATAR_IMAGE_WITH_ALT: AvatarImageProps = { alt: "Ada Lovelace" };
+
+/**
+ * `Avatar.Image` requires `alt`: native `img` props allow it to be omitted, but
+ * the contract removes that optionality, so a missing `alt` must not compile.
+ */
+// @ts-expect-error - `alt` is required on Avatar.Image.
+const _AVATAR_IMAGE_MISSING_ALT: AvatarImageProps = {};
+
+// Keep intentionally-unused V4 negatives type-checked without lint noise.
+export type _V4NegativeFixtures = [
+  typeof _V4_MISSING_REQUIRED_MAP,
+  typeof _V4_UNKNOWN_KEY_MAP,
+  typeof V4_REJECTS_V2,
+  typeof V4_REGISTRY_REJECTS_V2,
+  typeof V4_DEFINITION_MISSING_REQUIRED,
+  typeof V4_WRONG_MARKER_DEFINITION,
+  typeof _AVATAR_IMAGE_MISSING_ALT,
 ];

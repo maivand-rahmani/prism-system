@@ -1,0 +1,34 @@
+{
+  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system-source-v4.schema.json",
+  "schemaVersion": 2,
+  "contract": "v4",
+  "name": "V4 Missing Required",
+  "components": {
+    "Button": { "variants": [], "sizes": [], "members": [] },
+    "Input": { "variants": [], "sizes": [], "members": [] },
+    "Textarea": { "variants": [], "sizes": [], "members": [] },
+    "Card": { "variants": [], "sizes": [], "members": [] },
+    "Badge": { "variants": [], "sizes": [], "members": [] },
+    "Checkbox": { "variants": [], "sizes": [], "members": [] },
+    "RadioGroup": { "variants": [], "sizes": [], "members": [] },
+    "Switch": { "variants": [], "sizes": [], "members": [] },
+    "Select": { "variants": [], "sizes": [], "members": [] },
+    "Tabs": { "variants": [], "sizes": [], "members": [] },
+    "Dialog": { "variants": [], "sizes": [], "members": [] },
+    "DropdownMenu": { "variants": [], "sizes": [], "members": [] },
+    "Tooltip": { "variants": [], "sizes": [], "members": [] },
+    "Separator": { "variants": [], "sizes": [], "members": [] },
+    "Text": { "variants": [], "sizes": [], "members": [] },
+    "Link": { "variants": [], "sizes": [], "members": [] },
+    "Container": { "variants": [], "sizes": [], "members": [] },
+    "Stack": { "variants": [], "sizes": [], "members": [] },
+    "FormField": { "variants": [], "sizes": [], "members": [] }
+  },
+  "design": { "density": "comfortable", "theme": "dual", "radius": "medium", "keywords": [] },
+  "rules": {
+    "allowArbitraryColors": false,
+    "allowArbitraryRadius": false,
+    "allowArbitraryShadows": false,
+    "allowPrimitiveDuplication": false
+  }
+}

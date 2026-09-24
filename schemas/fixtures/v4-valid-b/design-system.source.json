@@ -1,0 +1,46 @@
+{
+  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system-source-v4.schema.json",
+  "schemaVersion": 2,
+  "contract": "v4",
+  "name": "V4 Valid B",
+  "components": {
+    "Button": { "variants": ["primary", "secondary"], "sizes": ["md"], "members": [] },
+    "Input": { "variants": [], "sizes": ["md"], "members": [] },
+    "Textarea": { "variants": [], "sizes": ["md"], "members": [] },
+    "Card": { "variants": ["default"], "sizes": [], "members": ["Header", "Content"] },
+    "Badge": { "variants": ["default"], "sizes": ["sm"], "members": [] },
+    "Checkbox": { "variants": [], "sizes": ["md"], "members": [] },
+    "RadioGroup": { "variants": [], "sizes": [], "members": ["Item"] },
+    "Switch": { "variants": [], "sizes": ["md"], "members": ["Thumb"] },
+    "Select": { "variants": [], "sizes": ["md"], "members": ["Trigger", "Content"] },
+    "Tabs": { "variants": [], "sizes": [], "members": ["List", "Trigger", "Content"] },
+    "Dialog": { "variants": [], "sizes": [], "members": ["Trigger", "Content"] },
+    "DropdownMenu": { "variants": [], "sizes": [], "members": ["Trigger", "Content"] },
+    "Tooltip": { "variants": [], "sizes": [], "members": ["Trigger", "Content"] },
+    "Separator": { "variants": [], "sizes": [], "members": [] },
+    "Heading": { "variants": [], "sizes": ["md"], "members": [] },
+    "Text": { "variants": [], "sizes": [], "members": [] },
+    "Link": { "variants": [], "sizes": [], "members": [] },
+    "Container": { "variants": [], "sizes": ["content"], "members": [] },
+    "Stack": { "variants": [], "sizes": [], "members": [] },
+    "FormField": { "variants": [], "sizes": [], "members": ["Label", "Control"] },
+    "Toast": {
+      "variants": ["info", "danger"],
+      "sizes": [],
+      "members": ["Title", "Description", "Close"]
+    },
+    "Table": { "variants": [], "sizes": [], "members": ["Header", "Body", "Row", "Cell"] }
+  },
+  "design": {
+    "density": "compact",
+    "theme": "light-first",
+    "radius": "small",
+    "keywords": ["dense", "data"]
+  },
+  "rules": {
+    "allowArbitraryColors": false,
+    "allowArbitraryRadius": false,
+    "allowArbitraryShadows": false,
+    "allowPrimitiveDuplication": false
+  }
+}

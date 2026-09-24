@@ -74,6 +74,133 @@ export const SOURCE_SCHEMA_URL =
   "https://github.com/maivand-rahmani/prism-system/schemas/design-system.source.schema.json";
 export const GENERATED_MARKER = "prism-system/design-system-manifest";
 
+/* -------------------------------------------------------------------------- */
+/* V4 contract constants                                                      */
+/* -------------------------------------------------------------------------- */
+
+/** The twenty canonical V4 required component names, in order. */
+export const V4_REQUIRED_COMPONENTS = Object.freeze([
+  "Button",
+  "Input",
+  "Textarea",
+  "Card",
+  "Badge",
+  "Checkbox",
+  "RadioGroup",
+  "Switch",
+  "Select",
+  "Tabs",
+  "Dialog",
+  "DropdownMenu",
+  "Tooltip",
+  "Separator",
+  "Heading",
+  "Text",
+  "Link",
+  "Container",
+  "Stack",
+  "FormField",
+]);
+
+/** The twelve V4 optional component names a system may implement, in order. */
+export const V4_OPTIONAL_COMPONENTS = Object.freeze([
+  "Grid",
+  "Section",
+  "Fieldset",
+  "Alert",
+  "Progress",
+  "Skeleton",
+  "Toast",
+  "Accordion",
+  "Avatar",
+  "Breadcrumbs",
+  "Pagination",
+  "Table",
+]);
+
+/** Every component name a V4 descriptor or manifest may declare. */
+export const V4_COMPONENT_NAMES = Object.freeze([
+  ...V4_REQUIRED_COMPONENTS,
+  ...V4_OPTIONAL_COMPONENTS,
+]);
+
+/** V4 generated-manifest schema version. */
+export const MANIFEST_V4_SCHEMA_VERSION = 2;
+/** V4 source-descriptor schema version. */
+export const SOURCE_V4_SCHEMA_VERSION = 2;
+/** Token source schema version. */
+export const TOKENS_SOURCE_SCHEMA_VERSION = 1;
+
+/** The package-owned semantic token source. Never shipped in the tarball. */
+export const TOKENS_SOURCE_FILENAME = "tokens.source.json";
+
+/** `$schema` references written into the V4 manifests and descriptors. */
+export const V4_MANIFEST_SCHEMA_URL =
+  "https://github.com/maivand-rahmani/prism-system/schemas/design-system-v4.schema.json";
+export const V4_SOURCE_SCHEMA_URL =
+  "https://github.com/maivand-rahmani/prism-system/schemas/design-system-source-v4.schema.json";
+export const TOKENS_SOURCE_SCHEMA_URL =
+  "https://github.com/maivand-rahmani/prism-system/schemas/tokens.source.schema.json";
+
+/** Token group keys exposed by a V4 manifest, matching the token source groups. */
+export const TOKEN_GROUP_KEYS = Object.freeze([
+  "themes",
+  "typography",
+  "spacing",
+  "containers",
+  "breakpoints",
+  "layers",
+  "radius",
+  "shadow",
+  "motion",
+]);
+
+const V4_SOURCE_ROOT_FIELDS = Object.freeze([
+  "$schema",
+  "schemaVersion",
+  "contract",
+  "name",
+  "components",
+  "design",
+  "rules",
+  "docs",
+]);
+const V4_MANIFEST_ROOT_FIELDS = Object.freeze([
+  "$schema",
+  "schemaVersion",
+  "generated",
+  "contract",
+  "id",
+  "name",
+  "package",
+  "version",
+  "exports",
+  "publicApi",
+  "components",
+  "design",
+  "rules",
+  "tokens",
+  "docs",
+]);
+const V4_COMPONENT_FIELDS = Object.freeze([
+  "variants",
+  "sizes",
+  "members",
+  "description",
+  "docs",
+  "example",
+]);
+const V4_COMPONENT_META_FIELDS = Object.freeze(["description", "docs", "example"]);
+const V4_DOC_FIELDS = Object.freeze([
+  "readme",
+  "agents",
+  "brief",
+  "foundations",
+  "components",
+  "usage",
+]);
+const TOKEN_ARTIFACT_FIELDS = Object.freeze(["typescript", "css", "tailwind"]);
+
 const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
 
 const ALLOWED_DENSITY = Object.freeze(["compact", "comfortable", "spacious"]);
@@ -191,13 +318,728 @@ function normalizeRules(raw, label) {
   return rules;
 }
 
+/* -------------------------------------------------------------------------- */
+/* V4 schema/contract dispatch and validation                                 */
+/* -------------------------------------------------------------------------- */
+
+function assertKnownFields(raw, allowed, label) {
+  const allowedSet = new Set(allowed);
+  for (const key of Object.keys(raw)) {
+    if (!allowedSet.has(key)) {
+      throw new Error(
+        `${label} has unknown field "${key}"; allowed fields are ${allowed.join(", ")}.`,
+      );
+    }
+  }
+}
+
+/**
+ * Dispatch strictly by the `(schemaVersion, contract)` pair.
+ *
+ * Only `(1, "v2")` and `(2, "v4")` are accepted. Every other combination —
+ * including a missing field, a V1-shaped payload, or a fabricated pair — is
+ * rejected so the two contracts are never silently mixed.
+ */
+export function dispatchSchemaContract(raw, label = "design-system descriptor") {
+  if (!isPlainObject(raw)) {
+    throw new Error(`${label} must be a JSON object.`);
+  }
+  const show = (value) => (value === undefined ? "undefined" : JSON.stringify(value));
+  const pair = `(${show(raw.schemaVersion)}, ${show(raw.contract)})`;
+  if (raw.schemaVersion === 1 && raw.contract === "v2") return "v2";
+  if (raw.schemaVersion === 2 && raw.contract === "v4") return "v4";
+  throw new Error(`Unsupported schema/contract pair ${pair}; expected (1, "v2") or (2, "v4").`);
+}
+
+/**
+ * Read a required V4 component field. All three API fields must be present;
+ * the descriptor is the explicit contract, so a missing field is never
+ * silently defaulted to an empty array (an explicitly empty array is valid).
+ */
+function requireV4ComponentField(raw, key, name) {
+  if (!(key in raw)) {
+    throw new Error(
+      `Component "${name}" is missing required field "${key}"; ` +
+        `"variants", "sizes", and "members" are required (empty arrays are allowed).`,
+    );
+  }
+  return raw[key];
+}
+
+/**
+ * Validate one component entry for a V4 descriptor or manifest. `variants`,
+ * `sizes`, and `members` are required unique string arrays (empty allowed);
+ * `description`, `docs`, and `example` are optional metadata.
+ */
+function normalizeV4Component(raw, name) {
+  if (!isPlainObject(raw)) {
+    throw new Error(`Component "${name}" must be an object.`);
+  }
+  const allowed = new Set(V4_COMPONENT_FIELDS);
+  for (const key of Object.keys(raw)) {
+    if (!allowed.has(key)) {
+      throw new Error(
+        `Component "${name}" has unknown field "${key}"; allowed fields are ` +
+          `${V4_COMPONENT_FIELDS.join(", ")}.`,
+      );
+    }
+  }
+  const component = {
+    variants: requireStringArray(
+      requireV4ComponentField(raw, "variants", name),
+      `${name}.variants`,
+    ),
+    sizes: requireStringArray(requireV4ComponentField(raw, "sizes", name), `${name}.sizes`),
+    members: requireStringArray(requireV4ComponentField(raw, "members", name), `${name}.members`),
+  };
+  for (const key of V4_COMPONENT_META_FIELDS) {
+    if (raw[key] !== undefined) {
+      component[key] = requireNonEmptyString(raw[key], `${name}.${key}`);
+    }
+  }
+  return component;
+}
+
+/**
+ * Validate the V4 component map: all twenty required names must be present and
+ * every declared optional name must be a known V4 optional component. Absence
+ * means unavailable, so a boolean `false` entry is rejected as a non-object and
+ * an unknown name is rejected outright.
+ */
+function normalizeV4Components(raw, label) {
+  if (!isPlainObject(raw)) {
+    throw new Error(`${label} must be an object.`);
+  }
+  const declared = Object.keys(raw);
+  const missing = V4_REQUIRED_COMPONENTS.filter((name) => !declared.includes(name));
+  const unknown = declared.filter((name) => !V4_COMPONENT_NAMES.includes(name));
+  if (missing.length > 0 || unknown.length > 0) {
+    throw new Error(
+      `${label} must declare all twenty V4 required components and only implemented optional ` +
+        `components.${missing.length > 0 ? ` Missing: ${missing.join(", ")}.` : ""}${
+          unknown.length > 0 ? ` Unknown: ${unknown.join(", ")}.` : ""
+        }`,
+    );
+  }
+  const components = {};
+  for (const name of V4_COMPONENT_NAMES) {
+    if (name in raw) components[name] = normalizeV4Component(raw[name], name);
+  }
+  return components;
+}
+
+/** Validate package-relative documentation paths. */
+function normalizeDocs(raw, label, requireCore) {
+  if (!isPlainObject(raw)) {
+    throw new Error(`${label} must be an object.`);
+  }
+  assertKnownFields(raw, V4_DOC_FIELDS, label);
+  if (requireCore) {
+    for (const key of ["readme", "agents"]) {
+      if (!(key in raw)) throw new Error(`${label} is missing required field "${key}".`);
+    }
+  }
+  const docs = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value !== "string" || !value.startsWith("./") || value.length <= 2) {
+      throw new Error(
+        `${label}.${key} must be a package-relative path starting with "./" ` +
+          `(received ${JSON.stringify(value)}).`,
+      );
+    }
+    docs[key] = value;
+  }
+  return docs;
+}
+
+/** Validate the generated manifest's token group names and artifact paths. */
+function normalizeTokenManifest(raw) {
+  const label = `${DESIGN_SYSTEM_MANIFEST_FILENAME} "tokens"`;
+  if (!isPlainObject(raw)) {
+    throw new Error(`${label} must be an object.`);
+  }
+  assertKnownFields(raw, ["groups", "artifacts"], label);
+
+  const groupsLabel = `${label} "groups"`;
+  if (!isPlainObject(raw.groups)) {
+    throw new Error(`${groupsLabel} must be an object.`);
+  }
+  assertKnownFields(raw.groups, TOKEN_GROUP_KEYS, groupsLabel);
+  const groups = {};
+  for (const key of TOKEN_GROUP_KEYS) {
+    if (!(key in raw.groups)) {
+      throw new Error(`${groupsLabel} is missing required group "${key}".`);
+    }
+    groups[key] = requireStringArray(raw.groups[key], `${groupsLabel}.${key}`);
+  }
+
+  const artifactsLabel = `${label} "artifacts"`;
+  if (!isPlainObject(raw.artifacts)) {
+    throw new Error(`${artifactsLabel} must be an object.`);
+  }
+  assertKnownFields(raw.artifacts, TOKEN_ARTIFACT_FIELDS, artifactsLabel);
+  const artifacts = {};
+  for (const key of TOKEN_ARTIFACT_FIELDS) {
+    const value = raw.artifacts[key];
+    if (typeof value !== "string" || !value.startsWith("./") || value.length <= 2) {
+      throw new Error(
+        `${artifactsLabel}.${key} must be a package-relative path starting with "./" ` +
+          `(received ${JSON.stringify(value ?? null)}).`,
+      );
+    }
+    artifacts[key] = value;
+  }
+  return { groups, artifacts };
+}
+
+function normalizePublicApi(raw, label) {
+  if (!isPlainObject(raw)) {
+    throw new Error(`${label} must be an object.`);
+  }
+  const publicApi = {};
+  for (const [subpath, members] of Object.entries(raw)) {
+    publicApi[subpath] = requireStringArray(members, `${label}["${subpath}"]`);
+  }
+  return publicApi;
+}
+
+/** Read and validate a package-owned V4 `design-system.source.json`. */
+export function parseV4SourceDescriptor(raw) {
+  if (!isPlainObject(raw)) {
+    throw new Error(`${DESIGN_SYSTEM_SOURCE_FILENAME} must be a JSON object.`);
+  }
+  assertKnownFields(raw, V4_SOURCE_ROOT_FIELDS, DESIGN_SYSTEM_SOURCE_FILENAME);
+  if (raw.schemaVersion !== SOURCE_V4_SCHEMA_VERSION) {
+    throw new Error(
+      `${DESIGN_SYSTEM_SOURCE_FILENAME} has schemaVersion ${JSON.stringify(
+        raw.schemaVersion,
+      )}; expected ${SOURCE_V4_SCHEMA_VERSION}.`,
+    );
+  }
+  if (raw.contract !== "v4") {
+    throw new Error(
+      `${DESIGN_SYSTEM_SOURCE_FILENAME} must declare "contract": "v4" (received ${JSON.stringify(
+        raw.contract ?? null,
+      )}).`,
+    );
+  }
+  const descriptor = {
+    schemaVersion: SOURCE_V4_SCHEMA_VERSION,
+    contract: "v4",
+    name: requireNonEmptyString(raw.name, "name"),
+    components: normalizeV4Components(
+      raw.components,
+      `${DESIGN_SYSTEM_SOURCE_FILENAME} "components"`,
+    ),
+    design: normalizeDesign(raw.design, "design"),
+    rules: normalizeRules(raw.rules, "rules"),
+  };
+  if (raw.docs !== undefined) {
+    descriptor.docs = normalizeDocs(raw.docs, `${DESIGN_SYSTEM_SOURCE_FILENAME} "docs"`, true);
+  }
+  return descriptor;
+}
+
+/* -------------------------------------------------------------------------- */
+/* V4 token source validation                                                 */
+/* -------------------------------------------------------------------------- */
+
+const DIMENSION_UNITS = Object.freeze(["px", "rem", "em", "ch", "vw", "vh", "%"]);
+const ABSOLUTE_UNITS = Object.freeze(["px", "rem", "em"]);
+const NONNEGATIVE_DIMENSION_PATTERN = /^(?:\d+(?:\.\d+)?|\.\d+)(px|rem|em|ch|vw|vh|%)$/;
+const SIGNED_DIMENSION_PATTERN = /^-?(?:\d+(?:\.\d+)?|\.\d+)(px|rem|em|ch|vw|vh|%)$/;
+const NONNEGATIVE_ABSOLUTE_DIMENSION_PATTERN = /^(?:\d+(?:\.\d+)?|\.\d+)(px|rem|em)$/;
+const TIME_PATTERN = /^(?:\d+(?:\.\d+)?|\.\d+)(ms|s)$/;
+const DECLARATION_DELIMITERS = /[;{}<>!]/;
+
+function tokenLeaf(validate, describe) {
+  return { leaf: true, validate, describe };
+}
+
+function tokenObject(properties, required) {
+  return {
+    leaf: false,
+    properties,
+    required: required ?? Object.keys(properties),
+  };
+}
+
+function colorLeaf() {
+  return tokenLeaf(
+    (value) =>
+      typeof value === "string" && value.trim().length > 0 && !DECLARATION_DELIMITERS.test(value)
+        ? null
+        : `must be a safe CSS color literal with no declaration delimiters (received ${JSON.stringify(
+            value,
+          )}).`,
+    "a color literal",
+  );
+}
+
+/**
+ * A finite CSS length leaf. Dimensions are non-negative by default; only
+ * `typography.letterSpacing` opts into signed values. `absoluteOnly` narrows
+ * the allowed units to px/rem/em (breakpoints) and is always non-negative.
+ */
+function dimensionLeaf({ absoluteOnly = false, signed = false } = {}) {
+  const units = absoluteOnly ? ABSOLUTE_UNITS : DIMENSION_UNITS;
+  const unitList =
+    units.length < 2
+      ? units.join("")
+      : `${units.slice(0, -1).join(", ")}, or ${units[units.length - 1]}`;
+  const pattern = absoluteOnly
+    ? NONNEGATIVE_ABSOLUTE_DIMENSION_PATTERN
+    : signed
+      ? SIGNED_DIMENSION_PATTERN
+      : NONNEGATIVE_DIMENSION_PATTERN;
+  return tokenLeaf(
+    (value) => {
+      if (typeof value !== "string") {
+        return `must be a valid length using ${unitList} (received ${JSON.stringify(value)}).`;
+      }
+      if (!pattern.test(value)) {
+        return `must be a valid length using ${unitList} (received ${JSON.stringify(value)}).`;
+      }
+      return null;
+    },
+    absoluteOnly ? "an absolute length (px, rem, em)" : "a length",
+  );
+}
+
+function timeLeaf() {
+  return tokenLeaf(
+    (value) =>
+      typeof value === "string" && TIME_PATTERN.test(value)
+        ? null
+        : `must be a valid duration using ms or s (received ${JSON.stringify(value)}).`,
+    "a time duration",
+  );
+}
+
+function integerLeaf(describe = "an integer", min = undefined) {
+  return tokenLeaf(
+    (value) =>
+      Number.isInteger(value) && (min === undefined || value >= min)
+        ? null
+        : `must be ${describe} (received ${JSON.stringify(value)}).`,
+    describe,
+  );
+}
+
+function positiveNumberLeaf() {
+  return tokenLeaf(
+    (value) =>
+      typeof value === "number" && Number.isFinite(value) && value > 0
+        ? null
+        : `must be a positive number (received ${JSON.stringify(value)}).`,
+    "a positive number",
+  );
+}
+
+function lineHeightLeaf() {
+  const describe = "a line height (positive number or length)";
+  return tokenLeaf((value) => {
+    if (typeof value === "number") {
+      return Number.isFinite(value) && value > 0
+        ? null
+        : `must be a positive number or a valid length (received ${JSON.stringify(value)}).`;
+    }
+    if (typeof value === "string" && NONNEGATIVE_DIMENSION_PATTERN.test(value)) return null;
+    return `must be a positive number or a valid length (received ${JSON.stringify(value)}).`;
+  }, describe);
+}
+
+function fontWeightLeaf() {
+  return tokenLeaf(
+    (value) =>
+      Number.isInteger(value) && value >= 100 && value <= 900
+        ? null
+        : `must be a font weight between 100 and 900 (received ${JSON.stringify(value)}).`,
+    "a font weight",
+  );
+}
+
+function safeStringLeaf(describe) {
+  return tokenLeaf(
+    (value) =>
+      typeof value === "string" && value.trim().length > 0 && !DECLARATION_DELIMITERS.test(value)
+        ? null
+        : `must be ${describe} (received ${JSON.stringify(value)}).`,
+    describe,
+  );
+}
+
+const COLOR_SEMANTIC_SHAPE = tokenObject({
+  text: tokenObject({
+    primary: colorLeaf(),
+    secondary: colorLeaf(),
+    muted: colorLeaf(),
+    inverse: colorLeaf(),
+  }),
+  surface: tokenObject({
+    canvas: colorLeaf(),
+    raised: colorLeaf(),
+    sunken: colorLeaf(),
+    inverse: colorLeaf(),
+  }),
+  border: tokenObject({ default: colorLeaf(), strong: colorLeaf(), focus: colorLeaf() }),
+  action: tokenObject({
+    primary: colorLeaf(),
+    primaryHover: colorLeaf(),
+    primaryText: colorLeaf(),
+    secondary: colorLeaf(),
+    secondaryHover: colorLeaf(),
+    secondaryText: colorLeaf(),
+  }),
+  status: tokenObject({
+    info: colorLeaf(),
+    success: colorLeaf(),
+    warning: colorLeaf(),
+    danger: colorLeaf(),
+  }),
+});
+
+const TOKEN_SHAPE = Object.freeze({
+  themes: tokenObject({
+    light: tokenObject({ color: COLOR_SEMANTIC_SHAPE }),
+    dark: tokenObject({ color: COLOR_SEMANTIC_SHAPE }),
+  }),
+  typography: tokenObject({
+    family: tokenObject({
+      sans: safeStringLeaf("a font family list"),
+      mono: safeStringLeaf("a font family list"),
+    }),
+    size: tokenObject({
+      xs: dimensionLeaf(),
+      sm: dimensionLeaf(),
+      md: dimensionLeaf(),
+      lg: dimensionLeaf(),
+      xl: dimensionLeaf(),
+      "2xl": dimensionLeaf(),
+      "3xl": dimensionLeaf(),
+      "4xl": dimensionLeaf(),
+    }),
+    weight: tokenObject({
+      light: fontWeightLeaf(),
+      normal: fontWeightLeaf(),
+      medium: fontWeightLeaf(),
+      semibold: fontWeightLeaf(),
+      bold: fontWeightLeaf(),
+    }),
+    lineHeight: tokenObject({
+      tight: lineHeightLeaf(),
+      normal: lineHeightLeaf(),
+      relaxed: lineHeightLeaf(),
+    }),
+    letterSpacing: tokenObject({
+      tight: dimensionLeaf({ signed: true }),
+      normal: dimensionLeaf({ signed: true }),
+      wide: dimensionLeaf({ signed: true }),
+    }),
+  }),
+  spacing: tokenObject({
+    scale: tokenObject({
+      0: dimensionLeaf(),
+      1: dimensionLeaf(),
+      2: dimensionLeaf(),
+      3: dimensionLeaf(),
+      4: dimensionLeaf(),
+      6: dimensionLeaf(),
+      8: dimensionLeaf(),
+      12: dimensionLeaf(),
+      16: dimensionLeaf(),
+      24: dimensionLeaf(),
+    }),
+    semantic: tokenObject({
+      inline: dimensionLeaf(),
+      inset: dimensionLeaf(),
+      stack: dimensionLeaf(),
+      section: dimensionLeaf(),
+    }),
+  }),
+  containers: tokenObject({
+    narrow: dimensionLeaf(),
+    content: dimensionLeaf(),
+    wide: dimensionLeaf(),
+    full: dimensionLeaf(),
+  }),
+  breakpoints: tokenObject({
+    sm: dimensionLeaf({ absoluteOnly: true }),
+    md: dimensionLeaf({ absoluteOnly: true }),
+    lg: dimensionLeaf({ absoluteOnly: true }),
+    xl: dimensionLeaf({ absoluteOnly: true }),
+  }),
+  layers: tokenObject({
+    base: integerLeaf("an integer", 0),
+    dropdown: integerLeaf("an integer", 0),
+    sticky: integerLeaf("an integer", 0),
+    overlay: integerLeaf("an integer", 0),
+    modal: integerLeaf("an integer", 0),
+    toast: integerLeaf("an integer", 0),
+    tooltip: integerLeaf("an integer", 0),
+  }),
+  radius: tokenObject({
+    none: dimensionLeaf(),
+    sm: dimensionLeaf(),
+    md: dimensionLeaf(),
+    lg: dimensionLeaf(),
+    full: dimensionLeaf(),
+  }),
+  shadow: tokenObject({
+    sm: safeStringLeaf("a shadow literal"),
+    md: safeStringLeaf("a shadow literal"),
+    lg: safeStringLeaf("a shadow literal"),
+    focus: safeStringLeaf("a shadow literal"),
+  }),
+  motion: tokenObject({
+    duration: tokenObject({
+      fast: timeLeaf(),
+      normal: timeLeaf(),
+      slow: timeLeaf(),
+      reduced: timeLeaf(),
+    }),
+    easing: tokenObject({
+      standard: safeStringLeaf("an easing function"),
+      entrance: safeStringLeaf("an easing function"),
+      exit: safeStringLeaf("an easing function"),
+    }),
+  }),
+});
+
+function isTokenRefObject(value) {
+  if (!isPlainObject(value)) return false;
+  const keys = Object.keys(value);
+  return keys.length === 1 && keys[0] === "$ref";
+}
+
+function walkTokenNode(node, value, path, leaves) {
+  if (node.leaf) {
+    if (isPlainObject(value)) {
+      if (
+        isTokenRefObject(value) &&
+        typeof value.$ref === "string" &&
+        value.$ref.trim().length > 0
+      ) {
+        leaves.set(path, { node, ref: value.$ref.trim() });
+        return;
+      }
+      throw new Error(
+        `"${path}" must be a literal value or exactly {"$ref": "dot.separated.path"}.`,
+      );
+    }
+    const error = node.validate(value);
+    if (error) throw new Error(`"${path}" ${error}`);
+    leaves.set(path, { node, literal: value });
+    return;
+  }
+  if (!isPlainObject(value)) {
+    throw new Error(`Expected "${path}" to be an object.`);
+  }
+  for (const key of Object.keys(value)) {
+    if (!(key in node.properties)) {
+      throw new Error(`"${path}" has unknown field "${key}".`);
+    }
+  }
+  for (const key of node.required) {
+    if (!(key in value)) {
+      throw new Error(`"${path}" is missing required field "${key}".`);
+    }
+  }
+  for (const key of Object.keys(value)) {
+    walkTokenNode(node.properties[key], value[key], `${path}.${key}`, leaves);
+  }
+}
+
+/**
+ * Resolve every `$ref` to its ultimate literal and reject a missing target, a
+ * cycle, or a reference whose resolved literal is not valid for the referring
+ * slot (for example an integer layer referencing a color, or a breakpoint
+ * referencing a relative length).
+ */
+function resolveTokenRefs(leaves) {
+  for (const [path, entry] of leaves) {
+    if (!entry.ref) continue;
+    const chain = [path];
+    const seen = new Set([path]);
+    let target = entry.ref;
+    for (;;) {
+      if (!leaves.has(target)) {
+        throw new Error(
+          `"${path}" $ref target "${target}" does not exist in ${TOKENS_SOURCE_FILENAME}.`,
+        );
+      }
+      if (seen.has(target)) {
+        chain.push(target);
+        throw new Error(
+          `${TOKENS_SOURCE_FILENAME} token $ref cycle detected: ${chain.join(" -> ")}.`,
+        );
+      }
+      seen.add(target);
+      chain.push(target);
+      const next = leaves.get(target);
+      if (!next.ref) {
+        const error = entry.node.validate(next.literal);
+        if (error) {
+          throw new Error(
+            `"${path}" has an incompatible $ref to "${target}": expected ` +
+              `${entry.node.describe}, resolved to ${next.node.describe}.`,
+          );
+        }
+        break;
+      }
+      target = next.ref;
+    }
+  }
+}
+
+/**
+ * Validate a package-owned `tokens.source.json` (schemaVersion 1). Every leaf
+ * accepts a type-appropriate literal or exactly `{"$ref": "dot.separated.path"}`.
+ * Returns the raw object; token values stay package-owned.
+ */
+export function parseTokenSource(raw) {
+  if (!isPlainObject(raw)) {
+    throw new Error(`${TOKENS_SOURCE_FILENAME} must be a JSON object.`);
+  }
+  assertKnownFields(raw, ["$schema", "schemaVersion", ...TOKEN_GROUP_KEYS], TOKENS_SOURCE_FILENAME);
+  if (raw.schemaVersion !== TOKENS_SOURCE_SCHEMA_VERSION) {
+    throw new Error(
+      `${TOKENS_SOURCE_FILENAME} has schemaVersion ${JSON.stringify(
+        raw.schemaVersion,
+      )}; expected ${TOKENS_SOURCE_SCHEMA_VERSION}.`,
+    );
+  }
+  const leaves = new Map();
+  for (const key of TOKEN_GROUP_KEYS) {
+    if (!(key in raw)) {
+      throw new Error(`${TOKENS_SOURCE_FILENAME} is missing required group "${key}".`);
+    }
+    walkTokenNode(TOKEN_SHAPE[key], raw[key], key, leaves);
+  }
+  resolveTokenRefs(leaves);
+  return raw;
+}
+
+/** Read and validate the package-owned V4 `tokens.source.json`. */
+export function readTokensSource(packageDir) {
+  const tokensPath = join(packageDir, TOKENS_SOURCE_FILENAME);
+  if (!existsSync(tokensPath)) {
+    throw new Error(
+      `Missing token source ${TOKENS_SOURCE_FILENAME} in ${packageDir}. ` +
+        `Every V4 design system must declare its semantic tokens.`,
+    );
+  }
+  let raw;
+  try {
+    raw = readJsonFile(tokensPath);
+  } catch (error) {
+    throw new Error(`Invalid JSON in ${tokensPath}: ${error.message}`);
+  }
+  return parseTokenSource(raw);
+}
+
+/** Flatten a token subtree into dot-separated leaf names (never values). */
+function flattenTokenNames(value, prefix = "") {
+  if (isPlainObject(value) && !isTokenRefObject(value)) {
+    const names = [];
+    for (const key of Object.keys(value)) {
+      names.push(...flattenTokenNames(value[key], prefix ? `${prefix}.${key}` : key));
+    }
+    return names;
+  }
+  return [prefix];
+}
+
+/** Build the manifest `tokens` block: group names plus artifact paths. */
+function buildTokenManifest(tokens) {
+  const groups = {};
+  for (const key of TOKEN_GROUP_KEYS) {
+    groups[key] = flattenTokenNames(tokens[key]);
+  }
+  return {
+    groups,
+    artifacts: { typescript: "./tokens", css: "./styles.css", tailwind: "./tailwind.css" },
+  };
+}
+
+/** Validate a generated V4 `design-system.json` manifest. */
+export function parseV4Manifest(raw) {
+  if (!isPlainObject(raw)) {
+    throw new Error(`${DESIGN_SYSTEM_MANIFEST_FILENAME} must be a JSON object.`);
+  }
+  assertKnownFields(raw, V4_MANIFEST_ROOT_FIELDS, DESIGN_SYSTEM_MANIFEST_FILENAME);
+  if (raw.schemaVersion !== MANIFEST_V4_SCHEMA_VERSION) {
+    throw new Error(
+      `${DESIGN_SYSTEM_MANIFEST_FILENAME} has schemaVersion ${JSON.stringify(
+        raw.schemaVersion,
+      )}; expected ${MANIFEST_V4_SCHEMA_VERSION}.`,
+    );
+  }
+  if (raw.contract !== "v4") {
+    throw new Error(
+      `${DESIGN_SYSTEM_MANIFEST_FILENAME} must declare "contract": "v4" (received ${JSON.stringify(
+        raw.contract ?? null,
+      )}).`,
+    );
+  }
+  if (raw.generated !== GENERATED_MARKER) {
+    throw new Error(
+      `${DESIGN_SYSTEM_MANIFEST_FILENAME} "generated" must be ${JSON.stringify(
+        GENERATED_MARKER,
+      )} (received ${JSON.stringify(raw.generated ?? null)}).`,
+    );
+  }
+  const id = assertSystemId(raw.id);
+  const name = requireNonEmptyString(raw.name, "name");
+  if (typeof raw.package !== "string" || !/^@prism-system\/ui-[a-z0-9-]+$/.test(raw.package)) {
+    throw new Error(
+      `${DESIGN_SYSTEM_MANIFEST_FILENAME} "package" must be an @prism-system/ui-* name ` +
+        `(received ${JSON.stringify(raw.package ?? null)}).`,
+    );
+  }
+  const version = requireNonEmptyString(raw.version, "version");
+  if (!SEMVER_PATTERN.test(version)) {
+    throw new Error(
+      `${DESIGN_SYSTEM_MANIFEST_FILENAME} "version" ${JSON.stringify(version)} is not a valid ` +
+        `semantic version.`,
+    );
+  }
+  if (!isPlainObject(raw.exports) || Object.keys(raw.exports).length === 0) {
+    throw new Error(`${DESIGN_SYSTEM_MANIFEST_FILENAME} "exports" must be a non-empty object.`);
+  }
+  return {
+    $schema: raw.$schema,
+    schemaVersion: MANIFEST_V4_SCHEMA_VERSION,
+    generated: GENERATED_MARKER,
+    contract: "v4",
+    id,
+    name,
+    package: raw.package,
+    version,
+    exports: raw.exports,
+    publicApi: normalizePublicApi(raw.publicApi, `${DESIGN_SYSTEM_MANIFEST_FILENAME} "publicApi"`),
+    components: normalizeV4Components(
+      raw.components,
+      `${DESIGN_SYSTEM_MANIFEST_FILENAME} "components"`,
+    ),
+    design: normalizeDesign(raw.design, "design"),
+    rules: normalizeRules(raw.rules, "rules"),
+    tokens: normalizeTokenManifest(raw.tokens),
+    docs: normalizeDocs(raw.docs, `${DESIGN_SYSTEM_MANIFEST_FILENAME} "docs"`, true),
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Source descriptor dispatch (V2 / V4)                                       */
+/* -------------------------------------------------------------------------- */
+
 /** Read and validate the package-owned `design-system.source.json`. */
 export function readSourceDescriptor(packageDir) {
   const sourcePath = join(packageDir, DESIGN_SYSTEM_SOURCE_FILENAME);
   if (!existsSync(sourcePath)) {
     throw new Error(
       `Missing source descriptor ${DESIGN_SYSTEM_SOURCE_FILENAME} in ${packageDir}. ` +
-        `Every V2 design system must declare its public API explicitly.`,
+        `Every design system must declare its public API explicitly.`,
     );
   }
   let raw;
@@ -208,6 +1050,12 @@ export function readSourceDescriptor(packageDir) {
   }
   if (!isPlainObject(raw)) {
     throw new Error(`${DESIGN_SYSTEM_SOURCE_FILENAME} must be a JSON object.`);
+  }
+  // Strict dispatch: only (1, "v2") and (2, "v4") are accepted.
+  const contract = dispatchSchemaContract(raw, DESIGN_SYSTEM_SOURCE_FILENAME);
+  if (contract === "v4") {
+    const descriptor = parseV4SourceDescriptor(raw);
+    return { ...descriptor, tokens: readTokensSource(packageDir) };
   }
   const allowedRootFields = new Set([
     "$schema",
@@ -773,6 +1621,10 @@ export function buildManifest({ id, packageDir }) {
     );
   }
 
+  if (source.contract === "v4") {
+    return buildV4Manifest({ resolvedId, pkg, version, tokensExport, displayName, source });
+  }
+
   return {
     $schema: MANIFEST_SCHEMA_URL,
     schemaVersion: MANIFEST_SCHEMA_VERSION,
@@ -790,6 +1642,31 @@ export function buildManifest({ id, packageDir }) {
     components: source.components,
     design: source.design,
     rules: source.rules,
+  };
+}
+
+/** Build the canonical V4 manifest object. Pure and synchronous. */
+function buildV4Manifest({ resolvedId, pkg, version, tokensExport, displayName, source }) {
+  const implementedOptional = V4_OPTIONAL_COMPONENTS.filter((name) => name in source.components);
+  return {
+    $schema: V4_MANIFEST_SCHEMA_URL,
+    schemaVersion: MANIFEST_V4_SCHEMA_VERSION,
+    generated: GENERATED_MARKER,
+    contract: "v4",
+    id: resolvedId,
+    name: displayName,
+    package: toPackageName(resolvedId),
+    version,
+    exports: pkg.exports,
+    publicApi: {
+      ".": [...V4_REQUIRED_COMPONENTS, ...implementedOptional, "DesignSystem", tokensExport],
+      "./tokens": [tokensExport],
+    },
+    components: source.components,
+    design: source.design,
+    rules: source.rules,
+    tokens: buildTokenManifest(source.tokens),
+    docs: { readme: "./README.md", agents: "./AGENTS.md", ...(source.docs ?? {}) },
   };
 }
 
