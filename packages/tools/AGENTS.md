@@ -9,22 +9,23 @@ ships the `prism-ds` executable with twelve commands:
 
 ```text
 search         npm Registry search for supported @prism-system/ui-* styles (network, read-only)
-info           fetch and validate a published style's manifest, V2 or V4 (network, read-only)
+info           fetch and validate a published style's manifest (network, read-only)
 install        explicitly install a style into a consumer (mutates consumer dependencies)
 use            install, verify, connect, optional usage check, optional Tailwind setup (mutates dependencies)
 upgrade        explicitly upgrade to an exact version, diff the manifest, re-connect (mutates dependencies)
 connect        configure an already-installed style in a consumer (offline; writes config/AGENTS only)
 components     read the installed style's component catalog (offline, manifest-only)
-tokens         read the installed V4 style's token catalog (offline, manifest-only)
+tokens         read the installed style's token catalog (offline, manifest-only)
 check          one offline read-only consumer health report (offline)
 setup-tailwind make one explicit consumer CSS file load the Tailwind v4 bridge (offline; edits that file only)
 check-usage    deterministic strict usage validation (offline; TypeScript AST + manifest)
 doctor         read-only consumer diagnostics (offline)
 ```
 
-It reads both the published `(schemaVersion: 1, contract: "v2")` and
-`(schemaVersion: 2, contract: "v4")` manifest shapes and rejects any other pair; V2
-remains fully supported. It is not a UI package, not `@prism-system/ui-core`, and not a
+It reads the current manifest shape (`schemaVersion: 4`, numeric `contractVersion: 4`)
+and rejects anything else. The package-owned source descriptor `design-system.source.json`
+stays `schemaVersion: 3`, is repository-only, and is never read from a consumer. It is
+not a UI package, not `@prism-system/ui-core`, and not a
 design system. It ships no colors, tokens, styling, or components of its own — the catalog
 commands only read an installed package's public `./manifest`.
 
@@ -35,7 +36,7 @@ This package owns:
 - the consumer contract implementation (`connect`) and generated config/AGENTS content;
 - the strict usage checker (`check-usage`) and its rule catalog;
 - read-only diagnostics (`doctor`) and the aggregated offline health report (`check`);
-- the offline component catalog (`components`) and the V4 token catalog (`tokens`);
+- the offline component catalog (`components`) and the token catalog (`tokens`);
 - the Tailwind v4 setup planner/writer (`setup-tailwind`);
 - the npm Registry client, catalog orchestration, and in-memory tarball/manifest
   validation (`search`, `info`);
@@ -95,9 +96,14 @@ consumer root and read only through its public `exports` (notably `./manifest`).
 - `.design-system/config.json` schema version is authoritative (`CONSUMER_SCHEMA_VERSION`).
 - The shipped manifest export subpath and target (`./manifest` →
   `./design-system.json`) are the public contract. Never import package internals.
-- Both the `(1, "v2")` and `(2, "v4")` schema/contract pairs are supported; every other
-  pair fails closed. V2 ships no token catalog, so `tokens` reports `supported: false`
-  honestly rather than failing.
+- The current schema/contract shape (`schemaVersion: 4`, numeric `contractVersion: 4`)
+  is supported; every other shape fails closed. There is one shipped manifest shape, so
+  schema-3 readers must be upgraded in lockstep: an older `prism-ds` cannot read a
+  schema-4 manifest, and this tooling rejects schema 3. Availability is only the presence
+  of a key in `manifest.components`; the generated `capabilities.categories` inventory
+  (composition, forms, data-display) is canonical category membership, not a second
+  availability list, and category availability is derived by intersecting the two.
+  `tokens` reads the token catalog of the installed current-contract system.
 - Exact version/identity equality fails closed; unknown schema versions fail closed.
 - Writes are contained to the real `--cwd` root, atomic, and idempotent. Malformed managed
   markers fail closed.
@@ -105,17 +111,15 @@ consumer root and read only through its public `exports` (notably `./manifest`).
 ## Maintainer commands stay out
 
 `ds:create`, `ds:register`, `ds:check`, `ds:manifest`, `ds:sync-versions`, `ds:release`,
-`ds:check-v3`, and `ds:check-v4-tools` are maintainer tooling that operates on the source
-repository or validates packed artifacts. They must not move into this package. The root
-`scripts/design-system-*.mjs` and
+`ds:check-tools`, `ds:check-docs`, and `ds:check-all` are maintainer tooling that operates
+on the source repository or validates packed artifacts. They must not move into this
+package. The root `scripts/design-system-*.mjs` and
 `scripts/*-design-system-*.mjs` files are compatibility wrappers around this package.
 
 ## Changing this package
 
 1. Keep the CLI behavior and the exported helper surface backward compatible.
-2. Run `pnpm lint`, `pnpm typecheck`, and `pnpm ds:check-v4-tools` before finishing. The
-   unchanged `ds:check-v3` harness is historical and still assumes V2 live packages/template;
-   do not use it as the current V4 acceptance gate. The V4 tools harness carries separate
-   packed/static V2 coverage.
+2. Run `pnpm lint`, `pnpm typecheck`, and `pnpm ds:check-tools` before finishing.
+   `ds:check-all` runs the full packed acceptance gate.
 3. Record user-visible changes with `pnpm changeset`.
 4. Never publish from a local command; publishing is a human-controlled step.

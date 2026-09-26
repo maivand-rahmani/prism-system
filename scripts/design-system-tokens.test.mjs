@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Deterministic V4 token artifact tests (Node built-in test runner, no
+ * Deterministic token artifact tests (Node built-in test runner, no
  * dependency).
  *
  * Run directly:
@@ -10,7 +10,7 @@
  * `resolveTokenSource` from `design-system-manifest.mjs` validate and resolve,
  * the pure renderers in `design-system-tokens.mjs` format, and
  * `writeDesignSystemManifest` / `checkDesignSystemManifest` write and verify.
- * V4 fixtures are copied into temp directories; the repository is never
+ * Fixtures are copied into temp directories; the repository is never
  * mutated.
  */
 
@@ -33,8 +33,8 @@ import {
 import {
   TAILWIND_UTILITY_PREFIX,
   TOKEN_NAMESPACE_PATTERN,
-  V4_TOKEN_ARTIFACT_PATHS,
-  V4_TOKEN_NAME_FIELDS,
+  TOKEN_ARTIFACT_PATHS,
+  TOKEN_NAME_FIELDS,
   buildTokenArtifactFiles,
   renderTailwindCss,
   renderTokensCss,
@@ -47,7 +47,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const fixturesRoot = join(repoRoot, "schemas", "fixtures");
 const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
 const fixture = (...segments) => join(fixturesRoot, ...segments);
-const validTokens = () => readJson(fixture("v4-valid", "tokens.source.json"));
+const validTokens = () => readJson(fixture("valid", "tokens.source.json"));
 const resolvedValid = () => resolveTokenSource(validTokens());
 
 /** Copy a directory into a fresh temp dir so tests never touch the repo. */
@@ -150,7 +150,7 @@ test("tokenNaming publishes the exact prefixes the artifacts emit", () => {
     tailwindUtilityPrefix: TAILWIND_UTILITY_PREFIX,
   });
   assert.equal(naming.tailwindUtilityPrefix, "prism");
-  assert.deepEqual([...V4_TOKEN_NAME_FIELDS], ["cssVariablePrefix", "tailwindUtilityPrefix"]);
+  assert.deepEqual([...TOKEN_NAME_FIELDS], ["cssVariablePrefix", "tailwindUtilityPrefix"]);
   for (const value of Object.values(naming)) {
     assert.ok(TOKEN_NAMESPACE_PATTERN.test(value), `${value} is a safe namespace`);
   }
@@ -173,7 +173,7 @@ test("tokenNaming publishes the exact prefixes the artifacts emit", () => {
 });
 
 test("a manifest's published token names match the emitted artifacts", () => {
-  const manifest = buildManifest({ id: "v4-valid", packageDir: fixture("v4-valid") });
+  const manifest = buildManifest({ id: "v4-valid", packageDir: fixture("valid") });
   const files = buildTokenArtifactFiles({
     tokensExport: "v4ValidTokens",
     uiClass: "maivand-valid-ui",
@@ -186,7 +186,7 @@ test("a manifest's published token names match the emitted artifacts", () => {
 });
 
 test("generation fails closed on a malformed uiClass namespace", (t) => {
-  const dir = tempCopy(fixture("v4-valid"));
+  const dir = tempCopy(fixture("valid"));
   cleanup(t, dir);
   const pkg = readJson(join(dir, "package.json"));
   pkg.prismSystem.uiClass = "Maivand Valid";
@@ -225,7 +225,7 @@ test("renders system-prefixed CSS with shared light/dark names", () => {
 test("renders a second system with its own prefix", () => {
   const css = renderTokensCss({
     uiClass: "maivand-valid-b-ui",
-    resolvedTokens: resolveTokenSource(readJson(fixture("v4-valid-b", "tokens.source.json"))),
+    resolvedTokens: resolveTokenSource(readJson(fixture("valid-b", "tokens.source.json"))),
   });
   assert.match(css, /--maivand-valid-b-color-text-primary:/);
 });
@@ -289,11 +289,11 @@ test("buildTokenArtifactFiles returns the three artifacts in stable order", () =
 /* -------------------------------------------------------------------------- */
 
 test("V4 write emits all artifacts and repeated writes are byte-identical", async (t) => {
-  const dir = tempCopy(fixture("v4-valid"));
+  const dir = tempCopy(fixture("valid"));
   cleanup(t, dir);
 
   await writeDesignSystemManifest({ id: "v4-valid", packageDir: dir });
-  const paths = V4_TOKEN_ARTIFACT_PATHS.map((artifact) => join(dir, artifact.relativePath));
+  const paths = TOKEN_ARTIFACT_PATHS.map((artifact) => join(dir, artifact.relativePath));
   for (const path of paths) assert.ok(existsSync(path), `expected ${path}`);
   const firstBytes = paths.map((path) => readFileSync(path, "utf8"));
   const manifestPath = join(dir, "design-system.json");
@@ -314,7 +314,7 @@ test("V4 write emits all artifacts and repeated writes are byte-identical", asyn
 });
 
 test("V4 check reports missing and drifted token artifacts", async (t) => {
-  const dir = tempCopy(fixture("v4-valid"));
+  const dir = tempCopy(fixture("valid"));
   cleanup(t, dir);
   await writeDesignSystemManifest({ id: "v4-valid", packageDir: dir });
 
@@ -342,7 +342,7 @@ test("V4 check reports missing and drifted token artifacts", async (t) => {
 });
 
 test("V4 valid-b also writes and checks cleanly", async (t) => {
-  const dir = tempCopy(fixture("v4-valid-b"));
+  const dir = tempCopy(fixture("valid-b"));
   cleanup(t, dir);
   await writeDesignSystemManifest({ id: "v4-valid-b", packageDir: dir });
   assert.match(
@@ -353,64 +353,29 @@ test("V4 valid-b also writes and checks cleanly", async (t) => {
 });
 
 /* -------------------------------------------------------------------------- */
-/* V2 regression                                                              */
-/* -------------------------------------------------------------------------- */
-
-test("V2 fixture keeps an identical manifest and requires no token artifacts", async (t) => {
-  const id = "v2-valid";
-  const dir = tempCopy(fixture(id));
-  cleanup(t, dir);
-
-  // The rebuilt manifest is deep-identical to the committed fixture manifest.
-  const built = buildManifest({ id, packageDir: dir });
-  assert.deepEqual(built, readJson(join(dir, "design-system.json")));
-
-  const result = checkDesignSystemManifest({ id, packageDir: dir });
-  assert.equal(result.ok, true, result.failures.join("; "));
-  assert.equal(result.tokenArtifacts, null);
-
-  // A V2 write must not generate the V4 artifacts nor touch the hand-written
-  // V2 token module.
-  const v2TokensPath = join(dir, "src/tokens/index.ts");
-  const v2TokensBefore = readFileSync(v2TokensPath, "utf8");
-  await writeDesignSystemManifest({ id, packageDir: dir });
-  assert.ok(!existsSync(join(dir, "src/styles/tokens.css")));
-  assert.ok(!existsSync(join(dir, "src/styles/tailwind.css")));
-  assert.equal(readFileSync(v2TokensPath, "utf8"), v2TokensBefore);
-});
-
-/* -------------------------------------------------------------------------- */
 /* Runtime version helpers                                                    */
 /* -------------------------------------------------------------------------- */
 
-test("runtime version helpers support v4 while keeping the v2 default", () => {
-  const v4Source = [
-    'import { defineDesignSystemV4 } from "@prism-system/ui-core";',
-    "export const DesignSystem = defineDesignSystemV4({",
+test("runtime version helpers read and synchronize defineDesignSystem", () => {
+  const source = [
+    'import { defineDesignSystem } from "@prism-system/ui-core";',
+    "export const DesignSystem = defineDesignSystem({",
     '  id: "system-a",',
     '  version: "2.0.0",',
+    "  contractVersion: 4,",
     "  components: {},",
     "});",
     "",
   ].join("\n");
 
-  assert.equal(readRuntimeDesignSystemVersion(v4Source, "v4"), "2.0.0");
-  const synced = syncRuntimeDesignSystemVersion(v4Source, "2.1.0", "v4");
+  assert.equal(readRuntimeDesignSystemVersion(source), "2.0.0");
+  const synced = syncRuntimeDesignSystemVersion(source, "2.1.0");
   assert.equal(synced.changed, true);
-  assert.equal(readRuntimeDesignSystemVersion(synced.source, "v4"), "2.1.0");
-  assert.equal(syncRuntimeDesignSystemVersion(v4Source, "2.0.0", "v4").changed, false);
-
-  const v2Source = readFileSync(fixture("v2-valid", "src", "index.ts"), "utf8");
-  assert.equal(readRuntimeDesignSystemVersion(v2Source), "1.1.0");
-  assert.equal(readRuntimeDesignSystemVersion(v2Source, "v2"), "1.1.0");
-  assert.equal(syncRuntimeDesignSystemVersion(v2Source, "1.1.0").changed, false);
+  assert.equal(readRuntimeDesignSystemVersion(synced.source), "2.1.0");
+  assert.equal(syncRuntimeDesignSystemVersion(source, "2.0.0").changed, false);
 
   assert.throws(
-    () => readRuntimeDesignSystemVersion(v4Source, "v2"),
-    /src\/index\.ts does not call defineDesignSystemV2\(\.\.\.\)\./,
-  );
-  assert.throws(
-    () => readRuntimeDesignSystemVersion(v2Source, "v3"),
-    /Unsupported runtime contract "v3"; expected "v2" or "v4"\./,
+    () => readRuntimeDesignSystemVersion('const other = { version: "1.0.0" };'),
+    /does not call defineDesignSystem\(\.\.\.\)\./,
   );
 });

@@ -8,8 +8,8 @@
  * Two layers are covered:
  *
  *   1. `buildComponentCatalog` — the pure catalog rules, exercised directly
- *      against the real A/B V4 manifests and the V2 fixture (order, availability
- *      subsets, requested available/unavailable/unknown, metadata, route).
+ *      against the real A/B manifests (order, availability subsets, requested
+ *      available/unavailable/unknown, metadata, route).
  *   2. `listDesignSystemComponents` — the end-to-end offline consumer path against
  *      disposable temp consumers, including "no writes" and "no network".
  *
@@ -21,38 +21,35 @@
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
 
 import {
-  V2_REQUIRED_COMPONENTS,
-  V4_COMPONENT_NAMES,
-  V4_OPTIONAL_COMPONENTS,
-  V4_REQUIRED_COMPONENTS,
+  COMPONENT_NAMES,
+  CONTRACT_VERSION,
+  OPTIONAL_COMPONENTS,
+  REQUIRED_COMPONENTS,
 } from "../src/constants.mjs";
 import { buildComponentCatalog, listDesignSystemComponents } from "../src/components.mjs";
+import { capabilityCategories, currentManifest, readJson, repoRoot } from "./manifest-fixture.mjs";
 
-const testDir = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(testDir, "..", "..", "..");
-const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
-
-const v2Manifest = readJson(
-  join(repoRoot, "schemas", "fixtures", "v2-valid", "design-system.json"),
+const systemAManifest = currentManifest(
+  readJson(join(repoRoot, "packages", "system-a", "design-system.json")),
 );
-const systemAManifest = readJson(join(repoRoot, "packages", "system-a", "design-system.json"));
-const systemBManifest = readJson(join(repoRoot, "packages", "system-b", "design-system.json"));
+const systemBManifest = currentManifest(
+  readJson(join(repoRoot, "packages", "system-b", "design-system.json")),
+);
 
-const V4_MANIFESTS = [systemAManifest, systemBManifest];
+const MANIFESTS = [systemAManifest, systemBManifest];
 
 /** Optionals a manifest actually declares, in canonical order. */
 function declaredOptionals(manifest) {
-  return V4_OPTIONAL_COMPONENTS.filter((name) => name in manifest.components);
+  return OPTIONAL_COMPONENTS.filter((name) => name in manifest.components);
 }
 
 /** Optionals a manifest leaves undeclared (unavailable), in canonical order. */
 function undeclaredOptionals(manifest) {
-  return V4_OPTIONAL_COMPONENTS.filter((name) => !(name in manifest.components));
+  return OPTIONAL_COMPONENTS.filter((name) => !(name in manifest.components));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -119,75 +116,180 @@ function snapshot(root) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Pure catalog rules — real V4 manifests                                     */
+/* Pure catalog rules                                                         */
 /* -------------------------------------------------------------------------- */
 
-test("V4 catalog reports the twenty required plus twelve optional in canonical order", () => {
-  for (const manifest of V4_MANIFESTS) {
+test("catalog reports the 29 required plus 17 optional in canonical order", () => {
+  for (const manifest of MANIFESTS) {
     const catalog = buildComponentCatalog({ manifest });
-    assert.equal(catalog.contract, "v4");
+    assert.equal(catalog.contractVersion, CONTRACT_VERSION);
     assert.deepEqual(
       catalog.components.map((component) => component.name),
-      [...V4_COMPONENT_NAMES],
+      [...COMPONENT_NAMES],
       `${manifest.id} preserves canonical order`,
     );
-    assert.equal(catalog.components.length, 32);
+    assert.equal(catalog.components.length, 46);
     assert.deepEqual(catalog.counts, {
-      required: 20,
-      optional: 12,
-      available: 20 + declaredOptionals(manifest).length,
+      required: 29,
+      optional: 17,
+      available: 29 + declaredOptionals(manifest).length,
       unavailable: undeclaredOptionals(manifest).length,
     });
   }
 });
 
-test("V4 required components are always available and marked required", () => {
-  for (const manifest of V4_MANIFESTS) {
+test("required components are always available and marked required", () => {
+  for (const manifest of MANIFESTS) {
     const catalog = buildComponentCatalog({ manifest });
-    for (const name of V4_REQUIRED_COMPONENTS) {
+    for (const name of REQUIRED_COMPONENTS) {
       const entry = catalog.components.find((component) => component.name === name);
       assert.equal(entry.required, true, `${name} required`);
       assert.equal(entry.optional, false, `${name} not optional`);
       assert.equal(entry.available, true, `${name} available`);
     }
-    assert.deepEqual(catalog.available.slice(0, V4_REQUIRED_COMPONENTS.length), [
-      ...V4_REQUIRED_COMPONENTS,
+    assert.deepEqual(catalog.available.slice(0, REQUIRED_COMPONENTS.length), [
+      ...REQUIRED_COMPONENTS,
     ]);
   }
 });
 
-test("V4 availability subsets match the declared optionals of each system", () => {
-  const catalogA = buildComponentCatalog({ manifest: systemAManifest });
-  assert.deepEqual(catalogA.unavailable, ["Section", "Skeleton", "Toast", "Avatar", "Breadcrumbs"]);
-  assert.deepEqual(catalogA.available, [
-    ...V4_REQUIRED_COMPONENTS,
-    "Grid",
-    "Fieldset",
-    "Alert",
-    "Progress",
-    "Accordion",
-    "Pagination",
-    "Table",
-  ]);
+test("availability subsets match the declared optionals of each system", () => {
+  for (const manifest of MANIFESTS) {
+    const catalog = buildComponentCatalog({ manifest });
+    assert.deepEqual(catalog.available, [...REQUIRED_COMPONENTS, ...declaredOptionals(manifest)]);
+    assert.deepEqual(catalog.unavailable, undeclaredOptionals(manifest));
+  }
+});
 
-  const catalogB = buildComponentCatalog({ manifest: systemBManifest });
-  assert.deepEqual(catalogB.unavailable, [
+/* -------------------------------------------------------------------------- */
+/* Capability categories and derived availability                             */
+/* -------------------------------------------------------------------------- */
+
+test("the catalog exposes the exact category inventory with derived availability", () => {
+  for (const manifest of MANIFESTS) {
+    const catalog = buildComponentCatalog({ manifest });
+    assert.deepEqual(Object.keys(catalog.capabilities.categories), [
+      "composition",
+      "forms",
+      "data-display",
+    ]);
+    for (const [key, expected] of Object.entries(capabilityCategories())) {
+      const category = catalog.capabilities.categories[key];
+      assert.deepEqual(category.required, expected.required, `${manifest.id} ${key} required`);
+      assert.deepEqual(category.optional, expected.optional, `${manifest.id} ${key} optional`);
+      const names = [...expected.required, ...expected.optional];
+      assert.deepEqual(
+        category.available,
+        names.filter((name) => name in manifest.components),
+        `${manifest.id} ${key} available`,
+      );
+      assert.deepEqual(
+        category.unavailable,
+        names.filter((name) => !(name in manifest.components)),
+        `${manifest.id} ${key} unavailable`,
+      );
+    }
+  }
+});
+
+test("category availability follows only the declared component map", () => {
+  const withGrid = buildComponentCatalog({ manifest: systemAManifest });
+  assert.ok(withGrid.capabilities.categories.composition.available.includes("Grid"));
+  assert.ok(withGrid.capabilities.categories.composition.unavailable.includes("Section"));
+
+  const withoutGrid = structuredClone(systemAManifest);
+  delete withoutGrid.components.Grid;
+  const catalog = buildComponentCatalog({ manifest: withoutGrid });
+  assert.ok(!catalog.capabilities.categories.composition.available.includes("Grid"));
+  assert.ok(catalog.capabilities.categories.composition.unavailable.includes("Grid"));
+  assert.ok(!catalog.available.includes("Grid"));
+  assert.ok(catalog.unavailable.includes("Grid"));
+});
+
+test("systems A and B derive different category availability from one inventory", () => {
+  const a = buildComponentCatalog({ manifest: systemAManifest });
+  const b = buildComponentCatalog({ manifest: systemBManifest });
+
+  // The same fixed inventory; only the declared component map differs.
+  assert.deepEqual(
+    a.capabilities.categories.composition.required,
+    b.capabilities.categories.composition.required,
+  );
+  assert.deepEqual(
+    a.capabilities.categories.composition.optional,
+    b.capabilities.categories.composition.optional,
+  );
+  assert.deepEqual(a.capabilities.categories.composition.available, [
+    "Container",
+    "Stack",
+    "Center",
+    "Cluster",
+    "Sidebar",
+    "AspectRatio",
     "Grid",
-    "Fieldset",
-    "Progress",
-    "Accordion",
-    "Pagination",
-    "Table",
   ]);
-  assert.deepEqual(catalogB.available, [
-    ...V4_REQUIRED_COMPONENTS,
+  assert.deepEqual(a.capabilities.categories.composition.unavailable, ["Section"]);
+  assert.deepEqual(b.capabilities.categories.composition.available, [
+    "Container",
+    "Stack",
+    "Center",
+    "Cluster",
+    "Sidebar",
+    "AspectRatio",
     "Section",
-    "Alert",
-    "Skeleton",
-    "Toast",
-    "Avatar",
-    "Breadcrumbs",
   ]);
+  assert.deepEqual(b.capabilities.categories.composition.unavailable, ["Grid"]);
+
+  for (const system of [a, b]) {
+    assert.deepEqual(system.capabilities.categories.forms.available, [
+      "FormField",
+      "Combobox",
+      "DatePicker",
+      "NumberField",
+      "Slider",
+      "FileUpload",
+    ]);
+    assert.deepEqual(system.capabilities.categories.forms.unavailable, []);
+  }
+
+  assert.deepEqual(a.capabilities.categories["data-display"].available, [
+    "Table",
+    "Pagination",
+    "Progress",
+    "Metric",
+    "DescriptionList",
+    "Timeline",
+    "Meter",
+  ]);
+  assert.deepEqual(a.capabilities.categories["data-display"].unavailable, ["EmptyState"]);
+  assert.deepEqual(b.capabilities.categories["data-display"].available, [
+    "Metric",
+    "Timeline",
+    "EmptyState",
+  ]);
+  assert.deepEqual(b.capabilities.categories["data-display"].unavailable, [
+    "Table",
+    "Pagination",
+    "Progress",
+    "DescriptionList",
+    "Meter",
+  ]);
+});
+
+test("a schema-4 manifest with malformed capabilities is rejected by the pure catalog", () => {
+  const missingCategory = structuredClone(systemAManifest);
+  delete missingCategory.capabilities.categories.composition;
+  assert.throws(
+    () => buildComponentCatalog({ manifest: missingCategory }),
+    /capabilities\.categories\.composition is required/,
+  );
+
+  const separateAvailability = structuredClone(systemAManifest);
+  separateAvailability.capabilities.available = ["Button"];
+  assert.throws(
+    () => buildComponentCatalog({ manifest: separateAvailability }),
+    /capabilities\.available is not allowed/,
+  );
 });
 
 test("available components expose declared variants, sizes, and compound members", () => {
@@ -275,6 +377,17 @@ test("requested unknown component name is rejected with the known set", () => {
   assert.throws(() => buildComponentCatalog({ manifest: systemAManifest, name: "" }), /non-empty/);
 });
 
+test("an unsupported manifest metadata pair is rejected", () => {
+  assert.throws(
+    () => buildComponentCatalog({ manifest: { schemaVersion: 3, contractVersion: 4 } }),
+    /expected schemaVersion 4 and contractVersion 4/,
+  );
+  assert.throws(
+    () => buildComponentCatalog({ manifest: { schemaVersion: 4, contract: "v4" } }),
+    /expected schemaVersion 4 and contractVersion 4/,
+  );
+});
+
 test("showcase route derives only from the validated manifest id", () => {
   assert.equal(
     buildComponentCatalog({ manifest: systemAManifest }).showcase.route,
@@ -283,10 +396,6 @@ test("showcase route derives only from the validated manifest id", () => {
   assert.equal(
     buildComponentCatalog({ manifest: systemBManifest }).showcase.route,
     "/showcase/system-b",
-  );
-  assert.equal(
-    buildComponentCatalog({ manifest: v2Manifest }).showcase.route,
-    "/showcase/v2-valid",
   );
 });
 
@@ -298,57 +407,24 @@ test("catalog output is deterministic", () => {
 });
 
 /* -------------------------------------------------------------------------- */
-/* Pure catalog rules — V2 fixture                                            */
-/* -------------------------------------------------------------------------- */
-
-test("V2 catalog lists exactly the fourteen supported components in canonical order", () => {
-  const catalog = buildComponentCatalog({ manifest: v2Manifest });
-  assert.equal(catalog.contract, "v2");
-  assert.deepEqual(
-    catalog.components.map((component) => component.name),
-    [...V2_REQUIRED_COMPONENTS],
-  );
-  assert.equal(catalog.components.length, 14);
-  assert.deepEqual(catalog.counts, {
-    required: 14,
-    optional: 0,
-    available: 14,
-    unavailable: 0,
-  });
-  for (const entry of catalog.components) {
-    assert.equal(entry.required, true);
-    assert.equal(entry.optional, false);
-    assert.equal(entry.available, true);
-  }
-  assert.deepEqual(catalog.requested, null);
-});
-
-test("V2 rejects a V4-only optional name as unknown", () => {
-  assert.throws(
-    () => buildComponentCatalog({ manifest: v2Manifest, name: "Grid" }),
-    /Unknown component "Grid"/,
-  );
-});
-
-/* -------------------------------------------------------------------------- */
 /* End-to-end consumer path                                                   */
 /* -------------------------------------------------------------------------- */
 
-test("listDesignSystemComponents reads a real V2 consumer end-to-end", (t) => {
-  const { root, packageName } = createConsumer(t, { manifest: v2Manifest, withConfig: true });
+test("listDesignSystemComponents reads an installed system end-to-end", (t) => {
+  const { root, packageName } = createConsumer(t, { manifest: systemAManifest, withConfig: true });
 
   const result = listDesignSystemComponents({ cwd: root });
 
   assert.equal(result.ok, true);
   assert.equal(result.package, packageName);
-  assert.equal(result.contract, "v2");
-  assert.equal(result.version, "1.1.0");
-  assert.equal(result.id, "v2-valid");
-  assert.equal(result.showcase.route, "/showcase/v2-valid");
-  assert.deepEqual(
-    result.components.map((component) => component.name),
-    [...V2_REQUIRED_COMPONENTS],
-  );
+  assert.equal(result.contractVersion, CONTRACT_VERSION);
+  assert.equal(result.version, systemAManifest.version);
+  assert.equal(result.id, "system-a");
+  assert.equal(result.showcase.route, "/showcase/system-a");
+  assert.deepEqual(result.available, [
+    ...REQUIRED_COMPONENTS,
+    ...declaredOptionals(systemAManifest),
+  ]);
 
   const requested = listDesignSystemComponents({ cwd: root, name: "Button" });
   assert.equal(requested.requested.available, true);
@@ -361,21 +437,20 @@ test("listDesignSystemComponents reads a real V2 consumer end-to-end", (t) => {
     "link",
   ]);
 
-  assert.throws(
-    () => listDesignSystemComponents({ cwd: root, name: "Grid" }),
-    /Unknown component "Grid"/,
-  );
+  const unavailable = listDesignSystemComponents({ cwd: root, name: "Section" });
+  assert.equal(unavailable.requested.available, false);
+  assert.equal(unavailable.requested.variants, null);
 });
 
 test("listDesignSystemComponents discovers an unconnected consumer via dependency", (t) => {
-  const { root } = createConsumer(t, { manifest: v2Manifest, withConfig: false });
+  const { root } = createConsumer(t, { manifest: systemBManifest, withConfig: false });
   const result = listDesignSystemComponents({ cwd: root });
-  assert.equal(result.package, v2Manifest.package);
-  assert.equal(result.version, v2Manifest.version);
+  assert.equal(result.package, systemBManifest.package);
+  assert.equal(result.version, systemBManifest.version);
 });
 
 test("listDesignSystemComponents writes nothing", (t) => {
-  const { root } = createConsumer(t, { manifest: v2Manifest, withConfig: true });
+  const { root } = createConsumer(t, { manifest: systemAManifest, withConfig: true });
   const before = snapshot(root);
 
   listDesignSystemComponents({ cwd: root, name: "Card" });
@@ -385,7 +460,7 @@ test("listDesignSystemComponents writes nothing", (t) => {
 });
 
 test("listDesignSystemComponents makes no network access", (t) => {
-  const { root } = createConsumer(t, { manifest: v2Manifest, withConfig: true });
+  const { root } = createConsumer(t, { manifest: systemAManifest, withConfig: true });
   const originalFetch = globalThis.fetch;
   let called = false;
   globalThis.fetch = () => {
@@ -403,30 +478,4 @@ test("listDesignSystemComponents makes no network access", (t) => {
 
 test("listDesignSystemComponents requires an explicit consumer root", () => {
   assert.throws(() => listDesignSystemComponents({}), /explicit --cwd/);
-});
-
-test("listDesignSystemComponents reads a real installed V4 system end-to-end", (t) => {
-  const { root, packageName } = createConsumer(t, { manifest: systemAManifest, withConfig: true });
-
-  const result = listDesignSystemComponents({ cwd: root });
-
-  assert.equal(result.ok, true);
-  assert.equal(result.package, packageName);
-  assert.equal(result.contract, "v4");
-  assert.equal(result.version, systemAManifest.version);
-  assert.equal(result.showcase.route, "/showcase/system-a");
-  assert.deepEqual(result.available, [
-    ...V4_REQUIRED_COMPONENTS,
-    "Grid",
-    "Fieldset",
-    "Alert",
-    "Progress",
-    "Accordion",
-    "Pagination",
-    "Table",
-  ]);
-
-  const unavailable = listDesignSystemComponents({ cwd: root, name: "Section" });
-  assert.equal(unavailable.requested.available, false);
-  assert.equal(unavailable.requested.variants, null);
 });

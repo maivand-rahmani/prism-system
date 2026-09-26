@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /**
- * V2/V4 maintainer registry tests (Node built-in test runner, no dependency).
+ * Maintainer registry tests (Node built-in test runner, no dependency).
  *
  * Run directly:
  *   node --test scripts/register-design-system.test.mjs
  *
- * These cover the registry contract schema (only `v2`/`v4` are accepted), that a
- * V4 runtime is never relabeled as V2, and the runtime source path each
- * contract synchronizes through.
+ * These cover the registry contract schema (the numeric `contractVersion: 4` is
+ * the only accepted contract), that registration never relabels or downgrades a
+ * package, and that version synchronization targets the canonical runtime
+ * source file.
  */
 
 import assert from "node:assert/strict";
@@ -26,13 +27,13 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
-  CONTRACTS,
+  CONTRACT_VERSION,
   buildEntry,
   normalizeManifest,
-  readSourceContract,
+  readSourceContractVersion,
   registerDesignSystem,
 } from "./register-design-system.mjs";
-import { runtimeTargetForContract } from "./sync-design-system-versions.mjs";
+import { RUNTIME_TARGET } from "./sync-design-system-versions.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const fixturesRoot = join(repoRoot, "schemas", "fixtures");
@@ -47,31 +48,40 @@ const ENTRY_BASE = Object.freeze({
   version: "0.1.0",
   uiClass: "maivand-pulse-ui",
   tokensExport: "pulseTokens",
+  contractVersion: 4,
 });
 
-test("the registry schema accepts exactly v2 and v4", () => {
-  assert.deepEqual([...CONTRACTS], ["v2", "v4"]);
-  assert.equal(buildEntry({ ...ENTRY_BASE, contract: "v2" }).contract, "v2");
-  assert.equal(buildEntry({ ...ENTRY_BASE, contract: "v4" }).contract, "v4");
-  assert.throws(() => buildEntry({ ...ENTRY_BASE, contract: "v1" }), /Unsupported contract "v1"/);
-  assert.throws(() => buildEntry({ ...ENTRY_BASE }), /Missing required "contract"/);
+test("the registry schema accepts only the numeric contractVersion 4", () => {
+  assert.equal(CONTRACT_VERSION, 4);
+  assert.equal(buildEntry({ ...ENTRY_BASE }).contractVersion, 4);
+  assert.throws(
+    () => buildEntry({ ...ENTRY_BASE, contractVersion: 2 }),
+    /must declare the numeric contractVersion: 4/,
+  );
+  assert.throws(
+    () => buildEntry({ ...ENTRY_BASE, contractVersion: undefined }),
+    /must declare the numeric contractVersion: 4/,
+  );
 });
 
-test("normalizeManifest keeps a v4 entry as v4", () => {
+test("normalizeManifest keeps the current entry shape", () => {
   const manifest = normalizeManifest({
-    version: 2,
-    designSystems: [{ ...ENTRY_BASE, contract: "v4" }],
+    version: 3,
+    designSystems: [{ ...ENTRY_BASE }],
   });
-  assert.equal(manifest.designSystems[0].contract, "v4");
+  assert.equal(manifest.version, 3);
+  assert.equal(manifest.designSystems[0].contractVersion, 4);
+  assert.throws(
+    () => normalizeManifest({ version: 2, designSystems: [{ ...ENTRY_BASE }] }),
+    /"version" must be 3/,
+  );
 });
 
-test("runtime target follows the contract: V2 index.ts, V4 design-system.ts", () => {
-  assert.equal(runtimeTargetForContract("v2"), "src/index.ts");
-  assert.equal(runtimeTargetForContract("v4"), "src/design-system.ts");
-  assert.throws(() => runtimeTargetForContract("v1"), /expected "v2" or "v4"/);
+test("runtime synchronization targets src/design-system.ts", () => {
+  assert.equal(RUNTIME_TARGET, "src/design-system.ts");
 });
 
-function makePackage(root, { id, contract, prismSystemContract, source, tokens }) {
+function makePackage(root, { id, source, tokens }) {
   const dir = join(root, "packages", id);
   mkdirSync(dir, { recursive: true });
   writeFileSync(
@@ -82,7 +92,6 @@ function makePackage(root, { id, contract, prismSystemContract, source, tokens }
         version: "0.1.0",
         prismSystem: {
           name: id,
-          contract: prismSystemContract ?? contract,
           uiClass: `maivand-${id}-ui`,
           tokensExport: `${id}Tokens`,
         },
@@ -92,27 +101,21 @@ function makePackage(root, { id, contract, prismSystemContract, source, tokens }
     )}\n`,
     "utf8",
   );
-  // V4 packages must ship a full, valid descriptor and token source; the
-  // canonical fixtures stand in for generated output. Callers can override
-  // either with an invalid fixture to prove registration rejects it.
-  const descriptor =
-    source ??
-    (contract === "v4"
-      ? readJson(fixturePath("v4-valid", "design-system.source.json"))
-      : { schemaVersion: 1, contract });
+  // Packages must ship a full, valid descriptor and token source; the canonical
+  // fixtures stand in for generated output. Callers can override either with an
+  // invalid fixture to prove registration rejects it.
+  const descriptor = source ?? readJson(fixturePath("valid", "design-system.source.json"));
   writeFileSync(
     join(dir, "design-system.source.json"),
     `${JSON.stringify(descriptor, null, 2)}\n`,
     "utf8",
   );
-  if (contract === "v4") {
-    const tokenSource = tokens ?? readJson(fixturePath("v4-valid", "tokens.source.json"));
-    writeFileSync(
-      join(dir, "tokens.source.json"),
-      `${JSON.stringify(tokenSource, null, 2)}\n`,
-      "utf8",
-    );
-  }
+  const tokenSource = tokens ?? readJson(fixturePath("valid", "tokens.source.json"));
+  writeFileSync(
+    join(dir, "tokens.source.json"),
+    `${JSON.stringify(tokenSource, null, 2)}\n`,
+    "utf8",
+  );
   return dir;
 }
 
@@ -121,7 +124,7 @@ function seedManifestAndApps(root) {
   mkdirSync(join(root, "config"), { recursive: true });
   writeFileSync(
     join(root, "config", "design-systems.json"),
-    `${JSON.stringify({ version: 2, designSystems: [] }, null, 2)}\n`,
+    `${JSON.stringify({ version: 3, designSystems: [] }, null, 2)}\n`,
     "utf8",
   );
   for (const app of ["showcase", "reference-app"]) {
@@ -164,78 +167,70 @@ function snapshotFiles(dir) {
   return files;
 }
 
-test("registration records the source contract and never relabels V4 as V2", async () => {
+test("registration records the current contract and canonical metadata", async () => {
   const root = mkdtempSync(join(tmpdir(), "prism-register-"));
   try {
-    makePackage(root, { id: "pulse", contract: "v4" });
+    makePackage(root, { id: "pulse" });
     const result = await registerDesignSystem({ id: "pulse", root });
-    assert.equal(result.entry.contract, "v4");
+    assert.equal(result.entry.contractVersion, 4);
     const written = JSON.parse(readFileSync(join(root, "config", "design-systems.json"), "utf8"));
-    assert.equal(written.designSystems[0].contract, "v4");
+    assert.equal(written.version, 3);
+    assert.equal(written.designSystems[0].contractVersion, 4);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-test("registration records a V2 package as v2", async () => {
+test("a package with an incomplete prismSystem block is rejected", async () => {
   const root = mkdtempSync(join(tmpdir(), "prism-register-"));
   try {
-    makePackage(root, { id: "calm", contract: "v2" });
-    const result = await registerDesignSystem({ id: "calm", root });
-    assert.equal(result.entry.contract, "v2");
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("a package whose prismSystem disagrees with its source descriptor is rejected", async () => {
-  const root = mkdtempSync(join(tmpdir(), "prism-register-"));
-  try {
-    makePackage(root, { id: "pulse", contract: "v4", prismSystemContract: "v2" });
+    const packageDir = makePackage(root, { id: "pulse" });
+    const pkgPath = join(packageDir, "package.json");
+    const pkg = readJson(pkgPath);
+    delete pkg.prismSystem.tokensExport;
+    writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
     await assert.rejects(
       registerDesignSystem({ id: "pulse", root }),
-      /package contract and its source descriptor must agree/,
+      /"prismSystem" in .* is incomplete \(missing tokensExport\)/,
     );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-test("readSourceContract accepts only the two canonical pairs", () => {
+test("readSourceContractVersion accepts only the numeric contractVersion 4", () => {
   const root = mkdtempSync(join(tmpdir(), "prism-source-"));
   try {
     const sourcePath = join(root, "design-system.source.json");
-    writeFileSync(sourcePath, JSON.stringify({ schemaVersion: 1, contract: "v2" }), "utf8");
-    assert.equal(readSourceContract(root), "v2");
-    writeFileSync(sourcePath, JSON.stringify({ schemaVersion: 2, contract: "v4" }), "utf8");
-    assert.equal(readSourceContract(root), "v4");
-    writeFileSync(sourcePath, JSON.stringify({ schemaVersion: 2, contract: "v2" }), "utf8");
+    writeFileSync(sourcePath, JSON.stringify({ schemaVersion: 3, contractVersion: 4 }), "utf8");
+    assert.equal(readSourceContractVersion(root), 4);
+    writeFileSync(sourcePath, JSON.stringify({ schemaVersion: 3, contractVersion: "4" }), "utf8");
     assert.throws(
-      () => readSourceContract(root),
-      /must declare \(schemaVersion 1, contract "v2"\)/,
+      () => readSourceContractVersion(root),
+      /must declare the numeric contractVersion 4/,
     );
+    writeFileSync(sourcePath, JSON.stringify({ schemaVersion: 2, contractVersion: 4 }), "utf8");
+    assert.throws(() => readSourceContractVersion(root), /must declare schemaVersion 3/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-test("an invalid V4 descriptor is rejected and mutates no registry or app bytes", async () => {
+test("an invalid descriptor is rejected and mutates no registry or app bytes", async () => {
   const root = mkdtempSync(join(tmpdir(), "prism-register-"));
   try {
     const packageDir = makePackage(root, {
       id: "pulse",
-      contract: "v4",
-      // A full descriptor missing a required component: the pair still looks
-      // registrable, which is the gap the full V4 validation closes.
-      source: readJson(fixturePath("v4-invalid-missing-required", "design-system.source.json")),
+      // A full descriptor missing a required component.
+      source: readJson(fixturePath("invalid-missing-required", "design-system.source.json")),
     });
-    assert.equal(readSourceContract(packageDir), "v4");
+    assert.equal(readSourceContractVersion(packageDir), 4);
     seedManifestAndApps(root);
     const before = snapshotFiles(root);
 
     await assert.rejects(
       registerDesignSystem({ id: "pulse", root }),
-      /Cannot register "pulse": invalid V4 source in .*Missing: Heading\./,
+      /Cannot register "pulse": invalid source in .*Missing: Heading\./,
     );
 
     assert.deepEqual(snapshotFiles(root), before);
@@ -244,22 +239,21 @@ test("an invalid V4 descriptor is rejected and mutates no registry or app bytes"
   }
 });
 
-test("an invalid V4 token source is rejected and mutates no registry or app bytes", async () => {
+test("an invalid token source is rejected and mutates no registry or app bytes", async () => {
   const root = mkdtempSync(join(tmpdir(), "prism-register-"));
   try {
     const packageDir = makePackage(root, {
       id: "pulse",
-      contract: "v4",
       // A valid descriptor with a token source carrying an unsupported unit.
       tokens: readJson(fixturePath("tokens-invalid-unit", "tokens.source.json")),
     });
-    assert.equal(readSourceContract(packageDir), "v4");
+    assert.equal(readSourceContractVersion(packageDir), 4);
     seedManifestAndApps(root);
     const before = snapshotFiles(root);
 
     await assert.rejects(
       registerDesignSystem({ id: "pulse", root }),
-      /Cannot register "pulse": invalid V4 source in .*"spacing\.scale\.4" must be a valid length/,
+      /Cannot register "pulse": invalid source in .*"spacing\.scale\.4" must be a valid length/,
     );
 
     assert.deepEqual(snapshotFiles(root), before);

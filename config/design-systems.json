@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "designSystems": [
     {
       "id": "system-a",
@@ -9,7 +9,7 @@
       "version": "2.0.0",
       "uiClass": "maivand-a-ui",
       "tokensExport": "systemATokens",
-      "contract": "v4"
+      "contractVersion": 4
     },
     {
       "id": "system-b",
@@ -19,7 +19,7 @@
       "version": "2.0.0",
       "uiClass": "maivand-b-ui",
       "tokensExport": "systemBTokens",
-      "contract": "v4"
+      "contractVersion": 4
     }
   ]
 }

@@ -78,7 +78,7 @@ export function helpText() {
     "  check-usage     Deterministically validate strict usage with the TypeScript AST.",
     "  doctor          Read-only diagnostics: containment, discovery, manifest, config.",
     "  components      Offline component catalog of the installed style.",
-    "  tokens          Offline V4 token catalog of the installed style.",
+    "  tokens          Offline token catalog of the installed style.",
     "  check           One offline read-only health report for a connected consumer.",
     "  setup-tailwind  Write the Tailwind v4 bridge imports into one explicit CSS file.",
     "  upgrade         Explicitly upgrade an installed style to an exact version.",
@@ -237,8 +237,9 @@ export function componentsHelpText() {
     "",
     "Offline, read-only component catalog for the design system installed in a",
     "consumer. It reports the components declared by the installed package's public",
-    "./manifest export. It never installs, executes package code, or reaches the",
-    "network.",
+    "./manifest export and the capability categories with availability derived",
+    "only from those declared components. It never installs, executes package",
+    "code, or reaches the network.",
     "",
     "Arguments:",
     "  [name]                Optional single component name. A known-but-unavailable",
@@ -257,11 +258,10 @@ export function tokensHelpText() {
     `Usage: ${CLI_NAME} tokens [group] --cwd <consumer-root> [--json]`,
     "",
     "Offline, read-only token catalog for the design system installed in a consumer.",
-    "A V4 system reports its semantic token groups and generated CSS/Tailwind names;",
-    "a V2 system declares no token catalog and is reported unavailable (exit 0).",
+    "It reports the semantic token groups and the generated CSS/Tailwind names.",
     "",
     "Arguments:",
-    "  [group]               Optional V4 token group: themes, typography, spacing,",
+    "  [group]               Optional token group: themes, typography, spacing,",
     "                        containers, breakpoints, layers, radius, shadow, motion.",
     "",
     "Options:",
@@ -299,7 +299,7 @@ export function setupTailwindHelpText() {
     `Usage: ${CLI_NAME} setup-tailwind --cwd <consumer-root> --css <file> [--dry-run] [--json]`,
     `       ${CLI_NAME} setup-tailwind --check --cwd <consumer-root> --css <file> [--json]`,
     "",
-    "Offline Tailwind v4 setup for a connected V4 consumer. It edits exactly the",
+    "Offline Tailwind v4 setup for a connected consumer. It edits exactly the",
     'explicit --css file so it loads "tailwindcss", the design-system bridge, and the',
     "stylesheet in the required order. It never installs, runs scripts, edits",
     "dependencies, or touches any other file.",
@@ -948,12 +948,20 @@ export async function runUseCommand(argv) {
 
 function reportComponentCatalog(result) {
   const lines = [
-    `${result.package}@${result.version} — component catalog (contract ${result.contract})`,
+    `${result.package}@${result.version} — component catalog (contract version ${result.contractVersion})`,
     `  showcase: ${result.showcase.route}`,
     `  ${result.counts.required} required, ${result.counts.optional} optional; ` +
       `${result.counts.available} available, ${result.counts.unavailable} unavailable`,
-    "",
+    "  capability categories:",
   ];
+  for (const [category, entry] of Object.entries(result.capabilities.categories)) {
+    const total = entry.required.length + entry.optional.length;
+    lines.push(
+      `    ${category}: ${entry.available.length}/${total} available` +
+        (entry.unavailable.length > 0 ? `; unavailable: ${entry.unavailable.join(", ")}` : ""),
+    );
+  }
+  lines.push("");
   for (const component of result.components) {
     const kind = component.required ? "required" : "optional";
     const state = component.available ? "available" : "unavailable";
@@ -1017,15 +1025,8 @@ export async function runComponentsCommand(argv) {
 
 function reportTokenCatalog(result) {
   const lines = [
-    `${result.package}@${result.version} — token catalog (contract ${result.contract})`,
+    `${result.package}@${result.version} — token catalog (contract version ${result.contractVersion})`,
   ];
-  if (!result.supported) {
-    lines.push("");
-    lines.push("  token catalog unavailable");
-    lines.push(`  ${result.reason}`);
-    lines.push("");
-    return lines.join("\n");
-  }
   lines.push(`  css prefix:      ${result.prefixes.css}`);
   lines.push(`  tailwind prefix: ${result.prefixes.tailwind}`);
   lines.push(`  ${result.counts.groups} group(s), ${result.counts.tokens} token(s)`);
@@ -1077,7 +1078,6 @@ export async function runTokensCommand(argv) {
     reportCommandFailure("Token catalog failed", error);
     return;
   }
-  // A V2 manifest is a valid result with `supported: false`; report it and exit 0.
   if (parsed.options.json) {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return;

@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 /**
- * V2/V4 app registry generation tests (Node built-in test runner, no
- * dependency).
+ * App registry generation tests (Node built-in test runner, no dependency).
  *
  * Run directly:
  *   node --test scripts/sync-design-system-apps.test.mjs
@@ -9,13 +8,12 @@
  * These exercise the real generator path (`planAppIntegration`) rather than a
  * test-only reimplementation:
  *
- *   - the V2-only case is a byte-for-byte golden proving the original V2 output
- *     is unchanged and never imports a V4 manifest;
- *   - the mixed and V4-only cases prove V2 and V4 stay discriminated, the full
- *     runtime V4 component map is exposed through the public
- *     `DesignSystemComponentsV4`/`DesignSystemV4` types, each V4 entry carries
- *     its package's public generated `./manifest` metadata, and no optional
- *     component is fabricated or guessed from a name list;
+ *   - the generated registry exposes the full runtime component map through the
+ *     public `DesignSystemComponents`/`DesignSystem` types, carries each
+ *     package's public generated `./manifest` metadata, and never fabricates or
+ *     guesses an optional component from a name list;
+ *   - the generated registry and shared props typecheck against the real
+ *     `@prism-system/ui-core` contract;
  *   - the live `config/design-systems.json` is projected into both apps and the
  *     committed Showcase and Reference App registries are checked against that
  *     plan, so both stay byte-identical and in sync.
@@ -34,12 +32,12 @@ import { readManifest } from "./register-design-system.mjs";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /**
- * The canonical V4 names, mirroring `@prism-system/ui-core`. The registry
- * generator must never enumerate either set: the twenty required names come
- * from `DesignSystemComponentsV4`, and optional presence comes from the real
- * runtime component-map keys.
+ * The canonical component names, mirroring `@prism-system/ui-core`. The
+ * registry generator must never enumerate either set: the twenty-nine required
+ * names come from `DesignSystemComponents`, and optional presence comes from the
+ * real runtime component-map keys.
  */
-const REQUIRED_V4_NAMES = [
+const REQUIRED_NAMES = [
   "Button",
   "Input",
   "Textarea",
@@ -60,9 +58,18 @@ const REQUIRED_V4_NAMES = [
   "Container",
   "Stack",
   "FormField",
+  "Center",
+  "Cluster",
+  "Sidebar",
+  "AspectRatio",
+  "Combobox",
+  "DatePicker",
+  "NumberField",
+  "Slider",
+  "FileUpload",
 ];
 
-const OPTIONAL_V4_NAMES = [
+const OPTIONAL_NAMES = [
   "Grid",
   "Section",
   "Fieldset",
@@ -75,14 +82,19 @@ const OPTIONAL_V4_NAMES = [
   "Breadcrumbs",
   "Pagination",
   "Table",
+  "Metric",
+  "DescriptionList",
+  "Timeline",
+  "Meter",
+  "EmptyState",
 ];
 
 function entry(overrides) {
-  return { version: "0.1.0", ...overrides };
+  return { version: "0.1.0", contractVersion: 4, ...overrides };
 }
 
 function manifest(...systems) {
-  return { version: 2, designSystems: systems };
+  return { version: 3, designSystems: systems };
 }
 
 async function registrySourceFor(manifestValue, app = "showcase") {
@@ -109,32 +121,33 @@ const TYPECHECK_CONSUMER_PATH = join(
   "app",
   "__registered-system-type-usage__.tsx",
 );
-const MINIMAL_SYSTEM_PATH = join(repoRoot, "apps", "showcase", "__minimal-v4-system__.ts");
-const MINIMAL_MANIFEST_PATH = join(repoRoot, "apps", "showcase", "__minimal-v4-manifest__.d.ts");
+const MINIMAL_SYSTEM_PATH = join(repoRoot, "apps", "showcase", "__minimal-system__.ts");
+const MINIMAL_MANIFEST_PATH = join(repoRoot, "apps", "showcase", "__minimal-manifest__.d.ts");
 
 /**
- * A compile-time-only V4 fixture built against core's real component contract.
- * It supplies every required key and deliberately supplies no optional key.
+ * A compile-time-only fixture built against core's real component contract.
+ * It supplies every one of the twenty-nine required keys and deliberately
+ * supplies no optional key.
  */
-function minimalV4SystemSource() {
-  const componentEntries = REQUIRED_V4_NAMES.map(
+function minimalSystemSource() {
+  const componentEntries = REQUIRED_NAMES.map(
     (name) =>
-      `  ${name}: (() => null) as unknown as DesignSystemComponentsV4[${JSON.stringify(name)}],`,
+      `  ${name}: (() => null) as unknown as DesignSystemComponents[${JSON.stringify(name)}],`,
   );
 
   return [
-    'import { defineDesignSystemV4, type DesignSystemComponentsV4 } from "@prism-system/ui-core";',
+    'import { defineDesignSystem, type DesignSystemComponents } from "@prism-system/ui-core";',
     "",
     "const components = {",
     ...componentEntries,
-    "} satisfies DesignSystemComponentsV4;",
+    "} satisfies DesignSystemComponents;",
     "",
-    "export const DesignSystem = defineDesignSystemV4({",
+    "export const DesignSystem = defineDesignSystem({",
     '  id: "minimal",',
-    '  name: "Minimal V4",',
-    `  packageName: ${JSON.stringify(PULSE_V4.packageName)},`,
+    '  name: "Minimal",',
+    `  packageName: ${JSON.stringify(PULSE.packageName)},`,
     '  version: "1.0.0",',
-    '  componentContract: "v4",',
+    "  contractVersion: 4,",
     "  components,",
     "});",
     "",
@@ -148,21 +161,28 @@ function minimalV4SystemSource() {
   ].join("\n");
 }
 
-function minimalV4ManifestSource() {
-  const components = REQUIRED_V4_NAMES.map(
+function minimalManifestSource() {
+  const components = REQUIRED_NAMES.map(
     (name) => `    ${JSON.stringify(name)}: { variants: [], sizes: [], members: [] },`,
   );
 
   return [
     "declare const manifest: {",
-    "  schemaVersion: 2;",
-    '  contract: "v4";',
+    "  schemaVersion: 4;",
+    "  contractVersion: 4;",
     '  id: "minimal";',
-    '  name: "Minimal V4";',
-    `  package: ${JSON.stringify(PULSE_V4.packageName)};`,
+    '  name: "Minimal";',
+    `  package: ${JSON.stringify(PULSE.packageName)};`,
     '  version: "1.0.0";',
     "  components: {",
     ...components,
+    "  };",
+    "  capabilities: {",
+    "    categories: {",
+    '      composition: { required: ["Container"], optional: [] };',
+    "      forms: { required: [], optional: [] };",
+    '      "data-display": { required: [], optional: [] };',
+    "    };",
     "  };",
     "};",
     "export default manifest;",
@@ -170,7 +190,7 @@ function minimalV4ManifestSource() {
   ].join("\n");
 }
 
-function registeredSystemUsageSource(contract) {
+function registeredSystemUsageSource() {
   const inputExtensions = ["label", "hint", "error"]
     .map((extension) => {
       const variable = `invalidInput${extension.charAt(0).toUpperCase()}${extension.slice(1)}`;
@@ -178,30 +198,16 @@ function registeredSystemUsageSource(contract) {
     })
     .join("\n\n");
 
-  if (contract === "v2") {
-    return [
-      'import type { RegisteredSystem } from "./__registered-system-type-regression.js";',
-      "",
-      "export function checkSharedV2Input(system: RegisteredSystem) {",
-      '  if (system.componentContract !== "v2") return;',
-      "  const Input = system.components.Input;",
-      '  const commonInput = <Input id="shared" value="valid" />;',
-      inputExtensions,
-      "}",
-      "",
-    ].join("\n");
-  }
-
   return [
     'import type { RegisteredSystem } from "./__registered-system-type-regression.js";',
     "",
-    "export function checkSharedV4Components(system: RegisteredSystem) {",
-    '  if (system.componentContract !== "v4") return;',
+    "export function checkSharedComponents(system: RegisteredSystem) {",
+    "  if (system.contractVersion !== 4) return;",
     "  const Input = system.components.Input;",
     '  const commonInput = <Input id="shared" value="valid" />;',
     inputExtensions,
     "",
-    "  // @ts-expect-error optional Table is not guaranteed by every V4 system.",
+    "  // @ts-expect-error optional Table is not guaranteed by every system.",
     "  const requiredTable: NonNullable<typeof system.components.Table> = system.components.Table;",
     "",
     "  if (system.components.Table) {",
@@ -212,7 +218,7 @@ function registeredSystemUsageSource(contract) {
   ].join("\n");
 }
 
-function typecheckGeneratedRegistry(registrySource, contract, { allowDiagnostics = false } = {}) {
+function typecheckGeneratedRegistry(registrySource, { allowDiagnostics = false } = {}) {
   const configPath = join(repoRoot, "apps", "showcase", "tsconfig.json");
   const configRead = ts.readConfigFile(configPath, ts.sys.readFile);
   assert.equal(configRead.error, undefined, "Showcase TypeScript config is readable");
@@ -233,9 +239,9 @@ function typecheckGeneratedRegistry(registrySource, contract, { allowDiagnostics
   };
   const virtualFiles = new Map([
     [resolve(TYPECHECK_REGISTRY_PATH), registrySource],
-    [resolve(TYPECHECK_CONSUMER_PATH), registeredSystemUsageSource(contract)],
-    [resolve(MINIMAL_SYSTEM_PATH), minimalV4SystemSource()],
-    [resolve(MINIMAL_MANIFEST_PATH), minimalV4ManifestSource()],
+    [resolve(TYPECHECK_CONSUMER_PATH), registeredSystemUsageSource()],
+    [resolve(MINIMAL_SYSTEM_PATH), minimalSystemSource()],
+    [resolve(MINIMAL_MANIFEST_PATH), minimalManifestSource()],
   ]);
   const host = ts.createCompilerHost(options);
   const baseGetSourceFile = host.getSourceFile.bind(host);
@@ -253,10 +259,10 @@ function typecheckGeneratedRegistry(registrySource, contract, { allowDiagnostics
   };
   host.resolveModuleNames = (moduleNames, containingFile) =>
     moduleNames.map((moduleName) => {
-      if (moduleName === PULSE_V4.packageName) {
+      if (moduleName === PULSE.packageName) {
         return { resolvedFileName: MINIMAL_SYSTEM_PATH, extension: ts.Extension.Ts };
       }
-      if (moduleName === `${PULSE_V4.packageName}/manifest`) {
+      if (moduleName === `${PULSE.packageName}/manifest`) {
         return { resolvedFileName: MINIMAL_MANIFEST_PATH, extension: ts.Extension.Dts };
       }
       if (moduleName === "./__registered-system-type-regression.js") {
@@ -275,33 +281,14 @@ function typecheckGeneratedRegistry(registrySource, contract, { allowDiagnostics
     ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"),
   );
   if (!allowDiagnostics) {
-    assert.deepEqual(
-      messages,
-      [],
-      `generated ${contract.toUpperCase()} registry and shared props should typecheck`,
-    );
+    assert.deepEqual(messages, [], "the generated registry and shared props should typecheck");
   }
   return messages;
 }
 
-/** The `const v2Systems = [...]` / `const v4Systems = [...]` registration blocks. */
-function systemBlocks(source) {
-  const v2 = source.slice(
-    source.indexOf("const v2Systems = ["),
-    source.indexOf("] as unknown as readonly DesignSystem[];"),
-  );
-  const v4 = source.slice(
-    source.indexOf("const v4Systems = ["),
-    source.indexOf("] as unknown as readonly DesignSystemV4[];"),
-  );
-  assert.notEqual(v2, "", "v2Systems registration block exists");
-  assert.notEqual(v4, "", "v4Systems registration block exists");
-  return { v2, v4 };
-}
-
-/** Assert that `source` never names any optional V4 component. */
+/** Assert that `source` never names any optional component. */
 function assertNoOptionalNameGuessing(source) {
-  for (const name of OPTIONAL_V4_NAMES) {
+  for (const name of OPTIONAL_NAMES) {
     assert.doesNotMatch(
       source,
       new RegExp(`\\b${name}\\b`),
@@ -318,7 +305,6 @@ const SYSTEM_A = entry({
   version: "1.1.0",
   uiClass: "maivand-a-ui",
   tokensExport: "systemATokens",
-  contract: "v2",
 });
 
 const SYSTEM_B = entry({
@@ -329,175 +315,74 @@ const SYSTEM_B = entry({
   version: "1.1.0",
   uiClass: "maivand-b-ui",
   tokensExport: "systemBTokens",
-  contract: "v2",
 });
 
-const PULSE_V4 = entry({
+const PULSE = entry({
   id: "pulse",
   name: "Pulse",
   packageName: "@prism-system/ui-pulse",
   packagePath: "packages/pulse",
   uiClass: "maivand-pulse-ui",
   tokensExport: "pulseTokens",
-  contract: "v4",
 });
 
-const SYSTEM_A_V4 = { ...SYSTEM_A, contract: "v4" };
-const SYSTEM_B_V4 = { ...SYSTEM_B, contract: "v4" };
+test("a manifest generates one registry with the real component map and manifest", async () => {
+  const source = await registrySourceFor(manifest(SYSTEM_A, PULSE));
 
-/**
- * The V2-only registry output stays reproducible without borrowing concrete
- * component props from any registered package.
- */
-const V2_REGISTRY_GOLDEN = [
-  "// @prism-system:tool-owned",
-  "// Generated by scripts/sync-design-system-apps.mjs from the design-system manifest.",
-  "// Do not edit by hand; run `pnpm ds:register <id>` to regenerate.",
-  "",
-  'import { createDesignSystemRegistry, type DesignSystem } from "@prism-system/ui-core";',
-  'import { DesignSystem as SystemA, systemATokens } from "@prism-system/ui-system-a";',
-  'import { DesignSystem as SystemB, systemBTokens } from "@prism-system/ui-system-b";',
-  "",
-  "/** A group of related token values, for example the color or motion scale. */",
-  "export type TokenGroup = Record<string, string>;",
-  "",
-  "/** Token groups every registered system exposes; typography is optional. */",
-  "export type TokenSet = {",
-  "  color: TokenGroup;",
-  "  radius: TokenGroup;",
-  "  shadow: TokenGroup;",
-  "  motion: TokenGroup;",
-  "  typography?: TokenGroup;",
-  "};",
-  "",
-  "/** Shared V2 props; package-specific extensions are not universal. */",
-  'type RegisteredComponents = DesignSystem["components"];',
-  "",
-  "/** A registered system with its scoped UI class and token groups. */",
-  'export type RegisteredSystem = Omit<DesignSystem, "components"> & {',
-  '  components: DesignSystem["components"] & RegisteredComponents;',
-  "  uiClass: string;",
-  "  tokens: TokenSet;",
-  "};",
-  "",
-  "/** Every registered system, in stable ascending id order. */",
-  "export const registeredSystems: readonly RegisteredSystem[] = [",
-  '  { ...SystemA, uiClass: "maivand-a-ui", tokens: systemATokens } as unknown as RegisteredSystem,',
-  '  { ...SystemB, uiClass: "maivand-b-ui", tokens: systemBTokens } as unknown as RegisteredSystem,',
-  "];",
-  "",
-  "export const systemRegistry = createDesignSystemRegistry(",
-  "  registeredSystems as readonly DesignSystem[],",
-  ");",
-  "",
-  "/** Resolve a registered system by id. Throws when the id is unknown. */",
-  "export function getRegisteredSystem(id: string): RegisteredSystem {",
-  "  return systemRegistry.require(id) as RegisteredSystem;",
-  "}",
-  "",
-].join("\n");
-
-test("a V2-only manifest reproduces the V2-only registry golden exactly", async () => {
-  const source = await registrySourceFor(manifest(SYSTEM_A, SYSTEM_B));
-  assert.equal(source, V2_REGISTRY_GOLDEN);
-  // The V2 path never emits the V4 registry, the mixed contract union, or a
-  // package manifest import.
-  assert.doesNotMatch(source, /createDesignSystemRegistryV4/);
-  assert.doesNotMatch(source, /componentContract: "v2" \| "v4"/);
-  assert.doesNotMatch(source, /\/manifest/);
-  assert.doesNotMatch(source, /RegisteredSystemV4/);
-});
-
-test("a mixed V2/V4 manifest discriminates the contracts and exposes the V4 map + manifest", async () => {
-  const source = await registrySourceFor(manifest(SYSTEM_A, PULSE_V4));
-
-  // Each contract keeps its own runtime guard and its real contract.
-  assert.match(source, /createDesignSystemRegistry\(v2Systems\)/);
-  assert.match(source, /createDesignSystemRegistryV4\(v4Systems\)/);
-  // The generator never assigns a contract marker: the package values carry it.
-  assert.doesNotMatch(source, /componentContract\s*:/);
-  assert.doesNotMatch(source, /componentContract:\s*"v2"\s*[,;]/);
-
-  // V2 and V4 are separate, discriminated entry types; no V2 cast as V4.
-  assert.match(source, /export type RegisteredSystemV2 = Omit<DesignSystem, "components"> & \{/);
-  assert.match(source, /export type RegisteredSystemV4 = Omit<DesignSystemV4, "components"> & \{/);
-  assert.match(source, /export type RegisteredSystem = RegisteredSystemV2 \| RegisteredSystemV4;/);
-
-  // The full V4 runtime map is exposed through the public core V4 types; the
-  // surface is no longer limited to the fourteen shared names.
   assert.match(
     source,
-    /import \{\n  createDesignSystemRegistry,\n  createDesignSystemRegistryV4,\n  type DesignSystem,\n  type DesignSystemComponentsV4,\n  type DesignSystemV4,\n\} from "@prism-system\/ui-core";/,
+    /import \{\n {2}createDesignSystemRegistry,\n {2}type DesignSystem,\n {2}type DesignSystemComponents,\n\} from "@prism-system\/ui-core";/,
   );
-  assert.match(source, /type RegisteredComponentsV4 = DesignSystemComponentsV4;/);
-  assert.match(source, /components: RegisteredComponentsV4;/);
+  assert.match(source, /export type RegisteredSystem = Omit<DesignSystem, "components"> & \{/);
+  assert.match(source, /components: DesignSystemComponents;/);
   assert.match(source, /manifest: RegisteredManifest;/);
-  assert.doesNotMatch(source, /SharedComponentName/);
-  assert.doesNotMatch(source, /Pick<\(typeof Pulse\)\["components"\]/);
-
-  // The package's public generated manifest metadata is imported and carried.
+  assert.match(source, /export type RegisteredManifest = \{/);
+  assert.match(source, /schemaVersion: number;/);
+  assert.match(source, /contractVersion: number;/);
+  assert.match(source, /export type RegisteredManifestCapabilityCategory = \{/);
+  assert.match(source, /required: readonly string\[\];/);
+  assert.match(source, /optional: readonly string\[\];/);
+  assert.match(
+    source,
+    /capabilities: \{\n {4}categories: Readonly<Record<string, RegisteredManifestCapabilityCategory>>;\n {2}\};/,
+  );
+  assert.match(source, /import systemAManifest from "@prism-system\/ui-system-a\/manifest";/);
   assert.match(source, /import pulseManifest from "@prism-system\/ui-pulse\/manifest";/);
-  assert.match(source, /export type RegisteredManifestComponent = \{/);
-  assert.match(source, /variants: readonly string\[\];/);
-  assert.match(source, /members: readonly string\[\];/);
-  assert.match(source, /components: Readonly<Record<string, RegisteredManifestComponent>>;/);
+  assert.match(source, /manifest: systemAManifest/);
+  assert.match(source, /manifest: pulseManifest/);
+  assert.match(source, /getRegisteredSystem\(id: string\): RegisteredSystem/);
 
-  assert.ok(source.includes('"@prism-system/ui-system-a"'));
-  assert.ok(source.includes('"@prism-system/ui-pulse"'));
-  // The V2 package ships no generated V4 manifest; none is imported for it.
-  assert.doesNotMatch(source, /@prism-system\/ui-system-a\/manifest/);
-  assert.doesNotMatch(source, /systemAManifest/);
-
-  const { v2, v4 } = systemBlocks(source);
-  assert.match(v2, /\.\.\.SystemA/);
-  assert.doesNotMatch(v2, /\.\.\.Pulse/);
-  assert.doesNotMatch(v2, /manifest/);
-  assert.match(v4, /\.\.\.Pulse/);
-  assert.match(v4, /manifest: pulseManifest/);
-  assert.doesNotMatch(v4, /\.\.\.SystemA/);
-
-  // Optional presence is never fabricated or guessed: the registrations spread
-  // the package's actual runtime map and no component is enumerated, and no
-  // optional V4 name appears anywhere in the generated source.
-  for (const name of [...REQUIRED_V4_NAMES, ...OPTIONAL_V4_NAMES]) {
-    assert.doesNotMatch(v4, new RegExp(`\\b${name}\\b`));
+  // The generator spreads each package's real runtime map and never enumerates
+  // a component name: no required or optional name appears in the output.
+  for (const name of [...REQUIRED_NAMES, ...OPTIONAL_NAMES]) {
+    assert.doesNotMatch(source, new RegExp(`\\b${name}\\b`));
   }
   assertNoOptionalNameGuessing(source);
 });
 
-test("a V4-only manifest keeps both registries and an empty V2 set", async () => {
-  const source = await registrySourceFor(manifest(PULSE_V4));
-
-  assert.match(source, /const v2Systems = \[\]/);
-  assert.match(source, /const v4Systems = \[/);
-  assert.match(source, /\.\.\.Pulse/);
-  assert.match(source, /createDesignSystemRegistry\(v2Systems\)/);
-  assert.match(source, /createDesignSystemRegistryV4\(v4Systems\)/);
-
-  // V4-only output still exposes the full V4 map and the package manifest.
-  assert.match(source, /type RegisteredComponentsV4 = DesignSystemComponentsV4;/);
-  assert.match(source, /import pulseManifest from "@prism-system\/ui-pulse\/manifest";/);
-  assert.match(source, /manifest: RegisteredManifest;/);
-  assert.doesNotMatch(source, /SharedComponentName/);
-  assertNoOptionalNameGuessing(source);
+test("entries keep a stable ascending id order", async () => {
+  const source = await registrySourceFor(manifest(SYSTEM_B, SYSTEM_A, PULSE));
+  const order = ["...Pulse", "...SystemA", "...SystemB"].map((needle) => source.indexOf(needle));
+  assert.ok(order[0] !== -1 && order[1] !== -1 && order[2] !== -1, "all entries are registered");
+  assert.ok(order[0] < order[1] && order[1] < order[2], "entries stay in ascending id order");
 });
 
-test("generated V4 shared props stay core-only regardless of which concrete system is first", async () => {
-  for (const firstSystem of [SYSTEM_A_V4, SYSTEM_B_V4]) {
-    const source = await registrySourceFor(manifest(firstSystem, PULSE_V4));
-    typecheckGeneratedRegistry(source, "v4");
+test("generated shared props stay core-only regardless of which concrete system is first", async () => {
+  for (const firstSystem of [SYSTEM_A, SYSTEM_B]) {
+    const source = await registrySourceFor(manifest(firstSystem, PULSE));
+    typecheckGeneratedRegistry(source);
   }
 });
 
-test("the V4 JSX regression rejects the former first-system component type", async () => {
-  const source = await registrySourceFor(manifest(SYSTEM_A_V4, PULSE_V4));
+test("the JSX regression rejects the former first-system component type", async () => {
+  const source = await registrySourceFor(manifest(SYSTEM_A, PULSE));
   const oldFirstSystemType = source.replace(
-    "type RegisteredComponentsV4 = DesignSystemComponentsV4;",
-    "type RegisteredComponentsV4 = typeof SystemA.components;",
+    "  components: DesignSystemComponents;",
+    "  components: typeof SystemA.components;",
   );
   assert.notEqual(oldFirstSystemType, source, "the in-memory regression mutation applies");
 
-  const diagnostics = typecheckGeneratedRegistry(oldFirstSystemType, "v4", {
+  const diagnostics = typecheckGeneratedRegistry(oldFirstSystemType, {
     allowDiagnostics: true,
   });
   const unusedExpectations = diagnostics.filter((message) =>
@@ -509,12 +394,7 @@ test("the V4 JSX regression rejects the former first-system component type", asy
   );
 });
 
-test("generated V2 shared props do not inherit extensions from the first package", async () => {
-  const source = await registrySourceFor(manifest(SYSTEM_A, SYSTEM_B));
-  typecheckGeneratedRegistry(source, "v2");
-});
-
-test("an unsupported contract is rejected instead of normalized", async () => {
+test("obsolete contract metadata is rejected instead of normalized", async () => {
   await assert.rejects(
     planAppIntegration({
       manifest: manifest(
@@ -525,12 +405,12 @@ test("an unsupported contract is rejected instead of normalized", async () => {
           packagePath: "packages/legacy",
           uiClass: "maivand-legacy-ui",
           tokensExport: "legacyTokens",
-          contract: "v1",
+          contractVersion: 2,
         }),
       ),
       root: repoRoot,
     }),
-    /contract "v1"/,
+    /contractVersion 2; the only current contract is the numeric contractVersion: 4/,
   );
 });
 
@@ -564,60 +444,33 @@ test("the committed Showcase and Reference App registries match the generated pl
   }
 });
 
-test("the live registries expose every V4 package manifest and no guessed capability", async () => {
-  const v4Entries = liveManifest.designSystems.filter((entry) => entry.contract === "v4");
-  const v2Entries = liveManifest.designSystems.filter((entry) => entry.contract === "v2");
-  assert.ok(v4Entries.length > 0, "the live manifest registers at least one V4 system");
+test("the live registries expose every package manifest and no guessed capability", async () => {
+  const entries = liveManifest.designSystems;
+  assert.ok(entries.length > 0, "the live manifest registers at least one system");
+  for (const system of entries) {
+    assert.equal(system.contractVersion, 4, `${system.id} declares contractVersion 4`);
+  }
 
   const source = await registrySourceFor(liveManifest);
 
-  // The full V4 required surface comes from the public core V4 map.
-  assert.match(source, /type RegisteredComponentsV4 = DesignSystemComponentsV4;/);
-  assert.match(source, /export type RegisteredSystemV4 = Omit<DesignSystemV4, "components"> & \{/);
+  assert.match(source, /type RegisteredSystem = Omit<DesignSystem, "components"> & \{/);
+  assert.match(source, /components: DesignSystemComponents;/);
+  assert.match(
+    source,
+    /capabilities: \{\n {4}categories: Readonly<Record<string, RegisteredManifestCapabilityCategory>>;\n {2}\};/,
+  );
 
-  for (const system of v4Entries) {
+  for (const system of entries) {
     const alias = system.id
       .split("-")
       .filter(Boolean)
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
       .join("");
-    const manifestAlias = `${alias.charAt(0).toLowerCase()}${alias.slice(1)}Manifest`;
-
-    // The generated registry consumes the package's own public `./manifest`.
+    assert.ok(source.includes(system.packageName), `${system.id} package import`);
     assert.ok(
-      source.includes(
-        `import ${manifestAlias} from ${JSON.stringify(`${system.packageName}/manifest`)};`,
-      ),
-      `${system.packageName}/manifest is imported`,
+      source.includes(`${alias.charAt(0).toLowerCase()}${alias.slice(1)}Manifest`),
+      `${system.id} manifest import`,
     );
-    assert.ok(source.includes(`manifest: ${manifestAlias}`), `${system.id} carries its manifest`);
-
-    // The shipped manifest declares exactly the twenty required V4 names plus
-    // optional names only — the metadata is the package's, not a copy.
-    const shipped = JSON.parse(
-      readFileSync(join(repoRoot, system.packagePath, "design-system.json"), "utf8"),
-    );
-    assert.equal(shipped.contract, "v4");
-    assert.equal(shipped.package, system.packageName);
-    assert.equal(shipped.version, system.version);
-    for (const name of REQUIRED_V4_NAMES) {
-      assert.ok(
-        Object.prototype.hasOwnProperty.call(shipped.components, name),
-        `${system.id} manifest declares required ${name}`,
-      );
-    }
-    for (const name of Object.keys(shipped.components)) {
-      assert.ok(
-        REQUIRED_V4_NAMES.includes(name) || OPTIONAL_V4_NAMES.includes(name),
-        `${system.id} manifest declares only known V4 names (saw ${name})`,
-      );
-    }
-  }
-
-  // No V2 package manifest is imported, and no optional name is guessed
-  // anywhere in the generated source.
-  for (const system of v2Entries) {
-    assert.ok(!source.includes(`${system.packageName}/manifest`));
   }
   assertNoOptionalNameGuessing(source);
 });

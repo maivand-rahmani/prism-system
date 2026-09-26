@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * V4 token-naming contract tests for the published tooling.
+ * Token-naming contract tests for the published tooling.
  *
  * The generated manifest is the only source a consumer reads, and
  * `tokens.names` publishes the naming contract: `cssVariablePrefix` for CSS
  * custom properties and `tailwindUtilityPrefix` for Tailwind utilities. These
  * tests exercise the published, self-contained validator
- * (`collectManifestFailures`, `detectManifestContract`) and the real A/B/V2
+ * (`collectManifestFailures`, `detectManifestContract`) and the real A/B
  * manifests. No design-system source or `@prism-system/ui-core` code is
  * imported or executed.
  *
@@ -15,30 +15,27 @@
  */
 
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
 
 import {
+  CONTRACT_VERSION,
   TAILWIND_UTILITY_PREFIX,
+  TOKEN_NAME_FIELDS,
   TOKEN_NAMESPACE_PATTERN,
-  V4_TOKEN_NAME_FIELDS,
 } from "../src/constants.mjs";
 import { collectManifestFailures, detectManifestContract } from "../src/manifest.mjs";
+import { currentManifest, readJson, repoRoot } from "./manifest-fixture.mjs";
 
-const testDir = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(testDir, "..", "..", "..");
-const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
-
-const v2Manifest = readJson(
-  join(repoRoot, "schemas", "fixtures", "v2-valid", "design-system.json"),
+const systemAManifest = currentManifest(
+  readJson(join(repoRoot, "packages", "system-a", "design-system.json")),
 );
-const systemAManifest = readJson(join(repoRoot, "packages", "system-a", "design-system.json"));
-const systemBManifest = readJson(join(repoRoot, "packages", "system-b", "design-system.json"));
+const systemBManifest = currentManifest(
+  readJson(join(repoRoot, "packages", "system-b", "design-system.json")),
+);
 
 test("naming constants describe the canonical kebab namespaces", () => {
-  assert.deepEqual([...V4_TOKEN_NAME_FIELDS], ["cssVariablePrefix", "tailwindUtilityPrefix"]);
+  assert.deepEqual([...TOKEN_NAME_FIELDS], ["cssVariablePrefix", "tailwindUtilityPrefix"]);
   assert.equal(TAILWIND_UTILITY_PREFIX, "prism");
   for (const value of ["prism", "maivand-a", "maivand-b", "prism2"]) {
     assert.ok(TOKEN_NAMESPACE_PATTERN.test(value), `${JSON.stringify(value)} is a safe namespace`);
@@ -54,7 +51,7 @@ test("naming constants describe the canonical kebab namespaces", () => {
 test("the real A/B generated manifests publish valid token names", () => {
   const expectedPrefix = { "system-a": "maivand-a", "system-b": "maivand-b" };
   for (const manifest of [systemAManifest, systemBManifest]) {
-    assert.equal(detectManifestContract(manifest), "v4");
+    assert.equal(detectManifestContract(manifest), CONTRACT_VERSION);
     assert.deepEqual(manifest.tokens.names, {
       cssVariablePrefix: expectedPrefix[manifest.id],
       tailwindUtilityPrefix: TAILWIND_UTILITY_PREFIX,
@@ -106,32 +103,16 @@ test("missing, unknown, or malformed token names fail closed", () => {
   );
 });
 
-test("valid legacy V2 manifests stay schema-1 and carry no token names", () => {
-  assert.equal(detectManifestContract(v2Manifest), "v2");
-  assert.deepEqual(collectManifestFailures(v2Manifest), []);
-  assert.equal(v2Manifest.schemaVersion, 1);
-  assert.ok(!("tokens" in v2Manifest), "the V2 manifest has no V4 token block");
-
-  // A V4 token block (with or without names) is never accepted in a V2 manifest.
-  const tampered = structuredClone(v2Manifest);
-  tampered.tokens = {
-    groups: {},
-    artifacts: {},
-    names: { cssVariablePrefix: "prism", tailwindUtilityPrefix: "prism" },
-  };
-  assert.ok(
-    collectManifestFailures(tampered).includes("tokens is not allowed."),
-    "the V2 contract rejects the V4 tokens block",
-  );
-});
-
-test("the (schemaVersion, contract) pair decides which naming rules apply", () => {
-  assert.equal(detectManifestContract({ schemaVersion: 1, contract: "v2" }), "v2");
-  assert.equal(detectManifestContract({ schemaVersion: 2, contract: "v4" }), "v4");
-  assert.equal(detectManifestContract({ schemaVersion: 2, contract: "v2" }), null);
-  assert.equal(detectManifestContract({ schemaVersion: 1, contract: "v4" }), null);
-  assert.equal(detectManifestContract({ schemaVersion: 3, contract: "v4" }), null);
-  const failures = collectManifestFailures({ schemaVersion: 2, contract: "v2" });
+test("only the current schema/contract metadata is recognized", () => {
+  assert.equal(detectManifestContract({ schemaVersion: 4, contractVersion: 4 }), CONTRACT_VERSION);
+  assert.equal(detectManifestContract({ schemaVersion: 3, contractVersion: 4 }), null);
+  assert.equal(detectManifestContract({ schemaVersion: 4, contractVersion: "4" }), null);
+  assert.equal(detectManifestContract({ schemaVersion: 4, contract: "v4" }), null);
+  assert.equal(detectManifestContract({ schemaVersion: 4 }), null);
+  const failures = collectManifestFailures({ schemaVersion: 3, contractVersion: 4 });
   assert.equal(failures.length, 1);
-  assert.match(failures[0], /^Unsupported schema\/contract pair \(2, "v2"\)/);
+  assert.match(
+    failures[0],
+    /^Unsupported manifest metadata \(schemaVersion 3, contractVersion 4\)/,
+  );
 });

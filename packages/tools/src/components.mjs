@@ -11,15 +11,16 @@
  *   - accesses the network;
  *   - reads the design-systems source repository.
  *
- * Contract handling is dual-contract and fail-closed:
+ * The manifest reports all twenty-nine required components plus only the
+ * optional components the system implements, and the fixed
+ * `capabilities.categories` membership inventory. The catalog exposes that
+ * inventory with per-category `available`/`unavailable` names derived solely by
+ * intersecting each category's names with the declared component map, so a
+ * separate availability declaration is never trusted. A declared optional is
+ * available with its declared API metadata; an undeclared optional is reported
+ * unavailable with no fabricated metadata.
  *
- *   - V2 manifests list exactly the fourteen supported components, all required;
- *   - V4 manifests report all twenty required components plus all twelve known
- *     optional contracts. A declared optional is available with its declared API
- *     metadata; an undeclared optional is reported unavailable with no fabricated
- *     metadata.
- *
- * A requested component name is resolved against the contract's known set. A
+ * A requested component name is resolved against the known set. A
  * known-but-unavailable optional is reported as unavailable; an unknown name is
  * rejected with a clear error. The example route is derived only from the
  * validated manifest `id`, matching the existing `info` route (`/showcase/<id>`),
@@ -27,11 +28,12 @@
  */
 
 import {
-  CONTRACT_V4,
-  V2_REQUIRED_COMPONENTS,
-  V4_COMPONENT_NAMES,
-  V4_OPTIONAL_COMPONENTS,
-  V4_REQUIRED_COMPONENTS,
+  CAPABILITY_CATEGORY_KEYS,
+  COMPONENT_NAMES,
+  CONTRACT_VERSION,
+  MANIFEST_SCHEMA_VERSION,
+  OPTIONAL_COMPONENTS,
+  REQUIRED_COMPONENTS,
 } from "./constants.mjs";
 import {
   discoverConsumerPackage,
@@ -39,9 +41,9 @@ import {
   resolveInstalledDesignSystem,
   verifyConsumerDesignSystem,
 } from "./consumer.mjs";
-import { detectManifestContract } from "./manifest.mjs";
+import { collectCapabilitiesFailures, detectManifestContract } from "./manifest.mjs";
 
-/** Optional per-component V4 metadata fields passed through when declared. */
+/** Optional per-component metadata fields passed through when declared. */
 const OPTIONAL_METADATA_FIELDS = Object.freeze(["description", "docs", "example"]);
 
 function isPlainObject(value) {
@@ -59,19 +61,19 @@ function requireNonEmptyString(value, label) {
   return value.trim();
 }
 
-/** The known component names for a contract, in canonical order. */
-function knownComponentNames(contract) {
-  return contract === CONTRACT_V4 ? V4_COMPONENT_NAMES : V2_REQUIRED_COMPONENTS;
+/** The known component names, in canonical order. */
+function knownComponentNames() {
+  return COMPONENT_NAMES;
 }
 
-/** The required component names for a contract, in canonical order. */
-function requiredComponentNames(contract) {
-  return contract === CONTRACT_V4 ? V4_REQUIRED_COMPONENTS : V2_REQUIRED_COMPONENTS;
+/** The required component names, in canonical order. */
+function requiredComponentNames() {
+  return REQUIRED_COMPONENTS;
 }
 
-/** The optional component names for a contract, in canonical order ([] for V2). */
-function optionalComponentNames(contract) {
-  return contract === CONTRACT_V4 ? V4_OPTIONAL_COMPONENTS : [];
+/** The optional component names, in canonical order. */
+function optionalComponentNames() {
+  return OPTIONAL_COMPONENTS;
 }
 
 /** Resolve a requested component name against the known contract names. */
@@ -97,7 +99,7 @@ function selectRequestedComponent({ requested, names, catalog }) {
  *
  * @param {{ manifest: object, name?: string }} [options]
  * @returns {{
- *   contract: "v2" | "v4",
+ *   contractVersion: 4,
  *   id: string,
  *   name: string,
  *   showcase: { route: string },
@@ -105,6 +107,12 @@ function selectRequestedComponent({ requested, names, catalog }) {
  *   components: object[],
  *   available: string[],
  *   unavailable: string[],
+ *   capabilities: {
+ *     categories: Record<
+ *       string,
+ *       { required: string[], optional: string[], available: string[], unavailable: string[] }
+ *     >,
+ *   },
  *   requested: object | null,
  * }}
  */
@@ -112,18 +120,21 @@ export function buildComponentCatalog({ manifest, name } = {}) {
   if (!isPlainObject(manifest)) {
     throw new Error("A design-system manifest object is required.");
   }
-  const contract = detectManifestContract(manifest);
-  if (contract === null) {
+  if (detectManifestContract(manifest) === null) {
     throw new Error(
-      'Unsupported design-system manifest; expected the (1, "v2") or (2, "v4") ' +
-        "schema/contract pair.",
+      `Unsupported design-system manifest; expected schemaVersion ${MANIFEST_SCHEMA_VERSION} ` +
+        `and contractVersion ${CONTRACT_VERSION}.`,
     );
+  }
+  const capabilityFailures = collectCapabilitiesFailures(manifest.capabilities);
+  if (capabilityFailures.length > 0) {
+    throw new Error(`Invalid design-system manifest capabilities: ${capabilityFailures.join(" ")}`);
   }
 
   const components = isPlainObject(manifest.components) ? manifest.components : {};
-  const names = knownComponentNames(contract);
-  const required = requiredComponentNames(contract);
-  const optional = optionalComponentNames(contract);
+  const names = knownComponentNames();
+  const required = requiredComponentNames();
+  const optional = optionalComponentNames();
 
   for (const componentName of required) {
     if (!hasOwn(components, componentName)) {
@@ -160,11 +171,26 @@ export function buildComponentCatalog({ manifest, name } = {}) {
   const available = catalog.filter((entry) => entry.available).map((entry) => entry.name);
   const unavailable = catalog.filter((entry) => !entry.available).map((entry) => entry.name);
 
+  // Derived category availability: a category name is available only when the
+  // component map (the single source of availability) declares it. The
+  // `required`/`optional` arrays stay exactly as the manifest declared them.
+  const categories = {};
+  for (const key of CAPABILITY_CATEGORY_KEYS) {
+    const category = manifest.capabilities.categories[key];
+    const declaredNames = [...category.required, ...category.optional];
+    categories[key] = {
+      required: [...category.required],
+      optional: [...category.optional],
+      available: declaredNames.filter((componentName) => hasOwn(components, componentName)),
+      unavailable: declaredNames.filter((componentName) => !hasOwn(components, componentName)),
+    };
+  }
+
   const requested =
     name === undefined ? null : selectRequestedComponent({ requested: name, names, catalog });
 
   return {
-    contract,
+    contractVersion: CONTRACT_VERSION,
     id: manifest.id,
     name: manifest.name,
     showcase: { route: `/showcase/${manifest.id}` },
@@ -177,6 +203,7 @@ export function buildComponentCatalog({ manifest, name } = {}) {
     components: catalog,
     available,
     unavailable,
+    capabilities: { categories },
     requested,
   };
 }
@@ -196,7 +223,7 @@ export function buildComponentCatalog({ manifest, name } = {}) {
  * @returns {{
  *   ok: true,
  *   package: string,
- *   contract: "v2" | "v4",
+ *   contractVersion: 4,
  *   version: string,
  *   id: string,
  *   name: string,
@@ -205,6 +232,7 @@ export function buildComponentCatalog({ manifest, name } = {}) {
  *   components: object[],
  *   available: string[],
  *   unavailable: string[],
+ *   capabilities: { categories: object },
  *   requested: object | null,
  * }}
  */
@@ -224,7 +252,7 @@ export function listDesignSystemComponents({ cwd, name } = {}) {
   return {
     ok: true,
     package: discovered.packageName,
-    contract: catalog.contract,
+    contractVersion: catalog.contractVersion,
     version,
     id: catalog.id,
     name: catalog.name,
@@ -233,6 +261,7 @@ export function listDesignSystemComponents({ cwd, name } = {}) {
     components: catalog.components,
     available: catalog.available,
     unavailable: catalog.unavailable,
+    capabilities: catalog.capabilities,
     requested: catalog.requested,
   };
 }

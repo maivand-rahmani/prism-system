@@ -7,7 +7,7 @@ TEMP
 .agents
 .codex
 
-# Generated token modules are checked against their source by ds:check-v4.
+# Generated token modules are checked against their source by ds:check.
 packages/*/src/tokens/index.ts
 pnpm-lock.yaml
 .playwright-mcp

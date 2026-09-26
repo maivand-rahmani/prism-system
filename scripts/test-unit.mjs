@@ -10,6 +10,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const directories = [
   "scripts",
   "packages/core/src/design-system",
+  "packages/core/src/primitives",
   "packages/system-a",
   "packages/system-b",
   "packages/tools/test",

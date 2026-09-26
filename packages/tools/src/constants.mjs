@@ -2,8 +2,8 @@
  * Shared constants and small filesystem helpers for the consumer tooling.
  *
  * These values are the published consumer contract: the `@prism-system/ui-*`
- * package scope, the V2 manifest export subpath, and path-containment rules.
- * They are intentionally self-contained so `@prism-system/tools` has no runtime
+ * package scope, the manifest export subpath, and path-containment rules. They
+ * are intentionally self-contained so `@prism-system/tools` has no runtime
  * dependency on the design-systems source repository.
  */
 
@@ -20,45 +20,18 @@ export const PACKAGE_SCOPE = "@prism-system/ui-";
 export const MANIFEST_EXPORT_SUBPATH = "./manifest";
 /** Exact manifest filename a design system exposes at {@link MANIFEST_EXPORT_SUBPATH}. */
 export const MANIFEST_EXPORT_TARGET = "./design-system.json";
-/** Supported generated-manifest V2 schema version. Unknown versions fail closed. */
-export const MANIFEST_SCHEMA_VERSION = 1;
-/** Supported generated-manifest V4 schema version. */
-export const MANIFEST_V4_SCHEMA_VERSION = 2;
-/** The V2 contract identifier. */
-export const CONTRACT_V2 = "v2";
-/** The V4 contract identifier. */
-export const CONTRACT_V4 = "v4";
+/** The current generated-manifest schema version. Unknown versions fail closed. */
+export const MANIFEST_SCHEMA_VERSION = 4;
+/** The single current numeric component contract version. */
+export const CONTRACT_VERSION = 4;
 
 /**
- * The canonical fourteen V2 component names, in order.
+ * The 29 canonical required component names, in order.
  *
- * Kept in the published tooling so strict usage validation can recognize local
- * primitive replacements without importing the source repository.
- */
-export const V2_REQUIRED_COMPONENTS = Object.freeze([
-  "Button",
-  "Input",
-  "Textarea",
-  "Card",
-  "Badge",
-  "Checkbox",
-  "RadioGroup",
-  "Switch",
-  "Select",
-  "Tabs",
-  "Dialog",
-  "DropdownMenu",
-  "Tooltip",
-  "Separator",
-]);
-
-/**
- * The twenty canonical V4 required component names, in order.
- *
- * Kept in the published tooling so strict V4 manifest validation can verify the
+ * Kept in the published tooling so strict manifest validation can verify the
  * full contract without importing the design-systems source repository.
  */
-export const V4_REQUIRED_COMPONENTS = Object.freeze([
+export const REQUIRED_COMPONENTS = Object.freeze([
   "Button",
   "Input",
   "Textarea",
@@ -79,13 +52,22 @@ export const V4_REQUIRED_COMPONENTS = Object.freeze([
   "Container",
   "Stack",
   "FormField",
+  "Center",
+  "Cluster",
+  "Sidebar",
+  "AspectRatio",
+  "Combobox",
+  "DatePicker",
+  "NumberField",
+  "Slider",
+  "FileUpload",
 ]);
 
 /**
- * The twelve V4 optional component names a system may implement, in order.
+ * The 17 optional component names a system may implement, in order.
  * Absence means unavailable; any other declared name fails closed.
  */
-export const V4_OPTIONAL_COMPONENTS = Object.freeze([
+export const OPTIONAL_COMPONENTS = Object.freeze([
   "Grid",
   "Section",
   "Fieldset",
@@ -98,26 +80,75 @@ export const V4_OPTIONAL_COMPONENTS = Object.freeze([
   "Breadcrumbs",
   "Pagination",
   "Table",
+  "Metric",
+  "DescriptionList",
+  "Timeline",
+  "Meter",
+  "EmptyState",
 ]);
 
-/** Every component name a V4 manifest may declare (required first, then optional). */
-export const V4_COMPONENT_NAMES = Object.freeze([
-  ...V4_REQUIRED_COMPONENTS,
-  ...V4_OPTIONAL_COMPONENTS,
+/** Every component name a manifest may declare (required first, then optional). */
+export const COMPONENT_NAMES = Object.freeze([...REQUIRED_COMPONENTS, ...OPTIONAL_COMPONENTS]);
+
+/**
+ * The exact `capabilities.categories` keys every current manifest declares, in
+ * canonical order. The categories are the generated grouping inventory, not a
+ * per-system support list: whether a name is available is decided only by its
+ * presence in `manifest.components`.
+ */
+export const CAPABILITY_CATEGORY_KEYS = Object.freeze(["composition", "forms", "data-display"]);
+
+/** The exact fields of one capability category, in canonical order. */
+export const CAPABILITY_CATEGORY_FIELDS = Object.freeze(["required", "optional"]);
+
+/**
+ * The exact approved generated `capabilities.categories` inventory, in canonical
+ * order. Every current manifest must reproduce it exactly; a category lists the
+ * contract membership of each name, never availability.
+ */
+export const CAPABILITY_CATEGORIES = Object.freeze({
+  composition: Object.freeze({
+    required: Object.freeze(["Container", "Stack", "Center", "Cluster", "Sidebar", "AspectRatio"]),
+    optional: Object.freeze(["Grid", "Section"]),
+  }),
+  forms: Object.freeze({
+    required: Object.freeze([
+      "FormField",
+      "Combobox",
+      "DatePicker",
+      "NumberField",
+      "Slider",
+      "FileUpload",
+    ]),
+    optional: Object.freeze([]),
+  }),
+  "data-display": Object.freeze({
+    required: Object.freeze([]),
+    optional: Object.freeze([
+      "Table",
+      "Pagination",
+      "Progress",
+      "Metric",
+      "DescriptionList",
+      "Timeline",
+      "Meter",
+      "EmptyState",
+    ]),
+  }),
+});
+
+/** The required per-component API fields (empty arrays are valid). */
+export const COMPONENT_REQUIRED_FIELDS = Object.freeze(["variants", "sizes", "members"]);
+/** The optional per-component metadata fields. */
+export const COMPONENT_OPTIONAL_FIELDS = Object.freeze(["description", "docs", "example"]);
+/** Exactly the allowed per-component keys. */
+export const COMPONENT_FIELDS = Object.freeze([
+  ...COMPONENT_REQUIRED_FIELDS,
+  ...COMPONENT_OPTIONAL_FIELDS,
 ]);
 
-/** The required V4 per-component API fields (empty arrays are valid). */
-export const V4_COMPONENT_REQUIRED_FIELDS = Object.freeze(["variants", "sizes", "members"]);
-/** The optional V4 per-component metadata fields. */
-export const V4_COMPONENT_OPTIONAL_FIELDS = Object.freeze(["description", "docs", "example"]);
-/** Exactly the allowed V4 per-component keys. */
-export const V4_COMPONENT_FIELDS = Object.freeze([
-  ...V4_COMPONENT_REQUIRED_FIELDS,
-  ...V4_COMPONENT_OPTIONAL_FIELDS,
-]);
-
-/** The nine V4 token groups exposed as flattened semantic token names. */
-export const V4_TOKEN_GROUP_KEYS = Object.freeze([
+/** The nine token groups exposed as flattened semantic token names. */
+export const TOKEN_GROUP_KEYS = Object.freeze([
   "themes",
   "typography",
   "spacing",
@@ -129,16 +160,16 @@ export const V4_TOKEN_GROUP_KEYS = Object.freeze([
   "motion",
 ]);
 
-/** The required V4 token artifact path fields. */
-export const V4_TOKEN_ARTIFACT_FIELDS = Object.freeze(["typescript", "css", "tailwind"]);
+/** The required token artifact path fields. */
+export const TOKEN_ARTIFACT_FIELDS = Object.freeze(["typescript", "css", "tailwind"]);
 
 /**
- * The exact V4 `tokens.names` fields a manifest must declare, in canonical
- * order. Both are required; a missing or unknown field fails closed.
+ * The exact `tokens.names` fields a manifest must declare, in canonical order.
+ * Both are required; a missing or unknown field fails closed.
  */
-export const V4_TOKEN_NAME_FIELDS = Object.freeze(["cssVariablePrefix", "tailwindUtilityPrefix"]);
+export const TOKEN_NAME_FIELDS = Object.freeze(["cssVariablePrefix", "tailwindUtilityPrefix"]);
 
-/** The canonical Tailwind utility namespace the V4 bridge aliases under. */
+/** The canonical Tailwind utility namespace the Tailwind v4 bridge aliases under. */
 export const TAILWIND_UTILITY_PREFIX = "prism";
 
 /**
@@ -148,8 +179,8 @@ export const TAILWIND_UTILITY_PREFIX = "prism";
  */
 export const TOKEN_NAMESPACE_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 
-/** Exactly the allowed V4 `docs` keys; `readme` and `agents` are required. */
-export const V4_DOC_FIELDS = Object.freeze([
+/** Exactly the allowed `docs` keys; `readme` and `agents` are required. */
+export const DOC_FIELDS = Object.freeze([
   "readme",
   "agents",
   "brief",
@@ -157,8 +188,8 @@ export const V4_DOC_FIELDS = Object.freeze([
   "components",
   "usage",
 ]);
-/** The required V4 `docs` keys. */
-export const V4_REQUIRED_DOC_FIELDS = Object.freeze(["readme", "agents"]);
+/** The required `docs` keys. */
+export const REQUIRED_DOC_FIELDS = Object.freeze(["readme", "agents"]);
 
 /** Strip a leading UTF-8 BOM that Windows editors commonly add. */
 export function stripBom(text) {

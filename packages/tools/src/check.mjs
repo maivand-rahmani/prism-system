@@ -12,14 +12,13 @@
  *      an actionable `connect` hint, even though `doctor` treats absent config
  *      as informational);
  *   2. the full read-only `doctor` diagnostics (identity, installed package,
- *      manifest, contract, and the V4 Tailwind bridge advertisement/export/file);
- *   3. the public `./styles.css` export for both supported contracts: the shipped
- *      manifest target must equal the installed `package.json` export and point
- *      to a contained regular file;
- *   4. the Tailwind v4 prerequisite for V4 only: if Tailwind is declared in the
+ *      manifest, contract metadata, and the Tailwind v4 bridge
+ *      advertisement/export/file);
+ *   3. the public `./styles.css` export: the shipped manifest target must equal
+ *      the installed `package.json` export and point to a contained regular file;
+ *   4. the Tailwind v4 prerequisite: if Tailwind is declared in the
  *      consumer `package.json` or resolvable as installed, the installed major
- *      must be v4; neither declared nor installed is information, not a failure.
- *      V2 systems are `not_applicable` (never forced onto a Tailwind bridge);
+ *      must be v4; neither declared nor installed is information, not a failure;
  *   5. the CSS import order, and only when an explicit optional `cssPath` is
  *      supplied. With no `cssPath` the report never scans or guesses which CSS
  *      file is built and reports the imports `not_checked`. With a `cssPath` it
@@ -40,7 +39,7 @@ import { existsSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
-import { CONTRACT_V2, CONTRACT_V4, assertWithin, readJsonFile } from "./constants.mjs";
+import { CONTRACT_VERSION, assertWithin, readJsonFile } from "./constants.mjs";
 import {
   CONSUMER_CONFIG_FILENAME,
   CONSUMER_DIRECTORY,
@@ -79,7 +78,7 @@ export const CHECK_IDS = Object.freeze({
 /** Public subpath every design system exposes its ordinary stylesheet on. */
 export const STYLES_EXPORT_SUBPATH = "./styles.css";
 
-/** Required Tailwind major for the V4 bridge. */
+/** Required Tailwind CSS major for the bridge. */
 export const TAILWIND_REQUIRED_MAJOR = 4;
 
 const CONNECT_HINT = `Run "prism-ds connect --cwd <root>" to configure or repair this consumer.`;
@@ -114,10 +113,6 @@ function failed(options) {
 
 function notChecked(options) {
   return makeCheck({ ...options, status: CHECK_STATUS.NOT_CHECKED });
-}
-
-function notApplicable(options) {
-  return makeCheck({ ...options, status: CHECK_STATUS.NOT_APPLICABLE });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -191,10 +186,10 @@ function resolveInstalledPackage({ consumerRoot, packageName }) {
 }
 
 /**
- * Verify the public `./styles.css` export for either supported contract: the
- * shipped manifest target must equal the installed `package.json` export and
- * point to a contained regular file inside the package directory. Returns the
- * resolved target path.
+ * Verify the public `./styles.css` export for the current contract: the shipped
+ * manifest target must equal the installed `package.json` export and point to a
+ * contained regular file inside the package directory. Returns the resolved
+ * target path.
  */
 function verifyStylesExport({ installed, packageName }) {
   const manifestExports = isPlainObject(installed.manifest?.exports)
@@ -338,7 +333,7 @@ function resolveInstalled(state) {
       packageName: discovered.packageName,
     });
     state.installed = installed;
-    state.contract = detectManifestContract(installed.manifest);
+    state.contractVersion = detectManifestContract(installed.manifest);
     if (typeof installed.packageJson.version === "string") {
       state.version = installed.packageJson.version;
     }
@@ -385,14 +380,7 @@ function checkStylesExport(state) {
 }
 
 function checkTailwindBridge(state) {
-  if (state.contract === CONTRACT_V2) {
-    return notApplicable({
-      id: CHECK_IDS.tailwindBridge,
-      label: "tailwind bridge",
-      detail: "V2 design systems are not required to ship a Tailwind bridge.",
-    });
-  }
-  if (state.contract !== CONTRACT_V4) {
+  if (state.contractVersion !== CONTRACT_VERSION) {
     return notChecked({
       id: CHECK_IDS.tailwindBridge,
       label: "tailwind bridge",
@@ -417,14 +405,7 @@ function checkTailwindBridge(state) {
 }
 
 function checkTailwindPrerequisite(state) {
-  if (state.contract === CONTRACT_V2) {
-    return notApplicable({
-      id: CHECK_IDS.tailwindPrerequisite,
-      label: "tailwind prerequisite",
-      detail: "V2 design systems are never forced onto a Tailwind v4 bridge.",
-    });
-  }
-  if (state.contract !== CONTRACT_V4) {
+  if (state.contractVersion !== CONTRACT_VERSION) {
     return notChecked({
       id: CHECK_IDS.tailwindPrerequisite,
       label: "tailwind prerequisite",
@@ -494,13 +475,6 @@ function checkTailwindPrerequisite(state) {
 }
 
 function checkCssImports(state, cssPath) {
-  if (state.contract === CONTRACT_V2) {
-    return notApplicable({
-      id: CHECK_IDS.cssImports,
-      label: "css imports",
-      detail: "V2 design systems have no Tailwind bridge; CSS import order is not checked.",
-    });
-  }
   if (typeof cssPath !== "string" || cssPath.trim().length === 0) {
     return notChecked({
       id: CHECK_IDS.cssImports,
@@ -653,7 +627,7 @@ function checkComponents(state) {
  *   ok: boolean,
  *   cwd: string | null,
  *   package: string | null,
- *   contract: "v2" | "v4" | null,
+ *   contractVersion: 4 | null,
  *   version: string | null,
  *   status: "passed" | "failed",
  *   counts: { passed: number, failed: number, not_checked: number, not_applicable: number },
@@ -665,7 +639,7 @@ export function checkDesignSystem({ cwd, cssPath } = {}) {
   const state = {
     consumerRoot: null,
     packageName: null,
-    contract: null,
+    contractVersion: null,
     version: null,
     config: null,
     discovered: null,
@@ -703,7 +677,7 @@ export function checkDesignSystem({ cwd, cssPath } = {}) {
   const ok = !checks.some((check) => check.required && check.status === CHECK_STATUS.FAILED);
   const identity = `${state.packageName ?? "no package"}${
     state.version ? `@${state.version}` : ""
-  } (${state.contract ?? "unknown contract"})`;
+  } (${state.contractVersion ?? "unknown contract version"})`;
   const summary =
     `prism-ds check: ${counts.passed} passed, ${counts.failed} failed, ` +
     `${counts.not_checked} not checked, ${counts.not_applicable} not applicable — ` +
@@ -714,7 +688,7 @@ export function checkDesignSystem({ cwd, cssPath } = {}) {
     ok,
     cwd: state.consumerRoot,
     package: state.packageName,
-    contract: state.contract,
+    contractVersion: state.contractVersion,
     version: state.version,
     status: ok ? CHECK_STATUS.PASSED : CHECK_STATUS.FAILED,
     counts,

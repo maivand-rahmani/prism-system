@@ -8,8 +8,8 @@
  * Two layers are covered:
  *
  *   1. `buildTokenCatalog` — the pure mapping rules, exercised directly against
- *      the real A/B V4 manifests augmented with the required `tokens.names`
- *      prefixes, and against the real V2 fixture.
+ *      the real A/B manifests augmented with the required `tokens.names`
+ *      prefixes.
  *   2. `listDesignSystemTokens` — the end-to-end offline consumer path against
  *      disposable temp consumers, including "no writes" and "no network".
  *
@@ -21,22 +21,19 @@
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
 
-import { V4_TOKEN_GROUP_KEYS } from "../src/constants.mjs";
+import { CONTRACT_VERSION, TOKEN_GROUP_KEYS } from "../src/constants.mjs";
 import { buildTokenCatalog, listDesignSystemTokens } from "../src/tokens.mjs";
+import { currentManifest, readJson, repoRoot } from "./manifest-fixture.mjs";
 
-const testDir = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(testDir, "..", "..", "..");
-const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
-
-const v2Manifest = readJson(
-  join(repoRoot, "schemas", "fixtures", "v2-valid", "design-system.json"),
+const systemAManifest = currentManifest(
+  readJson(join(repoRoot, "packages", "system-a", "design-system.json")),
 );
-const systemAManifest = readJson(join(repoRoot, "packages", "system-a", "design-system.json"));
-const systemBManifest = readJson(join(repoRoot, "packages", "system-b", "design-system.json"));
+const systemBManifest = currentManifest(
+  readJson(join(repoRoot, "packages", "system-b", "design-system.json")),
+);
 
 /** The prefixes the real systems' generated bridges use. */
 const SYSTEM_A_PREFIXES = Object.freeze({
@@ -44,7 +41,7 @@ const SYSTEM_A_PREFIXES = Object.freeze({
   tailwindUtilityPrefix: "prism",
 });
 
-/** Clone a V4 manifest and add the required `tokens.names` metadata. */
+/** Clone a manifest and set the required `tokens.names` metadata. */
 function withTokenNames(manifest, names = SYSTEM_A_PREFIXES) {
   const clone = structuredClone(manifest);
   clone.tokens.names = { ...names };
@@ -135,14 +132,14 @@ function findToken(catalog, group, path) {
 
 test("V4 catalog reports supported with the manifest prefixes and canonical group order", () => {
   const catalog = buildTokenCatalog({ manifest: systemATokens });
-  assert.equal(catalog.contract, "v4");
+  assert.equal(catalog.contractVersion, CONTRACT_VERSION);
   assert.equal(catalog.supported, true);
   assert.equal(catalog.reason, null);
   assert.deepEqual(catalog.prefixes, { css: "maivand-a", tailwind: "prism" });
-  assert.deepEqual(catalog.groupNames, [...V4_TOKEN_GROUP_KEYS]);
+  assert.deepEqual(catalog.groupNames, [...TOKEN_GROUP_KEYS]);
   assert.deepEqual(
     catalog.groups.map((entry) => entry.group),
-    [...V4_TOKEN_GROUP_KEYS],
+    [...TOKEN_GROUP_KEYS],
   );
   assert.equal(catalog.counts.groups, 9);
   assert.equal(catalog.counts.tokens, 108);
@@ -419,63 +416,26 @@ test("missing or invalid tokens.names prefixes fail closed", () => {
   );
 });
 
-test("an unsupported schema/contract pair fails closed", () => {
+test("an unsupported metadata pair fails closed", () => {
   assert.throws(
-    () => buildTokenCatalog({ manifest: { schemaVersion: 3, contract: "v5" } }),
-    /Unsupported design-system manifest/,
+    () => buildTokenCatalog({ manifest: { schemaVersion: 3, contractVersion: 4 } }),
+    /expected schemaVersion 4 and contractVersion 4/,
   );
   assert.throws(() => buildTokenCatalog({ manifest: null }), /manifest object is required/);
-});
-
-/* -------------------------------------------------------------------------- */
-/* V2 handling                                                                */
-/* -------------------------------------------------------------------------- */
-
-test("V2 manifests report a clear no-token-catalog result instead of throwing", () => {
-  const catalog = buildTokenCatalog({ manifest: v2Manifest });
-  assert.equal(catalog.contract, "v2");
-  assert.equal(catalog.supported, false);
-  assert.match(catalog.reason, /V2 design systems declare no token catalog/);
-  assert.equal(catalog.prefixes, null);
-  assert.deepEqual(catalog.groups, []);
-  assert.deepEqual(catalog.groupNames, []);
-  assert.deepEqual(catalog.counts, { groups: 0, tokens: 0 });
-  assert.equal(catalog.requested, null);
-  assert.equal(catalog.id, "v2-valid");
-});
-
-test("V2 ignores a requested group rather than rejecting V2", () => {
-  const catalog = buildTokenCatalog({ manifest: v2Manifest, group: "themes" });
-  assert.equal(catalog.supported, false);
-  assert.equal(catalog.requested, null);
 });
 
 /* -------------------------------------------------------------------------- */
 /* End-to-end consumer path                                                   */
 /* -------------------------------------------------------------------------- */
 
-test("listDesignSystemTokens reads a real V2 consumer and never throws", (t) => {
-  const { root, packageName } = createConsumer(t, { manifest: v2Manifest, withConfig: true });
-
-  const result = listDesignSystemTokens({ cwd: root });
-
-  assert.equal(result.ok, true);
-  assert.equal(result.supported, false);
-  assert.equal(result.contract, "v2");
-  assert.equal(result.package, packageName);
-  assert.equal(result.version, "1.1.0");
-  assert.match(result.reason, /no token catalog/);
-  assert.deepEqual(result.groups, []);
-});
-
-test("listDesignSystemTokens reads a real V4 consumer end-to-end", (t) => {
+test("listDesignSystemTokens reads a real consumer end-to-end", (t) => {
   const { root, packageName } = createConsumer(t, { manifest: systemATokens, withConfig: true });
 
   const result = listDesignSystemTokens({ cwd: root, group: "radius" });
 
   assert.equal(result.ok, true);
   assert.equal(result.supported, true);
-  assert.equal(result.contract, "v4");
+  assert.equal(result.contractVersion, CONTRACT_VERSION);
   assert.equal(result.package, packageName);
   assert.equal(result.version, systemATokens.version);
   assert.deepEqual(result.prefixes, { css: "maivand-a", tailwind: "prism" });

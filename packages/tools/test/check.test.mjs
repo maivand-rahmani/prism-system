@@ -22,23 +22,18 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
 
+import { CONTRACT_VERSION } from "../src/constants.mjs";
 import { CHECK_IDS, CHECK_STATUS, checkDesignSystem } from "../src/check.mjs";
+import { currentManifest, readJson, repoRoot } from "./manifest-fixture.mjs";
 
-const testDir = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(testDir, "..", "..", "..");
-const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
-
-const SYSTEM_A_MANIFEST = readJson(join(repoRoot, "packages", "system-a", "design-system.json"));
-const V2_MANIFEST = readJson(
-  join(repoRoot, "schemas", "fixtures", "v2-valid", "design-system.json"),
+const SYSTEM_A_MANIFEST = currentManifest(
+  readJson(join(repoRoot, "packages", "system-a", "design-system.json")),
 );
 
-const V4_PACKAGE = "@prism-system/ui-v4-check";
-const V2_PACKAGE = "@prism-system/ui-v2-valid";
+const PACKAGE_NAME = "@prism-system/ui-check";
 const OTHER_PACKAGE = "@prism-system/ui-other";
 
 function writeJson(path, value) {
@@ -68,7 +63,6 @@ function toWritableRelative(target) {
  */
 function createConsumer(t, options = {}) {
   const {
-    contract = "v4",
     withConfig = true,
     includeManifestStyles = true,
     manifestStylesTarget = "./dist/index.css",
@@ -89,24 +83,18 @@ function createConsumer(t, options = {}) {
   const root = mkdtempSync(join(tmpdir(), "prism-check-"));
   t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
-  const isV4 = contract !== "v2";
-  const packageName = isV4 ? V4_PACKAGE : V2_PACKAGE;
-  const version = isV4 ? "1.0.0" : "1.1.0";
+  const packageName = PACKAGE_NAME;
+  const version = "1.0.0";
 
-  const manifest = structuredClone(isV4 ? SYSTEM_A_MANIFEST : V2_MANIFEST);
+  const manifest = structuredClone(SYSTEM_A_MANIFEST);
   manifest.package = packageName;
   manifest.version = version;
-  if (isV4) {
-    manifest.id = "v4-check";
-    manifest.name = "V4 Check";
-    delete manifest.exports["./tailwind.css"];
-  }
+  manifest.id = "check";
+  manifest.name = "Check";
   if (includeManifestStyles) manifest.exports["./styles.css"] = manifestStylesTarget;
   else delete manifest.exports["./styles.css"];
-  if (isV4) {
-    if (includeManifestTailwind) manifest.exports["./tailwind.css"] = manifestTailwindTarget;
-    else delete manifest.exports["./tailwind.css"];
-  }
+  if (includeManifestTailwind) manifest.exports["./tailwind.css"] = manifestTailwindTarget;
+  else delete manifest.exports["./tailwind.css"];
   if (typeof mutateManifest === "function") mutateManifest(manifest);
 
   const dependencies = { [packageName]: version };
@@ -132,7 +120,7 @@ function createConsumer(t, options = {}) {
 
   const exportsMap = { "./manifest": "./design-system.json" };
   if (includePackageStyles) exportsMap["./styles.css"] = packageStylesTarget;
-  if (isV4 && includePackageTailwind) exportsMap["./tailwind.css"] = packageTailwindTarget;
+  if (includePackageTailwind) exportsMap["./tailwind.css"] = packageTailwindTarget;
 
   const systemDir = join(root, "node_modules", ...packageName.split("/"));
   writeJson(join(systemDir, "package.json"), {
@@ -145,12 +133,10 @@ function createConsumer(t, options = {}) {
   if (stylesTargetExists && includePackageStyles && stylesRelative !== null) {
     writeFile(systemDir, stylesRelative, "/* styles */\n");
   }
-  if (isV4) {
-    if (includePackageTailwind && tailwindTargetExists) {
-      const tailwindRelative = toWritableRelative(packageTailwindTarget);
-      if (tailwindRelative !== null) {
-        writeFile(systemDir, tailwindRelative, "/* tailwind bridge */\n");
-      }
+  if (includePackageTailwind && tailwindTargetExists) {
+    const tailwindRelative = toWritableRelative(packageTailwindTarget);
+    if (tailwindRelative !== null) {
+      writeFile(systemDir, tailwindRelative, "/* tailwind bridge */\n");
     }
   }
 
@@ -208,14 +194,14 @@ function managedCss(packageName, extraLines = []) {
 /* Healthy consumers                                                          */
 /* -------------------------------------------------------------------------- */
 
-test("a connected V4 consumer without Tailwind or CSS passes", (t) => {
+test("a connected consumer without Tailwind or CSS passes", (t) => {
   const { root } = createConsumer(t);
 
   const result = checkDesignSystem({ cwd: root });
 
   assert.equal(result.ok, true, JSON.stringify(failedRequired(result)));
-  assert.equal(result.contract, "v4");
-  assert.equal(result.package, V4_PACKAGE);
+  assert.equal(result.contractVersion, CONTRACT_VERSION);
+  assert.equal(result.package, PACKAGE_NAME);
   assert.equal(result.version, "1.0.0");
   assert.equal(result.status, CHECK_STATUS.PASSED);
 
@@ -227,40 +213,6 @@ test("a connected V4 consumer without Tailwind or CSS passes", (t) => {
   assert.equal(checkById(result, CHECK_IDS.cssImports).status, CHECK_STATUS.NOT_CHECKED);
   assert.equal(checkById(result, CHECK_IDS.usage).status, CHECK_STATUS.PASSED);
   assert.equal(checkById(result, CHECK_IDS.components).status, CHECK_STATUS.PASSED);
-});
-
-test("a connected V2 consumer passes without any Tailwind bridge", (t) => {
-  const { root } = createConsumer(t, { contract: "v2" });
-
-  const result = checkDesignSystem({ cwd: root });
-
-  assert.equal(result.ok, true, JSON.stringify(failedRequired(result)));
-  assert.equal(result.contract, "v2");
-  assert.equal(result.package, V2_PACKAGE);
-  assert.equal(checkById(result, CHECK_IDS.stylesExport).status, CHECK_STATUS.PASSED);
-  assert.equal(checkById(result, CHECK_IDS.tailwindBridge).status, CHECK_STATUS.NOT_APPLICABLE);
-  assert.equal(
-    checkById(result, CHECK_IDS.tailwindPrerequisite).status,
-    CHECK_STATUS.NOT_APPLICABLE,
-  );
-  assert.equal(checkById(result, CHECK_IDS.cssImports).status, CHECK_STATUS.NOT_APPLICABLE);
-  const components = checkById(result, CHECK_IDS.components);
-  assert.equal(components.status, CHECK_STATUS.PASSED);
-  assert.equal(components.report.counts.required, 14);
-});
-
-test("V2 is not forced onto a V4 bridge even with Tailwind v3 installed", (t) => {
-  const { root } = createConsumer(t, { contract: "v2", tailwind: "3.4.0" });
-
-  const result = checkDesignSystem({ cwd: root, cssPath: "src/app.css" });
-
-  assert.equal(result.ok, true, JSON.stringify(failedRequired(result)));
-  assert.equal(checkById(result, CHECK_IDS.tailwindBridge).status, CHECK_STATUS.NOT_APPLICABLE);
-  assert.equal(
-    checkById(result, CHECK_IDS.tailwindPrerequisite).status,
-    CHECK_STATUS.NOT_APPLICABLE,
-  );
-  assert.equal(checkById(result, CHECK_IDS.cssImports).status, CHECK_STATUS.NOT_APPLICABLE);
 });
 
 /* -------------------------------------------------------------------------- */
@@ -287,7 +239,7 @@ test("default check never scans for a CSS file, even when several exist", (t) =>
 });
 
 /* -------------------------------------------------------------------------- */
-/* Tailwind prerequisite (V4 only)                                            */
+/* Tailwind prerequisite (Tailwind v4)                                            */
 /* -------------------------------------------------------------------------- */
 
 test("declared and installed Tailwind v4 passes the prerequisite", (t) => {
@@ -301,7 +253,7 @@ test("declared and installed Tailwind v4 passes the prerequisite", (t) => {
   assert.equal(result.ok, true, JSON.stringify(failedRequired(result)));
 });
 
-test("declared but not installed Tailwind fails for V4", (t) => {
+test("declared but not installed Tailwind fails", (t) => {
   const { root } = createConsumer(t, { tailwind: null, tailwindDeclared: true });
 
   const result = checkDesignSystem({ cwd: root });
@@ -312,7 +264,7 @@ test("declared but not installed Tailwind fails for V4", (t) => {
   assert.match(prerequisite.detail, /not installed/);
 });
 
-test("an installed non-v4 Tailwind fails for V4", (t) => {
+test("an installed non-v4 Tailwind fails", (t) => {
   const { root } = createConsumer(t, { tailwind: "3.4.0" });
 
   const result = checkDesignSystem({ cwd: root });
@@ -430,7 +382,7 @@ test("required components pass and an absent optional is not a failure", (t) => 
 test("an explicitly checked, correctly ordered CSS file passes unchanged", (t) => {
   const { root } = createConsumer(t, {
     tailwind: "4.1.0",
-    files: { "src/app.css": managedCss(V4_PACKAGE, ["body { margin: 0; }"]) },
+    files: { "src/app.css": managedCss(PACKAGE_NAME, ["body { margin: 0; }"]) },
   });
   const cssPath = join(root, "src", "app.css");
   const before = readFileSync(cssPath, "utf8");
@@ -448,9 +400,9 @@ test("missing and reordered CSS imports fail without changing bytes", (t) => {
     {
       name: "reordered",
       css:
-        `@import "${V4_PACKAGE}/styles.css";\n` +
+        `@import "${PACKAGE_NAME}/styles.css";\n` +
         '@import "tailwindcss";\n' +
-        `@import "${V4_PACKAGE}/tailwind.css";\n`,
+        `@import "${PACKAGE_NAME}/tailwind.css";\n`,
     },
   ];
 
@@ -496,7 +448,7 @@ test("a conflicting second design-system bridge fails", (t) => {
 test("check never writes anywhere and never reaches the network", (t) => {
   const { root } = createConsumer(t, {
     tailwind: "4.1.0",
-    files: { "src/app.css": managedCss(V4_PACKAGE) },
+    files: { "src/app.css": managedCss(PACKAGE_NAME) },
   });
   const before = snapshot(root);
 
@@ -521,7 +473,7 @@ test("an explicit cssPath outside the consumer root fails and is never touched",
   t.after(() =>
     rmSync(outsideDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }),
   );
-  const outsideFile = writeFile(outsideDir, "app.css", managedCss(V4_PACKAGE));
+  const outsideFile = writeFile(outsideDir, "app.css", managedCss(PACKAGE_NAME));
 
   const { root } = createConsumer(t, { tailwind: "4.1.0" });
   const before = snapshot(root);

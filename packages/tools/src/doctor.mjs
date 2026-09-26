@@ -19,7 +19,7 @@
 import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-import { CONTRACT_V4, assertWithin } from "./constants.mjs";
+import { CONTRACT_VERSION, assertWithin } from "./constants.mjs";
 import { detectManifestContract } from "./manifest.mjs";
 import {
   CONSUMER_CONFIG_FILENAME,
@@ -32,7 +32,7 @@ import {
   verifyConsumerDesignSystem,
 } from "./consumer.mjs";
 
-/** Public subpath a V4 design system advertises and exposes its Tailwind bridge on. */
+/** Public subpath a design system advertises and exposes its Tailwind bridge on. */
 export const TAILWIND_EXPORT_SUBPATH = "./tailwind.css";
 
 function isPlainObject(value) {
@@ -48,19 +48,19 @@ function failure(label, detail) {
 }
 
 /**
- * Verify the V4 Tailwind bridge advertisement and its public export, read-only:
+ * Verify the Tailwind v4 bridge advertisement and its public export, read-only:
  * the shipped manifest must advertise `./tailwind.css`, `package.json` must
  * expose the same target, and that target must be a contained regular file
- * inside the package directory. V2 systems are not required to ship a bridge.
+ * inside the package directory.
  */
-function verifyV4TailwindBridge({ installed, packageName }) {
+function verifyTailwindBridge({ installed, packageName }) {
   const manifestExports = isPlainObject(installed.manifest?.exports)
     ? installed.manifest.exports
     : {};
   const declaredTarget = manifestExports[TAILWIND_EXPORT_SUBPATH];
   if (declaredTarget === undefined) {
     throw new Error(
-      `Shipped V4 manifest does not advertise ${JSON.stringify(
+      `Shipped manifest does not advertise ${JSON.stringify(
         TAILWIND_EXPORT_SUBPATH,
       )} in its exports map.`,
     );
@@ -71,7 +71,7 @@ function verifyV4TailwindBridge({ installed, packageName }) {
     !declaredTarget.startsWith("./")
   ) {
     throw new Error(
-      `Shipped V4 manifest exports[${JSON.stringify(
+      `Shipped manifest exports[${JSON.stringify(
         TAILWIND_EXPORT_SUBPATH,
       )}] must be a "./"-relative string target (received ${JSON.stringify(
         declaredTarget ?? null,
@@ -211,12 +211,12 @@ export function collectDoctorReport({ cwd, package: explicitPackage } = {}) {
     checks.push(failure("version/identity invariants", error.message));
   }
 
-  // V4 Tailwind bridge: the manifest advertises `./tailwind.css`, the package
+  // Tailwind v4 bridge: the manifest advertises `./tailwind.css`, the package
   // exposes the matching public export, and its target is a contained regular
-  // file. V2 design systems are never required to ship a Tailwind bridge.
-  if (detectManifestContract(installed.manifest) === CONTRACT_V4) {
+  // file.
+  if (detectManifestContract(installed.manifest) === CONTRACT_VERSION) {
     try {
-      const bridgePath = verifyV4TailwindBridge({
+      const bridgePath = verifyTailwindBridge({
         installed,
         packageName: discovered.packageName,
       });

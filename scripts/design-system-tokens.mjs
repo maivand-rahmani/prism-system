@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Deterministic V4 token artifact generation.
+ * Deterministic token artifact generation.
  *
- * A V4 design system owns its visual language in `tokens.source.json`. From that
+ * A design system owns its visual language in `tokens.source.json`. From that
  * single source this module renders three shipped artifacts:
  *
  *   src/tokens/index.ts      the public TypeScript token export (refs resolved)
@@ -30,15 +30,15 @@ export const TOKENS_CSS_RELATIVE_PATH = "src/styles/tokens.css";
 /** Package-relative path of the generated Tailwind v4 bridge. */
 export const TOKENS_TAILWIND_RELATIVE_PATH = "src/styles/tailwind.css";
 
-/** The three V4 token artifacts, in stable order. */
-export const V4_TOKEN_ARTIFACT_PATHS = Object.freeze([
+/** The three token artifacts, in stable order. */
+export const TOKEN_ARTIFACT_PATHS = Object.freeze([
   Object.freeze({ key: "typescript", relativePath: TOKENS_TYPESCRIPT_RELATIVE_PATH }),
   Object.freeze({ key: "css", relativePath: TOKENS_CSS_RELATIVE_PATH }),
   Object.freeze({ key: "tailwind", relativePath: TOKENS_TAILWIND_RELATIVE_PATH }),
 ]);
 
 /**
- * The canonical Tailwind utility namespace every V4 bridge aliases under.
+ * The canonical Tailwind utility namespace every Tailwind v4 bridge aliases under.
  *
  * Rendered theme keys are `--color-<prefix>-…`, `--spacing-<prefix>-…`, and so
  * on, which produce the `bg-<prefix>-…` / `p-<prefix>-…` utility families. The
@@ -49,10 +49,10 @@ export const V4_TOKEN_ARTIFACT_PATHS = Object.freeze([
 export const TAILWIND_UTILITY_PREFIX = "prism";
 
 /**
- * The exact `tokens.names` fields a V4 manifest declares, in canonical order.
+ * The exact `tokens.names` fields a manifest declares, in canonical order.
  * Both are required; an unknown or missing field fails closed.
  */
-export const V4_TOKEN_NAME_FIELDS = Object.freeze(["cssVariablePrefix", "tailwindUtilityPrefix"]);
+export const TOKEN_NAME_FIELDS = Object.freeze(["cssVariablePrefix", "tailwindUtilityPrefix"]);
 
 /**
  * A safe lower-kebab namespace: starts with a lowercase letter, then
@@ -278,7 +278,7 @@ export function buildTokenArtifactFiles({ tokensExport, uiClass, resolvedTokens 
     css: renderTokensCss({ uiClass, resolvedTokens }),
     tailwind: renderTailwindCss({ uiClass, resolvedTokens }),
   };
-  return V4_TOKEN_ARTIFACT_PATHS.map((artifact) => ({
+  return TOKEN_ARTIFACT_PATHS.map((artifact) => ({
     ...artifact,
     content: contentByKey[artifact.key],
   }));

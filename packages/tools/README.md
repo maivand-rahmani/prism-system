@@ -9,16 +9,17 @@ usage, sets up the Tailwind v4 bridge, and diagnoses the result.
   `components`, `tokens`, `check`, `check-usage`, `setup-tailwind`, `doctor`, `--help`).
 - **Not a UI package:** it depends on no design system and on no `@prism-system/ui-*`
   package. TypeScript is its only runtime dependency.
-- **Two contracts:** it reads both the published V2 (`schemaVersion: 1`,
-  `contract: "v2"`) and V4 (`schemaVersion: 2`, `contract: "v4"`) manifest shapes and
-  rejects any other pair. V2 remains fully supported.
+- **One current contract:** it reads the current manifest shape (`schemaVersion: 4`,
+  numeric `contractVersion: 4`) and rejects any other shape. The package-owned
+  `design-system.source.json` descriptor stays `schemaVersion: 3` and is never shipped;
+  this tooling never sees it.
 - **Explicit boundaries:** `search`/`info` are network read-only; `install`/`use`/
   `upgrade` are the only commands that mutate consumer dependencies; `setup-tailwind`
   mutates only the explicitly named consumer CSS file; `connect` writes only the consumer
   config and agent instructions; `components`/`tokens`/`check`/`check-usage`/`doctor` are
   offline (`check-usage` may lazy-load TypeScript). No postinstall, no source copying, no
   publishing, no hidden package selection, and no access to the design-systems source
-  repository. A regular-CSS consumer needs no Tailwind; only the V4 bridge does.
+  repository. A regular-CSS consumer needs no Tailwind; only the token bridge does.
 
 ## Install
 
@@ -38,7 +39,7 @@ Then run it with `npx` (or from `node_modules/.bin`).
 # 1. Find a published style (explicit network, read-only).
 npx prism-ds search "calm editorial"
 
-# 2. Inspect its shipped manifest, V2 or V4 (explicit network, read-only).
+# 2. Inspect its shipped manifest (explicit network, read-only).
 npx prism-ds info @prism-system/ui-system-a
 
 # 3. Install, connect, and verify usage in one explicit step (mutates dependencies).
@@ -63,13 +64,13 @@ sorted deterministically. `--size <1..250>` caps the request; `--json` emits sta
 Explicit network, read-only. Accepts only a supported `@prism-system/ui-*` name or a
 lower-kebab system id and an optional exact semver (tags, ranges, aliases, and
 git/file/workspace specs are rejected). It resolves an omitted version only through an
-exact `dist-tags.latest`, validates `prismSystem.contract` is `"v2"` or `"v4"` and
+exact `dist-tags.latest`, validates the numeric `contractVersion: 4` and
 `exports["./manifest"] === "./design-system.json"`, downloads the tarball **in memory**
 with SRI verification, and validates the shipped `design-system.json` identity, version,
-schema, contract, and required shape. The V2 output shape is unchanged; V4 adds only
-additive fields (available components and capabilities, token groups and artifacts, docs,
-and the Showcase route). `--json` emits a stable allowlisted object that includes the
-validated full manifest.
+schema, contract, and required shape. Output includes the visual direction, the available
+required and optional components, token groups and artifacts, docs, and the Showcase
+route. `--json` emits a stable allowlisted object that includes the validated full
+manifest.
 
 ## Dependency-mutating commands
 
@@ -92,8 +93,8 @@ installed package through the public `./manifest` export and exact identity/vers
 The explicit one-step workflow: resolve registry → install → verify → `connect` with the
 exact package. `--check-usage` runs the strict checker afterwards (`--ignore <glob>`
 requires it). `--tailwind --css <file>` additionally performs the Tailwind v4 setup after a
-successful install and connect: it requires a V4 target and an installed Tailwind v4 and
-preflights the named CSS file before any dependency mutation, then edits only that file.
+successful install and connect: it requires an installed Tailwind v4 target and preflights
+the named CSS file before any dependency mutation, then edits only that file.
 `--dry-run` resolves the exact target and the exact manager command (and, with `--tailwind`,
 the planned CSS import diff) without spawning or writing. The target is always explicit;
 the package is never discovered. A completed package-manager mutation is not rolled back
@@ -129,12 +130,15 @@ dependencies, copies source, or mutates the design-system repo. Options: `--stri
 ### `prism-ds components [name] --cwd <consumer-root>`
 
 Offline, read-only component catalog for the installed design system, read only through its
-public `./manifest` (no package code is executed, nothing is written). V2 lists the
-fourteen required components; V4 lists the twenty required components plus all twelve known
-optional contracts, where an undeclared optional is reported unavailable with no fabricated
-metadata. `[name]` selects one known component, including an unavailable optional; an
-unknown name is rejected. The example route is derived from the validated manifest `id` as
-`/showcase/<id>`.
+public `./manifest` (no package code is executed, nothing is written). It lists the 29
+required components plus all 17 known optional contracts, where an undeclared optional
+is reported unavailable with no fabricated metadata. Availability is decided only by the
+presence of the component key in `manifest.components`; the generated
+`capabilities.categories` inventory (composition, forms, data-display) is canonical
+category membership, not a second availability list, and category availability is derived
+by intersecting its names with those keys. `[name]` selects one known component,
+including an unavailable optional; an unknown name is rejected. The example route is
+derived from the validated manifest `id` as `/showcase/<id>`.
 
 ### `prism-ds tokens [group] --cwd <consumer-root>`
 
@@ -142,28 +146,25 @@ Offline, read-only catalog of semantic token names mapped to the CSS custom prop
 Tailwind bridge names the installed system actually generates. Prefixes come only from
 `manifest.tokens.names` (`cssVariablePrefix`, `tailwindUtilityPrefix`); token values are
 never published, and generated CSS/TypeScript artifacts are never read or executed.
-`[group]` selects one of the nine token groups. V2 declares no token catalog, so `tokens`
-returns an honest `supported: false` result with a clear reason instead of failing; V2
-`info`, `connect`, `doctor`, and `check-usage` are unaffected.
+`[group]` selects one of the nine token groups.
 
 ### `prism-ds check --cwd <consumer-root> [--css <file>]`
 
 Offline, read-only health report for a connected consumer. It aggregates, with each check
 captured independently and a stable status (`passed`, `failed`, `not_checked`,
-`not_applicable`): the consumer config, the full `doctor` diagnostics (including the V4
-`./tailwind.css` bridge), the public `./styles.css` export, the Tailwind v4 prerequisite
-(V4 only; V2 is `not_applicable`), the CSS import order, strict usage, and required/optional
-component availability. The CSS import order is checked **only** when an explicit
-`--css <file>` is given; with no `--css` the report never scans for or guesses a CSS file
-and marks the imports `not_checked`. The named `--css` check is read-only. It never writes,
-installs, executes package code, or runs project scripts, and exits non-zero only when a
-required check fails.
+`not_applicable`): the consumer config, the full `doctor` diagnostics (including the
+`./tailwind.css` bridge), the public `./styles.css` export, the Tailwind v4 prerequisite,
+the CSS import order, strict usage, and required/optional component availability. The CSS
+import order is checked **only** when an explicit `--css <file>` is given; with no `--css`
+the report never scans for or guesses a CSS file and marks the imports `not_checked`. The
+named `--css` check is read-only. It never writes, installs, executes package code, or runs
+project scripts, and exits non-zero only when a required check fails.
 
 ### `prism-ds setup-tailwind --cwd <consumer-root> --css <file>`
 
-Offline. It verifies an installed V4 system and an installed Tailwind v4, and that the
-package's `./tailwind.css` and `./styles.css` export targets exist, then makes exactly one
-explicitly named CSS file inside `--cwd` load, in order:
+Offline. It verifies an installed current-contract system and an installed Tailwind v4, and
+that the package's `./tailwind.css` and `./styles.css` export targets exist, then makes
+exactly one explicitly named CSS file inside `--cwd` load, in order:
 
 ```css
 @import "tailwindcss";
@@ -189,7 +190,7 @@ root-relative ignore (repeatable). TypeScript is lazy-loaded only for this comma
 
 Offline read-only diagnostics: realpath containment, package discovery, the installed
 version resolved through Node package resolution, the public `./manifest` and its version,
-exact identity/version invariants, the V4 Tailwind bridge advertisement/export/file, and
+exact identity/version invariants, the Tailwind bridge advertisement/export/file, and
 the consumer config state. It writes nothing and exits non-zero when any check fails.
 
 ## Consumer contract
@@ -201,24 +202,32 @@ For a product repository, the public contract is:
 3. the installed package's `AGENTS.md`;
 4. the installed package's `README.md`;
 5. the public TypeScript API of the package;
-6. for V4 systems, the public `./styles.css` and `./tailwind.css` subpaths.
+6. the public `./styles.css` and `./tailwind.css` subpaths.
 
 The exact installed version, the manifest version, and any configured version must match.
-Unknown manifest or config schema versions fail closed; only the `(1, "v2")` and
-`(2, "v4")` pairs are accepted. The generated manifest remains the authoritative design
-metadata; nothing duplicates it into `package.json`.
+Unknown manifest or config schema versions fail closed; only the current shape
+(`schemaVersion: 4`, numeric `contractVersion: 4`) is accepted. There is one shipped
+manifest shape, so readers of `schemaVersion: 3` must be upgraded in lockstep: an older
+`prism-ds` cannot read a schema-4 manifest, and this tooling rejects schema 3. The
+manifest's top-level `capabilities.categories` inventory (composition, forms,
+data-display) is canonical category membership, not availability: per-system support is
+only the presence of a key in `manifest.components`, and category availability is derived
+by intersecting the two. Never edit or repeat `capabilities` in the package-owned
+`design-system.source.json`, which stays `schemaVersion: 3`. The generated manifest
+remains the authoritative design metadata; nothing duplicates it into `package.json`.
 
 ## Requirements
 
 - Node.js `>= 20.19.0`.
-- Tailwind CSS v4 only when a product uses the V4 bridge; regular CSS consumers need none.
+- Tailwind CSS v4 only when a product uses the token bridge; regular CSS consumers need
+  none.
 
 ## Maintainer tooling is separate
 
 `pnpm ds:create`, `ds:register`, `ds:check`, `ds:manifest`, `ds:sync-versions`,
-`ds:release`, and `ds:check-v3` are maintainer commands that operate on the design-systems
-source repository. They are not part of this package and are not needed to consume a
-published design system.
+`ds:release`, `ds:check-tools`, `ds:check-docs`, and `ds:check-all` are maintainer
+commands that operate on the design-systems source repository. They are not part of this
+package and are not needed to consume a published design system.
 
 ## License
 

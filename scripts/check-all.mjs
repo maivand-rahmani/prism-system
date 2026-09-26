@@ -1,24 +1,23 @@
 #!/usr/bin/env node
 /**
- * V4 Phase 5 end-to-end lifecycle acceptance harness (`pnpm ds:check-v4`).
+ * End-to-end lifecycle acceptance harness (`pnpm ds:check-all`).
  *
- * A deterministic, fail-closed superset of the Phase 3 packed-tools check. It
- * verifies the *packed* V4 lifecycle end to end and orchestrates the existing
- * `ds:check-v4-tools` harness unchanged:
+ * A deterministic, fail-closed superset of the packed-tools check. It verifies
+ * the *packed* lifecycle end to end and orchestrates the existing
+ * `ds:check-tools` harness unchanged:
  *
  *   1. snapshot the repository version/config/manifest state (hashes);
  *   2. build `@prism-system/ui-core`, System A, and System B from source;
  *   3. validate both systems statically (`validateDesignSystem`, no commands);
- *   4. run the Phase 3 packed-tools check as a child process
- *      (`scripts/check-v4-tools-packed.mjs`) for the V2 fixture and the full
- *      packed `prism-ds` CLI lifecycle;
- *   5. generate a fresh V4 package from the canonical template into TEMP only
+ *   4. run the packed-tools check as a child process
+ *      (`scripts/check-tools.mjs`) for the full packed `prism-ds` CLI lifecycle;
+ *   5. generate a fresh package from the canonical template into TEMP only
  *      (`ds:create --output <temp> --no-register`), build it, and pack it;
  *   6. pack and inspect ui-core, System A, System B, the fresh generated
  *      package, and `@prism-system/tools`;
  *   7. hydrate isolated TEMP consumers from the packed artifacts only and
- *      typecheck every public import: the twenty required V4 exports, each
- *      system's declared optional set, the `@prism-system/ui-core` V4 contract
+ *      typecheck every public import: the 29 required exports, each
+ *      system's declared optional set, the `@prism-system/ui-core` contract
  *      names, `./manifest`, `./tokens`, `./styles.css`, and `./tailwind.css`;
  *   8. resolve and load the packed public exports at runtime from a consumer;
  *   9. install the exact `tailwindcss@4.3.3` + `@tailwindcss/cli@4.3.3`
@@ -35,7 +34,7 @@
  *      byte-identical (build `dist/` outputs and TEMP artifacts may change).
  *
  * Safety: every artifact, consumer, and log lives under a fresh unique
- * `TEMP/v4/lifecycle-<uuid>/` directory. Creating that directory must not
+ * `TEMP/lifecycle/lifecycle-<uuid>/` directory. Creating that directory must not
  * overwrite anything: a collision fails closed. No fixed `TEMP` path is ever
  * cleaned, no prior harness output is touched, and nothing outside the run
  * directory is removed.
@@ -48,7 +47,7 @@
  * needs itself; it never runs `changeset version`, version sync, `ds:release
  * --approved`, publish, or mutating git commands.
  *
- * CLI: pnpm ds:check-v4
+ * CLI: pnpm ds:check-all
  */
 
 import { spawnSync } from "node:child_process";
@@ -77,14 +76,17 @@ import {
   prepareRelease,
 } from "./prepare-release.mjs";
 import {
+  CAPABILITY_CATEGORIES,
+  CAPABILITY_CATEGORY_KEYS,
   DESIGN_SYSTEM_MANIFEST_FILENAME,
+  DESIGN_SYSTEM_MANIFEST_SCHEMA_VERSION,
   MANIFEST_EXPORT_SUBPATH,
-  V4_OPTIONAL_COMPONENTS,
-  V4_REQUIRED_COMPONENTS,
+  OPTIONAL_COMPONENTS,
+  REQUIRED_COMPONENTS,
 } from "./design-system-manifest.mjs";
 
 const ROOT = repoRoot();
-const TEMP_ROOT = join(ROOT, "TEMP", "v4");
+const TEMP_ROOT = join(ROOT, "TEMP", "lifecycle");
 const RUN_DIR_NAME = `lifecycle-${randomUUID()}`;
 const TEMP = join(TEMP_ROOT, RUN_DIR_NAME);
 const PACK_DIR = join(TEMP, "pack");
@@ -93,7 +95,7 @@ const GENERATED_DIR = join(TEMP, "generated");
 const CONSUMER_DIR = join(TEMP, "consumers");
 const RELEASE_DIR = join(TEMP, "release");
 const TAILWIND_DIR = join(TEMP, "tailwind");
-const LOG_PATH = join(TEMP, "check-v4-lifecycle.log");
+const LOG_PATH = join(TEMP, "check-all.log");
 
 const GENERATED_ID = "lifecycle-demo";
 const GENERATED_PACKAGE_NAME = `@prism-system/ui-${GENERATED_ID}`;
@@ -103,10 +105,10 @@ const TOOLS_PACKAGE_DIR = join(ROOT, "packages", "tools");
 
 const SYSTEM_IDS = ["system-a", "system-b"];
 
-/** The canonical twenty required V4 component names, in contract order. */
-export const V4_REQUIRED_COMPONENT_NAMES = Object.freeze([...V4_REQUIRED_COMPONENTS]);
+/** The canonical 29 required component names, in contract order. */
+export const REQUIRED_COMPONENT_NAMES = Object.freeze([...REQUIRED_COMPONENTS]);
 
-/** The optional capability set each test system declares (V4 Phase 2). */
+/** The optional capability set each test system declares. */
 export const OPTIONAL_SETS = Object.freeze({
   "system-a": Object.freeze([
     "Grid",
@@ -116,8 +118,22 @@ export const OPTIONAL_SETS = Object.freeze({
     "Accordion",
     "Pagination",
     "Table",
+    "Metric",
+    "DescriptionList",
+    "Timeline",
+    "Meter",
   ]),
-  "system-b": Object.freeze(["Section", "Alert", "Skeleton", "Toast", "Avatar", "Breadcrumbs"]),
+  "system-b": Object.freeze([
+    "Section",
+    "Alert",
+    "Skeleton",
+    "Toast",
+    "Avatar",
+    "Breadcrumbs",
+    "Metric",
+    "Timeline",
+    "EmptyState",
+  ]),
 });
 
 /** Exact Tailwind v4 toolchain versions compiled against packed artifacts. */
@@ -139,7 +155,6 @@ const REPO_STATE_FILES = Object.freeze([
   "pnpm-workspace.yaml",
   "turbo.json",
   "config/design-systems.json",
-  "schemas/fixtures/v2-valid/design-system.json",
   "templates/design-system/package.json.template",
   "templates/design-system/design-system.source.json.template",
   "templates/design-system/tokens.source.json.template",
@@ -228,6 +243,43 @@ export function semanticUtilityRule(cssText, utilityClass) {
   return match ? match[1] : null;
 }
 
+/**
+ * Verify a shipped manifest's generated capability-category inventory against
+ * the single canonical definition: exact category keys, exact required/optional
+ * membership in canonical order (which also proves unique, known names of the
+ * correct class), and nothing else. Throws on any mismatch. Availability itself
+ * is never read from this inventory; callers keep using the component map.
+ */
+export function assertCapabilityInventory(manifest, label) {
+  const categories = manifest?.capabilities?.categories;
+  assert(
+    categories !== null && typeof categories === "object" && !Array.isArray(categories),
+    `${label} must declare capabilities.categories`,
+  );
+  assert(
+    JSON.stringify(Object.keys(categories)) === JSON.stringify([...CAPABILITY_CATEGORY_KEYS]),
+    `${label} capability category keys must be exactly ${CAPABILITY_CATEGORY_KEYS.join(
+      ", ",
+    )} (received ${Object.keys(categories).join(", ")})`,
+  );
+  for (const key of CAPABILITY_CATEGORY_KEYS) {
+    const category = categories[key];
+    assert(
+      category !== null && typeof category === "object" && !Array.isArray(category),
+      `${label} capability category "${key}" must be an object`,
+    );
+    for (const className of ["required", "optional"]) {
+      const expected = CAPABILITY_CATEGORIES[key][className];
+      assert(
+        JSON.stringify(category[className]) === JSON.stringify(expected),
+        `${label} capability category "${key}".${className} must be exactly ${JSON.stringify(
+          expected,
+        )}`,
+      );
+    }
+  }
+}
+
 /** The canonical consumer stylesheet compiled by the Tailwind CLI. */
 export function buildTailwindProbeCss(packageName) {
   return [
@@ -290,8 +342,8 @@ export function collectRepoVersionState(root) {
 
 /**
  * The consumer TypeScript source that typechecks every public import of the
- * packed packages: all twenty required exports, the declared optionals, the
- * ui-core V4 contract names, `./manifest`, `./tokens`, `./styles.css`, and
+ * packed packages: all 29 required exports, the declared optionals, the
+ * ui-core contract names, `./manifest`, `./tokens`, `./styles.css`, and
  * `./tailwind.css`.
  *
  * @param {{namespace: string, id: string, packageName: string, optional: string[]}[]} systems
@@ -310,12 +362,12 @@ export function buildTypecheckSource(systems) {
       (system) => `import * as ${system.namespace} from ${JSON.stringify(system.packageName)};`,
     ),
     "import {",
-    "  OPTIONAL_COMPONENTS_V4,",
-    "  REQUIRED_COMPONENTS_V4,",
-    "  defineDesignSystemV4,",
-    "  type DesignSystemComponentNameV4,",
-    "  type DesignSystemComponentsV4,",
-    "  type DesignSystemV4,",
+    "  OPTIONAL_COMPONENTS,",
+    "  REQUIRED_COMPONENTS,",
+    "  defineDesignSystem,",
+    "  type DesignSystemComponentName,",
+    "  type DesignSystemComponents,",
+    "  type DesignSystem,",
     '} from "@prism-system/ui-core";',
     ...systems.map(
       (system, index) =>
@@ -328,13 +380,13 @@ export function buildTypecheckSource(systems) {
     `import ${JSON.stringify(`${systems[0].packageName}/styles.css`)};`,
     `import ${JSON.stringify(`${systems[0].packageName}/tailwind.css`)};`,
     "",
-    "type RequiredName = (typeof REQUIRED_COMPONENTS_V4)[number];",
+    "type RequiredName = (typeof REQUIRED_COMPONENTS)[number];",
     "",
   ];
 
   for (const system of systems) {
     lines.push(`const ${system.namespace}Required: Record<RequiredName, unknown> = {`);
-    for (const name of V4_REQUIRED_COMPONENT_NAMES) {
+    for (const name of REQUIRED_COMPONENT_NAMES) {
       lines.push(`  ${name}: ${system.namespace}.${name},`);
     }
     lines.push("};", "");
@@ -353,11 +405,11 @@ export function buildTypecheckSource(systems) {
   }
 
   lines.push(
-    "const requiredNames: readonly DesignSystemComponentNameV4[] = REQUIRED_COMPONENTS_V4;",
-    "const optionalNames: readonly DesignSystemComponentNameV4[] = OPTIONAL_COMPONENTS_V4;",
-    "type V4ComponentMap = DesignSystemComponentsV4;",
-    "const designSystemV4: DesignSystemV4 | null = null;",
-    "const factory: typeof defineDesignSystemV4 = defineDesignSystemV4;",
+    "const requiredNames: readonly DesignSystemComponentName[] = REQUIRED_COMPONENTS;",
+    "const optionalNames: readonly DesignSystemComponentName[] = OPTIONAL_COMPONENTS;",
+    "type ComponentMap = DesignSystemComponents;",
+    "const designSystem: DesignSystem | null = null;",
+    "const factory: typeof defineDesignSystem = defineDesignSystem;",
     "",
     "const probe = (",
     `  <${namespaces[0]}.Container>`,
@@ -375,9 +427,9 @@ export function buildTypecheckSource(systems) {
     "  probe,",
     "  requiredNames,",
     "  optionalNames,",
-    "  designSystemV4,",
+    "  designSystem,",
     "  factory,",
-    "  type: null as V4ComponentMap | null,",
+    "  type: null as ComponentMap | null,",
     `  required: [${namespaces.map((namespace) => `${namespace}Required`).join(", ")}],`,
     `  optional: [${systems
       .filter((system) => system.optional.length > 0)
@@ -425,7 +477,27 @@ for (const entry of packages) {
     const manifest = require(entry.packageName + "/manifest");
     report.manifestVersions[entry.packageName] = manifest.version;
     if (manifest.version !== entry.version) fail(entry.packageName + " manifest version mismatch");
-    if (manifest.contract !== "v4") fail(entry.packageName + " manifest contract is not v4");
+    if (manifest.contractVersion !== 4) {
+      fail(entry.packageName + " manifest contractVersion is not 4");
+    }
+    if (manifest.schemaVersion !== 4) {
+      fail(entry.packageName + " manifest schemaVersion is not 4");
+    }
+    const expectedCategories = ${JSON.stringify(CAPABILITY_CATEGORIES)};
+    const actualCategories = manifest.capabilities?.categories ?? {};
+    const categoryKeysMatch =
+      JSON.stringify(Object.keys(actualCategories).sort()) ===
+      JSON.stringify(Object.keys(expectedCategories).sort());
+    const categoryMembersMatch = Object.keys(expectedCategories).every(
+      (key) =>
+        JSON.stringify(actualCategories[key]?.required) ===
+          JSON.stringify(expectedCategories[key].required) &&
+        JSON.stringify(actualCategories[key]?.optional) ===
+          JSON.stringify(expectedCategories[key].optional),
+    );
+    if (!categoryKeysMatch || !categoryMembersMatch) {
+      fail(entry.packageName + " manifest capabilities categories mismatch");
+    }
   } catch (error) {
     fail(entry.packageName + "/manifest: " + (error.code ?? error.message));
   }
@@ -452,11 +524,11 @@ for (const entry of packages) {
 
 try {
   const core = await import("@prism-system/ui-core");
-  if (core.REQUIRED_COMPONENTS_V4?.length !== 20) fail("ui-core REQUIRED_COMPONENTS_V4 length");
-  if (core.OPTIONAL_COMPONENTS_V4?.length !== 12) fail("ui-core OPTIONAL_COMPONENTS_V4 length");
-  if (typeof core.defineDesignSystemV4 !== "function") fail("ui-core defineDesignSystemV4");
-  if (typeof core.createDesignSystemRegistryV4 !== "function") {
-    fail("ui-core createDesignSystemRegistryV4");
+  if (core.REQUIRED_COMPONENTS?.length !== 29) fail("ui-core REQUIRED_COMPONENTS length");
+  if (core.OPTIONAL_COMPONENTS?.length !== 17) fail("ui-core OPTIONAL_COMPONENTS length");
+  if (typeof core.defineDesignSystem !== "function") fail("ui-core defineDesignSystem");
+  if (typeof core.createDesignSystemRegistry !== "function") {
+    fail("ui-core createDesignSystemRegistry");
   }
 } catch (error) {
   fail("ui-core import: " + error.message);
@@ -613,7 +685,7 @@ function stagePackedPackage(consumerRoot, packageName, packedDir) {
 const repoStateBefore = new Map();
 let runDirectoryReady = false;
 
-/** Packed V4 targets, hydrated during the packing step. */
+/** Packed targets, hydrated during the packing step. */
 const systemTargets = SYSTEM_IDS.map((id) => ({
   id,
   packageName: `@prism-system/ui-${id}`,
@@ -678,7 +750,7 @@ async function main() {
     /* Step 0: unique run directory                                           */
     /* ---------------------------------------------------------------------- */
 
-    runCheck("prepare unique TEMP/v4/lifecycle-<uuid> run directory", () => {
+    runCheck("prepare unique TEMP/lifecycle/lifecycle-<uuid> run directory", () => {
       // mkdir (non-recursive) fails closed on collision: nothing is ever
       // deleted or overwritten.
       const dir = createUniqueRunDirectory(TEMP_ROOT, RUN_DIR_NAME);
@@ -753,13 +825,13 @@ async function main() {
     /* Step 3: compose the Phase 3 packed-tools check unchanged               */
     /* ---------------------------------------------------------------------- */
 
-    runCheck("run pnpm ds:check-v4-tools (V2 fixture + packed CLI lifecycle)", () => {
-      const child = runPnpm(["ds:check-v4-tools"], { maxBuffer: 32 * 1024 * 1024 });
+    runCheck("run pnpm ds:check-tools (packed CLI lifecycle)", () => {
+      const child = runPnpm(["ds:check-tools"], { maxBuffer: 32 * 1024 * 1024 });
       const text = output(child);
-      assert(child.status === 0, `ds:check-v4-tools failed:\n${text}`);
+      assert(child.status === 0, `ds:check-tools failed:\n${text}`);
       assert(
-        /V4 packed-tools check passed\./.test(text),
-        `ds:check-v4-tools did not report success:\n${text}`,
+        /Packed tools check passed\./.test(text),
+        `ds:check-tools did not report success:\n${text}`,
       );
       const summary = text
         .split(/\r?\n/)
@@ -768,10 +840,10 @@ async function main() {
     });
 
     /* ---------------------------------------------------------------------- */
-    /* Step 4: fresh V4 template package (TEMP only)                          */
+    /* Step 4: fresh template package (TEMP only)                             */
     /* ---------------------------------------------------------------------- */
 
-    runCheck("generate a fresh V4 package from the template (TEMP only)", () => {
+    runCheck("generate a fresh package from the template (TEMP only)", () => {
       const create = runNode([
         join(ROOT, "scripts", "create-design-system.mjs"),
         GENERATED_ID,
@@ -796,21 +868,28 @@ async function main() {
       const manifest = readJsonFile(
         join(generatedTarget.packageDir, DESIGN_SYSTEM_MANIFEST_FILENAME),
       );
-      assert(manifest.contract === "v4", "fresh template package must declare contract v4");
-      assert(manifest.schemaVersion === 2, "fresh template manifest must be schemaVersion 2");
+      assert(
+        manifest.contractVersion === 4,
+        "fresh template package must declare contractVersion 4",
+      );
+      assert(
+        manifest.schemaVersion === DESIGN_SYSTEM_MANIFEST_SCHEMA_VERSION,
+        "fresh template manifest must be schemaVersion 4",
+      );
+      assertCapabilityInventory(manifest, "fresh template manifest");
       assert(
         manifest.version === pkg.version,
         "fresh template manifest version must equal package.json version",
       );
       const declared = Object.keys(manifest.components);
       assert(
-        declared.length === V4_REQUIRED_COMPONENT_NAMES.length &&
-          V4_REQUIRED_COMPONENT_NAMES.every((name) => declared.includes(name)),
-        `fresh template must declare exactly the twenty required components: ${declared.join(", ")}`,
+        declared.length === REQUIRED_COMPONENT_NAMES.length &&
+          REQUIRED_COMPONENT_NAMES.every((name) => declared.includes(name)),
+        `fresh template must declare exactly the 29 required components: ${declared.join(", ")}`,
       );
     });
 
-    runCheck("build the fresh generated V4 package in TEMP", () => {
+    runCheck("build the fresh generated package in TEMP", () => {
       const link = join(generatedTarget.packageDir, "node_modules");
       if (!existsSync(link)) {
         symlinkSync(
@@ -866,7 +945,7 @@ async function main() {
       }
     });
 
-    runCheck("pack, inspect, and extract the V4 systems and the fresh generated package", () => {
+    runCheck("pack, inspect, and extract the systems and the fresh generated package", () => {
       for (const target of [...systemTargets, generatedTarget]) {
         assert(existsSync(join(target.packageDir, "dist")), `${target.id} is not built`);
         const tarball = packPackage(target.packageDir, target.id);
@@ -880,8 +959,15 @@ async function main() {
         assert(pkg.name === target.packageName, `${target.id} packed identity mismatch`);
         assert(manifest.package === target.packageName, `${target.id} manifest identity mismatch`);
         assert(manifest.version === pkg.version, `${target.id} manifest/package version mismatch`);
-        assert(manifest.contract === "v4", `${target.id} manifest must declare contract v4`);
-        assert(manifest.schemaVersion === 2, `${target.id} manifest must be schemaVersion 2`);
+        assert(
+          manifest.contractVersion === 4,
+          `${target.id} manifest must declare contractVersion 4`,
+        );
+        assert(
+          manifest.schemaVersion === DESIGN_SYSTEM_MANIFEST_SCHEMA_VERSION,
+          `${target.id} manifest must be schemaVersion 4`,
+        );
+        assertCapabilityInventory(manifest, `${target.id} manifest`);
         assert(
           manifest.docs?.usage === "./USAGE.md",
           `${target.id} must declare shipped usage docs`,
@@ -927,12 +1013,12 @@ async function main() {
         target.tailwindPrefix = tailwindPrefix;
       }
 
-      // The fresh template declares exactly the twenty required components;
+      // The fresh template declares exactly the 29 required components;
       // System A and System B keep their distinct optional capability sets.
       for (const id of SYSTEM_IDS) {
         const target = systemTargets.find((candidate) => candidate.id === id);
         const declared = Object.keys(target.manifest.components).filter(
-          (name) => !V4_REQUIRED_COMPONENT_NAMES.includes(name),
+          (name) => !REQUIRED_COMPONENT_NAMES.includes(name),
         );
         assert(
           JSON.stringify(declared) === JSON.stringify([...OPTIONAL_SETS[id]]),
@@ -941,11 +1027,11 @@ async function main() {
       }
       const generatedDeclared = Object.keys(generatedTarget.manifest.components);
       assert(
-        generatedDeclared.length === V4_REQUIRED_COMPONENT_NAMES.length,
+        generatedDeclared.length === REQUIRED_COMPONENT_NAMES.length,
         `fresh generated package must declare exactly the required set: ${generatedDeclared.join(", ")}`,
       );
       assert(
-        V4_OPTIONAL_COMPONENTS.every((name) => !generatedDeclared.includes(name)),
+        OPTIONAL_COMPONENTS.every((name) => !generatedDeclared.includes(name)),
         "fresh generated package must not declare optional components",
       );
     });
@@ -991,7 +1077,7 @@ async function main() {
       const dir = join(CONSUMER_DIR, "typecheck");
       mkdirSync(join(dir, "src"), { recursive: true });
       writeJson(join(dir, "package.json"), {
-        name: "prism-v4-typecheck-consumer",
+        name: "prism-typecheck-consumer",
         version: "0.0.0",
         private: true,
       });
@@ -1055,7 +1141,7 @@ async function main() {
       const dir = join(CONSUMER_DIR, "runtime");
       mkdirSync(dir, { recursive: true });
       writeJson(join(dir, "package.json"), {
-        name: "prism-v4-runtime-consumer",
+        name: "prism-runtime-consumer",
         version: "0.0.0",
         private: true,
       });
@@ -1108,7 +1194,7 @@ async function main() {
       () => {
         const toolchainPackageJson = join(TAILWIND_DIR, "package.json");
         writeJson(toolchainPackageJson, {
-          name: "prism-v4-tailwind-lifecycle",
+          name: "prism-tailwind-lifecycle",
           version: "0.0.0",
           private: true,
         });
@@ -1119,7 +1205,7 @@ async function main() {
             `tailwindcss@${TAILWIND_VERSION} ${TAILWIND_CLI_PACKAGE}@${TAILWIND_VERSION} ` +
             `(cwd ${toPosix(relative(ROOT, TAILWIND_DIR))})`,
         );
-        log("NETWORK this is the only network operation performed by ds:check-v4");
+        log("NETWORK this is the only network operation performed by ds:check-all");
         const install = spawnSync(
           "npm",
           [
@@ -1172,7 +1258,7 @@ async function main() {
         const dir = join(TAILWIND_DIR, "consumers", target.id);
         mkdirSync(join(dir, "src"), { recursive: true });
         writeJson(join(dir, "package.json"), {
-          name: `prism-v4-tailwind-${target.id}`,
+          name: `prism-tailwind-${target.id}`,
           version: "0.0.0",
           private: true,
         });
@@ -1409,15 +1495,15 @@ async function main() {
   const failures = results.filter((result) => !result.ok);
   log("");
   log(
-    `${results.length - failures.length}/${results.length} V4 lifecycle check(s) passed. ` +
+    `${results.length - failures.length}/${results.length} lifecycle check(s) passed. ` +
       `Artifacts under ${toPosix(relative(ROOT, TEMP))}.`,
   );
   if (failures.length > 0) {
-    log("V4 lifecycle check failed:");
+    log("Lifecycle check failed:");
     for (const failure of failures) log(`  - ${failure.name}: ${failure.error}`);
     process.exitCode = 1;
   } else {
-    log("V4 lifecycle check passed.");
+    log("Lifecycle check passed.");
   }
   if (runDirectoryReady) {
     log(`Log: ${toPosix(relative(ROOT, LOG_PATH))}`);

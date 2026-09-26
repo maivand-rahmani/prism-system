@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * V4 compatibility tests for the published consumer lifecycle.
+ * Compatibility tests for the published consumer lifecycle.
  *
  * Run directly (Node built-in test runner, no dependency):
- *   node --test packages/tools/test/consumer-v4.test.mjs
+ *   node --test packages/tools/test/consumer.test.mjs
  *
  * These exercise `connect` / `verify` / `check-usage` / `doctor` against real
  * temporary consumer packages whose installed design system is resolved through
@@ -24,11 +24,10 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve, sep } from "node:path";
+import { dirname, join, sep } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
 
-import { V4_OPTIONAL_COMPONENTS, V4_REQUIRED_COMPONENTS } from "../src/constants.mjs";
+import { CONTRACT_VERSION, OPTIONAL_COMPONENTS, REQUIRED_COMPONENTS } from "../src/constants.mjs";
 import {
   connectDesignSystem,
   planConnect,
@@ -37,14 +36,10 @@ import {
 } from "../src/consumer.mjs";
 import { collectDoctorReport } from "../src/doctor.mjs";
 import { checkSourceText, checkUsage, componentNamesForManifest } from "../src/usage.mjs";
+import { currentManifest, readJson, repoRoot } from "./manifest-fixture.mjs";
 
-const testDir = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(testDir, "..", "..", "..");
-const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
-
-const SYSTEM_A_MANIFEST = readJson(join(repoRoot, "packages", "system-a", "design-system.json"));
-const V2_MANIFEST = readJson(
-  join(repoRoot, "schemas", "fixtures", "v2-valid", "design-system.json"),
+const SYSTEM_A_MANIFEST = currentManifest(
+  readJson(join(repoRoot, "packages", "system-a", "design-system.json")),
 );
 
 const STRICT_RULES = Object.freeze({
@@ -74,7 +69,6 @@ function writeFile(root, relative, content) {
  */
 function createConsumer(t, options = {}) {
   const {
-    contract = "v4",
     version: requestedVersion = null,
     includeManifestTailwind = true,
     includePackageTailwind = true,
@@ -86,22 +80,19 @@ function createConsumer(t, options = {}) {
     files = {},
   } = options;
 
-  const root = mkdtempSync(join(tmpdir(), "prism-consumer-v4-"));
+  const root = mkdtempSync(join(tmpdir(), "prism-consumer-"));
   t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
-  const isV4 = contract !== "v2";
-  const packageName = isV4 ? "@prism-system/ui-v4-bridge" : "@prism-system/ui-v2-valid";
-  const version = requestedVersion ?? (isV4 ? "1.0.0" : "1.1.0");
+  const packageName = "@prism-system/ui-bridge";
+  const version = requestedVersion ?? "1.0.0";
 
-  const manifest = structuredClone(isV4 ? SYSTEM_A_MANIFEST : V2_MANIFEST);
+  const manifest = structuredClone(SYSTEM_A_MANIFEST);
   manifest.package = packageName;
   manifest.version = version;
-  if (isV4) {
-    manifest.id = "v4-bridge";
-    manifest.name = "V4 Bridge";
-    if (includeManifestTailwind) manifest.exports["./tailwind.css"] = manifestTailwindTarget;
-    else delete manifest.exports["./tailwind.css"];
-  }
+  manifest.id = "bridge";
+  manifest.name = "Bridge";
+  if (includeManifestTailwind) manifest.exports["./tailwind.css"] = manifestTailwindTarget;
+  else delete manifest.exports["./tailwind.css"];
   if (typeof mutateManifest === "function") mutateManifest(manifest);
 
   writeJson(join(root, "package.json"), {
@@ -124,10 +115,8 @@ function createConsumer(t, options = {}) {
   }
 
   const exportsMap = { "./manifest": "./design-system.json" };
-  if (isV4) {
-    exportsMap["./styles.css"] = "./dist/index.css";
-    if (includePackageTailwind) exportsMap["./tailwind.css"] = packageTailwindTarget;
-  }
+  exportsMap["./styles.css"] = "./dist/index.css";
+  if (includePackageTailwind) exportsMap["./tailwind.css"] = packageTailwindTarget;
 
   const systemDir = join(root, "node_modules", ...packageName.split("/"));
   writeJson(join(systemDir, "package.json"), {
@@ -136,15 +125,13 @@ function createConsumer(t, options = {}) {
     exports: exportsMap,
   });
   writeJson(join(systemDir, "design-system.json"), manifest);
-  if (isV4) {
-    writeFile(systemDir, "dist/index.css", "/* styles */\n");
-    if (tailwindTargetExists) {
-      const relativeTarget =
-        manifestTailwindTarget.startsWith("./") && !manifestTailwindTarget.includes("..")
-          ? manifestTailwindTarget.slice(2)
-          : "dist/tailwind.css";
-      writeFile(systemDir, relativeTarget, "/* tailwind bridge */\n");
-    }
+  writeFile(systemDir, "dist/index.css", "/* styles */\n");
+  if (tailwindTargetExists) {
+    const relativeTarget =
+      manifestTailwindTarget.startsWith("./") && !manifestTailwindTarget.includes("..")
+        ? manifestTailwindTarget.slice(2)
+        : "dist/tailwind.css";
+    writeFile(systemDir, relativeTarget, "/* tailwind bridge */\n");
   }
   for (const [relative, content] of Object.entries(files)) writeFile(root, relative, content);
 
@@ -160,15 +147,15 @@ function tokenSet(findings) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* V2 stays compatible                                                        */
+/* connect / verify / doctor                                                  */
 /* -------------------------------------------------------------------------- */
 
-test("V2 connect, verify, and doctor succeed without any Tailwind bridge", (t) => {
-  const { root, packageName, version } = createConsumer(t, { contract: "v2" });
+test("connect, verify, and doctor succeed and advertise the Tailwind bridge", (t) => {
+  const { root, packageName, version } = createConsumer(t);
 
   const installed = resolveInstalledDesignSystem({ consumerRoot: root, packageName });
   const verified = verifyConsumerDesignSystem({ packageName, expectedVersion: null, installed });
-  assert.equal(verified.contract, "v2");
+  assert.equal(verified.contractVersion, CONTRACT_VERSION);
   assert.equal(verified.version, version);
 
   const result = connectDesignSystem({ cwd: root });
@@ -180,81 +167,28 @@ test("V2 connect, verify, and doctor succeed without any Tailwind bridge", (t) =
   assert.equal(config.version, version);
 
   const agents = readFileSync(join(root, ".design-system", "AGENTS.md"), "utf8");
-  assert.ok(agents.includes("- Contract: `v2`"), agents);
-  assert.ok(!agents.includes("/tailwind.css"), "V2 instructions must not claim a Tailwind bridge");
-
-  const doctor = collectDoctorReport({ cwd: root });
-  assert.equal(doctor.ok, true, JSON.stringify(failedChecks(doctor)));
-  assert.equal(
-    doctor.checks.some((check) => check.label === "tailwind bridge"),
-    false,
-    "V2 doctor must not require a Tailwind bridge",
-  );
-
-  const recheck = connectDesignSystem({ cwd: root, check: true });
-  assert.equal(recheck.ok, true);
-  assert.equal(recheck.changed, false, "a connected V2 consumer is idempotent");
-});
-
-test("V2 usage keeps the fourteen-name duplication set", (t) => {
-  const { root } = createConsumer(t, {
-    contract: "v2",
-    files: {
-      "src/app.ts":
-        "export function Button() {\n  return null;\n}\n\nexport function Heading() {\n  return null;\n}\n",
-    },
-  });
-
-  const usage = checkUsage({ cwd: root });
-  const tokens = tokenSet(usage.findings);
-  assert.ok(tokens.has("Button"), "a local V2 primitive replacement is flagged");
-  assert.ok(!tokens.has("Heading"), "Heading is not part of the V2 duplication set");
-});
-
-/* -------------------------------------------------------------------------- */
-/* V4 connect / verify / doctor                                               */
-/* -------------------------------------------------------------------------- */
-
-test("V4 connect, verify, and doctor succeed and advertise the Tailwind bridge", (t) => {
-  const { root, packageName, version } = createConsumer(t, { contract: "v4" });
-
-  const installed = resolveInstalledDesignSystem({ consumerRoot: root, packageName });
-  const verified = verifyConsumerDesignSystem({ packageName, expectedVersion: null, installed });
-  assert.equal(verified.contract, "v4");
-  assert.equal(verified.version, version);
-
-  const result = connectDesignSystem({ cwd: root });
-  assert.equal(result.ok, true, result.failures.join(" "));
-  assert.equal(result.changed, true);
-
-  const config = readJson(join(root, ".design-system", "config.json"));
-  assert.equal(config.package, packageName);
-  assert.equal(config.version, version);
-
-  const agents = readFileSync(join(root, ".design-system", "AGENTS.md"), "utf8");
-  assert.ok(agents.includes("- Contract: `v4`"), agents);
+  assert.ok(agents.includes("- Contract version: `4`"), agents);
   assert.ok(
     agents.includes(`${packageName}/tailwind.css`),
-    "V4 instructions must include the Tailwind bridge import",
+    "instructions must include the Tailwind bridge import",
   );
 
   const doctor = collectDoctorReport({ cwd: root });
   assert.equal(doctor.ok, true, JSON.stringify(failedChecks(doctor)));
   const bridge = doctor.checks.find((check) => check.label === "tailwind bridge");
-  assert.ok(bridge && bridge.ok, "V4 doctor validates the Tailwind bridge");
+  assert.ok(bridge && bridge.ok, "doctor validates the Tailwind bridge");
 
   const recheck = connectDesignSystem({ cwd: root, check: true });
   assert.equal(recheck.ok, true);
-  assert.equal(recheck.changed, false, "a connected V4 consumer is idempotent");
+  assert.equal(recheck.changed, false, "a connected consumer is idempotent");
 });
 
 /* -------------------------------------------------------------------------- */
-/* V4 usage component selection                                               */
+/* usage component selection                                                  */
 /* -------------------------------------------------------------------------- */
 
-test("V4 usage flags all required and declared optional components only", (t) => {
+test("usage flags all required and declared optional components only", (t) => {
   const { root, manifest } = createConsumer(t, {
-    contract: "v4",
     // Grid is a supported optional name that this system does not declare.
     mutateManifest: (m) => {
       delete m.components.Grid;
@@ -277,8 +211,8 @@ test("V4 usage flags all required and declared optional components only", (t) =>
 
   const declared = componentNamesForManifest(manifest);
   const expectedDeclared = [
-    ...V4_REQUIRED_COMPONENTS,
-    ...V4_OPTIONAL_COMPONENTS.filter((name) => name in manifest.components),
+    ...REQUIRED_COMPONENTS,
+    ...OPTIONAL_COMPONENTS.filter((name) => name in manifest.components),
   ];
   assert.deepEqual(declared, expectedDeclared);
   assert.ok(declared.includes("Table"), "a declared optional is in the duplication set");
@@ -307,11 +241,11 @@ test("V4 usage flags all required and declared optional components only", (t) =>
 });
 
 /* -------------------------------------------------------------------------- */
-/* V4 Tailwind bridge failures                                                */
+/* Tailwind bridge failures                                                   */
 /* -------------------------------------------------------------------------- */
 
 test("a manifest that does not advertise ./tailwind.css fails doctor", (t) => {
-  const { root } = createConsumer(t, { contract: "v4", includeManifestTailwind: false });
+  const { root } = createConsumer(t, { includeManifestTailwind: false });
   const doctor = collectDoctorReport({ cwd: root });
   assert.equal(doctor.ok, false);
   const bridge = doctor.checks.find((check) => check.label === "tailwind bridge");
@@ -320,7 +254,7 @@ test("a manifest that does not advertise ./tailwind.css fails doctor", (t) => {
 });
 
 test("a package.json without the ./tailwind.css export fails doctor", (t) => {
-  const { root } = createConsumer(t, { contract: "v4", includePackageTailwind: false });
+  const { root } = createConsumer(t, { includePackageTailwind: false });
   const doctor = collectDoctorReport({ cwd: root });
   assert.equal(doctor.ok, false);
   const bridge = doctor.checks.find((check) => check.label === "tailwind bridge");
@@ -329,10 +263,7 @@ test("a package.json without the ./tailwind.css export fails doctor", (t) => {
 });
 
 test("a package.json Tailwind target mismatching the manifest fails doctor", (t) => {
-  const { root } = createConsumer(t, {
-    contract: "v4",
-    packageTailwindTarget: "./dist/other.css",
-  });
+  const { root } = createConsumer(t, { packageTailwindTarget: "./dist/other.css" });
   const doctor = collectDoctorReport({ cwd: root });
   assert.equal(doctor.ok, false);
   const bridge = doctor.checks.find((check) => check.label === "tailwind bridge");
@@ -341,7 +272,7 @@ test("a package.json Tailwind target mismatching the manifest fails doctor", (t)
 });
 
 test("a missing Tailwind bridge target file fails doctor", (t) => {
-  const { root } = createConsumer(t, { contract: "v4", tailwindTargetExists: false });
+  const { root } = createConsumer(t, { tailwindTargetExists: false });
   const doctor = collectDoctorReport({ cwd: root });
   assert.equal(doctor.ok, false);
   const bridge = doctor.checks.find((check) => check.label === "tailwind bridge");
@@ -351,7 +282,6 @@ test("a missing Tailwind bridge target file fails doctor", (t) => {
 
 test("a Tailwind bridge target escaping the package fails doctor", (t) => {
   const { root } = createConsumer(t, {
-    contract: "v4",
     manifestTailwindTarget: "./../outside.css",
     packageTailwindTarget: "./../outside.css",
     tailwindTargetExists: false,
@@ -364,34 +294,35 @@ test("a Tailwind bridge target escaping the package fails doctor", (t) => {
 });
 
 /* -------------------------------------------------------------------------- */
-/* Unsupported contract/schema pairs fail closed                              */
+/* Unsupported metadata fails closed                                          */
 /* -------------------------------------------------------------------------- */
 
-test("an unsupported schema/contract pair fails connect, verify, and doctor", (t) => {
+test("obsolete manifest metadata fails connect, verify, and doctor", (t) => {
   const pairs = [
-    { schemaVersion: 2, contract: "v2" },
-    { schemaVersion: 1, contract: "v4" },
+    { schemaVersion: 3, contractVersion: 4 },
+    { schemaVersion: 4, contractVersion: 2 },
     { schemaVersion: 3, contract: "v4" },
   ];
   for (const pair of pairs) {
     const { root, packageName } = createConsumer(t, {
-      contract: "v4",
       mutateManifest: (manifest) => {
+        delete manifest.contractVersion;
         manifest.schemaVersion = pair.schemaVersion;
-        manifest.contract = pair.contract;
+        if ("contractVersion" in pair) manifest.contractVersion = pair.contractVersion;
+        if ("contract" in pair) manifest.contract = pair.contract;
       },
     });
 
     const installed = resolveInstalledDesignSystem({ consumerRoot: root, packageName });
     assert.throws(
       () => verifyConsumerDesignSystem({ packageName, expectedVersion: null, installed }),
-      /Unsupported schema\/contract pair/,
+      /must be the numeric 4|must be 4/,
       `verify must reject ${JSON.stringify(pair)}`,
     );
 
     const result = connectDesignSystem({ cwd: root });
     assert.equal(result.ok, false);
-    assert.match(result.failures.join(" "), /Unsupported schema\/contract pair/);
+    assert.match(result.failures.join(" "), /must be the numeric 4|must be 4/);
 
     const doctor = collectDoctorReport({ cwd: root });
     assert.equal(doctor.ok, false);
@@ -400,9 +331,37 @@ test("an unsupported schema/contract pair fails connect, verify, and doctor", (t
         .filter((check) => !check.ok)
         .map((check) => check.detail)
         .join(" "),
-      /Unsupported schema\/contract pair/,
+      /must be the numeric 4|must be 4/,
     );
   }
+});
+
+test("a current manifest missing capabilities fails verify, connect, and doctor", (t) => {
+  const { root, packageName } = createConsumer(t, {
+    mutateManifest: (manifest) => {
+      delete manifest.capabilities;
+    },
+  });
+
+  const installed = resolveInstalledDesignSystem({ consumerRoot: root, packageName });
+  assert.throws(
+    () => verifyConsumerDesignSystem({ packageName, expectedVersion: null, installed }),
+    /capabilities is required/,
+  );
+
+  const result = connectDesignSystem({ cwd: root });
+  assert.equal(result.ok, false);
+  assert.match(result.failures.join(" "), /capabilities is required/);
+
+  const doctor = collectDoctorReport({ cwd: root });
+  assert.equal(doctor.ok, false);
+  assert.match(
+    doctor.checks
+      .filter((check) => !check.ok)
+      .map((check) => check.detail)
+      .join(" "),
+    /capabilities is required/,
+  );
 });
 
 /* -------------------------------------------------------------------------- */
@@ -410,7 +369,7 @@ test("an unsupported schema/contract pair fails connect, verify, and doctor", (t
 /* -------------------------------------------------------------------------- */
 
 test("connect plans and writes only inside the consumer root", (t) => {
-  const { root } = createConsumer(t, { contract: "v4" });
+  const { root } = createConsumer(t);
 
   const plan = planConnect({ cwd: root });
   for (const file of plan.files) {
@@ -426,8 +385,8 @@ test("connect plans and writes only inside the consumer root", (t) => {
 });
 
 test("connect refuses an external .design-system symlink and writes nothing", (t) => {
-  const { root } = createConsumer(t, { contract: "v4" });
-  const outsideDir = mkdtempSync(join(tmpdir(), "prism-consumer-v4-outside-"));
+  const { root } = createConsumer(t);
+  const outsideDir = mkdtempSync(join(tmpdir(), "prism-consumer-outside-"));
   t.after(() =>
     rmSync(outsideDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }),
   );

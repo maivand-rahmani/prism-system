@@ -10,25 +10,26 @@
  */
 
 import {
-  CONTRACT_V2,
-  CONTRACT_V4,
+  CAPABILITY_CATEGORIES,
+  CAPABILITY_CATEGORY_FIELDS,
+  CAPABILITY_CATEGORY_KEYS,
+  COMPONENT_FIELDS,
+  COMPONENT_NAMES,
+  COMPONENT_OPTIONAL_FIELDS,
+  COMPONENT_REQUIRED_FIELDS,
+  CONTRACT_VERSION,
+  DOC_FIELDS,
   MANIFEST_SCHEMA_VERSION,
-  MANIFEST_V4_SCHEMA_VERSION,
+  OPTIONAL_COMPONENTS,
   PACKAGE_SCOPE,
+  REQUIRED_COMPONENTS,
+  REQUIRED_DOC_FIELDS,
   RESERVED_SYSTEM_IDS,
   SYSTEM_ID_PATTERN,
+  TOKEN_ARTIFACT_FIELDS,
+  TOKEN_GROUP_KEYS,
+  TOKEN_NAME_FIELDS,
   TOKEN_NAMESPACE_PATTERN,
-  V2_REQUIRED_COMPONENTS,
-  V4_COMPONENT_FIELDS,
-  V4_COMPONENT_NAMES,
-  V4_COMPONENT_OPTIONAL_FIELDS,
-  V4_COMPONENT_REQUIRED_FIELDS,
-  V4_DOC_FIELDS,
-  V4_REQUIRED_COMPONENTS,
-  V4_REQUIRED_DOC_FIELDS,
-  V4_TOKEN_ARTIFACT_FIELDS,
-  V4_TOKEN_GROUP_KEYS,
-  V4_TOKEN_NAME_FIELDS,
 } from "./constants.mjs";
 import { isExactSemver } from "./semver.mjs";
 
@@ -40,7 +41,7 @@ export const MANIFEST_TOP_LEVEL_KEYS = Object.freeze([
   "$schema",
   "schemaVersion",
   "generated",
-  "contract",
+  "contractVersion",
   "id",
   "name",
   "package",
@@ -48,19 +49,12 @@ export const MANIFEST_TOP_LEVEL_KEYS = Object.freeze([
   "exports",
   "publicApi",
   "components",
+  "capabilities",
   "design",
   "rules",
-]);
-
-/** Exactly the allowed top-level V4 manifest keys (the V2 keys plus `tokens`/`docs`). */
-export const MANIFEST_V4_TOP_LEVEL_KEYS = Object.freeze([
-  ...MANIFEST_TOP_LEVEL_KEYS,
   "tokens",
   "docs",
 ]);
-
-/** Exactly the allowed per-component keys. */
-export const MANIFEST_COMPONENT_KEYS = Object.freeze(["variants", "sizes", "members"]);
 
 /** Allowed `design.density` values. */
 export const MANIFEST_DENSITIES = Object.freeze(["compact", "comfortable", "spacious"]);
@@ -105,7 +99,7 @@ function hasOwn(value, key) {
 /**
  * Record missing required keys and disallowed extra keys for an object with
  * `additionalProperties:false`. `allowedKeys` may be wider than `requiredKeys`
- * when some fields are optional (for example V4 component metadata).
+ * when some fields are optional (for example component metadata).
  */
 function collectAllowedKeys(value, allowedKeys, requiredKeys, prefix, failures) {
   for (const key of requiredKeys) {
@@ -158,28 +152,6 @@ function collectPublicApiFailures(value, failures) {
   }
 }
 
-function collectComponentFailures(value, failures) {
-  if (!isPlainObject(value)) {
-    failures.push("components must be an object.");
-    return;
-  }
-  collectExactKeys(value, V2_REQUIRED_COMPONENTS, "components.", failures);
-  for (const name of V2_REQUIRED_COMPONENTS) {
-    const component = value[name];
-    if (component === undefined) continue;
-    if (!isPlainObject(component)) {
-      failures.push(`components.${name} must be an object.`);
-      continue;
-    }
-    collectExactKeys(component, MANIFEST_COMPONENT_KEYS, `components.${name}.`, failures);
-    for (const field of MANIFEST_COMPONENT_KEYS) {
-      if (!isUniqueStringArray(component[field])) {
-        failures.push(`components.${name}.${field} must be an array of unique non-empty strings.`);
-      }
-    }
-  }
-}
-
 function collectDesignFailures(value, failures) {
   if (!isPlainObject(value)) {
     failures.push("design must be an object.");
@@ -214,47 +186,47 @@ function collectRulesFailures(value, failures) {
 }
 
 /**
- * Strict `(schemaVersion, contract)` pair dispatch. Only `(1, "v2")` and
- * `(2, "v4")` are recognized; every other pair (including missing fields)
- * returns `null` so callers can fail closed without silently mixing contracts.
+ * Strict current-contract detection. Only `(schemaVersion: 4,
+ * contractVersion: 4)` is recognized; every other combination (including
+ * missing fields and retired string `contract` markers) returns `null` so
+ * callers can fail closed.
  */
 export function detectManifestContract(manifest) {
   if (!isPlainObject(manifest)) return null;
-  if (manifest.schemaVersion === MANIFEST_SCHEMA_VERSION && manifest.contract === CONTRACT_V2) {
-    return CONTRACT_V2;
-  }
-  if (manifest.schemaVersion === MANIFEST_V4_SCHEMA_VERSION && manifest.contract === CONTRACT_V4) {
-    return CONTRACT_V4;
+  if (
+    manifest.schemaVersion === MANIFEST_SCHEMA_VERSION &&
+    manifest.contractVersion === CONTRACT_VERSION
+  ) {
+    return CONTRACT_VERSION;
   }
   return null;
 }
 
-function unsupportedManifestPairMessage(manifest) {
+function unsupportedManifestMessage(manifest) {
   const show = (value) => (value === undefined ? "undefined" : JSON.stringify(value));
   return (
-    `Unsupported schema/contract pair (${show(manifest.schemaVersion)}, ` +
-    `${show(manifest.contract)}); expected (${MANIFEST_SCHEMA_VERSION}, ` +
-    `${JSON.stringify(CONTRACT_V2)}) or (${MANIFEST_V4_SCHEMA_VERSION}, ` +
-    `${JSON.stringify(CONTRACT_V4)}).`
+    `Unsupported manifest metadata (schemaVersion ${show(manifest.schemaVersion)}, ` +
+    `contractVersion ${show(manifest.contractVersion)}); expected ` +
+    `(schemaVersion ${MANIFEST_SCHEMA_VERSION}, contractVersion ${CONTRACT_VERSION}).`
   );
 }
 
-/** Collect the V4 component-map violations (twenty required, known optionals only). */
-function collectV4ComponentFailures(value, failures) {
+/** Collect the component-map violations (all required names, known optionals only). */
+function collectComponentFailures(value, failures) {
   if (!isPlainObject(value)) {
     failures.push("components must be an object.");
     return;
   }
   const declared = Object.keys(value);
-  for (const name of V4_REQUIRED_COMPONENTS) {
+  for (const name of REQUIRED_COMPONENTS) {
     if (!hasOwn(value, name)) failures.push(`components.${name} is required.`);
   }
   for (const name of declared) {
-    if (!V4_COMPONENT_NAMES.includes(name)) {
+    if (!COMPONENT_NAMES.includes(name)) {
       failures.push(`components.${name} is not allowed.`);
     }
   }
-  for (const name of V4_COMPONENT_NAMES) {
+  for (const name of COMPONENT_NAMES) {
     if (!hasOwn(value, name)) continue;
     const component = value[name];
     if (!isPlainObject(component)) {
@@ -263,17 +235,17 @@ function collectV4ComponentFailures(value, failures) {
     }
     collectAllowedKeys(
       component,
-      V4_COMPONENT_FIELDS,
-      V4_COMPONENT_REQUIRED_FIELDS,
+      COMPONENT_FIELDS,
+      COMPONENT_REQUIRED_FIELDS,
       `components.${name}.`,
       failures,
     );
-    for (const field of V4_COMPONENT_REQUIRED_FIELDS) {
+    for (const field of COMPONENT_REQUIRED_FIELDS) {
       if (!isUniqueStringArray(component[field])) {
         failures.push(`components.${name}.${field} must be an array of unique non-empty strings.`);
       }
     }
-    for (const field of V4_COMPONENT_OPTIONAL_FIELDS) {
+    for (const field of COMPONENT_OPTIONAL_FIELDS) {
       if (component[field] !== undefined && !isNonEmptyString(component[field])) {
         failures.push(`components.${name}.${field} must be a non-empty string.`);
       }
@@ -281,8 +253,121 @@ function collectV4ComponentFailures(value, failures) {
   }
 }
 
-/** Collect the V4 `tokens` block violations (nine groups, three artifact paths, naming). */
-function collectV4TokenFailures(value, failures) {
+/** True when two arrays are element-wise equal. */
+function arraysEqual(left, right) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+/**
+ * Collect one capability category name-array's violations: uniqueness, known
+ * component names, required-vs-optional classification, and exact equality with
+ * the approved inventory.
+ */
+function collectCapabilityArrayFailures(value, { pool, expected, label }, failures) {
+  if (!isUniqueStringArray(value)) {
+    failures.push(`${label} must be an array of unique non-empty strings.`);
+    return;
+  }
+  for (const name of value) {
+    if (!COMPONENT_NAMES.includes(name)) {
+      failures.push(`${label} contains unknown component ${JSON.stringify(name)}.`);
+      continue;
+    }
+    if (!pool.includes(name)) {
+      failures.push(
+        `${label} must contain only ${pool === REQUIRED_COMPONENTS ? "required" : "optional"} ` +
+          `components; ${JSON.stringify(name)} is ${
+            pool === REQUIRED_COMPONENTS ? "optional" : "required"
+          }.`,
+      );
+    }
+  }
+  if (arraysEqual(value, expected)) return;
+  failures.push(
+    expected.length === 0
+      ? `${label} must be an empty array.`
+      : `${label} must be exactly [${expected.join(", ")}].`,
+  );
+}
+
+/**
+ * Collect the `capabilities.categories` violations: exact category keys and
+ * order, exactly the approved `required`/`optional` name arrays, known names,
+ * uniqueness, and required-vs-optional classification.
+ *
+ * Category membership is the fixed contract inventory, shared by every current
+ * manifest. It never declares per-system availability: availability is derived
+ * from the presence of a name in `components`, so any extra availability field
+ * fails closed here.
+ *
+ * Exported so catalog readers can fail closed on the same rules as the full
+ * manifest validation. Pass `failures` to append to an aggregate list; the
+ * returned array is that same list.
+ *
+ * @param {unknown} value The manifest `capabilities` block.
+ * @param {string[]} [failures] Aggregate list to append to.
+ * @returns {string[]}
+ */
+export function collectCapabilitiesFailures(value, failures = []) {
+  if (!isPlainObject(value)) {
+    failures.push("capabilities must be an object.");
+    return failures;
+  }
+  collectExactKeys(value, ["categories"], "capabilities.", failures);
+  if (!isPlainObject(value.categories)) {
+    if (hasOwn(value, "categories")) {
+      failures.push("capabilities.categories must be an object.");
+    }
+    return failures;
+  }
+  const categories = value.categories;
+  const actualKeys = Object.keys(categories);
+  for (const key of actualKeys) {
+    if (!CAPABILITY_CATEGORY_KEYS.includes(key)) {
+      failures.push(`capabilities.categories.${key} is not allowed.`);
+    }
+  }
+  for (const key of CAPABILITY_CATEGORY_KEYS) {
+    if (!hasOwn(categories, key)) {
+      failures.push(`capabilities.categories.${key} is required.`);
+    }
+  }
+  if (
+    actualKeys.length === CAPABILITY_CATEGORY_KEYS.length &&
+    actualKeys.every((key) => CAPABILITY_CATEGORY_KEYS.includes(key)) &&
+    !arraysEqual(actualKeys, CAPABILITY_CATEGORY_KEYS)
+  ) {
+    failures.push(
+      `capabilities.categories keys must be ordered: ${CAPABILITY_CATEGORY_KEYS.join(", ")}.`,
+    );
+  }
+  for (const key of CAPABILITY_CATEGORY_KEYS) {
+    if (!hasOwn(categories, key)) continue;
+    const category = categories[key];
+    const prefix = `capabilities.categories.${key}`;
+    if (!isPlainObject(category)) {
+      failures.push(`${prefix} must be an object.`);
+      continue;
+    }
+    collectExactKeys(category, CAPABILITY_CATEGORY_FIELDS, `${prefix}.`, failures);
+    for (const field of CAPABILITY_CATEGORY_FIELDS) {
+      if (!hasOwn(category, field)) continue;
+      collectCapabilityArrayFailures(
+        category[field],
+        {
+          pool: field === "required" ? REQUIRED_COMPONENTS : OPTIONAL_COMPONENTS,
+          expected: CAPABILITY_CATEGORIES[key][field],
+          label: `${prefix}.${field}`,
+        },
+        failures,
+      );
+    }
+  }
+  return failures;
+}
+
+/** Collect the `tokens` block violations (nine groups, three artifact paths, naming). */
+function collectTokenFailures(value, failures) {
   if (!isPlainObject(value)) {
     failures.push("tokens must be an object.");
     return;
@@ -291,8 +376,8 @@ function collectV4TokenFailures(value, failures) {
   if (!isPlainObject(value.groups)) {
     failures.push("tokens.groups must be an object.");
   } else {
-    collectExactKeys(value.groups, V4_TOKEN_GROUP_KEYS, "tokens.groups.", failures);
-    for (const key of V4_TOKEN_GROUP_KEYS) {
+    collectExactKeys(value.groups, TOKEN_GROUP_KEYS, "tokens.groups.", failures);
+    for (const key of TOKEN_GROUP_KEYS) {
       if (hasOwn(value.groups, key) && !isUniqueStringArray(value.groups[key])) {
         failures.push(`tokens.groups.${key} must be an array of unique non-empty strings.`);
       }
@@ -301,8 +386,8 @@ function collectV4TokenFailures(value, failures) {
   if (!isPlainObject(value.artifacts)) {
     failures.push("tokens.artifacts must be an object.");
   } else {
-    collectExactKeys(value.artifacts, V4_TOKEN_ARTIFACT_FIELDS, "tokens.artifacts.", failures);
-    for (const key of V4_TOKEN_ARTIFACT_FIELDS) {
+    collectExactKeys(value.artifacts, TOKEN_ARTIFACT_FIELDS, "tokens.artifacts.", failures);
+    for (const key of TOKEN_ARTIFACT_FIELDS) {
       if (hasOwn(value.artifacts, key) && !isPackageRelativePath(value.artifacts[key])) {
         failures.push(
           `tokens.artifacts.${key} must be a package-relative path starting with "./".`,
@@ -313,8 +398,8 @@ function collectV4TokenFailures(value, failures) {
   if (!isPlainObject(value.names)) {
     failures.push("tokens.names must be an object.");
   } else {
-    collectExactKeys(value.names, V4_TOKEN_NAME_FIELDS, "tokens.names.", failures);
-    for (const key of V4_TOKEN_NAME_FIELDS) {
+    collectExactKeys(value.names, TOKEN_NAME_FIELDS, "tokens.names.", failures);
+    for (const key of TOKEN_NAME_FIELDS) {
       if (hasOwn(value.names, key) && !isSafeTokenNamespace(value.names[key])) {
         failures.push(`tokens.names.${key} must be a safe lower-kebab namespace.`);
       }
@@ -322,64 +407,23 @@ function collectV4TokenFailures(value, failures) {
   }
 }
 
-/** Collect the V4 `docs` block violations (readme/agents required, known keys only). */
-function collectV4DocsFailures(value, failures) {
+/** Collect the `docs` block violations (readme/agents required, known keys only). */
+function collectDocsFailures(value, failures) {
   if (!isPlainObject(value)) {
     failures.push("docs must be an object.");
     return;
   }
-  collectAllowedKeys(value, V4_DOC_FIELDS, V4_REQUIRED_DOC_FIELDS, "docs.", failures);
-  for (const key of V4_DOC_FIELDS) {
+  collectAllowedKeys(value, DOC_FIELDS, REQUIRED_DOC_FIELDS, "docs.", failures);
+  for (const key of DOC_FIELDS) {
     if (hasOwn(value, key) && !isPackageRelativePath(value[key])) {
       failures.push(`docs.${key} must be a package-relative path starting with "./".`);
     }
   }
 }
 
-/** Collect every V4 manifest violation as actionable strings. */
-function collectV4ManifestFailures(manifest, { packageName, version } = {}) {
+/** Collect every current manifest violation as actionable strings. */
+function collectCurrentManifestFailures(manifest, { packageName, version } = {}) {
   const failures = [];
-  collectExactKeys(manifest, MANIFEST_V4_TOP_LEVEL_KEYS, "", failures);
-  if (!isNonEmptyString(manifest.$schema)) failures.push("$schema must be a non-empty string.");
-  if (manifest.schemaVersion !== MANIFEST_V4_SCHEMA_VERSION) {
-    failures.push(`schemaVersion must be ${MANIFEST_V4_SCHEMA_VERSION}.`);
-  }
-  if (manifest.generated !== MANIFEST_GENERATED_MARKER) {
-    failures.push(`generated must be "${MANIFEST_GENERATED_MARKER}".`);
-  }
-  if (manifest.contract !== CONTRACT_V4) failures.push('contract must be "v4".');
-  if (typeof manifest.id !== "string" || !SYSTEM_ID_PATTERN.test(manifest.id)) {
-    failures.push("id must be lower-kebab-case.");
-  }
-  if (!isNonEmptyString(manifest.name)) failures.push("name must be a non-empty string.");
-  collectPackageNameFailures(manifest.package, failures);
-  if (packageName !== undefined && manifest.package !== packageName) {
-    failures.push(
-      `package ${JSON.stringify(manifest.package ?? null)} does not match "${packageName}".`,
-    );
-  }
-  if (!isExactSemver(manifest.version)) failures.push("version must be an exact semver.");
-  if (version !== undefined && manifest.version !== version) {
-    failures.push(
-      `version ${JSON.stringify(manifest.version ?? null)} does not match ${JSON.stringify(version)}.`,
-    );
-  }
-  if (!isPlainObject(manifest.exports) || Object.keys(manifest.exports).length === 0) {
-    failures.push("exports must be a non-empty object.");
-  }
-  collectPublicApiFailures(manifest.publicApi, failures);
-  collectV4ComponentFailures(manifest.components, failures);
-  collectDesignFailures(manifest.design, failures);
-  collectRulesFailures(manifest.rules, failures);
-  collectV4TokenFailures(manifest.tokens, failures);
-  collectV4DocsFailures(manifest.docs, failures);
-  return failures;
-}
-
-/** Collect every V2 manifest violation as actionable strings (unchanged behavior). */
-function collectV2ManifestFailures(manifest, { packageName, version } = {}) {
-  const failures = [];
-
   collectExactKeys(manifest, MANIFEST_TOP_LEVEL_KEYS, "", failures);
   if (!isNonEmptyString(manifest.$schema)) failures.push("$schema must be a non-empty string.");
   if (manifest.schemaVersion !== MANIFEST_SCHEMA_VERSION) {
@@ -388,7 +432,9 @@ function collectV2ManifestFailures(manifest, { packageName, version } = {}) {
   if (manifest.generated !== MANIFEST_GENERATED_MARKER) {
     failures.push(`generated must be "${MANIFEST_GENERATED_MARKER}".`);
   }
-  if (manifest.contract !== CONTRACT_V2) failures.push('contract must be "v2".');
+  if (manifest.contractVersion !== CONTRACT_VERSION) {
+    failures.push(`contractVersion must be the numeric ${CONTRACT_VERSION}.`);
+  }
   if (typeof manifest.id !== "string" || !SYSTEM_ID_PATTERN.test(manifest.id)) {
     failures.push("id must be lower-kebab-case.");
   }
@@ -410,18 +456,19 @@ function collectV2ManifestFailures(manifest, { packageName, version } = {}) {
   }
   collectPublicApiFailures(manifest.publicApi, failures);
   collectComponentFailures(manifest.components, failures);
+  collectCapabilitiesFailures(manifest.capabilities, failures);
   collectDesignFailures(manifest.design, failures);
   collectRulesFailures(manifest.rules, failures);
-
+  collectTokenFailures(manifest.tokens, failures);
+  collectDocsFailures(manifest.docs, failures);
   return failures;
 }
 
 /**
  * Collect every schema violation for a manifest as actionable strings.
  *
- * Dispatch is strict on the `(schemaVersion, contract)` pair: `(1, "v2")` uses
- * the fourteen-component V2 rules, `(2, "v4")` uses the twenty-plus-optional V4
- * rules, and any other pair fails closed with a single dispatch failure.
+ * Dispatch is strict on `(schemaVersion: 4, contractVersion: 4)`; any other
+ * pair fails closed with a single dispatch failure.
  *
  * @param {unknown} manifest
  * @param {{ packageName?: string, version?: string }} [options] When provided,
@@ -430,12 +477,8 @@ function collectV2ManifestFailures(manifest, { packageName, version } = {}) {
  */
 export function collectManifestFailures(manifest, { packageName, version } = {}) {
   if (!isPlainObject(manifest)) return ["manifest must be a JSON object."];
-  const contract = detectManifestContract(manifest);
-  if (contract === CONTRACT_V4)
-    return collectV4ManifestFailures(manifest, { packageName, version });
-  if (contract === CONTRACT_V2)
-    return collectV2ManifestFailures(manifest, { packageName, version });
-  return [unsupportedManifestPairMessage(manifest)];
+  if (detectManifestContract(manifest) === null) return [unsupportedManifestMessage(manifest)];
+  return collectCurrentManifestFailures(manifest, { packageName, version });
 }
 
 /**

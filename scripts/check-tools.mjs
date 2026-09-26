@@ -1,31 +1,28 @@
 #!/usr/bin/env node
 /**
- * V4 Phase 3 packed-artifact consumer validation harness for the published
- * `@prism-system/tools` CLI and dual V2/V4 design-system support.
+ * Packed-artifact consumer validation harness for the published
+ * `@prism-system/tools` CLI.
  *
  * A deterministic, fail-closed end-to-end check that exercises the completed
- * V4 `prism-ds` surface against *packed artifacts*, never workspace source:
+ * `prism-ds` surface against *packed artifacts*, never workspace source:
  *
- *   1. validate System A and System B (static) and pack them, the published
- *      `@prism-system/tools` package, and a deterministic V2 fixture package;
- *   2. assert the packed V4 Tailwind bridge / stylesheet / manifest artifacts;
- *   3. drive isolated consumers from the packed artifacts:
- *        - packed V4 System A and System B: connect, doctor, components, tokens,
- *          check, setup-tailwind, check-usage, idempotency, and dual optional
- *          capability sets;
- *        - the packed V2 fixture: connect, doctor, components, tokens, check,
- *          and the V4-only setup-tailwind failure path;
+ *   1. validate System A and System B (static) and pack them together with the
+ *      published `@prism-system/tools` package;
+ *   2. assert the packed Tailwind bridge / stylesheet / manifest artifacts;
+ *   3. drive isolated consumers from the packed artifacts: connect, doctor,
+ *      components, tokens, check, setup-tailwind, check-usage, idempotency, and
+ *      the declared optional capability sets;
  *   4. exercise the read-only registry catalog and the dependency-mutating
  *      commands (`install`/`use`/`upgrade`) against a local in-process registry
- *      serving the packed V4 and V2 artifacts, with a fake package manager.
+ *      serving the packed artifacts, with a fake package manager.
  *
  * All pack/extract/scratch/log output lives under a fresh
- * `TEMP/v4/tools-packed-<run-id>/` directory; an existing path is never removed
- * or overwritten. It never installs from the network, versions, publishes, or mutates the
- * repository. Requires the workspace to be installed and built
- * (`pnpm install && pnpm build`).
+ * `TEMP/lifecycle/tools-packed-<run-id>/` directory; an existing path is never
+ * removed or overwritten. It never installs from the network, versions,
+ * publishes, or mutates the repository. Requires the workspace to be installed
+ * and built (`pnpm install && pnpm build`).
  *
- * CLI: pnpm ds:check-v4-tools
+ * CLI: pnpm ds:check-tools
  */
 
 import { spawn, spawnSync } from "node:child_process";
@@ -48,33 +45,30 @@ import { dirname, join, relative, sep } from "node:path";
 
 import { readJsonFile, repoRoot } from "./register-design-system.mjs";
 import { validateDesignSystem } from "./validate-design-system.mjs";
+import { CAPABILITY_CATEGORIES, CAPABILITY_CATEGORY_KEYS } from "./design-system-manifest.mjs";
 import { inspectTarball } from "./prepare-release.mjs";
 
 const ROOT = repoRoot();
-const TEMP_ROOT = join(ROOT, "TEMP", "v4");
+const TEMP_ROOT = join(ROOT, "TEMP", "lifecycle");
 const TEMP = join(TEMP_ROOT, `tools-packed-${randomUUID()}`);
 const PACK_DIR = join(TEMP, "pack");
 const EXTRACT_DIR = join(TEMP, "extract");
 const FIXTURE_DIR = join(TEMP, "fixtures");
 const CONSUMER_DIR = join(TEMP, "consumers");
 const REGISTRY_DIR = join(TEMP, "registry");
-const LOG_PATH = join(TEMP, "check-v4-tools.log");
+const LOG_PATH = join(TEMP, "check-tools.log");
 
 const SYSTEM_IDS = ["system-a", "system-b"];
 const TOOLS_PACKAGE_NAME = "@prism-system/tools";
 const TOOLS_PACKAGE_DIR = join(ROOT, "packages", "tools");
 const TOOLS_EXTRACT = join(EXTRACT_DIR, "tools");
 
-const V2_FIXTURE_SOURCE = join(ROOT, "schemas", "fixtures", "v2-valid", "design-system.json");
-const V2_PACKAGE_NAME = "@prism-system/ui-v2-valid";
-const V2_VERSION = "1.1.0";
-
-/** V4 systems publish the bridge under this exact public subpath. */
+/** Systems publish the bridge under this exact public subpath. */
 const TAILWIND_EXPORT_SUBPATH = "./tailwind.css";
 const STYLES_EXPORT_SUBPATH = "./styles.css";
 const MANIFEST_EXPORT_SUBPATH = "./manifest";
 
-/** The twenty required V4 contract component names, in canonical order. */
+/** The 29 required contract component names, in canonical order. */
 const REQUIRED_COMPONENTS = [
   "Button",
   "Input",
@@ -96,12 +90,43 @@ const REQUIRED_COMPONENTS = [
   "Container",
   "Stack",
   "FormField",
+  "Center",
+  "Cluster",
+  "Sidebar",
+  "AspectRatio",
+  "Combobox",
+  "DatePicker",
+  "NumberField",
+  "Slider",
+  "FileUpload",
 ];
 
-/** The optional capability set each packed V4 system declares. */
+/** The optional capability set each packed system declares. */
 const OPTIONAL_SET = {
-  "system-a": ["Grid", "Fieldset", "Alert", "Progress", "Accordion", "Pagination", "Table"],
-  "system-b": ["Section", "Alert", "Skeleton", "Toast", "Avatar", "Breadcrumbs"],
+  "system-a": [
+    "Grid",
+    "Fieldset",
+    "Alert",
+    "Progress",
+    "Accordion",
+    "Pagination",
+    "Table",
+    "Metric",
+    "DescriptionList",
+    "Timeline",
+    "Meter",
+  ],
+  "system-b": [
+    "Section",
+    "Alert",
+    "Skeleton",
+    "Toast",
+    "Avatar",
+    "Breadcrumbs",
+    "Metric",
+    "Timeline",
+    "EmptyState",
+  ],
 };
 /** A known optional the other system does not declare (must report unavailable). */
 const CROSS_OPTIONAL = { "system-a": "Skeleton", "system-b": "Grid" };
@@ -115,7 +140,6 @@ const REPO_MUTATION_WATCH = [
   "packages/system-b/design-system.json",
   "packages/tools/package.json",
   "packages/tools/src/cli.mjs",
-  "schemas/fixtures/v2-valid/design-system.json",
 ];
 
 const CLEAN_SOURCE = `export function Clean() {
@@ -305,7 +329,7 @@ const toolsSrcHashBefore = hashTree(join(TOOLS_PACKAGE_DIR, "src"));
 /* Step 0: workspace, validation, and packing                                  */
 /* -------------------------------------------------------------------------- */
 
-runCheck("prepare unique TEMP/v4/tools-packed workspace", () => {
+runCheck("prepare unique TEMP/lifecycle/tools-packed workspace", () => {
   mkdirSync(TEMP_ROOT, { recursive: true });
   // Create the unique run directory without recursive reuse: a collision fails
   // closed rather than deleting or overwriting any existing TEMP data.
@@ -325,42 +349,12 @@ runCheck("validate System A and System B (static)", () => {
   }
 });
 
-/** Deterministic V2 fixture package, derived from the shipped V2 fixture. */
-const v2FixtureDir = join(FIXTURE_DIR, "v2-valid");
-const v2PackageDir = join(v2FixtureDir, "package");
-
-runCheck("construct a deterministic packed V2 fixture package", () => {
-  const manifest = readJsonFile(V2_FIXTURE_SOURCE);
-  assert(manifest.contract === "v2", "V2 fixture manifest must declare contract v2");
-  assert(manifest.schemaVersion === 1, "V2 fixture manifest must be schemaVersion 1");
-  assert(manifest.package === V2_PACKAGE_NAME, "V2 fixture package identity mismatch");
-  writeJson(join(v2PackageDir, "package.json"), {
-    name: V2_PACKAGE_NAME,
-    version: V2_VERSION,
-    type: "module",
-    main: "./dist/index.mjs",
-    exports: {
-      ".": { import: "./dist/index.mjs" },
-      [STYLES_EXPORT_SUBPATH]: "./dist/index.css",
-      [MANIFEST_EXPORT_SUBPATH]: "./design-system.json",
-    },
-  });
-  writeJson(join(v2PackageDir, "design-system.json"), manifest);
-  writeFile(v2PackageDir, "dist/index.mjs", "export const v2Valid = true;\n");
-  writeFile(v2PackageDir, "dist/index.css", `.--${manifest.id}-fixture {\n  color: black;\n}\n`);
-});
-
-runCheck("pack System A, System B, and the synthetic V2 fixture", () => {
+runCheck("pack System A and System B", () => {
   for (const id of SYSTEM_IDS) {
     const packageDir = join(ROOT, "packages", id);
     assert(existsSync(join(packageDir, "dist")), `${id} is not built; run "pnpm build" first`);
     const pack = runPnpm(["pack", "--pack-destination", PACK_DIR], { cwd: packageDir });
     assert(pack.status === 0, `pnpm pack failed for ${id}: ${output(pack)}`);
-  }
-  const v2TarballPath = buildTarball(v2FixtureDir, `v2-valid-${V2_VERSION}.tgz`);
-  const entries = tarballEntries(v2TarballPath);
-  for (const required of ["package/package.json", "package/design-system.json"]) {
-    assert(entries.includes(required), `V2 fixture tarball is missing ${required}`);
   }
 });
 
@@ -371,7 +365,7 @@ const targets = SYSTEM_IDS.map((id) => ({
   extractDir: join(EXTRACT_DIR, id),
 }));
 
-runCheck("extract and inspect the packed V4 system artifacts", () => {
+runCheck("extract and inspect the packed system artifacts", () => {
   for (const target of targets) {
     const tarball = readdirSync(PACK_DIR).find(
       (name) => name.includes(target.id) && name.endsWith(".tgz"),
@@ -400,8 +394,8 @@ runCheck("extract and inspect the packed V4 system artifacts", () => {
       typeof pkg.exports?.[STYLES_EXPORT_SUBPATH] === "string",
       `${target.id} must publish ${STYLES_EXPORT_SUBPATH}`,
     );
-    assert(manifest.schemaVersion === 2, `${target.id} manifest must be schemaVersion 2`);
-    assert(manifest.contract === "v4", `${target.id} manifest must declare contract v4`);
+    assert(manifest.schemaVersion === 4, `${target.id} manifest must be schemaVersion 4`);
+    assert(manifest.contractVersion === 4, `${target.id} manifest must declare contractVersion 4`);
     assert(manifest.package === target.packageName, `${target.id} manifest identity mismatch`);
     assert(manifest.version === pkg.version, `${target.id} manifest/package version mismatch`);
     target.manifest = manifest;
@@ -409,7 +403,7 @@ runCheck("extract and inspect the packed V4 system artifacts", () => {
   }
 });
 
-runCheck("packed V4 systems ship a real Tailwind bridge and stylesheet", () => {
+runCheck("packed systems ship a real Tailwind bridge and stylesheet", () => {
   for (const target of targets) {
     const prefix = target.manifest.tokens?.names?.cssVariablePrefix;
     const twPrefix = target.manifest.tokens?.names?.tailwindUtilityPrefix;
@@ -435,7 +429,7 @@ runCheck("packed V4 systems ship a real Tailwind bridge and stylesheet", () => {
   }
 });
 
-runCheck("the packed V4 systems declare different optional capability sets", () => {
+runCheck("the packed systems declare different optional capability sets", () => {
   const declared = {};
   for (const target of targets) {
     declared[target.id] = Object.keys(target.manifest.components).filter(
@@ -450,6 +444,41 @@ runCheck("the packed V4 systems declare different optional capability sets", () 
     JSON.stringify(declared["system-b"]) === JSON.stringify(OPTIONAL_SET["system-b"]),
     `System B optional set mismatch: ${declared["system-b"].join(", ")}`,
   );
+});
+
+runCheck("the packed manifests declare the canonical capability categories", () => {
+  for (const target of targets) {
+    const categories = target.manifest.capabilities?.categories;
+    assert(
+      categories !== null && typeof categories === "object" && !Array.isArray(categories),
+      `${target.id} manifest must declare capabilities.categories`,
+    );
+    assert(
+      JSON.stringify(Object.keys(categories)) === JSON.stringify([...CAPABILITY_CATEGORY_KEYS]),
+      `${target.id} capability category keys must be exactly ${CAPABILITY_CATEGORY_KEYS.join(
+        ", ",
+      )} (received ${Object.keys(categories).join(", ")})`,
+    );
+    for (const key of CAPABILITY_CATEGORY_KEYS) {
+      const category = categories[key];
+      assert(
+        category !== null && typeof category === "object" && !Array.isArray(category),
+        `${target.id} capability category "${key}" must be an object`,
+      );
+      assert(
+        JSON.stringify(category.required) === JSON.stringify(CAPABILITY_CATEGORIES[key].required),
+        `${target.id} capability category "${key}".required must be exactly ${JSON.stringify(
+          CAPABILITY_CATEGORIES[key].required,
+        )}`,
+      );
+      assert(
+        JSON.stringify(category.optional) === JSON.stringify(CAPABILITY_CATEGORIES[key].optional),
+        `${target.id} capability category "${key}".optional must be exactly ${JSON.stringify(
+          CAPABILITY_CATEGORIES[key].optional,
+        )}`,
+      );
+    }
+  }
 });
 
 /* -------------------------------------------------------------------------- */
@@ -547,7 +576,7 @@ function runPackedToolsAsync(args, { cwd = ROOT, env = process.env } = {}) {
   });
 }
 
-runCheck("packed prism-ds exposes the full dual V2/V4 command surface", () => {
+runCheck("packed prism-ds exposes the full command surface", () => {
   const help = runPackedTools(["--help"]);
   assert(help.status === 0, `prism-ds --help failed: ${output(help)}`);
   for (const command of TOOLS_COMMANDS) {
@@ -623,9 +652,9 @@ function checkStatus(report, id) {
   return found.status;
 }
 
-/** The full offline lifecycle for one packed V4 system. */
-function verifyV4Consumer(target) {
-  const dir = makeConsumer(`v4-${target.id}`, {
+/** The full offline lifecycle for one packed system. */
+function verifyConsumer(target) {
+  const dir = makeConsumer(`${target.id}`, {
     packageName: target.packageName,
     version: target.version,
     sourceDir: target.extractedPackageDir,
@@ -647,7 +676,22 @@ function verifyV4Consumer(target) {
   assert(config.package === target.packageName, `${target.id} config identity mismatch`);
   assert(config.manifest === MANIFEST_EXPORT_SUBPATH, `${target.id} config manifest subpath`);
   assert(config.version === target.version, `${target.id} config version mismatch`);
-  assert(manifest.contract === "v4", `${target.id} installed manifest must be v4`);
+  assert(
+    manifest.contractVersion === 4,
+    `${target.id} installed manifest must declare contractVersion 4`,
+  );
+  assert(
+    manifest.schemaVersion === 4,
+    `${target.id} installed manifest must declare schemaVersion 4`,
+  );
+  const installedCategories = manifest.capabilities?.categories;
+  assert(
+    installedCategories !== null &&
+      typeof installedCategories === "object" &&
+      JSON.stringify(Object.keys(installedCategories)) ===
+        JSON.stringify([...CAPABILITY_CATEGORY_KEYS]),
+    `${target.id} installed manifest must declare the canonical capability categories`,
+  );
   assert(
     listFiles(join(dir, ".design-system")).join(",") === "AGENTS.md,config.json",
     ".design-system must contain only config/AGENTS",
@@ -659,21 +703,21 @@ function verifyV4Consumer(target) {
     "managed contract block missing",
   );
 
-  // Doctor: read-only, and the V4 bridge must validate.
+  // Doctor: read-only, and the Tailwind bridge must validate.
   const doctor = runPackedTools(["doctor", "--cwd", dir]);
   assert(doctor.status === 0, `doctor failed for ${target.id}: ${output(doctor)}`);
   assert(/\[ok\] tailwind bridge/.test(output(doctor)), `${target.id} doctor bridge check`);
   assert(/Doctor passed\./.test(output(doctor)), `${target.id} doctor should pass`);
 
-  // Component catalog: 20 required, the declared optional set, and the other
+  // Component catalog: 29 required, the declared optional set, and the other
   // system's optionals reported unavailable.
   const components = runPackedTools(["components", "--cwd", dir, "--json"]);
   assert(components.status === 0, `components failed for ${target.id}: ${output(components)}`);
   const catalog = JSON.parse(components.stdout);
   assert(catalog.ok === true, `${target.id} components ok`);
-  assert(catalog.contract === "v4", `${target.id} components contract`);
-  assert(catalog.counts.required === 20, `${target.id} components required count`);
-  assert(catalog.counts.optional === 12, `${target.id} components optional count`);
+  assert(catalog.contractVersion === 4, `${target.id} components contractVersion`);
+  assert(catalog.counts.required === 29, `${target.id} components required count`);
+  assert(catalog.counts.optional === 17, `${target.id} components optional count`);
   for (const optional of OPTIONAL_SET[target.id]) {
     assert(catalog.available.includes(optional), `${target.id} should make ${optional} available`);
   }
@@ -726,7 +770,7 @@ function verifyV4Consumer(target) {
   assert(checkNoCss.status === 0, `check failed for ${target.id}: ${output(checkNoCss)}`);
   const checkReport = JSON.parse(checkNoCss.stdout);
   assert(checkReport.ok === true, `${target.id} check ok`);
-  assert(checkReport.contract === "v4", `${target.id} check contract`);
+  assert(checkReport.contractVersion === 4, `${target.id} check contractVersion`);
   assert(checkStatus(checkReport, "styles-export") === "passed", `${target.id} styles export`);
   assert(checkStatus(checkReport, "tailwind-bridge") === "passed", `${target.id} bridge check`);
   assert(
@@ -844,77 +888,15 @@ function verifyV4Consumer(target) {
 
 for (const target of targets) {
   runCheck(`offline consumer lifecycle against packed ${target.packageName}`, () => {
-    verifyV4Consumer(target);
+    verifyConsumer(target);
   });
 }
 
 /* -------------------------------------------------------------------------- */
-/* Step 3: the packed V2 fixture stays fully supported                         */
+/* Step 3: unsupported metadata fails closed                                  */
 /* -------------------------------------------------------------------------- */
 
-runCheck("offline consumer lifecycle against the packed V2 fixture", () => {
-  const dir = makeConsumer("v2", {
-    packageName: V2_PACKAGE_NAME,
-    version: V2_VERSION,
-    sourceDir: join(v2FixtureDir, "package"),
-  });
-  const consumerPackageJson = join(dir, "package.json");
-  const packageHashBefore = hashFile(consumerPackageJson);
-
-  const connect = runPackedTools(["connect", "--cwd", dir]);
-  assert(connect.status === 0, `V2 connect failed: ${output(connect)}`);
-  const config = consumerConfig(dir);
-  assert(config.package === V2_PACKAGE_NAME, "V2 config identity mismatch");
-  assert(config.version === V2_VERSION, "V2 config version mismatch");
-  const agents = readFileSync(join(dir, ".design-system", "AGENTS.md"), "utf8");
-  assert(agents.includes("Contract: `v2`"), "V2 AGENTS must declare contract v2");
-  assert(!agents.includes("/tailwind.css"), "V2 instructions must not claim a Tailwind bridge");
-
-  const doctor = runPackedTools(["doctor", "--cwd", dir]);
-  assert(doctor.status === 0, `V2 doctor failed: ${output(doctor)}`);
-  assert(/Doctor passed\./.test(output(doctor)), "V2 doctor should pass");
-  assert(!output(doctor).includes("tailwind bridge"), "V2 doctor must not require a bridge");
-
-  const components = runPackedTools(["components", "--cwd", dir, "--json"]);
-  assert(components.status === 0, `V2 components failed: ${output(components)}`);
-  const catalog = JSON.parse(components.stdout);
-  assert(catalog.contract === "v2", "V2 component contract");
-  assert(catalog.counts.required === 14, "V2 required component count");
-  assert(catalog.counts.optional === 0, "V2 has no optional components");
-
-  const tokens = runPackedTools(["tokens", "--cwd", dir, "--json"]);
-  assert(tokens.status === 0, "V2 tokens must exit zero (unsupported, not an error)");
-  const tokenCatalog = JSON.parse(tokens.stdout);
-  assert(tokenCatalog.supported === false, "V2 token catalog must be unsupported");
-  assert(/no token catalog/.test(tokenCatalog.reason), "V2 token reason");
-
-  const check = runPackedTools(["check", "--cwd", dir, "--json"]);
-  assert(check.status === 0, `V2 check failed: ${output(check)}`);
-  const report = JSON.parse(check.stdout);
-  assert(report.ok === true, "V2 check ok");
-  assert(report.contract === "v2", "V2 check contract");
-  assert(checkStatus(report, "tailwind-bridge") === "not_applicable", "V2 bridge not applicable");
-  assert(checkStatus(report, "css-imports") === "not_applicable", "V2 css imports not applicable");
-  assert(checkStatus(report, "styles-export") === "passed", "V2 styles export");
-
-  const usage = runPackedTools(["check-usage", "--cwd", dir]);
-  assert(usage.status === 0, `V2 check-usage failed: ${output(usage)}`);
-
-  // setup-tailwind is V4-only and must fail closed on a V2 system.
-  const setup = runPackedTools(["setup-tailwind", "--cwd", dir, "--css", "src/app.css"]);
-  assert(setup.status !== 0, "setup-tailwind must reject a V2 design system");
-  assert(/V4 design systems/.test(output(setup)), "V2 setup-tailwind diagnostic");
-
-  const repeat = runPackedTools(["connect", "--cwd", dir]);
-  assert(repeat.status === 0 && /Already connected/.test(output(repeat)), "V2 connect idempotent");
-  assert(hashFile(consumerPackageJson) === packageHashBefore, "V2 consumer package.json mutated");
-});
-
-/* -------------------------------------------------------------------------- */
-/* Step 4: dual-contract fail-closed manifest handling                         */
-/* -------------------------------------------------------------------------- */
-
-runCheck("packed tools fail closed on unsupported manifest and exports", () => {
+runCheck("packed tools fail closed on unsupported metadata and exports", () => {
   const target = targets[0];
 
   const pairDir = makeConsumer("fail-pair", {
@@ -929,17 +911,19 @@ runCheck("packed tools fail closed on unsupported manifest and exports", () => {
     "design-system.json",
   );
   const pairManifest = readJsonFile(pairManifestPath);
-  pairManifest.contract = "v2"; // schemaVersion stays 2 -> unsupported pair.
+  pairManifest.contractVersion = 2; // schemaVersion stays 4 -> unsupported metadata.
   writeJson(pairManifestPath, pairManifest);
   const pairConnect = runPackedTools(["connect", "--cwd", pairDir]);
-  assert(pairConnect.status !== 0, "connect must reject an unsupported schema/contract pair");
+  assert(pairConnect.status !== 0, "connect must reject unsupported contract metadata");
   assert(
-    /Unsupported schema\/contract pair/.test(output(pairConnect)),
-    "unsupported pair diagnostic",
+    /Unsupported manifest metadata \(schemaVersion 4, contractVersion 2\)/.test(
+      output(pairConnect),
+    ),
+    "unsupported metadata diagnostic",
   );
   assert(
     !existsSync(join(pairDir, ".design-system", "config.json")),
-    "connect must not write config for an invalid pair",
+    "connect must not write config for invalid metadata",
   );
 
   const exportDir = makeConsumer("fail-export", {
@@ -969,7 +953,7 @@ runCheck("packed tools fail closed on unsupported manifest and exports", () => {
 });
 
 /* -------------------------------------------------------------------------- */
-/* Step 5: registry catalog and dependency-mutating commands (dual V2/V4)      */
+/* Step 4: registry catalog and dependency-mutating commands                   */
 /* -------------------------------------------------------------------------- */
 
 /* Fake npm/pnpm shims that record their fixed arguments and exit 0. */
@@ -1006,7 +990,7 @@ function readFakeArgs() {
   return text.split(/\s+/);
 }
 
-/** Build the V4 upgrade-target fixture (1.2.0) from packed System A. */
+/** Build the upgrade-target fixture (1.2.0) from packed System A. */
 function buildUpgradeTarget() {
   const base = readJsonFile(join(targets[0].extractedPackageDir, "design-system.json"));
   const manifest = structuredClone(base);
@@ -1039,7 +1023,6 @@ async function startRegistryFixture() {
     entries.push({
       packageName: target.packageName,
       version: target.version,
-      contract: "v4",
       tarball: bytes,
       integrity: sha512Base64(bytes),
       tarballName: `${target.packageName.replace(/[@/]/g, "_")}.tgz`,
@@ -1051,22 +1034,10 @@ async function startRegistryFixture() {
   entries.push({
     packageName: targets[0].packageName,
     version: "1.2.0",
-    contract: "v4",
     tarball: upgradeTarball,
     integrity: sha512Base64(upgradeTarball),
     tarballName: "upgrade-1.2.0.tgz",
     latest: false,
-  });
-
-  const v2Tarball = readFileSync(join(REGISTRY_DIR, `v2-valid-${V2_VERSION}.tgz`));
-  entries.push({
-    packageName: V2_PACKAGE_NAME,
-    version: V2_VERSION,
-    contract: "v2",
-    tarball: v2Tarball,
-    integrity: sha512Base64(v2Tarball),
-    tarballName: "v2-valid.tgz",
-    latest: true,
   });
 
   // A tarball without package/design-system.json, to prove fail-closed extraction.
@@ -1129,7 +1100,7 @@ async function startRegistryFixture() {
         const metadata = {
           name: entry.packageName,
           version: entry.version,
-          prismSystem: { contract: entry.contract },
+          prismSystem: { contractVersion: 4 },
           exports: { [MANIFEST_EXPORT_SUBPATH]: "./design-system.json" },
           dist: {
             tarball: `${registryBase}/tarballs/${entry.tarballName}`,
@@ -1184,15 +1155,14 @@ try {
     const parsed = JSON.parse(json.stdout);
     const names = parsed.results.map((entry) => entry.name);
     assert(
-      names.join(",") ===
-        "@prism-system/ui-system-a,@prism-system/ui-system-b,@prism-system/ui-v2-valid",
+      names.join(",") === "@prism-system/ui-system-a,@prism-system/ui-system-b",
       `unexpected search results: ${names.join(",")}`,
     );
     assert(parsed.registry === registryBase, "search registry mismatch");
     assert(fixture.state.requests.length > before, "search made no registry request");
   });
 
-  await runAsyncCheck("packed info validates V4 and V2 manifests and fails closed", async () => {
+  await runAsyncCheck("packed info validates current manifests and fails closed", async () => {
     const v4 = await runPackedToolsAsync([
       "info",
       "system-a",
@@ -1202,22 +1172,14 @@ try {
     ]);
     assert(v4.status === 0, `info system-a failed: ${output(v4)}`);
     const v4Info = JSON.parse(v4.stdout);
-    assert(v4Info.package === "@prism-system/ui-system-a", "info V4 package");
-    assert(v4Info.contract === "v4", "info V4 contract");
-    assert(v4Info.manifest.tokens.names.tailwindUtilityPrefix === "prism", "info V4 tokens");
-    assert(Object.keys(v4Info.components).length === 27, "info V4 component count");
-
-    const v2 = await runPackedToolsAsync([
-      "info",
-      "v2-valid",
-      "--registry",
-      registryBase,
-      "--json",
-    ]);
-    assert(v2.status === 0, `info v2-valid failed: ${output(v2)}`);
-    const v2Info = JSON.parse(v2.stdout);
-    assert(v2Info.manifest.contract === "v2", "info V2 manifest contract");
-    assert(typeof v2Info.contract === "undefined", "V2 info keeps the V2 shape");
+    assert(v4Info.package === "@prism-system/ui-system-a", "info package");
+    assert(v4Info.contractVersion === 4, "info contractVersion");
+    assert(v4Info.manifest.tokens.names.tailwindUtilityPrefix === "prism", "info tokens");
+    assert(
+      Object.keys(v4Info.components).length ===
+        REQUIRED_COMPONENTS.length + OPTIONAL_SET["system-a"].length,
+      "info component count",
+    );
 
     const cases = [
       {
@@ -1247,7 +1209,7 @@ try {
     }
   });
 
-  await runAsyncCheck("packed install/use/upgrade stay gated and fixed-arg (V4)", async () => {
+  await runAsyncCheck("packed install/use/upgrade stay gated and fixed-arg", async () => {
     // A pre-staged consumer so a real install/use can verify the installed package
     // without the fake manager actually fetching it.
     const installDir = makeConsumer("registry-install", {
@@ -1334,24 +1296,6 @@ try {
     assert(upgradeReport.dryRun === true, "upgrade dry-run flag");
   });
 
-  await runAsyncCheck("packed install/use work against the V2 fixture", async () => {
-    const dir = makeConsumer("registry-v2", {
-      packageName: V2_PACKAGE_NAME,
-      version: V2_VERSION,
-      sourceDir: join(v2FixtureDir, "package"),
-    });
-    rmSync(FAKE_ARGS_FILE, { force: true });
-    const use = await runPackedToolsAsync(
-      ["use", "v2-valid", "--cwd", dir, "--registry", registryBase, "--check-usage"],
-      { env: withFakeManagerEnv() },
-    );
-    assert(use.status === 0, `V2 use failed: ${output(use)}`);
-    assert(readFakeArgs()[0] === "npm", "V2 use must invoke npm");
-    const config = consumerConfig(dir);
-    assert(config.package === V2_PACKAGE_NAME, "V2 use config identity");
-    assert(config.version === V2_VERSION, "V2 use config version");
-  });
-
   await runAsyncCheck("dependency-mutating commands fail closed without a manager", async () => {
     // No packageManager field and two supported lockfiles -> ambiguous, so the
     // manager must not be detected and no spawn may happen.
@@ -1406,16 +1350,16 @@ runCheck("repository source was not mutated", () => {
 const failures = results.filter((result) => !result.ok);
 log("");
 log(
-  `${results.length - failures.length}/${results.length} V4 packed-tools check(s) passed. ` +
+  `${results.length - failures.length}/${results.length} packed-tools check(s) passed. ` +
     `Artifacts under ${toPosix(relative(ROOT, TEMP))}.`,
 );
 
 if (failures.length > 0) {
-  log("V4 packed-tools check failed:");
+  log("Packed tools check failed:");
   for (const failure of failures) log(`  - ${failure.name}: ${failure.error}`);
   process.exitCode = 1;
 } else {
-  log("V4 packed-tools check passed.");
+  log("Packed tools check passed.");
 }
 
 mkdirSync(TEMP, { recursive: true });

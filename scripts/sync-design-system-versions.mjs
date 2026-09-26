@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Post-version synchronization for the V3 contract foundation.
+ * Post-version synchronization for the contract foundation.
  *
  * `changeset version` rewrites `package.json.version` but cannot update the
  * other places the version is mirrored. This tool makes the sync explicit and
@@ -9,15 +9,9 @@
  * For every target design system it aligns, to the authoritative
  * `package.json.version`:
  *
- *   runtime `DesignSystem.version`
- *       V2: `src/index.ts` (`defineDesignSystemV2`)
- *       V4: `src/design-system.ts` (`defineDesignSystemV4`)
- *   design-system.json    generated manifest version (regenerated)
- *   config/design-systems.json   registry entry version
- *
- * The contract is read from the registry entry (falling back to the package's
- * `design-system.source.json`), so a V4 runtime is synchronized through the V4
- * parser and is never relabeled as V2.
+ *   runtime `DesignSystem.version`   `src/design-system.ts` (`defineDesignSystem`)
+ *   design-system.json               generated manifest version (regenerated)
+ *   config/design-systems.json       registry entry version
  *
  * Modes:
  *   default   write the synchronized runtime version, manifest, and registry.
@@ -41,7 +35,6 @@ import {
   assertWithin,
   readJsonFile,
   readManifest,
-  readSourceContract,
   repoRoot,
   serializeManifest,
   toPackageName,
@@ -84,16 +77,9 @@ function resolvePackageDir(root, id) {
 
 /**
  * The canonical runtime source file (relative to a package) that declares the
- * runtime `DesignSystem.version` for a contract.
- *
- * V2 keeps the historical `src/index.ts` + `defineDesignSystemV2`; V4 uses the
- * canonical `src/design-system.ts` + `defineDesignSystemV4`.
+ * runtime `DesignSystem.version`: `src/design-system.ts` / `defineDesignSystem`.
  */
-export function runtimeTargetForContract(contract) {
-  if (contract === "v2") return "src/index.ts";
-  if (contract === "v4") return "src/design-system.ts";
-  throw new Error(`Unsupported contract ${JSON.stringify(contract)}; expected "v2" or "v4".`);
-}
+export const RUNTIME_TARGET = "src/design-system.ts";
 
 /**
  * Synchronize runtime, manifest, and registry versions.
@@ -164,25 +150,7 @@ export async function syncDesignSystemVersions(options = {}) {
 
     const entry = registry ? registry.designSystems.find((system) => system.id === id) : undefined;
 
-    // The contract is read from the registry entry, falling back to the
-    // package's own source descriptor. A V4 package is never synchronized
-    // through the V2 parser (or vice versa).
-    let contract;
-    try {
-      contract = entry?.contract ?? readSourceContract(packageDir);
-    } catch (error) {
-      errors.push(`Cannot synchronize "${id}": ${error.message}`);
-      continue;
-    }
-    if (contract !== "v2" && contract !== "v4") {
-      errors.push(
-        `Cannot synchronize "${id}": unsupported contract ${JSON.stringify(contract)}; ` +
-          `expected "v2" or "v4".`,
-      );
-      continue;
-    }
-
-    const runtimePath = join(packageDir, runtimeTargetForContract(contract));
+    const runtimePath = join(packageDir, RUNTIME_TARGET);
     if (!existsSync(runtimePath)) {
       errors.push(`Cannot synchronize "${id}": missing ${runtimePath}.`);
       continue;
@@ -190,7 +158,7 @@ export async function syncDesignSystemVersions(options = {}) {
     const runtimeSource = readFileSync(runtimePath, "utf8");
     let runtime;
     try {
-      runtime = syncRuntimeDesignSystemVersion(runtimeSource, version, contract);
+      runtime = syncRuntimeDesignSystemVersion(runtimeSource, version);
     } catch (error) {
       errors.push(`Cannot synchronize "${id}" runtime version: ${error.message}`);
       continue;
@@ -227,9 +195,7 @@ export async function syncDesignSystemVersions(options = {}) {
       else drift.push(...manifest.failures);
     }
     if (runtime.changed) {
-      drift.push(
-        `Runtime DesignSystem.version in ${runtimeTargetForContract(contract)} is not "${version}".`,
-      );
+      drift.push(`Runtime DesignSystem.version in ${RUNTIME_TARGET} is not "${version}".`);
     }
     if (registryAction === "update") {
       drift.push(`Registry entry version in ${MANIFEST_RELATIVE_PATH} is not "${version}".`);
@@ -238,7 +204,6 @@ export async function syncDesignSystemVersions(options = {}) {
     plans.push({
       id,
       packageDir,
-      contract,
       runtimePath,
       runtimeSource,
       runtime,

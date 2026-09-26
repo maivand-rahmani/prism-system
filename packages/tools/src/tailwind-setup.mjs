@@ -12,7 +12,7 @@
  *     symlink/junction escape);
  *   - a dry run never writes.
  *
- * Setup requires a *connected or uniquely identified* installed V4 design
+ * Setup requires a *connected or uniquely identified* installed design
  * system. Discovery reuses the published consumer contract (explicit
  * `.design-system/config.json`, then `package.json` `designSystem` metadata,
  * then a single supported `@prism-system/ui-*` dependency); anything ambiguous
@@ -22,8 +22,8 @@
  *
  * It then verifies, without running anything:
  *
- *   1. the installed design system manifest is V4 (`contract: "v4"`,
- *      `schemaVersion: 2`) with exact identity/version equality;
+ *   1. the installed design system manifest is current (`contractVersion: 4`,
+ *      `schemaVersion: 4`) with exact identity/version equality;
  *   2. the installed `tailwindcss` is major v4 (read from its `package.json`);
  *   3. the package's `./tailwind.css` and `./styles.css` public export targets
  *      are plain relative strings that exist on disk and stay inside the
@@ -44,7 +44,13 @@ import { existsSync, readFileSync, renameSync, rmSync, statSync, writeFileSync }
 import { createRequire } from "node:module";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 
-import { PACKAGE_SCOPE, assertWithin, readJsonFile } from "./constants.mjs";
+import {
+  CONTRACT_VERSION,
+  MANIFEST_SCHEMA_VERSION,
+  PACKAGE_SCOPE,
+  assertWithin,
+  readJsonFile,
+} from "./constants.mjs";
 import {
   discoverConsumerPackage,
   resolveConsumerRoot,
@@ -55,16 +61,12 @@ import {
 export const TAILWIND_PACKAGE = "tailwindcss";
 /** The Tailwind v4 stylesheet entry point the consumer imports first. */
 export const TAILWIND_IMPORT_SPECIFIER = "tailwindcss";
-/** Public subpath a V4 design system exposes its Tailwind bridge on. */
+/** Public subpath a design system exposes its Tailwind bridge on. */
 export const TAILWIND_EXPORT_SUBPATH = "./tailwind.css";
-/** Public subpath a V4 design system exposes its ordinary stylesheet on. */
+/** Public subpath a design system exposes its ordinary stylesheet on. */
 export const STYLES_EXPORT_SUBPATH = "./styles.css";
-/** Required Tailwind major version. */
+/** Required Tailwind CSS major version. */
 export const TAILWIND_MIN_MAJOR = 4;
-/** Required design-system manifest contract. */
-export const V4_MANIFEST_CONTRACT = "v4";
-/** Required design-system manifest schema version. */
-export const V4_MANIFEST_SCHEMA_VERSION = 2;
 
 /** A supported `@prism-system/ui-<id>/{tailwind,styles}.css` bridge import. */
 const BRIDGE_SPECIFIER_PATTERN = new RegExp(
@@ -273,8 +275,8 @@ function verifyInstalledTailwindV4({ consumerRoot }) {
   return { dir: installed.dir, version: normalized };
 }
 
-/** Require exact V4 identity/version equality for the installed system. */
-function verifyInstalledV4System({ packageName, expectedVersion, installed }) {
+/** Require exact identity/version equality for the installed system. */
+function verifyInstalledSystem({ packageName, expectedVersion, installed }) {
   const failures = [];
   const installedVersion = installed.packageJson.version;
   if (typeof installedVersion !== "string" || installedVersion.trim().length === 0) {
@@ -298,18 +300,18 @@ function verifyInstalledV4System({ packageName, expectedVersion, installed }) {
         )} does not match installed version ${JSON.stringify(installedVersion ?? null)}.`,
       );
     }
-    if (manifest.contract !== V4_MANIFEST_CONTRACT) {
+    if (manifest.contractVersion !== CONTRACT_VERSION) {
       failures.push(
-        `Shipped manifest contract ${JSON.stringify(
-          manifest.contract ?? null,
-        )} must be "${V4_MANIFEST_CONTRACT}"; setup-tailwind only supports V4 design systems.`,
+        `Shipped manifest contractVersion ${JSON.stringify(
+          manifest.contractVersion ?? null,
+        )} must be the numeric ${CONTRACT_VERSION}.`,
       );
     }
-    if (manifest.schemaVersion !== V4_MANIFEST_SCHEMA_VERSION) {
+    if (manifest.schemaVersion !== MANIFEST_SCHEMA_VERSION) {
       failures.push(
         `Shipped manifest schemaVersion ${JSON.stringify(
           manifest.schemaVersion ?? null,
-        )} must be ${V4_MANIFEST_SCHEMA_VERSION}.`,
+        )} must be ${MANIFEST_SCHEMA_VERSION}.`,
       );
     }
   }
@@ -340,7 +342,7 @@ function verifyBridgeExports({ installed, packageName }) {
     const target = exportsField[subpath];
     if (target === undefined) {
       throw new Error(
-        `Installed "${packageName}" does not expose "${subpath}"; a V4 design system must ` +
+        `Installed "${packageName}" does not expose "${subpath}"; a design system must ` +
           "publish it.",
       );
     }
@@ -390,7 +392,7 @@ function writeFileAtomic(containRoot, filePath, content) {
 
 /**
  * Plan a Tailwind setup without writing anything. Throws on any discovery or
- * verification failure (ambiguous or missing system, non-V4 system, non-v4
+ * verification failure (ambiguous or missing system, current-manifest, Tailwind
  * Tailwind, missing export targets, an out-of-root CSS path, or a conflicting
  * second bridge).
  *
@@ -437,7 +439,7 @@ export function planTailwindSetup({ cwd, cssPath } = {}) {
     consumerRoot,
     packageName: discovered.packageName,
   });
-  const { version } = verifyInstalledV4System({
+  const { version } = verifyInstalledSystem({
     packageName: discovered.packageName,
     expectedVersion: discovered.expectedVersion,
     installed,

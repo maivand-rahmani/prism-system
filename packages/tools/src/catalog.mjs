@@ -24,10 +24,10 @@ import {
   verifyConsumerDesignSystem,
 } from "./consumer.mjs";
 import {
-  CONTRACT_V4,
-  MANIFEST_V4_SCHEMA_VERSION,
-  V4_COMPONENT_NAMES,
-  V4_TOKEN_GROUP_KEYS,
+  CONTRACT_VERSION,
+  MANIFEST_SCHEMA_VERSION,
+  COMPONENT_NAMES,
+  TOKEN_GROUP_KEYS,
   assertWithin,
   readJsonFile,
 } from "./constants.mjs";
@@ -38,7 +38,7 @@ import { mergeBridgeImports, setupTailwind } from "./tailwind-setup.mjs";
 
 /** Installed package whose major version gates the Tailwind v4 bridge. */
 const TAILWIND_PACKAGE = "tailwindcss";
-/** Required Tailwind major version for the V4 bridge. */
+/** Required Tailwind CSS major for the bridge. */
 const TAILWIND_MIN_MAJOR = 4;
 /** Exact semver shape used to read an installed package version. */
 const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
@@ -153,7 +153,7 @@ function verifyInstalledTailwindV4({ consumerRoot }) {
 /**
  * Preflight a `use --tailwind` request before any dependency mutation.
  *
- * It requires the resolved target manifest to be V4, an already-installed
+ * It requires the resolved target manifest to be current, an already-installed
  * Tailwind CSS v4, a contained existing CSS file, and no conflicting second
  * design-system bridge (via the same pure `mergeBridgeImports` order/conflict
  * rules used by the real setup). It deliberately does not check the
@@ -172,15 +172,15 @@ function verifyInstalledTailwindV4({ consumerRoot }) {
  */
 function planUseTailwind({ consumerRoot, packageName, cssPath, manifest, version }) {
   if (
-    manifest?.contract !== CONTRACT_V4 ||
-    manifest?.schemaVersion !== MANIFEST_V4_SCHEMA_VERSION
+    manifest?.contractVersion !== CONTRACT_VERSION ||
+    manifest?.schemaVersion !== MANIFEST_SCHEMA_VERSION
   ) {
     throw new Error(
-      `--tailwind requires a V4 design system (contract "v4", schemaVersion ` +
-        `${MANIFEST_V4_SCHEMA_VERSION}); the target "${packageName}@${version}" is ` +
-        `${JSON.stringify(manifest?.contract ?? null)}/schemaVersion ${JSON.stringify(
-          manifest?.schemaVersion ?? null,
-        )}.`,
+      `--tailwind requires the current design system manifest (contractVersion ` +
+        `${CONTRACT_VERSION}, schemaVersion ${MANIFEST_SCHEMA_VERSION}); the target ` +
+        `"${packageName}@${version}" is contractVersion ${JSON.stringify(
+          manifest?.contractVersion ?? null,
+        )}/schemaVersion ${JSON.stringify(manifest?.schemaVersion ?? null)}.`,
     );
   }
   if (typeof cssPath !== "string" || cssPath.trim().length === 0) {
@@ -218,10 +218,10 @@ function planUseTailwind({ consumerRoot, packageName, cssPath, manifest, version
 /** Canonical component names a manifest declares, in deterministic order. */
 function manifestComponentNames(manifest) {
   const components = isPlainObject(manifest?.components) ? manifest.components : {};
-  const ordered = V4_COMPONENT_NAMES.filter((name) =>
+  const ordered = COMPONENT_NAMES.filter((name) =>
     Object.prototype.hasOwnProperty.call(components, name),
   );
-  const unknown = Object.keys(components).filter((name) => !V4_COMPONENT_NAMES.includes(name));
+  const unknown = Object.keys(components).filter((name) => !COMPONENT_NAMES.includes(name));
   return [...ordered, ...unknown];
 }
 
@@ -268,7 +268,7 @@ function manifestExportTargets(exportsMap) {
 /**
  * Deterministic component and token removals/additions between an installed
  * manifest and a validated registry target. Component names follow the canonical
- * V4 order; token groups follow {@link V4_TOKEN_GROUP_KEYS} and each group's
+ * order; token groups follow {@link TOKEN_GROUP_KEYS} and each group's
  * names keep manifest order.
  */
 function computeManifestDiff(fromManifest, toManifest) {
@@ -294,7 +294,7 @@ function computeManifestDiff(fromManifest, toManifest) {
   }
 
   const metadata = {};
-  for (const field of ["schemaVersion", "contract"]) {
+  for (const field of ["schemaVersion", "contractVersion"]) {
     if (fromManifest?.[field] !== toManifest?.[field]) {
       metadata[field] = { from: fromManifest?.[field] ?? null, to: toManifest?.[field] ?? null };
     }
@@ -317,11 +317,7 @@ function computeManifestDiff(fromManifest, toManifest) {
   const fromGroups = isPlainObject(fromManifest?.tokens?.groups) ? fromManifest.tokens.groups : {};
   const toGroups = isPlainObject(toManifest?.tokens?.groups) ? toManifest.tokens.groups : {};
   const groupOrder = [];
-  for (const key of [
-    ...V4_TOKEN_GROUP_KEYS,
-    ...Object.keys(fromGroups),
-    ...Object.keys(toGroups),
-  ]) {
+  for (const key of [...TOKEN_GROUP_KEYS, ...Object.keys(fromGroups), ...Object.keys(toGroups)]) {
     if (!groupOrder.includes(key)) groupOrder.push(key);
   }
 
@@ -585,7 +581,7 @@ export async function installDesignSystem({
  *
  * `dryRun` resolves the exact target and manager command (and, with `tailwind`,
  * the planned CSS import diff) without spawning or writing anything. `tailwind`
- * requires `cssPath` and preflights a V4 target, an installed Tailwind v4, and
+ * requires `cssPath` and preflights a current target, an installed Tailwind v4, and
  * the CSS file before any dependency mutation; the real Tailwind setup runs only
  * after a successful install and connect.
  */

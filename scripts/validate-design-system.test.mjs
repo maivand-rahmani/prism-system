@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * V4 package validation tests (Node built-in test runner, no dependency).
+ * Package validation tests (Node built-in test runner, no dependency).
  *
  * Run directly:
- *   node --test scripts/validate-design-system-v4.test.mjs
+ *   node --test scripts/validate-design-system.test.mjs
  *
- * These tests exercise the contract-aware `validateDesignSystem` entry point
- * through the real V4 branch. Fixtures are generated into an isolated temporary
+ * These tests exercise the `validateDesignSystem` entry point
+ * through the real validation path. Fixtures are generated into an isolated temporary
  * repository root so the tests never read or mutate the real packages; the
  * valid fixture is built from the same `buildManifest` helper the validator
  * uses, so a passing case proves the generated manifest is fresh.
@@ -20,23 +20,23 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
-  V4_OPTIONAL_COMPONENTS,
-  V4_REQUIRED_COMPONENTS,
+  OPTIONAL_COMPONENTS,
+  REQUIRED_COMPONENTS,
   buildManifest,
-  renderV4TokenArtifactFiles,
+  renderTokenArtifactFiles,
   serializeManifest,
 } from "./design-system-manifest.mjs";
 import { validateDesignSystem } from "./validate-design-system.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const TOKENS_FIXTURE = join(repoRoot, "schemas", "fixtures", "v4-valid", "tokens.source.json");
+const TOKENS_FIXTURE = join(repoRoot, "schemas", "fixtures", "valid", "tokens.source.json");
 
-const ID = "v4-alpha";
-const NAME = "V4 Alpha";
+const ID = "alpha";
+const NAME = "Alpha";
 const VERSION = "2.0.0";
-const PACKAGE_NAME = "@prism-system/ui-v4-alpha";
-const UI_CLASS = "maivand-v4-alpha-ui";
-const TOKENS_EXPORT = "v4AlphaTokens";
+const PACKAGE_NAME = "@prism-system/ui-alpha";
+const UI_CLASS = "maivand-alpha-ui";
+const TOKENS_EXPORT = "alphaTokens";
 
 /** Declared compound members per component; unlisted components have none. */
 const MEMBERS = Object.freeze({
@@ -99,9 +99,9 @@ function writeJson(root, relativePath, value) {
   writeFile(root, relativePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-/** The descriptor `components` map in canonical V4 order. */
+/** The descriptor `components` map in canonical order. */
 function buildComponents(optional) {
-  const names = [...V4_REQUIRED_COMPONENTS, ...optional];
+  const names = [...REQUIRED_COMPONENTS, ...optional];
   const components = {};
   for (const name of names) {
     components[name] = { variants: [], sizes: [], members: [...(MEMBERS[name] ?? [])] };
@@ -110,7 +110,7 @@ function buildComponents(optional) {
 }
 
 /**
- * Build a valid V4 package fixture under a fresh temporary root. `mutate`
+ * Build a valid package fixture under a fresh temporary root. `mutate`
  * receives `{ root, pkgDir, components }` and may change files before the
  * caller runs validation.
  */
@@ -121,7 +121,7 @@ function makeRepo({ optional = ["Grid", "Alert"], mutate } = {}) {
   const declared = Object.keys(components);
 
   writeJson(root, join("config", "design-systems.json"), {
-    version: 2,
+    version: 3,
     designSystems: [
       {
         id: ID,
@@ -131,7 +131,7 @@ function makeRepo({ optional = ["Grid", "Alert"], mutate } = {}) {
         version: VERSION,
         uiClass: UI_CLASS,
         tokensExport: TOKENS_EXPORT,
-        contract: "v4",
+        contractVersion: 4,
       },
     ],
   });
@@ -140,7 +140,7 @@ function makeRepo({ optional = ["Grid", "Alert"], mutate } = {}) {
     name: PACKAGE_NAME,
     version: VERSION,
     private: true,
-    prismSystem: { name: NAME, contract: "v4", uiClass: UI_CLASS, tokensExport: TOKENS_EXPORT },
+    prismSystem: { name: NAME, uiClass: UI_CLASS, tokensExport: TOKENS_EXPORT },
     exports: {
       ".": { types: "./dist/index.d.ts", import: "./dist/index.mjs" },
       "./styles.css": "./dist/index.css",
@@ -157,9 +157,9 @@ function makeRepo({ optional = ["Grid", "Alert"], mutate } = {}) {
 
   writeJson(root, join("packages", ID, "design-system.source.json"), {
     $schema:
-      "https://github.com/maivand-rahmani/prism-system/schemas/design-system-source-v4.schema.json",
-    schemaVersion: 2,
-    contract: "v4",
+      "https://github.com/maivand-rahmani/prism-system/schemas/design-system.source.schema.json",
+    schemaVersion: 3,
+    contractVersion: 4,
     name: NAME,
     components,
     design: { density: "comfortable", theme: "dual", radius: "medium", keywords: ["calm"] },
@@ -173,9 +173,9 @@ function makeRepo({ optional = ["Grid", "Alert"], mutate } = {}) {
   });
 
   writeFile(pkgDir, "tokens.source.json", readFileSync(TOKENS_FIXTURE, "utf8"));
-  writeJson(pkgDir, "design-brief.json", { project: NAME, summary: "V4 fixture." });
+  writeJson(pkgDir, "design-brief.json", { project: NAME, summary: "Fixture." });
   writeFile(pkgDir, "README.md", `# ${NAME}\n\nInstall with \`pnpm add ${PACKAGE_NAME}\`.\n`);
-  writeFile(pkgDir, "AGENTS.md", `# ${NAME}\n\n${PACKAGE_NAME} uses the V4 contract.\n`);
+  writeFile(pkgDir, "AGENTS.md", `# ${NAME}\n\n${PACKAGE_NAME} uses the current contract.\n`);
   writeFile(pkgDir, "LICENSE", "UNLICENSED\n");
   writeJson(pkgDir, "tsconfig.json", { compilerOptions: { strict: true } });
 
@@ -201,17 +201,17 @@ function makeRepo({ optional = ["Grid", "Alert"], mutate } = {}) {
     pkgDir,
     "src/design-system.ts",
     [
-      'import { defineDesignSystemV4 } from "@prism-system/ui-core";',
+      'import { defineDesignSystem } from "@prism-system/ui-core";',
       "import {",
       `  ${runtimeImports},`,
       '} from "./components/index.js";',
       "",
-      "export const DesignSystem = defineDesignSystemV4({",
+      "export const DesignSystem = defineDesignSystem({",
       `  id: ${JSON.stringify(ID)},`,
       `  name: ${JSON.stringify(NAME)},`,
       `  packageName: ${JSON.stringify(PACKAGE_NAME)},`,
       `  version: ${JSON.stringify(VERSION)},`,
-      '  componentContract: "v4",',
+      "  contractVersion: 4,",
       "  components: {",
       ...declared.map((name) => `    ${name},`),
       "  },",
@@ -249,7 +249,7 @@ function makeRepo({ optional = ["Grid", "Alert"], mutate } = {}) {
     writeFile(
       pkgDir,
       `src/components/${kebab}/${kebab}.css`,
-      `.${UI_CLASS} .maivand-v4-alpha-${kebab} { color: inherit; }\n`,
+      `.${UI_CLASS} .maivand-alpha-${kebab} { color: inherit; }\n`,
     );
     writeFile(
       pkgDir,
@@ -271,7 +271,7 @@ function makeRepo({ optional = ["Grid", "Alert"], mutate } = {}) {
   );
   // Generate the three token artifacts with the same renderer the manifest
   // tooling uses, so the drift check is exercised against real output.
-  for (const artifact of renderV4TokenArtifactFiles(pkgDir)) {
+  for (const artifact of renderTokenArtifactFiles(pkgDir)) {
     writeFile(pkgDir, artifact.relativePath, artifact.content);
   }
 
@@ -293,7 +293,7 @@ function failureText(result) {
   return result.failures.join("\n");
 }
 
-test("a valid V4 package passes all V4 checks", () => {
+test("a valid package passes all checks", () => {
   const result = run(makeRepo());
   assert.equal(result.ok, true, failureText(result));
   const names = result.checks.map((check) => check.name);
@@ -303,7 +303,7 @@ test("a valid V4 package passes all V4 checks", () => {
     "required package files",
     "package naming and exports",
     "package files field",
-    "contract and V4 metadata",
+    "contract metadata",
     "generated manifest",
     "version consistency",
     "component folders",
@@ -318,13 +318,13 @@ test("a valid V4 package passes all V4 checks", () => {
   }
 });
 
-test("a V4 package with no optional components is valid", () => {
+test("a package with no optional components is valid", () => {
   const result = run(makeRepo({ optional: [] }));
   assert.equal(result.ok, true, failureText(result));
 });
 
 test("a static const components map is accepted", () => {
-  const declared = [...V4_REQUIRED_COMPONENTS, "Grid", "Alert"];
+  const declared = [...REQUIRED_COMPONENTS, "Grid", "Alert"];
   const result = run(
     makeRepo({
       mutate: ({ pkgDir }) => {
@@ -332,17 +332,17 @@ test("a static const components map is accepted", () => {
           pkgDir,
           "src/design-system.ts",
           [
-            'import { defineDesignSystemV4 } from "@prism-system/ui-core";',
+            'import { defineDesignSystem } from "@prism-system/ui-core";',
             "const COMPONENTS = {",
             ...declared.map((name) => `  ${name},`),
             "};",
             "",
-            "export const DesignSystem = defineDesignSystemV4({",
+            "export const DesignSystem = defineDesignSystem({",
             `  id: ${JSON.stringify(ID)},`,
             `  name: ${JSON.stringify(NAME)},`,
             `  packageName: ${JSON.stringify(PACKAGE_NAME)},`,
             `  version: ${JSON.stringify(VERSION)},`,
-            '  componentContract: "v4",',
+            "  contractVersion: 4,",
             "  components: COMPONENTS,",
             "});",
             "",
@@ -355,7 +355,7 @@ test("a static const components map is accepted", () => {
 });
 
 test("a shorthand static components map is accepted", () => {
-  const declared = [...V4_REQUIRED_COMPONENTS, "Grid", "Alert"];
+  const declared = [...REQUIRED_COMPONENTS, "Grid", "Alert"];
   const result = run(
     makeRepo({
       mutate: ({ pkgDir }) => {
@@ -363,17 +363,17 @@ test("a shorthand static components map is accepted", () => {
           pkgDir,
           "src/design-system.ts",
           [
-            'import { defineDesignSystemV4 } from "@prism-system/ui-core";',
+            'import { defineDesignSystem } from "@prism-system/ui-core";',
             "const components = {",
             ...declared.map((name) => `  ${name},`),
             "};",
             "",
-            "export const DesignSystem = defineDesignSystemV4({",
+            "export const DesignSystem = defineDesignSystem({",
             `  id: ${JSON.stringify(ID)},`,
             `  name: ${JSON.stringify(NAME)},`,
             `  packageName: ${JSON.stringify(PACKAGE_NAME)},`,
             `  version: ${JSON.stringify(VERSION)},`,
-            '  componentContract: "v4",',
+            "  contractVersion: 4,",
             "  components,",
             "});",
             "",
@@ -539,7 +539,7 @@ test("a component stylesheet not scoped under the UI class is rejected", () => {
     }),
   );
   assert.equal(result.ok, false);
-  assert.match(failureText(result), /is not scoped under "\.maivand-v4-alpha-ui"/);
+  assert.match(failureText(result), /is not scoped under "\.maivand-alpha-ui"/);
 });
 
 test("a component module not referencing the system class is rejected", () => {
@@ -557,7 +557,7 @@ test("a component module not referencing the system class is rejected", () => {
   assert.equal(result.ok, false);
   assert.match(
     failureText(result),
-    /Button\.tsx does not reference the system class "maivand-v4-alpha"/,
+    /Button\.tsx does not reference the system class "maivand-alpha"/,
   );
 });
 
@@ -593,7 +593,7 @@ test("the component barrel exporting an undeclared optional component is rejecte
     }),
   );
   assert.equal(result.ok, false);
-  assert.match(failureText(result), /exports undeclared V4 component\(s\): Grid\./);
+  assert.match(failureText(result), /exports undeclared component\(s\): Grid\./);
 });
 
 test("a compound member mismatch is rejected", () => {
@@ -828,9 +828,9 @@ test("a descriptor missing a required component fails the manifest check", () =>
         delete components.Heading;
         writeJson(pkgDir, "design-system.source.json", {
           $schema:
-            "https://github.com/maivand-rahmani/prism-system/schemas/design-system-source-v4.schema.json",
-          schemaVersion: 2,
-          contract: "v4",
+            "https://github.com/maivand-rahmani/prism-system/schemas/design-system.source.schema.json",
+          schemaVersion: 3,
+          contractVersion: 4,
           name: NAME,
           components,
           design: { density: "comfortable", theme: "dual", radius: "medium", keywords: ["calm"] },
@@ -845,10 +845,7 @@ test("a descriptor missing a required component fails the manifest check", () =>
     }),
   );
   assert.equal(result.ok, false);
-  assert.match(
-    failureText(result),
-    /must declare all twenty V4 required components.*Missing: Heading\./s,
-  );
+  assert.match(failureText(result), /must declare all 29 required components.*Missing: Heading\./s);
 });
 
 test("the registry entry must be canonical for the id", () => {
@@ -866,63 +863,6 @@ test("the registry entry must be canonical for the id", () => {
   assert.match(failureText(result), /Manifest uiClass "maivand-wrong-ui" is not canonical/);
 });
 
-test("an unsupported contract entry still reports the V1 message", () => {
-  const root = mkdtempSync(join(tmpdir(), "prism-v4-validate-"));
-  try {
-    writeJson(root, join("config", "design-systems.json"), {
-      version: 2,
-      designSystems: [
-        {
-          id: "legacy",
-          name: "Legacy",
-          packageName: "@prism-system/ui-legacy",
-          packagePath: "packages/legacy",
-          version: "0.0.0",
-          uiClass: "maivand-legacy-ui",
-          tokensExport: "legacyTokens",
-          contract: "v1",
-        },
-      ],
-    });
-    const result = validateDesignSystem({ id: "legacy", root, runCommands: false });
-    assert.equal(result.ok, false);
-    assert.match(failureText(result), /has contract "v1"; V2 tooling requires contract "v2"/);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("the committed V2 systems keep the V2 branch when still registered as v2", () => {
-  const config = JSON.parse(readFileSync(join(repoRoot, "config", "design-systems.json"), "utf8"));
-  const entry = config.designSystems.find((system) => system.id === "system-a");
-  if (!entry || entry.contract !== "v2") {
-    // system-a has migrated to V4 in this checkout; the V2 branch regression is
-    // covered by the unsupported-contract test above.
-    return;
-  }
-  const result = validateDesignSystem({ id: "system-a", root: repoRoot, runCommands: false });
-  assert.equal(result.ok, true, failureText(result));
-  assert.deepEqual(
-    result.checks.map((check) => check.name),
-    [
-      "manifest entry",
-      "package metadata",
-      "required package files",
-      "package naming and exports",
-      "package files field",
-      "contract and V2 metadata",
-      "generated manifest",
-      "version consistency",
-      "required component exports",
-      "tokens and theme",
-      "package boundaries",
-      "design brief",
-      "documentation",
-      "app registration",
-    ],
-  );
-});
-
 test("optional components are never required when the descriptor omits them", () => {
   // Sanity: a package with no optional capability must not mention any optional
   // component and must still pass, proving absence means "unavailable".
@@ -930,13 +870,13 @@ test("optional components are never required when the descriptor omits them", ()
   assert.equal(result.ok, true, failureText(result));
   const manifest = JSON.parse(
     readFileSync(
-      join(repoRoot, "schemas", "fixtures", "v4-valid", "design-system.source.json"),
+      join(repoRoot, "schemas", "fixtures", "valid", "design-system.source.json"),
       "utf8",
     ),
   );
-  // Guard the fixture contract: the optional list is a real V4 subset.
+  // Guard the fixture contract: the optional list is a real subset.
   assert.deepEqual(
-    V4_OPTIONAL_COMPONENTS.filter((name) => name in manifest.components),
+    OPTIONAL_COMPONENTS.filter((name) => name in manifest.components),
     ["Grid", "Alert"],
   );
   assert.equal(existsSync(TOKENS_FIXTURE), true);

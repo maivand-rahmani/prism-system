@@ -3,7 +3,7 @@
  * Direct CLI tests for the V4 command surface (`prism-ds` cli.mjs).
  *
  * Run (Node built-in test runner, no dependency):
- *   node --test packages/tools/test/cli-v4.test.mjs
+ *   node --test packages/tools/test/cli.test.mjs
  *
  * Strategy:
  *
@@ -27,9 +27,8 @@ import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
 import {
@@ -47,15 +46,12 @@ import {
   tokensHelpText,
   upgradeHelpText,
 } from "../src/cli.mjs";
+import { currentManifest, readJson, repoRoot } from "./manifest-fixture.mjs";
 
-const testDir = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(testDir, "..", "..", "..");
 const binPath = join(repoRoot, "packages", "tools", "bin", "prism-ds.mjs");
-const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
 
-const SYSTEM_A = readJson(join(repoRoot, "packages", "system-a", "design-system.json"));
-const V2_MANIFEST = readJson(
-  join(repoRoot, "schemas", "fixtures", "v2-valid", "design-system.json"),
+const SYSTEM_A = currentManifest(
+  readJson(join(repoRoot, "packages", "system-a", "design-system.json")),
 );
 
 const V4_PACKAGE = SYSTEM_A.package;
@@ -151,7 +147,7 @@ async function startRegistry(t, { packageName, versions }) {
     versionsMeta[version] = {
       name: packageName,
       version,
-      prismSystem: { contract: manifest.contract },
+      prismSystem: { contractVersion: manifest.contractVersion },
       exports: { "./manifest": "./design-system.json" },
       dist: { tarball: "" },
     };
@@ -504,11 +500,22 @@ test("components reports the V4 catalog offline as stable JSON", async (t) => {
   const report = JSON.parse(result.stdout);
   assert.equal(report.ok, true);
   assert.equal(report.package, packageName);
-  assert.equal(report.contract, "v4");
+  assert.equal(report.contractVersion, 4);
   assert.equal(report.showcase.route, `/showcase/${SYSTEM_A.id}`);
   assert.equal(report.components.length, report.counts.required + report.counts.optional);
   assert.ok(report.available.includes("Button"));
-  assert.equal(report.requested, null);
+  assert.deepEqual(report.capabilities.categories.composition.required, [
+    "Container",
+    "Stack",
+    "Center",
+    "Cluster",
+    "Sidebar",
+    "AspectRatio",
+  ]);
+  assert.deepEqual(report.capabilities.categories.composition.optional, ["Grid", "Section"]);
+  assert.ok(report.capabilities.categories.composition.available.includes("Grid"));
+  assert.deepEqual(report.capabilities.categories.composition.unavailable, ["Section"]);
+  assert.deepEqual(report.requested, null);
   assert.deepEqual(snapshot(root), before, "components must not write");
 });
 
@@ -546,7 +553,10 @@ test("components rejects an unknown name and prints a human catalog", async (t) 
 
   const text = await runBin(["components", "--cwd", root]);
   assert.equal(text.exitCode, 0);
-  assert.match(text.stdout, /component catalog \(contract v4\)/);
+  assert.match(text.stdout, /component catalog \(contract version 4\)/);
+  assert.match(text.stdout, /capability categories:/);
+  assert.match(text.stdout, /composition: 7\/8 available; unavailable: Section/);
+  assert.match(text.stdout, /forms: 6\/6 available/);
   assert.match(text.stdout, /Button\s+\[required\] available/);
 });
 
@@ -587,24 +597,18 @@ test("tokens rejects an unknown group", async (t) => {
   assert.match(result.stdout, /Unknown token group "nope"/);
 });
 
-test("tokens reports a V2 manifest as valid but unsupported and exits zero", async (t) => {
-  const { root, packageName } = createConsumer(t, { manifest: V2_MANIFEST });
+test("tokens reports the catalog as stable JSON", async (t) => {
+  const { root, packageName } = createConsumer(t, { manifest: SYSTEM_A });
   const before = snapshot(root);
 
   const json = await runBin(["tokens", "--cwd", root, "--json"]);
-  assert.equal(json.exitCode, 0, "V2 tokens is not an error");
+  assert.equal(json.exitCode, 0);
   const report = JSON.parse(json.stdout);
   assert.equal(report.ok, true);
   assert.equal(report.package, packageName);
-  assert.equal(report.contract, "v2");
-  assert.equal(report.supported, false);
-  assert.equal(report.prefixes, null);
-  assert.match(report.reason, /V2 design systems declare no token catalog/);
-
-  const text = await runBin(["tokens", "--cwd", root]);
-  assert.equal(text.exitCode, 0);
-  assert.match(text.stdout, /token catalog unavailable/);
-  assert.match(text.stdout, /V2 design systems declare no token catalog/);
+  assert.equal(report.contractVersion, 4);
+  assert.equal(report.supported, true);
+  assert.ok(report.prefixes.css.length > 0);
 
   assert.deepEqual(snapshot(root), before);
 });
@@ -622,7 +626,7 @@ test("check produces a passing offline report and JSON health summary", async (t
   assert.equal(result.exitCode, 0);
   const report = JSON.parse(result.stdout);
   assert.equal(report.ok, true);
-  assert.equal(report.contract, "v4");
+  assert.equal(report.contractVersion, 4);
   assert.ok(Array.isArray(report.checks) && report.checks.length > 0);
   assert.deepEqual(snapshot(root), before, "check must not write");
 
@@ -1049,7 +1053,6 @@ test("upgrade fails closed on --save-dev/--save-prod/--exact as unknown options"
 
 test("offline commands never attempt the network", async (t) => {
   const v4 = createConsumer(t, { manifest: SYSTEM_A, connected: true, tailwind: "4.1.0" });
-  const v2 = createConsumer(t, { manifest: V2_MANIFEST });
   const pending = tailwindConsumer(t, "body { margin: 0; }\n");
   const pendingBefore = snapshot(pending.root);
 
@@ -1057,8 +1060,8 @@ test("offline commands never attempt the network", async (t) => {
   assert.equal(components.exitCode, undefined);
   assert.deepEqual(components.networkAttempts, []);
 
-  const tokens = await invokeOffline(runTokensCommand, ["--cwd", v2.root, "--json"]);
-  assert.equal(tokens.exitCode, undefined, "V2 tokens stays a zero-exit result");
+  const tokens = await invokeOffline(runTokensCommand, ["--cwd", v4.root, "--json"]);
+  assert.equal(tokens.exitCode, undefined);
   assert.deepEqual(tokens.networkAttempts, []);
 
   const check = await invokeOffline(runCheckCommand, ["--cwd", v4.root, "--json"]);

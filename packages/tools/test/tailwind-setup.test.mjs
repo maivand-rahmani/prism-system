@@ -7,7 +7,7 @@
  *
  * These exercise the exported `planTailwindSetup` / `setupTailwind` /
  * `mergeBridgeImports` helpers against real temporary consumer fixtures: a
- * connected `.design-system/config.json`, an installed V4 design system, and an
+ * connected `.design-system/config.json`, an installed design system, and an
  * installed Tailwind package. Nothing is installed and nothing is run.
  */
 
@@ -52,8 +52,8 @@ function createConsumer(t, options = {}) {
   const {
     systemVersion = "1.0.0",
     configVersion = "1.0.0",
-    contract = "v4",
-    schemaVersion = 2,
+    contractVersion = 4,
+    schemaVersion = 4,
     tailwind = "4.1.0",
     tailwindWithExports = true,
     omitTailwindExport = false,
@@ -104,10 +104,10 @@ function createConsumer(t, options = {}) {
     exports: exportsMap,
   });
   writeJson(join(systemDir, "design-system.json"), {
-    $schema: "https://github.com/maivand-rahmani/prism-system/schemas/design-system-v4.schema.json",
+    $schema: "https://github.com/maivand-rahmani/prism-system/schemas/design-system.schema.json",
     schemaVersion,
     generated: "prism-system/design-system-manifest",
-    contract,
+    contractVersion,
     package: PACKAGE_NAME,
     version: systemVersion,
   });
@@ -290,16 +290,30 @@ test("a conditional export target fails closed (ambiguous format)", (t) => {
   assert.deepEqual(readFileSync(cssPath), before);
 });
 
-test("a non-V4 design system fails closed without writing", (t) => {
-  const { root } = createConsumer(t, { contract: "v2", schemaVersion: 1 });
-  const cssPath = writeCss(root, join("src", "app.css"), "body { margin: 0; }\n");
+test("an obsolete manifest metadata fails closed without writing", (t) => {
+  const obsoleteContract = createConsumer(t, { contractVersion: 2, schemaVersion: 4 });
+  const cssPath = writeCss(obsoleteContract.root, join("src", "app.css"), "body { margin: 0; }\n");
   const before = readFileSync(cssPath);
 
-  const result = setupTailwind({ cwd: root, cssPath: "src/app.css" });
+  const result = setupTailwind({ cwd: obsoleteContract.root, cssPath: "src/app.css" });
 
   assert.equal(result.ok, false);
-  assert.match(result.failures.join(" "), /must be "v4"/);
+  assert.match(result.failures.join(" "), /must be the numeric 4/);
   assert.deepEqual(readFileSync(cssPath), before);
+
+  const obsoleteSchema = createConsumer(t, { schemaVersion: 3 });
+  const schemaCssPath = writeCss(
+    obsoleteSchema.root,
+    join("src", "app.css"),
+    "body { margin: 0; }\n",
+  );
+  const schemaBefore = readFileSync(schemaCssPath);
+
+  const schemaResult = setupTailwind({ cwd: obsoleteSchema.root, cssPath: "src/app.css" });
+
+  assert.equal(schemaResult.ok, false);
+  assert.match(schemaResult.failures.join(" "), /schemaVersion 3 must be 4/);
+  assert.deepEqual(readFileSync(schemaCssPath), schemaBefore);
 });
 
 test("only the selected CSS file changes", (t) => {

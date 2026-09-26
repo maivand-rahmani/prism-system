@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * Focused unit tests for the V4 Phase 5 lifecycle harness
- * (`scripts/check-v4-lifecycle.mjs`).
+ * Focused unit tests for the lifecycle harness
+ * (`scripts/check-all.mjs`).
  *
  * Run directly:
- *   node --test scripts/check-v4-lifecycle.test.mjs
+ *   node --test scripts/check-all.test.mjs
  *
  * These tests cover the harness's pure helpers and fail-closed directory
  * behavior only. They never build, pack, install, or touch `TEMP/`: every
@@ -19,7 +19,8 @@ import { test } from "node:test";
 
 import {
   OPTIONAL_SETS,
-  V4_REQUIRED_COMPONENT_NAMES,
+  REQUIRED_COMPONENT_NAMES,
+  assertCapabilityInventory,
   buildRuntimeProbeSource,
   buildTailwindProbeCss,
   buildTailwindProbeSource,
@@ -29,7 +30,8 @@ import {
   cssVariableValue,
   semanticUtilityClass,
   semanticUtilityRule,
-} from "./check-v4-lifecycle.mjs";
+} from "./check-all.mjs";
+import { CAPABILITY_CATEGORIES } from "./design-system-manifest.mjs";
 
 const REQUIRED = [
   "Button",
@@ -52,9 +54,18 @@ const REQUIRED = [
   "Container",
   "Stack",
   "FormField",
+  "Center",
+  "Cluster",
+  "Sidebar",
+  "AspectRatio",
+  "Combobox",
+  "DatePicker",
+  "NumberField",
+  "Slider",
+  "FileUpload",
 ];
 
-const HARNESS_SOURCE = readFileSync(new URL("./check-v4-lifecycle.mjs", import.meta.url), "utf8");
+const HARNESS_SOURCE = readFileSync(new URL("./check-all.mjs", import.meta.url), "utf8");
 
 const FIXTURE_SYSTEMS = [
   {
@@ -90,26 +101,48 @@ function write(root, relPath, content) {
 /* Contract catalogs                                                          */
 /* -------------------------------------------------------------------------- */
 
-test("the required V4 list is the canonical twenty in contract order", () => {
-  assert.deepEqual([...V4_REQUIRED_COMPONENT_NAMES], REQUIRED);
-  assert.equal(new Set(V4_REQUIRED_COMPONENT_NAMES).size, 20);
+test("the required list is the canonical twenty-nine in contract order", () => {
+  assert.deepEqual([...REQUIRED_COMPONENT_NAMES], REQUIRED);
+  assert.equal(new Set(REQUIRED_COMPONENT_NAMES).size, 29);
 });
 
-test("the declared optional sets match the V4 Phase 2 capability split", () => {
+test("the declared optional sets match the capability split", () => {
   assert.deepEqual(
     [...OPTIONAL_SETS["system-a"]],
-    ["Grid", "Fieldset", "Alert", "Progress", "Accordion", "Pagination", "Table"],
+    [
+      "Grid",
+      "Fieldset",
+      "Alert",
+      "Progress",
+      "Accordion",
+      "Pagination",
+      "Table",
+      "Metric",
+      "DescriptionList",
+      "Timeline",
+      "Meter",
+    ],
   );
   assert.deepEqual(
     [...OPTIONAL_SETS["system-b"]],
-    ["Section", "Alert", "Skeleton", "Toast", "Avatar", "Breadcrumbs"],
+    [
+      "Section",
+      "Alert",
+      "Skeleton",
+      "Toast",
+      "Avatar",
+      "Breadcrumbs",
+      "Metric",
+      "Timeline",
+      "EmptyState",
+    ],
   );
-  // Alert is the one optional both systems implement; the rest differ.
+  // Alert, Metric, and Timeline are the optionals both systems implement; the rest differ.
   const a = new Set(OPTIONAL_SETS["system-a"]);
   const b = new Set(OPTIONAL_SETS["system-b"]);
   assert.deepEqual(
     [...a].filter((name) => b.has(name)),
-    ["Alert"],
+    ["Alert", "Metric", "Timeline"],
   );
   assert.ok([...a, ...b].every((name) => REQUIRED.indexOf(name) === -1));
 });
@@ -204,7 +237,7 @@ test("buildTypecheckSource references every required export for every system", (
   }
   // The system without optionals must not emit an empty optional record.
   assert.doesNotMatch(source, /SystemBOptional/);
-  for (const name of ["REQUIRED_COMPONENTS_V4", "OPTIONAL_COMPONENTS_V4", "defineDesignSystemV4"]) {
+  for (const name of ["REQUIRED_COMPONENTS", "OPTIONAL_COMPONENTS", "defineDesignSystem"]) {
     assert.ok(source.includes(name), name);
   }
   assert.match(source, /@prism-system\/ui-system-a\/styles\.css/);
@@ -230,8 +263,98 @@ test("buildRuntimeProbeSource embeds the packages and the consumer node_modules 
   assert.match(source, /@prism-system\/ui-system-a/);
   assert.match(source, /systemATokens/);
   assert.match(source, /node_modules/);
-  assert.match(source, /REQUIRED_COMPONENTS_V4/);
-  assert.match(source, /OPTIONAL_COMPONENTS_V4/);
+  assert.match(source, /REQUIRED_COMPONENTS/);
+  assert.match(source, /OPTIONAL_COMPONENTS/);
+  // The runtime probe verifies the shipped manifest metadata and inventory.
+  assert.match(source, /manifest\.schemaVersion !== 4/);
+  assert.match(source, /manifest capabilities categories mismatch/);
+  assert.match(source, /"data-display":/);
+});
+
+/* -------------------------------------------------------------------------- */
+/* Shipped capability inventory                                               */
+/* -------------------------------------------------------------------------- */
+
+test("assertCapabilityInventory requires the exact canonical inventory", () => {
+  const manifest = () => ({
+    schemaVersion: 4,
+    capabilities: { categories: structuredClone(CAPABILITY_CATEGORIES) },
+  });
+
+  assert.doesNotThrow(() => assertCapabilityInventory(manifest(), "fixture"));
+
+  assert.throws(
+    () => assertCapabilityInventory({ schemaVersion: 4 }, "fixture"),
+    /fixture must declare capabilities\.categories/,
+  );
+
+  const unknownKey = manifest();
+  unknownKey.capabilities.categories.extra = { required: [], optional: [] };
+  assert.throws(
+    () => assertCapabilityInventory(unknownKey, "fixture"),
+    /capability category keys must be exactly composition, forms, data-display/,
+  );
+
+  const missingKey = manifest();
+  delete missingKey.capabilities.categories.forms;
+  assert.throws(
+    () => assertCapabilityInventory(missingKey, "fixture"),
+    /capability category keys must be exactly/,
+  );
+
+  // Wrong order (and therefore membership) is rejected.
+  const wrongOrder = manifest();
+  wrongOrder.capabilities.categories.composition.required = [
+    "Stack",
+    "Container",
+    "Center",
+    "Cluster",
+    "Sidebar",
+    "AspectRatio",
+  ];
+  assert.throws(
+    () => assertCapabilityInventory(wrongOrder, "fixture"),
+    /capability category "composition"\.required must be exactly/,
+  );
+
+  // A known name of the wrong class is rejected.
+  const wrongClass = manifest();
+  wrongClass.capabilities.categories.composition.optional = ["Grid", "Button"];
+  assert.throws(
+    () => assertCapabilityInventory(wrongClass, "fixture"),
+    /capability category "composition"\.optional must be exactly/,
+  );
+
+  // Duplicate and unknown names are rejected.
+  const duplicate = manifest();
+  duplicate.capabilities.categories.forms.required = [
+    "FormField",
+    "FormField",
+    "DatePicker",
+    "NumberField",
+    "Slider",
+    "FileUpload",
+  ];
+  assert.throws(
+    () => assertCapabilityInventory(duplicate, "fixture"),
+    /capability category "forms"\.required must be exactly/,
+  );
+
+  const unknownName = manifest();
+  unknownName.capabilities.categories["data-display"].optional = [
+    "Table",
+    "Pagination",
+    "Progress",
+    "Metric",
+    "DescriptionList",
+    "Timeline",
+    "Meter",
+    "Widget",
+  ];
+  assert.throws(
+    () => assertCapabilityInventory(unknownName, "fixture"),
+    /capability category "data-display"\.optional must be exactly/,
+  );
 });
 
 /* -------------------------------------------------------------------------- */
@@ -253,7 +376,7 @@ test("createUniqueRunDirectory fails closed instead of overwriting an existing p
 
 test("run-directory setup failure aborts before any later lifecycle checks", () => {
   const setup = HARNESS_SOURCE.indexOf(
-    'runCheck("prepare unique TEMP/v4/lifecycle-<uuid> run directory"',
+    'runCheck("prepare unique TEMP/lifecycle/lifecycle-<uuid> run directory"',
   );
   const abort = HARNESS_SOURCE.indexOf(
     "if (!runDirectoryReady) throw RUN_DIRECTORY_SETUP_ABORT;",

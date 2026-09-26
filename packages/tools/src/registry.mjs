@@ -11,12 +11,11 @@
 import { createHash } from "node:crypto";
 
 import {
-  CONTRACT_V2,
-  CONTRACT_V4,
+  COMPONENT_NAMES,
+  CONTRACT_VERSION,
+  OPTIONAL_COMPONENTS,
   PACKAGE_SCOPE,
-  V4_COMPONENT_NAMES,
-  V4_OPTIONAL_COMPONENTS,
-  V4_REQUIRED_COMPONENTS,
+  REQUIRED_COMPONENTS,
 } from "./constants.mjs";
 import { isSupportedPackageName, normalizeRequestedPackage } from "./consumer.mjs";
 import { validateDesignSystemManifest } from "./manifest.mjs";
@@ -320,12 +319,11 @@ export function validateRegistryMetadata({ packageName, version, metadata }) {
       `metadata version ${JSON.stringify(metadata.version ?? null)} does not match ${version}.`,
     );
   }
-  if (
-    metadata.prismSystem?.contract !== CONTRACT_V2 &&
-    metadata.prismSystem?.contract !== CONTRACT_V4
-  ) {
+  if (metadata.prismSystem?.contractVersion !== CONTRACT_VERSION) {
     failures.push(
-      `prismSystem.contract must be "v2" or "v4" (received ${JSON.stringify(metadata.prismSystem?.contract ?? null)}).`,
+      `prismSystem.contractVersion must be the numeric ${CONTRACT_VERSION} (received ${JSON.stringify(
+        metadata.prismSystem?.contractVersion ?? null,
+      )}).`,
     );
   }
   if (metadata.exports?.["./manifest"] !== "./design-system.json") {
@@ -420,14 +418,19 @@ export async function fetchDesignSystemInfo({
     throw new Error(`Registry manifest is not valid JSON: ${error.message}`);
   }
   validateManifestShape(manifest, { packageName, version: resolvedVersion });
-  // The registry metadata contract and the shipped manifest's strict
-  // (schemaVersion, contract) pair must agree; a mismatch fails closed.
-  const declaredContract = metadata.prismSystem?.contract;
-  if (declaredContract !== undefined && declaredContract !== manifest.contract) {
+  // The registry metadata contract and the shipped manifest's contract metadata
+  // must agree; a mismatch fails closed.
+  const declaredContractVersion = metadata.prismSystem?.contractVersion;
+  if (
+    declaredContractVersion !== undefined &&
+    declaredContractVersion !== manifest.contractVersion
+  ) {
     throw new Error(
-      `Registry metadata contract ${JSON.stringify(declaredContract)} does not match the shipped ` +
-        `manifest contract ${JSON.stringify(manifest.contract ?? null)} for ` +
-        `"${packageName}@${resolvedVersion}".`,
+      `Registry metadata contractVersion ${JSON.stringify(
+        declaredContractVersion,
+      )} does not match the shipped manifest contractVersion ${JSON.stringify(
+        manifest.contractVersion ?? null,
+      )} for "${packageName}@${resolvedVersion}".`,
     );
   }
   return { package: packageName, version: resolvedVersion, registry: registryUrl, manifest };
@@ -436,18 +439,20 @@ export async function fetchDesignSystemInfo({
 /**
  * Build the stable, allowlisted `info --json` object (includes the full manifest).
  *
- * V2 keeps the exact original shape. V4 adds only additive fields describing the
- * visual design direction, the actual available components/capabilities, the
- * flattened token groups/names, and the documentation / Showcase links, all read
- * from the already-validated manifest.
+ * It reports the visual design direction, the actual available
+ * components/capabilities, the flattened token groups/names, and the
+ * documentation / Showcase links, all read from the already-validated manifest.
  */
 export function buildInfoResult(info) {
   const manifest = info.manifest;
   const design = isPlainObject(manifest.design) ? manifest.design : {};
-  const base = {
+  const components = isPlainObject(manifest.components) ? manifest.components : {};
+  const tokens = isPlainObject(manifest.tokens) ? manifest.tokens : {};
+  return {
     package: info.package,
     version: info.version,
     name: manifest.name,
+    contractVersion: CONTRACT_VERSION,
     design: {
       density: typeof design.density === "string" ? design.density : null,
       theme: typeof design.theme === "string" ? design.theme : null,
@@ -458,19 +463,10 @@ export function buildInfoResult(info) {
     },
     components: manifest.components,
     rules: manifest.rules,
-    manifest,
-  };
-  if (manifest.contract !== CONTRACT_V4) return base;
-
-  const components = isPlainObject(manifest.components) ? manifest.components : {};
-  const tokens = isPlainObject(manifest.tokens) ? manifest.tokens : {};
-  return {
-    ...base,
-    contract: CONTRACT_V4,
-    availableComponents: V4_COMPONENT_NAMES.filter((name) => name in components),
+    availableComponents: COMPONENT_NAMES.filter((name) => name in components),
     capabilities: {
-      required: [...V4_REQUIRED_COMPONENTS],
-      optional: V4_OPTIONAL_COMPONENTS.filter((name) => name in components),
+      required: [...REQUIRED_COMPONENTS],
+      optional: OPTIONAL_COMPONENTS.filter((name) => name in components),
     },
     tokens: {
       groups: isPlainObject(tokens.groups) ? tokens.groups : {},
@@ -480,6 +476,7 @@ export function buildInfoResult(info) {
     showcase: {
       route: `/showcase/${manifest.id}`,
     },
+    manifest,
   };
 }
 

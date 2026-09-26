@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * V3 strict usage validation (published implementation).
+ * Strict usage validation (published implementation).
  *
  * Deterministic, AST-based checking of a configured consumer repository. It
  * discovers the consumer contract through the config-first consumer tooling,
@@ -27,7 +27,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, relative, sep } from "node:path";
 
-import { CONTRACT_V4, V2_REQUIRED_COMPONENTS, V4_COMPONENT_NAMES } from "./constants.mjs";
+import { COMPONENT_NAMES, CONTRACT_VERSION } from "./constants.mjs";
 import { detectManifestContract } from "./manifest.mjs";
 import {
   CONSUMER_DIRECTORY,
@@ -313,26 +313,22 @@ const LAYOUT_STYLE_PROPERTIES = Object.freeze(
   ]),
 );
 
-const CANONICAL_COMPONENTS = new Set(V2_REQUIRED_COMPONENTS);
+const CANONICAL_COMPONENTS = new Set(COMPONENT_NAMES);
 
 /**
- * The canonical component names a manifest makes available, used by duplication
- * detection. A V2 manifest provides the fourteen V2 names; a V4 manifest
- * provides the twenty V4 required names plus only the optional capabilities the
- * manifest actually declares (an omitted optional is not a system-provided
- * primitive).
+ * The component names a manifest makes available, used by duplication
+ * detection: the required names plus only the optional components the manifest
+ * actually declares (an omitted optional is not a system-provided primitive).
  *
  * @param {unknown} manifest
  * @returns {string[]}
  */
 export function componentNamesForManifest(manifest) {
-  if (detectManifestContract(manifest) !== CONTRACT_V4) {
-    return [...V2_REQUIRED_COMPONENTS];
+  if (detectManifestContract(manifest) !== CONTRACT_VERSION) {
+    return [];
   }
   const components = isPlainObject(manifest?.components) ? manifest.components : {};
-  return V4_COMPONENT_NAMES.filter((name) =>
-    Object.prototype.hasOwnProperty.call(components, name),
-  );
+  return COMPONENT_NAMES.filter((name) => Object.prototype.hasOwnProperty.call(components, name));
 }
 
 function isPlainObject(value) {
@@ -626,9 +622,8 @@ function readPropertyName(name, tsModule) {
  * beyond positions). Exported for focused tests.
  *
  * `componentNames` is the set of canonical component names a local declaration
- * or relative import must not duplicate. When omitted it defaults to the
- * fourteen V2 names, preserving the original behavior for direct callers; the
- * consumer checker passes the contract-appropriate set derived from the
+ * or relative import must not duplicate. When omitted it defaults to every
+ * canonical name; the consumer checker passes the declared set derived from the
  * installed manifest.
  */
 export function checkSourceText({ fileName, text, rules, strict, componentNames }) {

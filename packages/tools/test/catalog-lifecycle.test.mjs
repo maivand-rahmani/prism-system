@@ -7,36 +7,30 @@
  *
  * Everything here is offline and in-memory: a fake registry serves generated
  * tarballs, a fake package manager records (and never executes) the fixed
- * command, and each test works on a disposable temp consumer. The real V4 and V2
+ * command, and each test works on a disposable temp consumer. The real System A
  * manifests are read as JSON data only; no design-system code is imported or run.
  *
  * Covered: install/use/upgrade dry runs (zero spawn, byte-identical consumer),
  * exact command construction, exact-version rejection, upgrade removals reported
  * before mutation, fail-closed registry/preflight with no manager call, unchanged
- * V2 install/use behavior, and the V4 `--tailwind` prerequisite/preflight and
+ * `--tailwind` prerequisite/preflight and
  * setup success/failure boundaries.
  */
 
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
 import { installDesignSystem, runUseDesignSystem, upgradeDesignSystem } from "../src/catalog.mjs";
 import { mergeBridgeImports } from "../src/tailwind-setup.mjs";
+import { currentManifest, readJson, repoRoot } from "./manifest-fixture.mjs";
 
-const testDir = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(testDir, "..", "..", "..");
-const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
-
-const systemAManifest = readJson(join(repoRoot, "packages", "system-a", "design-system.json"));
-const v2Manifest = readJson(
-  join(repoRoot, "schemas", "fixtures", "v2-valid", "design-system.json"),
+const systemAManifest = currentManifest(
+  readJson(join(repoRoot, "packages", "system-a", "design-system.json")),
 );
-
 /** The live V4 System A version; the fixture manifest version is authoritative. */
 const V4_VERSION = systemAManifest.version;
 
@@ -97,7 +91,7 @@ function createRegistry({ packageName, versions }) {
     versionsMeta[version] = {
       name: packageName,
       version,
-      prismSystem: { contract: manifest.contract },
+      prismSystem: { contractVersion: manifest.contractVersion },
       exports: { "./manifest": "./design-system.json" },
       dist: { tarball: tarballUrl },
     };
@@ -287,47 +281,6 @@ test("install --dry-run resolves the exact command without spawning or writing",
   assertUnchanged(consumer.root, before);
 });
 
-test("an ordinary V2 install keeps the exact previous result shape", async (t) => {
-  const registry = createRegistry({
-    packageName: v2Manifest.package,
-    versions: { "1.1.0": v2Manifest },
-  });
-  const consumer = createConsumer(t, { packageName: v2Manifest.package });
-  const manager = makeManager({
-    onSpawn: () => writeInstalled(consumer.root, v2Manifest, { bridge: false }),
-  });
-
-  const result = await installDesignSystem({
-    cwd: consumer.root,
-    package: v2Manifest.package,
-    version: "1.1.0",
-    registry: registry.registry,
-    fetchImpl: registry.fetchImpl,
-    spawnImpl: manager.spawnImpl,
-  });
-
-  assert.equal(result.ok, true, result.failures?.join(" "));
-  assert.equal(Object.hasOwn(result, "dryRun"), false);
-  assert.equal(Object.hasOwn(result, "plannedChanges"), false);
-  assert.equal(manager.calls.length, 1);
-  assert.deepEqual(Object.keys(result).sort(), [
-    "command",
-    "consumerRoot",
-    "failures",
-    "installedDir",
-    "manager",
-    "managerSource",
-    "ok",
-    "package",
-    "registry",
-    "version",
-  ]);
-  assert.equal(
-    result.installedDir,
-    join(consumer.root, "node_modules", ...v2Manifest.package.split("/")),
-  );
-});
-
 /* -------------------------------------------------------------------------- */
 /* use                                                                        */
 /* -------------------------------------------------------------------------- */
@@ -365,32 +318,6 @@ test("use --dry-run plans without spawning or writing", async (t) => {
   );
   assert.equal(manager.calls.length, 0);
   assertUnchanged(consumer.root, before);
-});
-
-test("an ordinary V2 use keeps the exact previous result shape", async (t) => {
-  const registry = createRegistry({
-    packageName: v2Manifest.package,
-    versions: { "1.1.0": v2Manifest },
-  });
-  const consumer = createConsumer(t, { packageName: v2Manifest.package });
-  const manager = makeManager({
-    onSpawn: () => writeInstalled(consumer.root, v2Manifest, { bridge: false }),
-  });
-
-  const result = await runUseDesignSystem({
-    cwd: consumer.root,
-    package: v2Manifest.package,
-    version: "1.1.0",
-    registry: registry.registry,
-    fetchImpl: registry.fetchImpl,
-    spawnImpl: manager.spawnImpl,
-  });
-
-  assert.equal(result.ok, true, result.failures?.join(" "));
-  assert.deepEqual(Object.keys(result).sort(), ["connect", "failures", "install", "ok", "usage"]);
-  assert.equal(result.connect.ok, true);
-  assert.equal(result.usage, null);
-  assert.equal(manager.calls.length, 1);
 });
 
 /* -------------------------------------------------------------------------- */
@@ -476,37 +403,6 @@ test("use requires --css exactly when --tailwind is set", async (t) => {
   assert.match(cssWithoutTailwind.failures.join(" "), /--css requires --tailwind/);
 
   assert.equal(manager.calls.length, 0);
-});
-
-test("use --tailwind preflight rejects a non-V4 target before any manager call", async (t) => {
-  const registry = createRegistry({
-    packageName: v2Manifest.package,
-    versions: { "1.1.0": v2Manifest },
-  });
-  const consumer = createConsumer(t, {
-    packageName: v2Manifest.package,
-    tailwind: "4.1.0",
-    css: "body {}\n",
-  });
-  const manager = makeManager();
-  const before = snapshot(consumer.root);
-
-  const result = await runUseDesignSystem({
-    cwd: consumer.root,
-    package: v2Manifest.package,
-    version: "1.1.0",
-    registry: registry.registry,
-    fetchImpl: registry.fetchImpl,
-    spawnImpl: manager.spawnImpl,
-    tailwind: true,
-    cssPath: "src/app.css",
-  });
-
-  assert.equal(result.ok, false);
-  assert.equal(result.boundary, "preflight");
-  assert.match(result.failures.join(" "), /requires a V4 design system/);
-  assert.equal(manager.calls.length, 0);
-  assertUnchanged(consumer.root, before);
 });
 
 test("use --tailwind preflight rejects a non-v4 Tailwind before any manager call", async (t) => {
@@ -855,37 +751,6 @@ test("upgrade diff reports component assortment, contract metadata, and public e
     ),
   );
   assert.ok(result.preview.some((line) => line.includes("public export changed (.)")));
-});
-
-test("upgrade diff identifies a V2-to-V4 manifest pair transition", async (t) => {
-  const from = structuredClone(v2Manifest);
-  const to = structuredClone(systemAManifest);
-  from.version = "1.1.0";
-  to.version = "2.1.0";
-  to.id = from.id;
-  to.name = from.name;
-  to.package = from.package;
-  const registry = createRegistry({ packageName: from.package, versions: { [to.version]: to } });
-  const consumer = createConsumer(t, {
-    packageName: from.package,
-    manifest: from,
-    connected: true,
-  });
-  const result = await upgradeDesignSystem({
-    cwd: consumer.root,
-    package: from.package,
-    version: to.version,
-    registry: registry.registry,
-    fetchImpl: registry.fetchImpl,
-    spawnImpl: makeManager().spawnImpl,
-    dryRun: true,
-  });
-  assert.equal(result.ok, true, result.failures?.join(" "));
-  assert.deepEqual(result.diff.metadata, {
-    schemaVersion: { from: 1, to: 2 },
-    contract: { from: "v2", to: "v4" },
-  });
-  assert.ok(result.preview.some((line) => line.includes("manifest metadata changed (contract)")));
 });
 
 test("upgrade diff treats reordered component and token names as unchanged sets", async (t) => {

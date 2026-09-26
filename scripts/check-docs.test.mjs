@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * V4 documentation validation tests (Node built-in test runner, no dependency).
+ * Documentation validation tests (Node built-in test runner, no dependency).
  *
  * Run directly:
- *   node --test scripts/check-v4-docs.test.mjs
+ *   node --test scripts/check-docs.test.mjs
  *
  * Every fixture root is a fresh unique directory under the OS temp directory and
  * is removed only by its own test. The repository, its `TEMP/` directory, and
@@ -19,10 +19,10 @@ import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { collectActiveDocs, runDocsCheck } from "./check-v4-docs.mjs";
+import { collectActiveDocs, runDocsCheck } from "./check-docs.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const cliPath = join(repoRoot, "scripts", "check-v4-docs.mjs");
+const cliPath = join(repoRoot, "scripts", "check-docs.mjs");
 
 function tempRoot(t) {
   const dir = mkdtempSync(join(tmpdir(), "prism-docs-"));
@@ -40,7 +40,7 @@ function writeRegistry(root, entries) {
   write(
     root,
     "config/design-systems.json",
-    `${JSON.stringify({ version: 2, designSystems: entries }, null, 2)}\n`,
+    `${JSON.stringify({ version: 3, designSystems: entries }, null, 2)}\n`,
   );
 }
 
@@ -54,7 +54,7 @@ function systemEntry(id) {
     version: "1.0.0",
     uiClass: `maivand-${id}-ui`,
     tokensExport: `${id.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())}Tokens`,
-    contract: "v4",
+    contractVersion: 4,
   };
 }
 
@@ -96,24 +96,6 @@ function templateReadme({ route = "/showcase/{{SYSTEM_ID}}" } = {}) {
   );
 }
 
-/** A minimal migration guide with every required section; `omit` drops one. */
-function migrationGuide({ omit = null, extra = "" } = {}) {
-  const sections = [
-    ["Что меняется", "Контракт сохраняется, манифест строго различает пары схем."],
-    ["Версии пакетов", "Текущие версии и цели плана."],
-    ["Путь миграции", "Обновите систему явной командой upgrade."],
-    ["CSS и Tailwind", "styles.css и мост /tailwind.css."],
-    ["Примеры до и после", "Только публичные импорты."],
-    ["Команды prism-ds и их границы", "Офлайн-чтение и явные изменения."],
-    ["Версионирование и выпуск", "Changesets управляет человек."],
-  ];
-  const body = sections
-    .filter(([title]) => title !== omit)
-    .map(([title, text]) => `## ${title}\n\n${text}`)
-    .join("\n\n");
-  return `# Миграция V2 → V4\n\n${body}\n${extra}`;
-}
-
 /** Copy one real package plus its registry entry into a temp root. */
 function copySystem(root, id) {
   const registry = JSON.parse(
@@ -134,7 +116,7 @@ function copySystem(root, id) {
 /* Current documentation                                                      */
 /* -------------------------------------------------------------------------- */
 
-test("the current repository documentation and V4 contracts pass", () => {
+test("the current repository documentation and contracts pass", () => {
   const result = runDocsCheck({ root: repoRoot });
   assert.equal(result.ok, true, result.failures.join("\n"));
   assert.deepEqual(result.stats.systems, ["system-a", "system-b"]);
@@ -146,8 +128,7 @@ test("the current repository documentation and V4 contracts pass", () => {
   assert.ok(result.documents.includes("templates/design-system/USAGE.md.template"));
   assert.ok(result.documents.includes("packages/system-a/USAGE.md"));
   assert.ok(result.documents.includes("fixtures/consumer-product/README.md"));
-  assert.ok(result.documents.includes("docs/v4/migration-v2-to-v4.md"));
-  assert.equal(result.stats.migration, true);
+  assert.ok(!result.documents.some((doc) => doc.startsWith("docs/archive/")));
   assert.ok(result.stats.links > 0);
 });
 
@@ -272,7 +253,7 @@ test("archive and skill documents and fenced code are excluded", (t) => {
   write(root, "docs/guide.md", "# Guide\n");
   write(root, "docs/v4/notes.md", "# Notes\n\n[guide](../guide.md)\n");
   write(root, "docs/archive/legacy.md", "# Legacy\n\n[broken](../missing.md)\n");
-  write(root, "docs/archive/v1/README", "# Archive\n\n## Quickstart\n");
+  write(root, "docs/archive/legacy/README", "# Archive\n\n## Quickstart\n");
   write(root, "skills/demo/SKILL.md", "# Skill\n\n[broken](../../missing.md)\n");
   write(root, "skills/demo/CHANGELOG.md", "[broken](../../missing.md)\n");
   write(
@@ -290,54 +271,6 @@ test("archive and skill documents and fenced code are excluded", (t) => {
 
   const result = runDocsCheck({ root, verifyContracts: false });
   assert.equal(result.ok, true, result.failures.join("\n"));
-});
-
-test("the migration guide keeps its essential headings and checked local links", (t) => {
-  const root = tempRoot(t);
-  writeRegistry(root, []);
-  write(root, "docs/guide.md", "# Guide\n");
-  write(
-    root,
-    "docs/v4/migration-v2-to-v4.md",
-    migrationGuide({ extra: "Общий гайд: [guide](../guide.md)." }),
-  );
-
-  const passed = runDocsCheck({ root, verifyContracts: false });
-  assert.equal(passed.ok, true, passed.failures.join("\n"));
-  assert.ok(passed.documents.includes("docs/v4/migration-v2-to-v4.md"));
-  assert.equal(passed.stats.migration, true);
-
-  write(
-    root,
-    "docs/v4/migration-v2-to-v4.md",
-    migrationGuide({ omit: "Команды prism-ds и их границы" }),
-  );
-  const headingFailure = runDocsCheck({ root, verifyContracts: false });
-  assert.equal(headingFailure.ok, false);
-  assert.ok(
-    headingFailure.failures.some(
-      (failure) =>
-        failure.includes("docs/v4/migration-v2-to-v4.md") &&
-        failure.includes('missing required heading "## Команды prism-ds и их границы"'),
-    ),
-    headingFailure.failures.join("\n"),
-  );
-
-  write(
-    root,
-    "docs/v4/migration-v2-to-v4.md",
-    migrationGuide({ extra: "Битый импорт: [missing](../missing.md)." }),
-  );
-  const linkFailure = runDocsCheck({ root, verifyContracts: false });
-  assert.equal(linkFailure.ok, false);
-  assert.ok(
-    linkFailure.failures.some((failure) =>
-      /docs\/v4\/migration-v2-to-v4\.md:\d+: local link target "\.\.\/missing\.md" does not resolve\./.test(
-        failure,
-      ),
-    ),
-    linkFailure.failures.join("\n"),
-  );
 });
 
 test("known Showcase routes are ignored while other root-absolute links fail", (t) => {
@@ -447,29 +380,6 @@ test("the template README must use {{SYSTEM_ID}} and a neutral manifest source",
   assert.equal(passing.ok, true, passing.failures.join("\n"));
 });
 
-test("V2 registry entries are not treated as V4 documentation or contract targets", (t) => {
-  const root = tempRoot(t);
-  copySystem(root, "system-a");
-  const registry = JSON.parse(readFileSync(join(root, "config", "design-systems.json"), "utf8"));
-  registry.designSystems.push({
-    id: "legacy",
-    name: "Legacy",
-    packageName: "@prism-system/ui-legacy",
-    packagePath: "packages/legacy",
-    version: "1.0.0",
-    contract: "v2",
-  });
-  write(root, "config/design-systems.json", `${JSON.stringify(registry, null, 2)}\n`);
-  write(root, "packages/legacy/README.md", "# Legacy\n\nNo V4 sections and no package here.\n");
-
-  // The V4 package is verified; the V2 entry must not require V4 sections and
-  // must not be routed through the V4 package contract checks.
-  const result = runDocsCheck({ root });
-  assert.equal(result.ok, true, result.failures.join("\n"));
-  assert.deepEqual(result.stats.systems, ["system-a"]);
-  assert.deepEqual(result.stats.contracts, ["system-a"]);
-});
-
 /* -------------------------------------------------------------------------- */
 /* Package catalog/export contract drift                                      */
 /* -------------------------------------------------------------------------- */
@@ -567,7 +477,7 @@ test("the CLI exits 0 on success and 1 on failures", (t) => {
     encoding: "utf8",
   });
   assert.equal(pass.status, 0, pass.stderr || pass.stdout);
-  assert.match(pass.stdout, /V4 documentation validation passed/);
+  assert.match(pass.stdout, /Documentation validation passed/);
 
   const failRoot = tempRoot(t);
   writeRegistry(failRoot, [systemEntry("docs-demo")]);
@@ -576,6 +486,6 @@ test("the CLI exits 0 on success and 1 on failures", (t) => {
     encoding: "utf8",
   });
   assert.equal(fail.status, 1, fail.stderr || fail.stdout);
-  assert.match(fail.stdout, /V4 documentation validation failed/);
+  assert.match(fail.stdout, /Documentation validation failed/);
   assert.match(fail.stdout, /missing required heading/);
 });

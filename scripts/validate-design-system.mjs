@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Deterministic validation for a registered design-system package (V2 Phase 4).
+ * Deterministic validation for a registered design-system package.
  *
  * This module is both a reusable library (imported by release tooling) and a
  * CLI (`pnpm ds:check <id>`). It never mutates the manifest or the package.
@@ -9,17 +9,14 @@
  * of the form `{ id, ok, failures, checks }`. Every check aggregates, so a
  * single run reports as many independent issues as it can detect.
  *
- * Validation is contract-aware. The registry entry's `contract` selects the
- * branch: `"v4"` uses the V4 per-component folder, token artifact, stylesheet
- * entry, and runtime `src/design-system.ts` checks; `"v2"` keeps the canonical
- * fourteen-component contract unchanged (a V1/missing contract still fails with
- * an actionable message instead of falling back to the historical eight).
- *
- * Shared V3 foundation checks: the generated `design-system.json` must match a
- * fresh build from the package-owned `design-system.source.json`, its declared
- * compound members must match the actual public API, and `package.json.version`
- * (authoritative) must equal the generated-manifest version, the runtime
- * `DesignSystem.version`, and the registry entry version.
+ * There is exactly one current contract. Validation covers the per-component
+ * folder layout, token artifacts, stylesheet entry, and the runtime
+ * `src/design-system.ts` call, plus the shared foundation checks: the generated
+ * `design-system.json` must match a fresh build from the package-owned
+ * `design-system.source.json`, its declared compound members must match the
+ * actual public API, and `package.json.version` (authoritative) must equal the
+ * generated-manifest version, the runtime `DesignSystem.version`, and the
+ * registry entry version.
  */
 
 import { spawnSync } from "node:child_process";
@@ -28,9 +25,9 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  CONTRACT_VERSION,
   MANIFEST_RELATIVE_PATH,
   PACKAGE_DIRECTORY,
-  V2_REQUIRED_COMPONENTS,
   assertSystemId,
   readJsonFile,
   readManifest,
@@ -42,70 +39,30 @@ import {
   toUiClass,
 } from "./register-design-system.mjs";
 import {
+  COMPONENT_NAMES,
   DESIGN_SYSTEM_MANIFEST_FILENAME,
   DESIGN_SYSTEM_SOURCE_FILENAME,
   MANIFEST_EXPORT_SUBPATH,
   MANIFEST_EXPORT_TARGET,
   TOKENS_SOURCE_FILENAME,
-  V4_COMPONENT_NAMES,
-  V4_REQUIRED_COMPONENTS,
   checkDesignSystemManifest,
   missingRequiredPackageFiles,
   readDesignSystemManifest,
-  readRuntimeDesignSystemVersion,
   readSourceDescriptor,
 } from "./design-system-manifest.mjs";
 
-/** The canonical fourteen V2 component names, in order. */
-export { V2_REQUIRED_COMPONENTS };
-
 /** Applications every registered system must be wired into. */
 export const APP_NAMES = Object.freeze(["showcase", "reference-app"]);
-
-/** Required non-source files for every package. */
-const REQUIRED_FILES = Object.freeze([
-  "package.json",
-  "README.md",
-  "AGENTS.md",
-  "LICENSE",
-  "tsconfig.json",
-  DESIGN_SYSTEM_MANIFEST_FILENAME,
-  DESIGN_SYSTEM_SOURCE_FILENAME,
-  "src/index.ts",
-  "src/tokens/index.ts",
-  "src/styles/index.css",
-]);
-
-/** Compound components whose static members are attached via `Object.assign`. */
-const COMPOUND_COMPONENTS = Object.freeze([
-  "Card",
-  "RadioGroup",
-  "Switch",
-  "Select",
-  "Tabs",
-  "Dialog",
-  "DropdownMenu",
-  "Tooltip",
-]);
-
-/** Component module candidates; generated packages emit `.tsx`. */
-const COMPONENT_MODULE_CANDIDATES = Object.freeze([
-  "src/components/index.tsx",
-  "src/components/index.ts",
-]);
-
-/** Required token groups; `typography` is optional. */
-const REQUIRED_TOKEN_GROUPS = Object.freeze(["color", "radius", "shadow", "motion"]);
 
 /** Package scripts that must exist and pass. */
 const REQUIRED_PACKAGE_SCRIPTS = Object.freeze(["typecheck", "lint", "build"]);
 
 /**
- * Required files for a V4 package. Every V4 package uses the per-component
- * folder layout from the V4 specification, ships a generated manifest and
- * generated token/bridge artifacts, and owns its package and TS config.
+ * Required files for a package. Every package uses the per-component folder
+ * layout from the specification, ships a generated manifest and generated
+ * token/bridge artifacts, and owns its package and TS config.
  */
-const V4_REQUIRED_FILES = Object.freeze([
+const REQUIRED_PACKAGE_FILES = Object.freeze([
   "package.json",
   "tsconfig.json",
   "README.md",
@@ -123,8 +80,8 @@ const V4_REQUIRED_FILES = Object.freeze([
   "src/tokens/index.ts",
 ]);
 
-/** Public export subpaths every V4 package must declare. */
-const V4_REQUIRED_EXPORTS = Object.freeze([
+/** Public export subpaths every package must declare. */
+const REQUIRED_EXPORTS = Object.freeze([
   ".",
   "./styles.css",
   "./tailwind.css",
@@ -133,26 +90,26 @@ const V4_REQUIRED_EXPORTS = Object.freeze([
 ]);
 
 /**
- * Exact `exports` targets for the V4 stylesheet and token subpaths, matching the
+ * Exact `exports` targets for the stylesheet and token subpaths, matching the
  * canonical package template and the files the build ships. A subpath that
  * points anywhere else would silently resolve to a missing or wrong artifact.
  */
-const V4_STYLES_EXPORT_TARGET = "./dist/index.css";
-const V4_TAILWIND_EXPORT_TARGET = "./dist/tailwind.css";
-const V4_TOKENS_EXPORT_TARGET = Object.freeze({
+const STYLES_EXPORT_TARGET = "./dist/index.css";
+const TAILWIND_EXPORT_TARGET = "./dist/tailwind.css";
+const TOKENS_EXPORT_TARGET = Object.freeze({
   types: "./dist/tokens/index.d.ts",
   import: "./dist/tokens/index.mjs",
   require: "./dist/tokens/index.js",
 });
 
-/** The legacy monolithic component module a V4 package must not ship. */
-const V4_LEGACY_COMPONENTS_MODULE = "src/components/index.tsx";
+/** The legacy monolithic component module a package must not ship. */
+const LEGACY_COMPONENTS_MODULE = "src/components/index.tsx";
 
-/** The V4 runtime identity helper the package-owned `src/design-system.ts` uses. */
-const V4_RUNTIME_HELPER = "defineDesignSystemV4";
+/** The runtime identity helper the package-owned `src/design-system.ts` uses. */
+const RUNTIME_HELPER = "defineDesignSystem";
 
 /** The named export the runtime `src/design-system.ts` must expose. */
-const V4_RUNTIME_EXPORT = "DesignSystem";
+const RUNTIME_EXPORT = "DesignSystem";
 
 function toPosix(path) {
   return path.split(sep).join("/");
@@ -182,10 +139,6 @@ function sameExportTarget(actual, expected) {
   return expectedKeys.every(
     (key, index) => actualKeys[index] === key && actual[key] === expected[key],
   );
-}
-
-function firstExisting(paths) {
-  return paths.find((candidate) => existsSync(candidate));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -242,75 +195,6 @@ function withoutExtension(path) {
   return path.replace(/\.(?:d\.)?(?:mjs|cjs|jsx|tsx|js|ts)$/, "");
 }
 
-/** Extract the object literal body following `marker` (string-aware). */
-function extractObjectBody(source, marker) {
-  const markerIndex = source.indexOf(marker);
-  if (markerIndex === -1) return null;
-  const open = source.indexOf("{", markerIndex);
-  if (open === -1) return null;
-  let depth = 0;
-  let quote = null;
-  for (let index = open; index < source.length; index += 1) {
-    const char = source[index];
-    if (quote) {
-      if (char === "\\") {
-        index += 1;
-      } else if (char === quote) {
-        quote = null;
-      }
-      continue;
-    }
-    if (char === '"' || char === "'" || char === "`") {
-      quote = char;
-      continue;
-    }
-    if (char === "{") depth += 1;
-    else if (char === "}") {
-      depth -= 1;
-      if (depth === 0) return source.slice(open + 1, index);
-    }
-  }
-  return null;
-}
-
-/** Keys declared at the top level of an object body. */
-function topLevelKeys(body) {
-  const keys = [];
-  let depth = 0;
-  let quote = null;
-  for (let index = 0; index < body.length; index += 1) {
-    const char = body[index];
-    if (quote) {
-      if (char === "\\") {
-        index += 1;
-      } else if (char === quote) {
-        quote = null;
-      }
-      continue;
-    }
-    if (char === '"' || char === "'" || char === "`") {
-      quote = char;
-      continue;
-    }
-    if (char === "{" || char === "[" || char === "(") {
-      depth += 1;
-      continue;
-    }
-    if (char === "}" || char === "]" || char === ")") {
-      depth -= 1;
-      continue;
-    }
-    if (depth === 0 && /[A-Za-z_$]/.test(char)) {
-      const match = /^([A-Za-z_$][\w$]*)\s*:/.exec(body.slice(index));
-      if (match) {
-        keys.push(match[1]);
-        index += match[0].length - 1;
-      }
-    }
-  }
-  return keys;
-}
-
 /** Recursively list files under `directory`. */
 function walkFiles(directory) {
   const files = [];
@@ -322,12 +206,8 @@ function walkFiles(directory) {
   return files;
 }
 
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 /* -------------------------------------------------------------------------- */
-/* V4 static runtime parser                                                   */
+/* Static runtime parser                                                      */
 /* -------------------------------------------------------------------------- */
 
 const IDENT_START = /[A-Za-z_$]/;
@@ -346,7 +226,7 @@ function toKebabCase(name) {
 }
 
 /**
- * Tokenize JS/TS source into the minimal stream the V4 runtime parser needs:
+ * Tokenize JS/TS source into the minimal stream the runtime parser needs:
  * comments dropped, string/template literals carrying their decoded value, and
  * every other character an identifier, number, or punctuation token. Template
  * substitutions are flagged so a dynamic value is never mistaken for static.
@@ -472,14 +352,14 @@ function readTopLevelProperties(tokens, open, close) {
     }
     if (token.type === "punct" && (token.value === "." || token.value === "[")) {
       throw new Error(
-        `${V4_RUNTIME_HELPER}(...) contains a spread or computed key; declare each property statically.`,
+        `${RUNTIME_HELPER}(...) contains a spread or computed key; declare each property statically.`,
       );
     }
     const isKey = token.type === "ident" || token.type === "string";
     const isShorthand = isKey && (tokens[index + 1]?.value === "," || index + 1 === close);
     if (!isKey || (!isShorthand && tokens[index + 1]?.value !== ":")) {
       throw new Error(
-        `${V4_RUNTIME_HELPER}(...) contains an unsupported top-level property form near ` +
+        `${RUNTIME_HELPER}(...) contains an unsupported top-level property form near ` +
           `"${token.value}".`,
       );
     }
@@ -640,7 +520,7 @@ function resolveComponentsEntries(tokens, property) {
   if (first?.value === "{") {
     const close = matchBrace(tokens, property.valueStart);
     if (close === -1 || close > property.valueEnd) {
-      throw new Error(`${V4_RUNTIME_HELPER}(...) "components" object is unterminated.`);
+      throw new Error(`${RUNTIME_HELPER}(...) "components" object is unterminated.`);
     }
     return readInlineObjectEntries(tokens, property.valueStart, close);
   }
@@ -648,36 +528,35 @@ function resolveComponentsEntries(tokens, property) {
     const entries = findLocalObjectLiteral(tokens, first.value);
     if (entries) return entries;
     throw new Error(
-      `${V4_RUNTIME_HELPER}(...) "components" identifier "${first.value}" must reference a ` +
+      `${RUNTIME_HELPER}(...) "components" identifier "${first.value}" must reference a ` +
         `static object literal declared with const in the same file.`,
     );
   }
   throw new Error(
-    `${V4_RUNTIME_HELPER}(...) "components" must be a static object literal or a const object-literal identifier.`,
+    `${RUNTIME_HELPER}(...) "components" must be a static object literal or a const object-literal identifier.`,
   );
 }
 
 /**
- * Parse the package-owned V4 `src/design-system.ts` runtime identity, version,
- * marker, and component map without executing the module. Only the static
- * object-literal form is accepted.
+ * Parse the package-owned `src/design-system.ts` runtime identity, version,
+ * contract marker, and component map without executing the module. Only the
+ * static object-literal form is accepted.
  */
-function parseV4RuntimeSource(source) {
+function parseRuntimeSource(source) {
   const tokens = tokenizeSource(source);
-  const span = findCallObject(tokens, V4_RUNTIME_HELPER);
+  const span = findCallObject(tokens, RUNTIME_HELPER);
   const properties = readTopLevelProperties(tokens, span.open, span.close);
   const byKey = new Map();
   for (const property of properties) {
     if (byKey.has(property.key)) {
-      throw new Error(`${V4_RUNTIME_HELPER}(...) declares duplicate property "${property.key}".`);
+      throw new Error(`${RUNTIME_HELPER}(...) declares duplicate property "${property.key}".`);
     }
     byKey.set(property.key, property);
   }
 
   const readStaticString = (key) => {
     const property = byKey.get(key);
-    if (!property)
-      throw new Error(`${V4_RUNTIME_HELPER}(...) is missing required property "${key}".`);
+    if (!property) throw new Error(`${RUNTIME_HELPER}(...) is missing required property "${key}".`);
     const token = tokens[property.valueStart];
     if (
       property.valueStart !== property.valueEnd ||
@@ -685,23 +564,35 @@ function parseV4RuntimeSource(source) {
       token.interpolated
     ) {
       throw new Error(
-        `${V4_RUNTIME_HELPER}(...) property "${key}" must be exactly one static string literal.`,
+        `${RUNTIME_HELPER}(...) property "${key}" must be exactly one static string literal.`,
       );
     }
     return token.value;
   };
 
-  const componentContract = readStaticString("componentContract");
-  if (componentContract !== "v4") {
-    throw new Error(
-      `${V4_RUNTIME_HELPER}(...) componentContract must be "v4" (received ${JSON.stringify(
-        componentContract,
-      )}).`,
-    );
-  }
+  const readContractVersion = () => {
+    const property = byKey.get("contractVersion");
+    if (!property) {
+      throw new Error(`${RUNTIME_HELPER}(...) is missing required property "contractVersion".`);
+    }
+    const token = tokens[property.valueStart];
+    if (
+      property.valueStart !== property.valueEnd ||
+      token?.type !== "number" ||
+      token.value.trim() !== String(CONTRACT_VERSION)
+    ) {
+      throw new Error(
+        `${RUNTIME_HELPER}(...) contractVersion must be the numeric ${CONTRACT_VERSION} ` +
+          `(received ${JSON.stringify(token?.value ?? null)}).`,
+      );
+    }
+    return CONTRACT_VERSION;
+  };
+
+  const contractVersion = readContractVersion();
   const componentsProperty = byKey.get("components");
   if (!componentsProperty) {
-    throw new Error(`${V4_RUNTIME_HELPER}(...) is missing required property "components".`);
+    throw new Error(`${RUNTIME_HELPER}(...) is missing required property "components".`);
   }
 
   return {
@@ -709,7 +600,7 @@ function parseV4RuntimeSource(source) {
     name: readStaticString("name"),
     packageName: readStaticString("packageName"),
     version: readStaticString("version"),
-    componentContract,
+    contractVersion,
     components: resolveComponentsEntries(tokens, componentsProperty),
   };
 }
@@ -777,77 +668,13 @@ function createReporter() {
   return { failures, checks, fail, check };
 }
 
-/**
- * Read the raw manifest entries without validation, so a V1/missing contract
- * can be reported directly instead of surfacing as a generic normalization
- * error.
- */
-function readRawManifestEntries(manifestPath) {
-  try {
-    if (!existsSync(manifestPath)) return [];
-    const raw = readJsonFile(manifestPath);
-    return isPlainObject(raw) && Array.isArray(raw.designSystems) ? raw.designSystems : [];
-  } catch {
-    return [];
-  }
-}
-
-function findUnsupportedContractEntry(manifestPath) {
-  for (const entry of readRawManifestEntries(manifestPath)) {
-    if (!isPlainObject(entry)) continue;
-    if (entry.contract !== "v2") {
-      return {
-        id: typeof entry.id === "string" ? entry.id : "(unknown)",
-        contract: entry.contract,
-      };
-    }
-  }
-  return null;
-}
-
-function unsupportedContractMessage(context, id, contract) {
-  const shown = contract === undefined ? "(missing)" : JSON.stringify(contract);
-  return (
-    `Manifest entry "${id}" has contract ${shown}; V2 tooling requires contract "v2" and ` +
-    `no longer supports V1. Migrate the package to the V2 contract, then set ` +
-    `"contract": "v2" for "${id}" in ${displayPath(context.root, context.manifestPath)} ` +
-    `(for example by re-running "pnpm ds:register ${id}").`
-  );
-}
-
 function validateManifestEntry(context, fail) {
-  const rawEntries = readRawManifestEntries(context.manifestPath);
-  const rawTarget = rawEntries.find((entry) => isPlainObject(entry) && entry.id === context.id);
-
-  // V4 packages dispatch to a separate, additive validation branch. The V2
-  // reader cannot normalize a V4 entry yet, so the contract is read from the
-  // raw registry entry and validated directly.
-  if (rawTarget && rawTarget.contract === "v4") {
-    context.entry = rawTarget;
-    context.contract = "v4";
-    context.requiredComponents = V4_REQUIRED_COMPONENTS;
-    validateV4CanonicalEntry(context, fail);
-    return;
-  }
-
   let manifest;
   try {
     manifest = readManifest({ manifestPath: context.manifestPath });
   } catch (error) {
-    // A registry that also holds V4 entries is not normalizable by the V2
-    // reader; validate the V2 target from its raw entry instead so a mixed
-    // registry does not break existing V2 systems.
-    if (rawTarget && rawTarget.contract === "v2") {
-      manifest = { version: 2, designSystems: rawEntries.filter(isPlainObject) };
-    } else {
-      const unsupported = findUnsupportedContractEntry(context.manifestPath);
-      if (unsupported) {
-        fail(unsupportedContractMessage(context, unsupported.id, unsupported.contract));
-      } else {
-        fail(`Invalid design-system manifest: ${error.message}`);
-      }
-      return;
-    }
+    fail(`Invalid design-system manifest: ${error.message}`);
+    return;
   }
   context.manifest = manifest;
 
@@ -861,27 +688,17 @@ function validateManifestEntry(context, fail) {
     );
     return;
   }
-  if (entry.contract !== "v2") {
-    fail(unsupportedContractMessage(context, entry.id, entry.contract));
+  context.entry = entry;
+  if (entry.contractVersion !== CONTRACT_VERSION) {
+    fail(
+      `Manifest entry "${entry.id}" has contractVersion ${JSON.stringify(
+        entry.contractVersion ?? null,
+      )}; the only current contract is the numeric contractVersion: ${CONTRACT_VERSION}. ` +
+        `Re-run "pnpm ds:register ${entry.id}" to synchronize the registry.`,
+    );
     return;
   }
-  context.entry = entry;
-  context.contract = "v2";
-  context.requiredComponents = V2_REQUIRED_COMPONENTS;
-
-  const canonical = {
-    packageName: context.packageName,
-    packagePath: `${PACKAGE_DIRECTORY}/${context.id}`,
-    uiClass: context.uiClass,
-    tokensExport: context.tokensExport,
-  };
-  for (const [field, expected] of Object.entries(canonical)) {
-    if (entry[field] !== expected) {
-      fail(
-        `Manifest ${field} "${entry[field]}" is not canonical for "${context.id}" (expected "${expected}").`,
-      );
-    }
-  }
+  validateCanonicalEntry(context, fail);
 }
 
 function validatePackageMetadata(context, fail) {
@@ -921,247 +738,12 @@ function validatePackageMetadata(context, fail) {
   }
 }
 
-function validateRequiredFiles(context, fail) {
-  if (!context.packageDir) return;
-  for (const file of REQUIRED_FILES) {
-    if (!existsSync(join(context.packageDir, file))) fail(`Missing required file: ${file}`);
-  }
-  if (!firstExisting(COMPONENT_MODULE_CANDIDATES.map((file) => join(context.packageDir, file)))) {
-    fail(`Missing required file: ${COMPONENT_MODULE_CANDIDATES[0]}`);
-  }
-  // The normalized design brief is a required V2 artifact for every package.
-  if (!existsSync(join(context.packageDir, "design-brief.json"))) {
-    fail("Missing required file: design-brief.json");
-  }
-}
-
-function validateNamingAndExports(context, fail) {
-  if (!context.pkg) return;
-  const exportsField = context.pkg.exports;
-  if (!isPlainObject(exportsField)) {
-    fail('package.json is missing an "exports" map.');
-    return;
-  }
-  for (const key of [".", "./styles.css", "./tokens", MANIFEST_EXPORT_SUBPATH]) {
-    if (!(key in exportsField)) fail(`package.json exports is missing "${key}".`);
-  }
-  if (exportsField[MANIFEST_EXPORT_SUBPATH] !== MANIFEST_EXPORT_TARGET) {
-    fail(
-      `package.json exports["${MANIFEST_EXPORT_SUBPATH}"] must be exactly ` +
-        `${JSON.stringify(MANIFEST_EXPORT_TARGET)} (received ${JSON.stringify(
-          exportsField[MANIFEST_EXPORT_SUBPATH] ?? null,
-        )}).`,
-    );
-  }
-}
-
 /** The published tarball must include the shipped manifest, docs, and license. */
 function validatePackageFilesField(context, fail) {
   if (!context.pkg) return;
   const missing = missingRequiredPackageFiles(context.pkg);
   if (missing.length > 0) {
     fail(`package.json "files" is missing required entries: ${missing.join(", ")}.`);
-  }
-}
-
-function validateContractMetadata(context, fail) {
-  if (!context.packageDir) return;
-  const metadata = context.prismSystem;
-
-  if (!metadata) {
-    fail('V2 package is missing the "prismSystem" block in package.json.');
-  } else {
-    if (metadata.contract !== "v2") {
-      fail(
-        `V2 package "prismSystem.contract" is ${JSON.stringify(
-          metadata.contract ?? null,
-        )} but must be "v2". V1 is no longer supported.`,
-      );
-    }
-    if (metadata.uiClass !== context.entry.uiClass) {
-      fail(
-        `V2 package "prismSystem.uiClass" "${metadata.uiClass ?? "(missing)"}" does not match manifest "${context.entry.uiClass}".`,
-      );
-    }
-    if (metadata.tokensExport !== context.entry.tokensExport) {
-      fail(
-        `V2 package "prismSystem.tokensExport" "${metadata.tokensExport ?? "(missing)"}" does not match manifest "${context.entry.tokensExport}".`,
-      );
-    }
-    if (metadata.name !== context.entry.name) {
-      fail(
-        `V2 package "prismSystem.name" "${metadata.name ?? "(missing)"}" does not match manifest "${context.entry.name}".`,
-      );
-    }
-  }
-
-  const indexPath = join(context.packageDir, "src/index.ts");
-  if (!existsSync(indexPath)) return;
-  const source = readFileSync(indexPath, "utf8");
-  if (!source.includes("defineDesignSystemV2")) {
-    fail("V2 package src/index.ts must use defineDesignSystemV2.");
-  }
-  if (!/componentContract\s*:\s*["']v2["']/.test(source)) {
-    fail('V2 package src/index.ts must declare componentContract: "v2".');
-  }
-}
-
-/** Keys of the object literal passed to `Object.assign` for a compound root. */
-function readCompoundMembers(source, component) {
-  const body = extractObjectBody(source, `export const ${component} = Object.assign`);
-  if (body === null) return null;
-  return topLevelKeys(body);
-}
-
-/**
- * Validate the generated `design-system.json` against a fresh build, and check
- * that the explicitly declared compound members match the package's actual
- * public API (the `Object.assign` static members). Variants and sizes are
- * declared metadata and are never inferred from CSS or source regexes.
- */
-function validateGeneratedManifest(context, fail) {
-  if (!context.packageDir) return;
-  const result = checkDesignSystemManifest({ id: context.id, packageDir: context.packageDir });
-  context.designSystemManifest = readDesignSystemManifest(context.packageDir);
-  if (!result.ok) {
-    for (const failure of result.failures) fail(failure);
-    return;
-  }
-
-  const componentsPath = firstExisting(
-    COMPONENT_MODULE_CANDIDATES.map((file) => join(context.packageDir, file)),
-  );
-  if (!componentsPath) return;
-  const source = readFileSync(componentsPath, "utf8");
-  const declaredComponents = result.actual?.components ?? {};
-  for (const component of COMPOUND_COMPONENTS) {
-    const declared = declaredComponents[component]?.members ?? [];
-    const actual = readCompoundMembers(source, component);
-    if (actual === null) {
-      fail(
-        `Cannot read compound members for "${component}" from ${displayPath(
-          context.root,
-          componentsPath,
-        )}; expected "export const ${component} = Object.assign".`,
-      );
-      continue;
-    }
-    const missing = declared.filter((member) => !actual.includes(member));
-    const extra = actual.filter((member) => !declared.includes(member));
-    if (missing.length > 0 || extra.length > 0) {
-      fail(
-        `Compound members for "${component}" in ${DESIGN_SYSTEM_SOURCE_FILENAME} do not match the ` +
-          `package API.${missing.length > 0 ? ` Missing: ${missing.join(", ")}.` : ""}${
-            extra.length > 0 ? ` Undeclared: ${extra.join(", ")}.` : ""
-          }`,
-      );
-    }
-  }
-}
-
-/**
- * Enforce version equality. `package.json.version` is authoritative: the
- * generated manifest, the runtime `DesignSystem.version`, and the registry
- * entry must all match it.
- */
-function validateVersionConsistency(context, fail) {
-  if (!context.pkg) return;
-  const version = context.pkg.version;
-  if (typeof version !== "string" || version.trim().length === 0) {
-    fail('package.json is missing a non-empty "version".');
-    return;
-  }
-  const manifest = context.designSystemManifest;
-  if (manifest && manifest.version !== version) {
-    fail(
-      `Generated manifest version "${manifest.version}" does not match package.json version ` +
-        `"${version}". Regenerate with "pnpm ds:manifest ${context.id} --write".`,
-    );
-  }
-  const indexPath = join(context.packageDir, "src/index.ts");
-  if (!existsSync(indexPath)) return;
-  let runtime;
-  try {
-    runtime = readRuntimeDesignSystemVersion(readFileSync(indexPath, "utf8"));
-  } catch (error) {
-    fail(`Runtime version: ${error.message}`);
-    return;
-  }
-  if (runtime !== version) {
-    fail(
-      `Runtime DesignSystem.version "${runtime}" does not match package.json version "${version}". ` +
-        `package.json.version is authoritative.`,
-    );
-  }
-}
-
-function validateComponentExports(context, fail) {
-  if (!context.packageDir) return;
-  const componentsPath = firstExisting(
-    COMPONENT_MODULE_CANDIDATES.map((file) => join(context.packageDir, file)),
-  );
-  if (!componentsPath) return;
-
-  const componentExports = collectExports(readFileSync(componentsPath, "utf8"));
-  for (const name of context.requiredComponents) {
-    if (!componentExports.names.has(name)) fail(`Missing required component: ${name}`);
-  }
-
-  const indexPath = join(context.packageDir, "src/index.ts");
-  if (!existsSync(indexPath)) return;
-  const indexExports = collectExports(readFileSync(indexPath, "utf8"));
-  const target = withoutExtension(componentsPath);
-  const reexportsComponents = indexExports.starReexports.some(
-    (specifier) => withoutExtension(resolve(dirname(indexPath), specifier)) === target,
-  );
-  if (reexportsComponents) return;
-  for (const name of context.requiredComponents) {
-    if (!indexExports.names.has(name)) {
-      fail(`Package public exports are missing required component: ${name}`);
-    }
-  }
-}
-
-function validateTokensAndTheme(context, fail) {
-  if (!context.packageDir) return;
-
-  const tokensPath = join(context.packageDir, "src/tokens/index.ts");
-  if (existsSync(tokensPath)) {
-    const source = readFileSync(tokensPath, "utf8");
-    const exportPattern = new RegExp(`export\\s+const\\s+${escapeRegExp(context.tokensExport)}\\b`);
-    if (!exportPattern.test(source)) {
-      fail(`Token module does not export "${context.tokensExport}".`);
-    } else {
-      const body = extractObjectBody(source, `export const ${context.tokensExport}`);
-      if (body === null) {
-        fail(`Token export "${context.tokensExport}" must be an object literal.`);
-      } else {
-        const keys = topLevelKeys(body);
-        for (const group of REQUIRED_TOKEN_GROUPS) {
-          if (!keys.includes(group)) {
-            fail(`Token export "${context.tokensExport}" is missing the "${group}" group.`);
-          }
-        }
-      }
-    }
-  }
-
-  const stylesPath = join(context.packageDir, "src/styles/index.css");
-  if (existsSync(stylesPath)) {
-    const css = readFileSync(stylesPath, "utf8");
-    if (!css.includes(`.${context.uiClass}`)) {
-      fail(`Stylesheet does not scope rules under ".${context.uiClass}".`);
-    }
-  }
-
-  const componentsPath = firstExisting(
-    COMPONENT_MODULE_CANDIDATES.map((file) => join(context.packageDir, file)),
-  );
-  if (componentsPath) {
-    const source = readFileSync(componentsPath, "utf8");
-    if (!source.includes(context.uiClass)) {
-      fail(`Components do not apply the scoped UI class "${context.uiClass}".`);
-    }
   }
 }
 
@@ -1184,149 +766,6 @@ function validatePackageBoundaries(context, fail) {
           `Relative import escapes the package: "${specifier}" in ${displayPath(context.root, file)}.`,
         );
       }
-    }
-  }
-}
-
-function validateDesignBrief(context, fail) {
-  if (!context.packageDir) return;
-  const briefPath = join(context.packageDir, "design-brief.json");
-  if (!existsSync(briefPath)) return;
-  let brief;
-  try {
-    brief = readJsonFile(briefPath);
-  } catch (error) {
-    fail(`Invalid design-brief.json: ${error.message}`);
-    return;
-  }
-  if (!isPlainObject(brief)) fail("design-brief.json must be a JSON object.");
-}
-
-function validateDocumentation(context, fail) {
-  if (!context.packageDir) return;
-
-  const readmePath = join(context.packageDir, "README.md");
-  if (existsSync(readmePath)) {
-    const readme = readFileSync(readmePath, "utf8");
-    if (readme.trim().length === 0) fail("README.md is empty.");
-    if (!readme.includes(context.packageName)) {
-      fail(`README.md does not mention the package name "${context.packageName}".`);
-    }
-    const missing = context.requiredComponents.filter(
-      (name) => !new RegExp(`\\b${escapeRegExp(name)}\\b`).test(readme),
-    );
-    if (missing.length > 0) {
-      fail(`README.md does not list required component(s): ${missing.join(", ")}.`);
-    }
-    if (!/installation|pnpm add/i.test(readme)) {
-      fail("README.md is missing installation guidance.");
-    }
-    if (!/design brief|visual direction/i.test(readme)) {
-      fail("README.md is missing the design brief / visual direction.");
-    }
-  }
-
-  const agentsPath = join(context.packageDir, "AGENTS.md");
-  if (existsSync(agentsPath)) {
-    const agents = readFileSync(agentsPath, "utf8");
-    if (agents.trim().length === 0) fail("AGENTS.md is empty.");
-    if (!agents.includes(context.packageName) && !agents.includes(context.entry.name)) {
-      fail(`AGENTS.md does not mention "${context.entry.name}" or "${context.packageName}".`);
-    }
-    const missing = context.requiredComponents.filter(
-      (name) => !new RegExp(`\\b${escapeRegExp(name)}\\b`).test(agents),
-    );
-    if (missing.length > 0) {
-      fail(`AGENTS.md does not list required component(s): ${missing.join(", ")}.`);
-    }
-    if (!/extension|extend|additive/i.test(agents)) {
-      fail("AGENTS.md is missing extension guidance.");
-    }
-    if (!/visual direction|design brief/i.test(agents)) {
-      fail("AGENTS.md is missing the visual direction.");
-    }
-  }
-}
-
-function validateApp(context, appName, fail) {
-  const appDir = join(context.root, "apps", appName);
-  if (!existsSync(appDir)) {
-    fail(
-      `App integration: "${appName}" app is missing at ${displayPath(
-        context.root,
-        appDir,
-      )}; cannot verify compatibility in an isolated root.`,
-    );
-    return;
-  }
-
-  const registryPath = join(appDir, "app", "registry.ts");
-  const layoutPath = join(appDir, "app", "layout.tsx");
-  const packageJsonPath = join(appDir, "package.json");
-  const nextConfigPath = join(appDir, "next.config.mjs");
-
-  for (const [label, file] of [
-    ["registry", registryPath],
-    ["layout", layoutPath],
-    ["package.json", packageJsonPath],
-    ["next.config.mjs", nextConfigPath],
-  ]) {
-    if (!existsSync(file)) {
-      fail(`App integration: ${appName} ${label} not found at ${displayPath(context.root, file)}.`);
-    }
-  }
-
-  if (existsSync(registryPath)) {
-    const source = readFileSync(registryPath, "utf8");
-    if (!source.includes(context.packageName)) {
-      fail(`App integration: ${appName} registry does not import "${context.packageName}".`);
-    }
-    if (!source.includes(context.entry.tokensExport)) {
-      fail(
-        `App integration: ${appName} registry does not reference token export "${context.entry.tokensExport}".`,
-      );
-    }
-    if (!source.includes(context.entry.uiClass)) {
-      fail(
-        `App integration: ${appName} registry does not use ui class "${context.entry.uiClass}".`,
-      );
-    }
-  }
-
-  if (existsSync(layoutPath)) {
-    const source = readFileSync(layoutPath, "utf8");
-    if (!source.includes(`${context.packageName}/styles.css`)) {
-      fail(
-        `App integration: ${appName} layout does not import "${context.packageName}/styles.css".`,
-      );
-    }
-  }
-
-  if (existsSync(packageJsonPath)) {
-    let appPkg;
-    try {
-      appPkg = readJsonFile(packageJsonPath);
-    } catch (error) {
-      fail(
-        `App integration: invalid ${displayPath(context.root, packageJsonPath)}: ${error.message}`,
-      );
-    }
-    if (appPkg) {
-      const dependencies = { ...appPkg.dependencies, ...appPkg.devDependencies };
-      if (!(context.packageName in dependencies)) {
-        fail(
-          `App integration: ${appName} package.json is missing dependency "${context.packageName}".`,
-        );
-      }
-    }
-  }
-
-  if (existsSync(nextConfigPath)) {
-    const source = readFileSync(nextConfigPath, "utf8");
-    if (!source.includes(context.packageName)) {
-      fail(
-        `App integration: ${appName} next.config.mjs is missing "${context.packageName}" in transpilePackages.`,
-      );
     }
   }
 }
@@ -1387,11 +826,11 @@ function runAppCommands(context, binary, fail) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* V4 validation                                                              */
+/* Validation                                                                 */
 /* -------------------------------------------------------------------------- */
 
-/** Validate the canonical identity fields of a raw V4 registry entry. */
-function validateV4CanonicalEntry(context, fail) {
+/** Validate the canonical identity fields of a raw registry entry. */
+function validateCanonicalEntry(context, fail) {
   const entry = context.entry;
   const canonical = {
     packageName: context.packageName,
@@ -1411,23 +850,23 @@ function validateV4CanonicalEntry(context, fail) {
   }
 }
 
-/** Required files for the V4 per-component folder layout. */
-function validateV4RequiredFiles(context, fail) {
+/** Required files for the per-component folder layout. */
+function validateRequiredPackageFiles(context, fail) {
   if (!context.packageDir) return;
-  for (const file of V4_REQUIRED_FILES) {
+  for (const file of REQUIRED_PACKAGE_FILES) {
     if (!existsSync(join(context.packageDir, file))) fail(`Missing required file: ${file}`);
   }
 }
 
-/** Required V4 public export subpaths. */
-function validateV4NamingAndExports(context, fail) {
+/** Required public export subpaths. */
+function validateNamingAndExports(context, fail) {
   if (!context.pkg) return;
   const exportsField = context.pkg.exports;
   if (!isPlainObject(exportsField)) {
     fail('package.json is missing an "exports" map.');
     return;
   }
-  for (const key of V4_REQUIRED_EXPORTS) {
+  for (const key of REQUIRED_EXPORTS) {
     if (!(key in exportsField)) fail(`package.json exports is missing "${key}".`);
   }
   if (exportsField[MANIFEST_EXPORT_SUBPATH] !== MANIFEST_EXPORT_TARGET) {
@@ -1439,9 +878,9 @@ function validateV4NamingAndExports(context, fail) {
     );
   }
   for (const [subpath, expected] of [
-    ["./styles.css", V4_STYLES_EXPORT_TARGET],
-    ["./tailwind.css", V4_TAILWIND_EXPORT_TARGET],
-    ["./tokens", V4_TOKENS_EXPORT_TARGET],
+    ["./styles.css", STYLES_EXPORT_TARGET],
+    ["./tailwind.css", TAILWIND_EXPORT_TARGET],
+    ["./tokens", TOKENS_EXPORT_TARGET],
   ]) {
     // A missing subpath is already reported above; only validate the target.
     if (!(subpath in exportsField)) continue;
@@ -1455,44 +894,37 @@ function validateV4NamingAndExports(context, fail) {
   }
 }
 
-/** The package-owned `prismSystem` block must be a complete V4 block. */
-function validateV4ContractMetadata(context, fail) {
+/** The package-owned `prismSystem` block must be a complete block. */
+function validateContractMetadata(context, fail) {
   if (!context.packageDir) return;
   const metadata = context.prismSystem;
   if (!metadata) {
-    fail('V4 package is missing the "prismSystem" block in package.json.');
+    fail('Package is missing the "prismSystem" block in package.json.');
     return;
-  }
-  if (metadata.contract !== "v4") {
-    fail(
-      `V4 package "prismSystem.contract" is ${JSON.stringify(
-        metadata.contract ?? null,
-      )} but must be "v4".`,
-    );
   }
   if (metadata.uiClass !== context.entry.uiClass) {
     fail(
-      `V4 package "prismSystem.uiClass" "${metadata.uiClass ?? "(missing)"}" does not match manifest "${context.entry.uiClass}".`,
+      `Package "prismSystem.uiClass" "${metadata.uiClass ?? "(missing)"}" does not match manifest "${context.entry.uiClass}".`,
     );
   }
   if (metadata.tokensExport !== context.entry.tokensExport) {
     fail(
-      `V4 package "prismSystem.tokensExport" "${metadata.tokensExport ?? "(missing)"}" does not match manifest "${context.entry.tokensExport}".`,
+      `Package "prismSystem.tokensExport" "${metadata.tokensExport ?? "(missing)"}" does not match manifest "${context.entry.tokensExport}".`,
     );
   }
   if (metadata.name !== context.entry.name) {
     fail(
-      `V4 package "prismSystem.name" "${metadata.name ?? "(missing)"}" does not match manifest "${context.entry.name}".`,
+      `Package "prismSystem.name" "${metadata.name ?? "(missing)"}" does not match manifest "${context.entry.name}".`,
     );
   }
 }
 
 /**
- * Validate the generated V4 manifest against a fresh build from the package's
+ * Validate the generated manifest against a fresh build from the package's
  * source descriptor and `package.json` version. Token artifact drift/missing
  * checks are owned by `checkDesignSystemManifest`; this only calls it.
  */
-function validateV4GeneratedManifest(context, fail) {
+function validateGeneratedManifest(context, fail) {
   if (!context.packageDir) return;
   const result = checkDesignSystemManifest({ id: context.id, packageDir: context.packageDir });
   context.designSystemManifest = readDesignSystemManifest(context.packageDir);
@@ -1504,12 +936,12 @@ function validateV4GeneratedManifest(context, fail) {
     context.descriptor = readSourceDescriptor(context.packageDir);
     context.declaredComponents = Object.keys(context.descriptor.components);
   } catch (error) {
-    fail(`V4 source descriptor: ${error.message}`);
+    fail(`Source descriptor: ${error.message}`);
   }
 }
 
-/** Enforce V4 version equality across package, manifest, and runtime. */
-function validateV4VersionConsistency(context, fail) {
+/** Enforce version equality across package, manifest, and runtime. */
+function validateVersionConsistency(context, fail) {
   if (!context.pkg) return;
   const version = context.pkg.version;
   if (typeof version !== "string" || version.trim().length === 0) {
@@ -1527,7 +959,7 @@ function validateV4VersionConsistency(context, fail) {
   if (!existsSync(runtimePath)) return;
   let runtime;
   try {
-    runtime = parseV4RuntimeSource(readFileSync(runtimePath, "utf8"));
+    runtime = parseRuntimeSource(readFileSync(runtimePath, "utf8"));
   } catch (error) {
     fail(`Runtime version: ${error.message}`);
     return;
@@ -1546,12 +978,12 @@ function validateV4VersionConsistency(context, fail) {
  * module, a scoped stylesheet, and a barrel; the legacy monolithic module is
  * rejected.
  */
-function validateV4ComponentFolders(context, fail) {
+function validateComponentFolders(context, fail) {
   if (!context.packageDir || !context.descriptor) return;
   const componentsDir = join(context.packageDir, "src", "components");
-  if (existsSync(join(context.packageDir, V4_LEGACY_COMPONENTS_MODULE))) {
+  if (existsSync(join(context.packageDir, LEGACY_COMPONENTS_MODULE))) {
     fail(
-      `${V4_LEGACY_COMPONENTS_MODULE} (legacy monolithic component module) is not allowed; ` +
+      `${LEGACY_COMPONENTS_MODULE} (legacy monolithic component module) is not allowed; ` +
         `each component must live in its own src/components/<component>/ folder.`,
     );
   }
@@ -1598,9 +1030,9 @@ function validateV4ComponentFolders(context, fail) {
 
 /**
  * The public component barrel must export every declared component and no
- * undeclared V4 component. Star re-exports into component folders are resolved.
+ * undeclared component. Star re-exports into component folders are resolved.
  */
-function validateV4ComponentBarrel(context, fail) {
+function validateComponentBarrel(context, fail) {
   if (!context.packageDir || !context.descriptor) return;
   const barrelPath = join(context.packageDir, "src", "components", "index.ts");
   if (!existsSync(barrelPath)) return;
@@ -1629,10 +1061,10 @@ function validateV4ComponentBarrel(context, fail) {
     fail(`src/components/index.ts is missing declared component exports: ${missing.join(", ")}.`);
   }
   const undeclared = [...names].filter(
-    (name) => V4_COMPONENT_NAMES.includes(name) && !declared.includes(name),
+    (name) => COMPONENT_NAMES.includes(name) && !declared.includes(name),
   );
   if (undeclared.length > 0) {
-    fail(`src/components/index.ts exports undeclared V4 component(s): ${undeclared.join(", ")}.`);
+    fail(`src/components/index.ts exports undeclared component(s): ${undeclared.join(", ")}.`);
   }
 }
 
@@ -1640,7 +1072,7 @@ function validateV4ComponentBarrel(context, fail) {
  * Declared compound members must match the component's static compound exports
  * (`Object.assign`) without CSS or source-regex inference beyond that module.
  */
-function validateV4CompoundMembers(context, fail) {
+function validateCompoundMembers(context, fail) {
   if (!context.packageDir || !context.descriptor) return;
   for (const name of context.declaredComponents) {
     const declared = context.descriptor.components[name]?.members ?? [];
@@ -1693,7 +1125,7 @@ function validateV4CompoundMembers(context, fail) {
  * `src/styles/index.css` must import the generated `tokens.css` and exactly the
  * declared component stylesheets, in canonical descriptor order.
  */
-function validateV4Stylesheet(context, fail) {
+function validateStylesheet(context, fail) {
   if (!context.packageDir || !context.descriptor) return;
   const stylesPath = join(context.packageDir, "src", "styles", "index.css");
   if (!existsSync(stylesPath)) return;
@@ -1733,7 +1165,7 @@ function validateV4Stylesheet(context, fail) {
  * re-export of a different symbol does not satisfy the check.
  */
 function reexportsRuntimeDesignSystem(indexPath, source) {
-  if (matches(EXPORT_DECL_PATTERN, source).includes(V4_RUNTIME_EXPORT)) return true;
+  if (matches(EXPORT_DECL_PATTERN, source).includes(RUNTIME_EXPORT)) return true;
 
   const runtimeBase = withoutExtension(join(dirname(indexPath), "design-system"));
   const resolvesToRuntime = (specifier) =>
@@ -1749,7 +1181,7 @@ function reexportsRuntimeDesignSystem(indexPath, source) {
         .split(/\s+as\s+/)[0]
         .trim(),
     );
-    if (exported.includes(V4_RUNTIME_EXPORT) && resolvesToRuntime(match[2])) return true;
+    if (exported.includes(RUNTIME_EXPORT) && resolvesToRuntime(match[2])) return true;
     match = namedReexport.exec(source);
   }
 
@@ -1757,7 +1189,7 @@ function reexportsRuntimeDesignSystem(indexPath, source) {
   const runtimeSource = existsSync(runtimePath) ? readFileSync(runtimePath, "utf8") : null;
   for (const specifier of matches(EXPORT_STAR_PATTERN, source)) {
     if (!resolvesToRuntime(specifier)) continue;
-    if (runtimeSource !== null && collectExports(runtimeSource).names.has(V4_RUNTIME_EXPORT)) {
+    if (runtimeSource !== null && collectExports(runtimeSource).names.has(RUNTIME_EXPORT)) {
       return true;
     }
   }
@@ -1765,11 +1197,11 @@ function reexportsRuntimeDesignSystem(indexPath, source) {
 }
 
 /**
- * Validate `src/design-system.ts` identity, version, V4 marker, component map,
+ * Validate `src/design-system.ts` identity, version, contract marker, component map,
  * and named exports against the descriptor and package metadata, and that
  * `src/index.ts` exposes the runtime system and imports the package stylesheet.
  */
-function validateV4RuntimeDesignSystem(context, fail) {
+function validateRuntimeDesignSystem(context, fail) {
   if (!context.packageDir) return;
   const runtimePath = join(context.packageDir, "src", "design-system.ts");
   if (!existsSync(runtimePath)) return;
@@ -1777,7 +1209,7 @@ function validateV4RuntimeDesignSystem(context, fail) {
   let runtime = context.runtime;
   if (!runtime) {
     try {
-      runtime = parseV4RuntimeSource(readFileSync(runtimePath, "utf8"));
+      runtime = parseRuntimeSource(readFileSync(runtimePath, "utf8"));
     } catch (error) {
       fail(`src/design-system.ts: ${error.message}`);
       return;
@@ -1804,8 +1236,8 @@ function validateV4RuntimeDesignSystem(context, fail) {
   }
 
   const runtimeExports = collectExports(readFileSync(runtimePath, "utf8")).names;
-  if (!runtimeExports.has(V4_RUNTIME_EXPORT)) {
-    fail(`src/design-system.ts must export a named "${V4_RUNTIME_EXPORT}".`);
+  if (!runtimeExports.has(RUNTIME_EXPORT)) {
+    fail(`src/design-system.ts must export a named "${RUNTIME_EXPORT}".`);
   }
 
   if (context.descriptor) {
@@ -1839,7 +1271,7 @@ function validateV4RuntimeDesignSystem(context, fail) {
     const indexSource = readFileSync(indexPath, "utf8");
     if (!reexportsRuntimeDesignSystem(indexPath, indexSource)) {
       fail(
-        `src/index.ts must re-export the runtime "${V4_RUNTIME_EXPORT}" symbol from ` +
+        `src/index.ts must re-export the runtime "${RUNTIME_EXPORT}" symbol from ` +
           `"./design-system.js".`,
       );
     }
@@ -1850,8 +1282,8 @@ function validateV4RuntimeDesignSystem(context, fail) {
   }
 }
 
-/** Lightweight V4 documentation presence check. */
-function validateV4Documentation(context, fail) {
+/** Lightweight documentation presence check. */
+function validateDocumentation(context, fail) {
   if (!context.packageDir) return;
   const readmePath = join(context.packageDir, "README.md");
   if (existsSync(readmePath)) {
@@ -1908,8 +1340,6 @@ export function validateDesignSystem(options = {}) {
     manifestPath: join(root, MANIFEST_RELATIVE_PATH),
     manifest: null,
     entry: null,
-    contract: null,
-    requiredComponents: null,
     packageDir: null,
     packageJsonPath: null,
     pkg: null,
@@ -1926,40 +1356,20 @@ export function validateDesignSystem(options = {}) {
   };
 
   check("manifest entry", () => validateManifestEntry(context, fail));
-
-  if (context.contract === "v4") {
-    check("package metadata", () => validatePackageMetadata(context, fail));
-    check("required package files", () => validateV4RequiredFiles(context, fail));
-    check("package naming and exports", () => validateV4NamingAndExports(context, fail));
-    check("package files field", () => validatePackageFilesField(context, fail));
-    check("contract and V4 metadata", () => validateV4ContractMetadata(context, fail));
-    check("generated manifest", () => validateV4GeneratedManifest(context, fail));
-    check("version consistency", () => validateV4VersionConsistency(context, fail));
-    check("component folders", () => validateV4ComponentFolders(context, fail));
-    check("component barrel exports", () => validateV4ComponentBarrel(context, fail));
-    check("compound members", () => validateV4CompoundMembers(context, fail));
-    check("stylesheet entry", () => validateV4Stylesheet(context, fail));
-    check("runtime design system", () => validateV4RuntimeDesignSystem(context, fail));
-    check("package boundaries", () => validatePackageBoundaries(context, fail));
-    check("documentation", () => validateV4Documentation(context, fail));
-  } else {
-    check("package metadata", () => validatePackageMetadata(context, fail));
-    check("required package files", () => validateRequiredFiles(context, fail));
-    check("package naming and exports", () => validateNamingAndExports(context, fail));
-    check("package files field", () => validatePackageFilesField(context, fail));
-    check("contract and V2 metadata", () => validateContractMetadata(context, fail));
-    check("generated manifest", () => validateGeneratedManifest(context, fail));
-    check("version consistency", () => validateVersionConsistency(context, fail));
-    check("required component exports", () => validateComponentExports(context, fail));
-    check("tokens and theme", () => validateTokensAndTheme(context, fail));
-    check("package boundaries", () => validatePackageBoundaries(context, fail));
-    check("design brief", () => validateDesignBrief(context, fail));
-    check("documentation", () => validateDocumentation(context, fail));
-    check("app registration", () => {
-      if (!context.entry) return;
-      for (const appName of APP_NAMES) validateApp(context, appName, fail);
-    });
-  }
+  check("package metadata", () => validatePackageMetadata(context, fail));
+  check("required package files", () => validateRequiredPackageFiles(context, fail));
+  check("package naming and exports", () => validateNamingAndExports(context, fail));
+  check("package files field", () => validatePackageFilesField(context, fail));
+  check("contract metadata", () => validateContractMetadata(context, fail));
+  check("generated manifest", () => validateGeneratedManifest(context, fail));
+  check("version consistency", () => validateVersionConsistency(context, fail));
+  check("component folders", () => validateComponentFolders(context, fail));
+  check("component barrel exports", () => validateComponentBarrel(context, fail));
+  check("compound members", () => validateCompoundMembers(context, fail));
+  check("stylesheet entry", () => validateStylesheet(context, fail));
+  check("runtime design system", () => validateRuntimeDesignSystem(context, fail));
+  check("package boundaries", () => validatePackageBoundaries(context, fail));
+  check("documentation", () => validateDocumentation(context, fail));
 
   if (runCommands) {
     const binary = packageManagerBinary(root);

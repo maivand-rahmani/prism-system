@@ -2,7 +2,7 @@
 /**
  * Maintainer compatibility wrapper (not published).
  *
- * The V3 strict usage checker lives in the publishable `@prism-system/tools`
+ * The strict usage checker lives in the publishable `@prism-system/tools`
  * package (`packages/tools`), where it backs `prism-ds check-usage`. This module
  * re-exports that implementation so existing repository scripts and tests keep
  * importing `scripts/design-system-usage.mjs` unchanged. There is a single

@@ -6,10 +6,10 @@
  * `templates/design-system/**` into `packages/<id>`, preserves the normalized
  * design brief, and registers the new system in `config/design-systems.json`.
  *
- * The generated package's contract (V2 or V4) comes from the canonical template
+ * The generated package's contract comes from the canonical template
  * and its package-owned `design-system.source.json`; the generator never
- * hardcodes or relabels it. `pnpm ds:create` therefore creates a V4 package by
- * default once the canonical template is V4.
+ * hardcodes or relabels it, so a generated package always declares the current
+ * numeric `contractVersion: 4`.
  *
  * Creative decisions belong to the agent; every repetitive engineering step
  * (ids, names, paths, placeholders, registration, rollback) is deterministic.

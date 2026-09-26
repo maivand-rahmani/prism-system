@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   verify:
-    name: V4 quality gate
+    name: Quality gate
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -49,9 +49,9 @@ jobs:
       - name: Check version consistency
         run: pnpm ds:sync-versions --check
 
-      - name: Check active V4 documentation
-        run: pnpm ds:check-v4-docs
+      - name: Check active documentation
+        run: pnpm ds:check-docs
 
-      # Includes ds:check-v4-tools; do not run that packed gate twice.
-      - name: Check packed V4 lifecycle and V2 consumer compatibility
-        run: pnpm ds:check-v4
+      # Includes ds:check-tools; do not run that packed gate twice.
+      - name: Check packed lifecycle over packaged artifacts
+        run: pnpm ds:check-all

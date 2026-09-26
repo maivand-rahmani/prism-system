@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * Deterministic V4 documentation validation (Phase 4 evidence).
+ * Deterministic documentation validation.
  *
  * This module is both a reusable library (imported by tests) and a CLI
- * (`pnpm ds:check-v4-docs`). It is offline, read-only, and mutates nothing:
+ * (`pnpm ds:check-docs`). It is offline, read-only, and mutates nothing:
  *
  * 1. Scans the active Markdown documentation only — root README/AGENTS,
  *    `docs/guide(.md)` and `docs/v4`, app READMEs, package READMEs/AGENTS,
@@ -15,18 +15,15 @@
  *    (`/showcase/<id>`), and inline code are ignored. GitHub-style fragment
  *    slugs are intentionally not validated: reproducing them without a
  *    dependency would invent false positives.
- * 3. Requires the V4 system and template README section contract:
+ * 3. Requires the system and template README section contract:
  *    `Quickstart`, `Foundations`, `Components`, `Usage rules`. The `Components`
  *    section must point at the live `/showcase/<id>` catalog and at the
  *    generated `design-system.json` / `<package>/manifest` catalog source
  *    instead of a hand-maintained variant inventory. The template must use the
  *    `/showcase/{{SYSTEM_ID}}` placeholder and describe the manifest source
  *    neutrally.
- *    When present, the consumer migration guide
- *    (`docs/v4/migration-v2-to-v4.md`) must keep its essential sections; its
- *    local links are validated by the generic link pass.
  * 4. Re-runs the existing read-only `validateDesignSystem({ id, runCommands:
- *    false })` checks for every registered V4 system and reports failures from
+ *    false })` checks for every registered system and reports failures from
  *    the generated-manifest, component-barrel, and runtime-map checks with the
  *    system id as doc-check context. No package code is executed and no
  *    network access is performed.
@@ -38,25 +35,12 @@ import { fileURLToPath } from "node:url";
 
 import { validateDesignSystem } from "./validate-design-system.mjs";
 
-/** The four sections every V4 system and template README must provide. */
+/** The four sections every system and template README must provide. */
 export const REQUIRED_README_SECTIONS = Object.freeze([
   "Quickstart",
   "Foundations",
   "Components",
   "Usage rules",
-]);
-
-/** The consumer migration guide and the sections it must keep. */
-export const MIGRATION_DOCUMENT = "docs/v4/migration-v2-to-v4.md";
-
-export const REQUIRED_MIGRATION_SECTIONS = Object.freeze([
-  "Что меняется",
-  "Версии пакетов",
-  "Путь миграции",
-  "CSS и Tailwind",
-  "Примеры до и после",
-  "Команды prism-ds и их границы",
-  "Версионирование и выпуск",
 ]);
 
 /**
@@ -141,7 +125,6 @@ export function collectActiveDocs(root) {
   addFile("README.md");
   addFile("AGENTS.md");
   addFile("docs/guide.md");
-  addFile(MIGRATION_DOCUMENT);
   collectMarkdownTree(join(root, "docs", "guide"), root, files);
   collectMarkdownTree(join(root, "docs", "v4"), root, files);
   addFile("fixtures/consumer-product/README.md");
@@ -161,7 +144,9 @@ export function collectActiveDocs(root) {
     }
   }
 
-  return [...files].filter((file) => !isExcludedDocPath(file)).sort();
+  // Explicitly added documents are part of the active set; the tree walkers
+  // already applied the exclusions, so no second filter is applied here.
+  return [...files].sort();
 }
 
 /* -------------------------------------------------------------------------- */
@@ -275,7 +260,7 @@ function rejectManualVariantInventory({ relPath, section, fail }) {
   }
 }
 
-/** Validate a registered V4 system README's section and catalog contract. */
+/** Validate a registered system README's section and catalog contract. */
 function checkSystemReadme({ relPath, id, packageName, text, fail }) {
   requireReadmeSections({ relPath, text, fail });
 
@@ -326,20 +311,6 @@ function checkTemplateReadme({ relPath, text, fail }) {
   }
 
   rejectManualVariantInventory({ relPath, section, fail });
-}
-
-/**
- * The consumer migration guide must keep its essential sections. Links are
- * covered by the generic local-link pass; only headings are enforced here, and
- * only when the guide exists in the scanned root.
- */
-function checkMigrationGuide({ relPath, text, fail }) {
-  const headings = readHeadings(text);
-  for (const title of REQUIRED_MIGRATION_SECTIONS) {
-    if (!headings.some((heading) => heading.text === normalizeHeading(title))) {
-      fail(`${relPath}: missing required heading "## ${title}".`);
-    }
-  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -405,7 +376,7 @@ export function readRegistryEntries(root) {
 }
 
 /**
- * Reuse the existing read-only package validation for one registered V4
+ * Reuse the existing read-only package validation for one registered
  * system and surface catalog-contract failures with doc-check context.
  */
 function verifyCatalogContract({ root, entry, fail }) {
@@ -431,11 +402,11 @@ function verifyCatalogContract({ root, entry, fail }) {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Run the full V4 documentation validation.
+ * Run the full documentation validation.
  *
  * @param {object} [options]
  * @param {string} [options.root]            Root holding docs/, packages/, and config/ (defaults to repo root).
- * @param {boolean} [options.verifyContracts] Verify registered V4 packages (default true).
+ * @param {boolean} [options.verifyContracts] Verify registered packages (default true).
  * @returns {{ root: string, ok: boolean, failures: string[], checks: {name: string, ok: boolean}[], documents: string[], stats: object }}
  */
 export function runDocsCheck(options = {}) {
@@ -460,7 +431,6 @@ export function runDocsCheck(options = {}) {
     ignored: 0,
     systems: [],
     contracts: [],
-    migration: false,
   };
   const documents = [];
   check("active documents", () => {
@@ -496,19 +466,19 @@ export function runDocsCheck(options = {}) {
     }
   });
 
-  let v4Entries = [];
-  check("registered V4 systems", () => {
+  let systemEntries = [];
+  check("registered systems", () => {
     const entries = readRegistryEntries(root);
-    v4Entries = entries.filter((entry) => entry.contract === "v4");
-    stats.systems = v4Entries.map((entry) =>
+    systemEntries = entries.filter((entry) => entry.contractVersion === 4);
+    stats.systems = systemEntries.map((entry) =>
       typeof entry.id === "string" && entry.id.length > 0 ? entry.id : "(unidentified)",
     );
   });
 
   check("system READMEs", () => {
-    for (const entry of v4Entries) {
+    for (const entry of systemEntries) {
       if (typeof entry.id !== "string" || entry.id.length === 0) {
-        fail('config/design-systems.json: a V4 registry entry is missing a non-empty string "id".');
+        fail('config/design-systems.json: a registry entry is missing a non-empty string "id".');
         continue;
       }
       const packagePath =
@@ -517,7 +487,7 @@ export function runDocsCheck(options = {}) {
           : `packages/${entry.id}`;
       const relPath = `${packagePath}/README.md`;
       if (!existsSync(join(root, relPath))) {
-        fail(`V4 system "${entry.id}": README not found at ${relPath}.`);
+        fail(`System "${entry.id}": README not found at ${relPath}.`);
         continue;
       }
       checkSystemReadme({
@@ -549,19 +519,9 @@ export function runDocsCheck(options = {}) {
     }
   });
 
-  check("migration guide", () => {
-    if (!existsSync(join(root, MIGRATION_DOCUMENT))) return;
-    stats.migration = true;
-    checkMigrationGuide({
-      relPath: MIGRATION_DOCUMENT,
-      text: readFileSync(join(root, MIGRATION_DOCUMENT), "utf8"),
-      fail,
-    });
-  });
-
   check("package catalog contracts", () => {
     if (!verifyContracts) return;
-    for (const entry of v4Entries) {
+    for (const entry of systemEntries) {
       if (typeof entry.id !== "string" || entry.id.length === 0) continue;
       stats.contracts.push(entry.id);
       verifyCatalogContract({ root, entry, fail });
@@ -586,12 +546,11 @@ export function runDocsCheck(options = {}) {
 /** Render the CLI help text. */
 export function helpText() {
   return [
-    "Usage: pnpm ds:check-v4-docs [--root <path>] [--no-contracts]",
+    "Usage: pnpm ds:check-docs [--root <path>] [--no-contracts]",
     "",
-    "Validate the active V4 documentation: local Markdown links resolve, the system",
+    "Validate the active documentation: local Markdown links resolve, the system",
     "and template READMEs keep the required sections with the live Showcase catalog",
-    "and generated-manifest pointers, the consumer migration guide keeps its",
-    "essential sections, and every registered V4 package still satisfies",
+    "and generated-manifest pointers, and every registered package still satisfies",
     "the generated manifest, component barrel, and runtime map contract.",
     "",
     "Deterministic, offline, read-only. Archive and skill documents, changelogs,",
@@ -599,7 +558,7 @@ export function helpText() {
     "",
     "Options:",
     "  --root <path>     Root holding docs/, packages/, and config/ (default: repo root).",
-    "  --no-contracts    Skip the registered V4 package contract verification.",
+    "  --no-contracts    Skip the registered package contract verification.",
     "  -h, --help        Show this help.",
     "",
     "Exit code is non-zero when any check fails.",
@@ -636,19 +595,18 @@ function parseArgs(argv) {
 function reportResult(result) {
   const { stats } = result;
   if (result.ok) {
-    process.stdout.write("V4 documentation validation passed\n");
+    process.stdout.write("Documentation validation passed\n");
     process.stdout.write(`  ✓ active documents (${stats.documents})\n`);
     process.stdout.write(`  ✓ local links (${stats.links} checked, ${stats.ignored} ignored)\n`);
     process.stdout.write(`  ✓ system READMEs (${stats.systems.join(", ") || "none"})\n`);
     process.stdout.write("  ✓ template documentation\n");
-    process.stdout.write(`  ✓ migration guide${stats.migration ? "" : " (absent)"}\n`);
     process.stdout.write(
       `  ✓ package catalog contracts (${result.stats.contracts.join(", ") || "skipped"})\n`,
     );
     process.stdout.write(`  ${result.checks.length} check(s) passed.\n`);
     return;
   }
-  process.stdout.write("V4 documentation validation failed\n\n");
+  process.stdout.write("Documentation validation failed\n\n");
   for (const failure of result.failures) process.stdout.write(`  ${failure}\n`);
   process.stdout.write(`\n${result.failures.length} issue(s) found.\n`);
   process.exitCode = 1;
@@ -675,7 +633,7 @@ function main(argv) {
       }),
     );
   } catch (error) {
-    process.stdout.write(`V4 documentation validation failed\n\n  ${error.message}\n`);
+    process.stdout.write(`Documentation validation failed\n\n  ${error.message}\n`);
     process.exitCode = 1;
   }
 }

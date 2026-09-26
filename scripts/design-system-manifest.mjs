@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * Generated design-system manifest tooling (V3 contract/artifact foundation).
+ * Generated design-system manifest tooling.
  *
- * Every V2 design-system package ships a generated `design-system.json`
- * manifest so an external coding agent can understand the installed system
- * without reading package internals. The manifest is derived deterministically
- * from three package-owned inputs:
+ * Every design-system package ships a generated `design-system.json` manifest
+ * so an external coding agent can understand the installed system without
+ * reading package internals. The manifest is derived deterministically from
+ * three package-owned inputs:
  *
  *   package.json                 identity, exact version, exports map
  *   design-system.source.json    explicit component/compound/variant descriptor
@@ -32,7 +32,6 @@ import { fileURLToPath } from "node:url";
 
 import {
   PACKAGE_DIRECTORY,
-  V2_REQUIRED_COMPONENTS,
   assertSystemId,
   readJsonFile,
   repoRoot,
@@ -40,7 +39,7 @@ import {
 } from "./register-design-system.mjs";
 import {
   TOKEN_NAMESPACE_PATTERN,
-  V4_TOKEN_NAME_FIELDS,
+  TOKEN_NAME_FIELDS,
   buildTokenArtifactFiles,
   checkTokenArtifactFiles,
   tokenNaming,
@@ -69,10 +68,16 @@ export const REQUIRED_PACKAGE_FILES = Object.freeze([
   "LICENSE",
 ]);
 
-/** Version of the generated-manifest schema. */
-export const MANIFEST_SCHEMA_VERSION = 1;
-/** Version of the source-descriptor schema. */
-export const SOURCE_SCHEMA_VERSION = 1;
+/**
+ * Version of the package-owned source descriptor schema
+ * (`design-system.source.json`). The source descriptor stays schemaVersion 3;
+ * the generated, shipped manifest is versioned independently below.
+ */
+export const DESIGN_SYSTEM_SCHEMA_VERSION = 3;
+/** The single current numeric component contract version. */
+export const CONTRACT_VERSION = 4;
+/** Version of the generated, shipped manifest schema (`design-system.json`). */
+export const DESIGN_SYSTEM_MANIFEST_SCHEMA_VERSION = 4;
 
 /** `$schema` references and the generated marker written into every manifest. */
 export const MANIFEST_SCHEMA_URL =
@@ -82,11 +87,11 @@ export const SOURCE_SCHEMA_URL =
 export const GENERATED_MARKER = "prism-system/design-system-manifest";
 
 /* -------------------------------------------------------------------------- */
-/* V4 contract constants                                                      */
+/* Contract constants                                                         */
 /* -------------------------------------------------------------------------- */
 
-/** The twenty canonical V4 required component names, in order. */
-export const V4_REQUIRED_COMPONENTS = Object.freeze([
+/** The 29 canonical required component names, in order. */
+export const REQUIRED_COMPONENTS = Object.freeze([
   "Button",
   "Input",
   "Textarea",
@@ -107,10 +112,19 @@ export const V4_REQUIRED_COMPONENTS = Object.freeze([
   "Container",
   "Stack",
   "FormField",
+  "Center",
+  "Cluster",
+  "Sidebar",
+  "AspectRatio",
+  "Combobox",
+  "DatePicker",
+  "NumberField",
+  "Slider",
+  "FileUpload",
 ]);
 
-/** The twelve V4 optional component names a system may implement, in order. */
-export const V4_OPTIONAL_COMPONENTS = Object.freeze([
+/** The 17 optional component names a system may implement, in order. */
+export const OPTIONAL_COMPONENTS = Object.freeze([
   "Grid",
   "Section",
   "Fieldset",
@@ -123,33 +137,70 @@ export const V4_OPTIONAL_COMPONENTS = Object.freeze([
   "Breadcrumbs",
   "Pagination",
   "Table",
+  "Metric",
+  "DescriptionList",
+  "Timeline",
+  "Meter",
+  "EmptyState",
 ]);
 
-/** Every component name a V4 descriptor or manifest may declare. */
-export const V4_COMPONENT_NAMES = Object.freeze([
-  ...V4_REQUIRED_COMPONENTS,
-  ...V4_OPTIONAL_COMPONENTS,
-]);
+/** Every component name a descriptor or manifest may declare. */
+export const COMPONENT_NAMES = Object.freeze([...REQUIRED_COMPONENTS, ...OPTIONAL_COMPONENTS]);
 
-/** V4 generated-manifest schema version. */
-export const MANIFEST_V4_SCHEMA_VERSION = 2;
-/** V4 source-descriptor schema version. */
-export const SOURCE_V4_SCHEMA_VERSION = 2;
+/**
+ * The canonical capability-category inventory generated into every shipped
+ * manifest. This is the single definition of which scoped component families
+ * each category covers: per-class arrays list the required or optional
+ * components the category may expose, in canonical order. Availability is
+ * determined only by the names present in a system's `components` map; this
+ * inventory is a generated category-membership reference and is never declared
+ * in a package-owned source descriptor.
+ */
+export const CAPABILITY_CATEGORIES = Object.freeze({
+  composition: Object.freeze({
+    required: Object.freeze(["Container", "Stack", "Center", "Cluster", "Sidebar", "AspectRatio"]),
+    optional: Object.freeze(["Grid", "Section"]),
+  }),
+  forms: Object.freeze({
+    required: Object.freeze([
+      "FormField",
+      "Combobox",
+      "DatePicker",
+      "NumberField",
+      "Slider",
+      "FileUpload",
+    ]),
+    optional: Object.freeze([]),
+  }),
+  "data-display": Object.freeze({
+    required: Object.freeze([]),
+    optional: Object.freeze([
+      "Table",
+      "Pagination",
+      "Progress",
+      "Metric",
+      "DescriptionList",
+      "Timeline",
+      "Meter",
+      "EmptyState",
+    ]),
+  }),
+});
+
+/** Canonical capability-category keys, in generation order. */
+export const CAPABILITY_CATEGORY_KEYS = Object.freeze(Object.keys(CAPABILITY_CATEGORIES));
+
 /** Token source schema version. */
 export const TOKENS_SOURCE_SCHEMA_VERSION = 1;
 
 /** The package-owned semantic token source. Never shipped in the tarball. */
 export const TOKENS_SOURCE_FILENAME = "tokens.source.json";
 
-/** `$schema` references written into the V4 manifests and descriptors. */
-export const V4_MANIFEST_SCHEMA_URL =
-  "https://github.com/maivand-rahmani/prism-system/schemas/design-system-v4.schema.json";
-export const V4_SOURCE_SCHEMA_URL =
-  "https://github.com/maivand-rahmani/prism-system/schemas/design-system-source-v4.schema.json";
+/** `$schema` reference written into the token source. */
 export const TOKENS_SOURCE_SCHEMA_URL =
   "https://github.com/maivand-rahmani/prism-system/schemas/tokens.source.schema.json";
 
-/** Token group keys exposed by a V4 manifest, matching the token source groups. */
+/** Token group keys exposed by a manifest, matching the token source groups. */
 export const TOKEN_GROUP_KEYS = Object.freeze([
   "themes",
   "typography",
@@ -162,21 +213,21 @@ export const TOKEN_GROUP_KEYS = Object.freeze([
   "motion",
 ]);
 
-const V4_SOURCE_ROOT_FIELDS = Object.freeze([
+const SOURCE_ROOT_FIELDS = Object.freeze([
   "$schema",
   "schemaVersion",
-  "contract",
+  "contractVersion",
   "name",
   "components",
   "design",
   "rules",
   "docs",
 ]);
-const V4_MANIFEST_ROOT_FIELDS = Object.freeze([
+const MANIFEST_ROOT_FIELDS = Object.freeze([
   "$schema",
   "schemaVersion",
   "generated",
-  "contract",
+  "contractVersion",
   "id",
   "name",
   "package",
@@ -184,12 +235,13 @@ const V4_MANIFEST_ROOT_FIELDS = Object.freeze([
   "exports",
   "publicApi",
   "components",
+  "capabilities",
   "design",
   "rules",
   "tokens",
   "docs",
 ]);
-const V4_COMPONENT_FIELDS = Object.freeze([
+const COMPONENT_FIELDS = Object.freeze([
   "variants",
   "sizes",
   "members",
@@ -197,8 +249,8 @@ const V4_COMPONENT_FIELDS = Object.freeze([
   "docs",
   "example",
 ]);
-const V4_COMPONENT_META_FIELDS = Object.freeze(["description", "docs", "example"]);
-const V4_DOC_FIELDS = Object.freeze([
+const COMPONENT_META_FIELDS = Object.freeze(["description", "docs", "example"]);
+const DOC_FIELDS = Object.freeze([
   "readme",
   "agents",
   "brief",
@@ -255,26 +307,6 @@ function requireStringArray(value, label) {
 /* Source descriptor                                                          */
 /* -------------------------------------------------------------------------- */
 
-function normalizeComponent(raw, name) {
-  if (!isPlainObject(raw)) {
-    throw new Error(`Component "${name}" must be an object.`);
-  }
-  const allowed = new Set(["variants", "sizes", "members"]);
-  for (const key of Object.keys(raw)) {
-    if (!allowed.has(key)) {
-      throw new Error(
-        `Component "${name}" has unknown field "${key}"; allowed fields are ` +
-          `${[...allowed].join(", ")}.`,
-      );
-    }
-  }
-  return {
-    variants: requireStringArray(raw.variants ?? [], `${name}.variants`),
-    sizes: requireStringArray(raw.sizes ?? [], `${name}.sizes`),
-    members: requireStringArray(raw.members ?? [], `${name}.members`),
-  };
-}
-
 function normalizeDesign(raw, label) {
   if (!isPlainObject(raw)) {
     throw new Error(`Expected "${label}" to be an object.`);
@@ -326,7 +358,7 @@ function normalizeRules(raw, label) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* V4 schema/contract dispatch and validation                                 */
+/* Schema/contract metadata and validation                                    */
 /* -------------------------------------------------------------------------- */
 
 function assertKnownFields(raw, allowed, label) {
@@ -341,29 +373,41 @@ function assertKnownFields(raw, allowed, label) {
 }
 
 /**
- * Dispatch strictly by the `(schemaVersion, contract)` pair.
- *
- * Only `(1, "v2")` and `(2, "v4")` are accepted. Every other combination —
- * including a missing field, a V1-shaped payload, or a fabricated pair — is
- * rejected so the two contracts are never silently mixed.
+ * Enforce the single current contract metadata: the expected numeric
+ * `schemaVersion` and `contractVersion: 4`. The package-owned source descriptor
+ * defaults to schemaVersion 3; the generated shipped manifest passes its own
+ * schemaVersion 4. Every other combination — including a missing field, a
+ * historical `contract` string, or a fabricated pair — is rejected so no
+ * obsolete contract shape is ever silently accepted.
  */
-export function dispatchSchemaContract(raw, label = "design-system descriptor") {
+export function assertContractMetadata(
+  raw,
+  label = "design-system descriptor",
+  schemaVersion = DESIGN_SYSTEM_SCHEMA_VERSION,
+) {
   if (!isPlainObject(raw)) {
     throw new Error(`${label} must be a JSON object.`);
   }
-  const show = (value) => (value === undefined ? "undefined" : JSON.stringify(value));
-  const pair = `(${show(raw.schemaVersion)}, ${show(raw.contract)})`;
-  if (raw.schemaVersion === 1 && raw.contract === "v2") return "v2";
-  if (raw.schemaVersion === 2 && raw.contract === "v4") return "v4";
-  throw new Error(`Unsupported schema/contract pair ${pair}; expected (1, "v2") or (2, "v4").`);
+  if (raw.schemaVersion !== schemaVersion) {
+    throw new Error(
+      `${label} has schemaVersion ${JSON.stringify(raw.schemaVersion)}; ` +
+        `expected ${schemaVersion}.`,
+    );
+  }
+  if (raw.contractVersion !== CONTRACT_VERSION) {
+    throw new Error(
+      `${label} has contractVersion ${JSON.stringify(raw.contractVersion)}; ` +
+        `expected ${CONTRACT_VERSION}.`,
+    );
+  }
 }
 
 /**
- * Read a required V4 component field. All three API fields must be present;
- * the descriptor is the explicit contract, so a missing field is never
- * silently defaulted to an empty array (an explicitly empty array is valid).
+ * Read a required component field. All three API fields must be present; the
+ * descriptor is the explicit contract, so a missing field is never silently
+ * defaulted to an empty array (an explicitly empty array is valid).
  */
-function requireV4ComponentField(raw, key, name) {
+function requireComponentField(raw, key, name) {
   if (!(key in raw)) {
     throw new Error(
       `Component "${name}" is missing required field "${key}"; ` +
@@ -374,32 +418,29 @@ function requireV4ComponentField(raw, key, name) {
 }
 
 /**
- * Validate one component entry for a V4 descriptor or manifest. `variants`,
+ * Validate one component entry for a descriptor or manifest. `variants`,
  * `sizes`, and `members` are required unique string arrays (empty allowed);
  * `description`, `docs`, and `example` are optional metadata.
  */
-function normalizeV4Component(raw, name) {
+function normalizeComponent(raw, name) {
   if (!isPlainObject(raw)) {
     throw new Error(`Component "${name}" must be an object.`);
   }
-  const allowed = new Set(V4_COMPONENT_FIELDS);
+  const allowed = new Set(COMPONENT_FIELDS);
   for (const key of Object.keys(raw)) {
     if (!allowed.has(key)) {
       throw new Error(
         `Component "${name}" has unknown field "${key}"; allowed fields are ` +
-          `${V4_COMPONENT_FIELDS.join(", ")}.`,
+          `${COMPONENT_FIELDS.join(", ")}.`,
       );
     }
   }
   const component = {
-    variants: requireStringArray(
-      requireV4ComponentField(raw, "variants", name),
-      `${name}.variants`,
-    ),
-    sizes: requireStringArray(requireV4ComponentField(raw, "sizes", name), `${name}.sizes`),
-    members: requireStringArray(requireV4ComponentField(raw, "members", name), `${name}.members`),
+    variants: requireStringArray(requireComponentField(raw, "variants", name), `${name}.variants`),
+    sizes: requireStringArray(requireComponentField(raw, "sizes", name), `${name}.sizes`),
+    members: requireStringArray(requireComponentField(raw, "members", name), `${name}.members`),
   };
-  for (const key of V4_COMPONENT_META_FIELDS) {
+  for (const key of COMPONENT_META_FIELDS) {
     if (raw[key] !== undefined) {
       component[key] = requireNonEmptyString(raw[key], `${name}.${key}`);
     }
@@ -408,31 +449,119 @@ function normalizeV4Component(raw, name) {
 }
 
 /**
- * Validate the V4 component map: all twenty required names must be present and
- * every declared optional name must be a known V4 optional component. Absence
+ * Validate the component map: all 29 required names must be present and
+ * every declared optional name must be a known optional component. Absence
  * means unavailable, so a boolean `false` entry is rejected as a non-object and
  * an unknown name is rejected outright.
  */
-function normalizeV4Components(raw, label) {
+function normalizeComponents(raw, label) {
   if (!isPlainObject(raw)) {
     throw new Error(`${label} must be an object.`);
   }
   const declared = Object.keys(raw);
-  const missing = V4_REQUIRED_COMPONENTS.filter((name) => !declared.includes(name));
-  const unknown = declared.filter((name) => !V4_COMPONENT_NAMES.includes(name));
+  const missing = REQUIRED_COMPONENTS.filter((name) => !declared.includes(name));
+  const unknown = declared.filter((name) => !COMPONENT_NAMES.includes(name));
   if (missing.length > 0 || unknown.length > 0) {
     throw new Error(
-      `${label} must declare all twenty V4 required components and only implemented optional ` +
+      `${label} must declare all 29 required components and only implemented optional ` +
         `components.${missing.length > 0 ? ` Missing: ${missing.join(", ")}.` : ""}${
           unknown.length > 0 ? ` Unknown: ${unknown.join(", ")}.` : ""
         }`,
     );
   }
   const components = {};
-  for (const name of V4_COMPONENT_NAMES) {
-    if (name in raw) components[name] = normalizeV4Component(raw[name], name);
+  for (const name of COMPONENT_NAMES) {
+    if (name in raw) components[name] = normalizeComponent(raw[name], name);
   }
   return components;
+}
+
+/**
+ * Validate the generated manifest's canonical capability-category inventory.
+ * The categories must be exactly the canonical keys; each category must declare
+ * both classes; every name must be unique, a known component, and of the class
+ * its array represents; and each array must equal the canonical sequence
+ * exactly (same membership and same order). Availability itself is never
+ * determined here: it stays a question about the per-system `components` map.
+ */
+function normalizeCapabilities(raw) {
+  const label = `${DESIGN_SYSTEM_MANIFEST_FILENAME} "capabilities"`;
+  if (!isPlainObject(raw)) {
+    throw new Error(`${label} must be an object.`);
+  }
+  assertKnownFields(raw, ["categories"], label);
+
+  const categoriesLabel = `${label} "categories"`;
+  const categories = raw.categories;
+  if (!isPlainObject(categories)) {
+    throw new Error(`${categoriesLabel} must be an object.`);
+  }
+  const declaredKeys = Object.keys(categories);
+  const missing = CAPABILITY_CATEGORY_KEYS.filter((key) => !declaredKeys.includes(key));
+  const unknown = declaredKeys.filter((key) => !CAPABILITY_CATEGORY_KEYS.includes(key));
+  if (missing.length > 0 || unknown.length > 0) {
+    throw new Error(
+      `${categoriesLabel} must declare exactly the canonical capability categories.` +
+        `${missing.length > 0 ? ` Missing: ${missing.join(", ")}.` : ""}${
+          unknown.length > 0 ? ` Unknown: ${unknown.join(", ")}.` : ""
+        }`,
+    );
+  }
+
+  const normalized = {};
+  for (const key of CAPABILITY_CATEGORY_KEYS) {
+    const categoryLabel = `${categoriesLabel}["${key}"]`;
+    const category = categories[key];
+    if (!isPlainObject(category)) {
+      throw new Error(`${categoryLabel} must be an object.`);
+    }
+    assertKnownFields(category, ["required", "optional"], categoryLabel);
+    normalized[key] = {};
+    for (const [className, members] of [
+      ["required", REQUIRED_COMPONENTS],
+      ["optional", OPTIONAL_COMPONENTS],
+    ]) {
+      const classLabel = `${categoryLabel}.${className}`;
+      if (!(className in category)) {
+        throw new Error(`${categoryLabel} is missing required field "${className}".`);
+      }
+      const names = requireStringArray(category[className], classLabel);
+      const unknownNames = names.filter((name) => !COMPONENT_NAMES.includes(name));
+      if (unknownNames.length > 0) {
+        throw new Error(
+          `${classLabel} contains unknown component name(s): ${unknownNames.join(", ")}.`,
+        );
+      }
+      const wrongClass = names.filter((name) => !members.includes(name));
+      if (wrongClass.length > 0) {
+        throw new Error(
+          `${classLabel} must list only ${className} components; wrong class: ` +
+            `${wrongClass.join(", ")}.`,
+        );
+      }
+      const canonical = CAPABILITY_CATEGORIES[key][className];
+      if (JSON.stringify(names) !== JSON.stringify([...canonical])) {
+        throw new Error(
+          `${classLabel} must be exactly ${JSON.stringify([...canonical])} in canonical order ` +
+            `(received ${JSON.stringify(names)}).`,
+        );
+      }
+      normalized[key][className] = names;
+    }
+  }
+  return { categories: normalized };
+}
+
+/** A fresh, mutable copy of the canonical capability inventory for generation. */
+export function buildCapabilityCategories() {
+  const categories = {};
+  for (const key of CAPABILITY_CATEGORY_KEYS) {
+    categories[key] = {
+      required: [...CAPABILITY_CATEGORIES[key].required],
+      optional: [...CAPABILITY_CATEGORIES[key].optional],
+    };
+  }
+  return categories;
 }
 
 /** Validate package-relative documentation paths. */
@@ -440,7 +569,7 @@ function normalizeDocs(raw, label, requireCore) {
   if (!isPlainObject(raw)) {
     throw new Error(`${label} must be an object.`);
   }
-  assertKnownFields(raw, V4_DOC_FIELDS, label);
+  assertKnownFields(raw, DOC_FIELDS, label);
   if (requireCore) {
     for (const key of ["readme", "agents"]) {
       if (!(key in raw)) throw new Error(`${label} is missing required field "${key}".`);
@@ -511,9 +640,9 @@ function normalizeTokenNames(raw, tokensLabel) {
   if (!isPlainObject(raw)) {
     throw new Error(`${label} must be an object.`);
   }
-  assertKnownFields(raw, V4_TOKEN_NAME_FIELDS, label);
+  assertKnownFields(raw, TOKEN_NAME_FIELDS, label);
   const names = {};
-  for (const key of V4_TOKEN_NAME_FIELDS) {
+  for (const key of TOKEN_NAME_FIELDS) {
     if (!(key in raw)) {
       throw new Error(`${label} is missing required field "${key}".`);
     }
@@ -540,31 +669,18 @@ function normalizePublicApi(raw, label) {
   return publicApi;
 }
 
-/** Read and validate a package-owned V4 `design-system.source.json`. */
-export function parseV4SourceDescriptor(raw) {
+/** Read and validate a package-owned `design-system.source.json`. */
+export function parseSourceDescriptor(raw) {
   if (!isPlainObject(raw)) {
     throw new Error(`${DESIGN_SYSTEM_SOURCE_FILENAME} must be a JSON object.`);
   }
-  assertKnownFields(raw, V4_SOURCE_ROOT_FIELDS, DESIGN_SYSTEM_SOURCE_FILENAME);
-  if (raw.schemaVersion !== SOURCE_V4_SCHEMA_VERSION) {
-    throw new Error(
-      `${DESIGN_SYSTEM_SOURCE_FILENAME} has schemaVersion ${JSON.stringify(
-        raw.schemaVersion,
-      )}; expected ${SOURCE_V4_SCHEMA_VERSION}.`,
-    );
-  }
-  if (raw.contract !== "v4") {
-    throw new Error(
-      `${DESIGN_SYSTEM_SOURCE_FILENAME} must declare "contract": "v4" (received ${JSON.stringify(
-        raw.contract ?? null,
-      )}).`,
-    );
-  }
+  assertKnownFields(raw, SOURCE_ROOT_FIELDS, DESIGN_SYSTEM_SOURCE_FILENAME);
+  assertContractMetadata(raw, DESIGN_SYSTEM_SOURCE_FILENAME);
   const descriptor = {
-    schemaVersion: SOURCE_V4_SCHEMA_VERSION,
-    contract: "v4",
+    schemaVersion: DESIGN_SYSTEM_SCHEMA_VERSION,
+    contractVersion: CONTRACT_VERSION,
     name: requireNonEmptyString(raw.name, "name"),
-    components: normalizeV4Components(
+    components: normalizeComponents(
       raw.components,
       `${DESIGN_SYSTEM_SOURCE_FILENAME} "components"`,
     ),
@@ -578,7 +694,7 @@ export function parseV4SourceDescriptor(raw) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* V4 token source validation                                                 */
+/* Token source validation                                                    */
 /* -------------------------------------------------------------------------- */
 
 const DIMENSION_UNITS = Object.freeze(["px", "rem", "em", "ch", "vw", "vh", "%"]);
@@ -1002,13 +1118,13 @@ export function resolveTokenSource(raw) {
   return resolved;
 }
 
-/** Read and validate the package-owned V4 `tokens.source.json`. */
+/** Read and validate the package-owned `tokens.source.json`. */
 export function readTokensSource(packageDir) {
   const tokensPath = join(packageDir, TOKENS_SOURCE_FILENAME);
   if (!existsSync(tokensPath)) {
     throw new Error(
       `Missing token source ${TOKENS_SOURCE_FILENAME} in ${packageDir}. ` +
-        `Every V4 design system must declare its semantic tokens.`,
+        `Every design system must declare its semantic tokens.`,
     );
   }
   let raw;
@@ -1049,26 +1165,17 @@ function buildTokenManifest(tokens, uiClass) {
   };
 }
 
-/** Validate a generated V4 `design-system.json` manifest. */
-export function parseV4Manifest(raw) {
+/** Validate a generated `design-system.json` manifest. */
+export function parseManifest(raw) {
   if (!isPlainObject(raw)) {
     throw new Error(`${DESIGN_SYSTEM_MANIFEST_FILENAME} must be a JSON object.`);
   }
-  assertKnownFields(raw, V4_MANIFEST_ROOT_FIELDS, DESIGN_SYSTEM_MANIFEST_FILENAME);
-  if (raw.schemaVersion !== MANIFEST_V4_SCHEMA_VERSION) {
-    throw new Error(
-      `${DESIGN_SYSTEM_MANIFEST_FILENAME} has schemaVersion ${JSON.stringify(
-        raw.schemaVersion,
-      )}; expected ${MANIFEST_V4_SCHEMA_VERSION}.`,
-    );
-  }
-  if (raw.contract !== "v4") {
-    throw new Error(
-      `${DESIGN_SYSTEM_MANIFEST_FILENAME} must declare "contract": "v4" (received ${JSON.stringify(
-        raw.contract ?? null,
-      )}).`,
-    );
-  }
+  assertKnownFields(raw, MANIFEST_ROOT_FIELDS, DESIGN_SYSTEM_MANIFEST_FILENAME);
+  assertContractMetadata(
+    raw,
+    DESIGN_SYSTEM_MANIFEST_FILENAME,
+    DESIGN_SYSTEM_MANIFEST_SCHEMA_VERSION,
+  );
   if (raw.generated !== GENERATED_MARKER) {
     throw new Error(
       `${DESIGN_SYSTEM_MANIFEST_FILENAME} "generated" must be ${JSON.stringify(
@@ -1096,19 +1203,20 @@ export function parseV4Manifest(raw) {
   }
   return {
     $schema: raw.$schema,
-    schemaVersion: MANIFEST_V4_SCHEMA_VERSION,
+    schemaVersion: DESIGN_SYSTEM_MANIFEST_SCHEMA_VERSION,
     generated: GENERATED_MARKER,
-    contract: "v4",
+    contractVersion: CONTRACT_VERSION,
     id,
     name,
     package: raw.package,
     version,
     exports: raw.exports,
     publicApi: normalizePublicApi(raw.publicApi, `${DESIGN_SYSTEM_MANIFEST_FILENAME} "publicApi"`),
-    components: normalizeV4Components(
+    components: normalizeComponents(
       raw.components,
       `${DESIGN_SYSTEM_MANIFEST_FILENAME} "components"`,
     ),
+    capabilities: normalizeCapabilities(raw.capabilities),
     design: normalizeDesign(raw.design, "design"),
     rules: normalizeRules(raw.rules, "rules"),
     tokens: normalizeTokenManifest(raw.tokens),
@@ -1117,7 +1225,7 @@ export function parseV4Manifest(raw) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Source descriptor dispatch (V2 / V4)                                       */
+/* Source descriptor                                                          */
 /* -------------------------------------------------------------------------- */
 
 /** Read and validate the package-owned `design-system.source.json`. */
@@ -1138,75 +1246,8 @@ export function readSourceDescriptor(packageDir) {
   if (!isPlainObject(raw)) {
     throw new Error(`${DESIGN_SYSTEM_SOURCE_FILENAME} must be a JSON object.`);
   }
-  // Strict dispatch: only (1, "v2") and (2, "v4") are accepted.
-  const contract = dispatchSchemaContract(raw, DESIGN_SYSTEM_SOURCE_FILENAME);
-  if (contract === "v4") {
-    const descriptor = parseV4SourceDescriptor(raw);
-    return { ...descriptor, tokens: readTokensSource(packageDir) };
-  }
-  const allowedRootFields = new Set([
-    "$schema",
-    "schemaVersion",
-    "contract",
-    "name",
-    "components",
-    "design",
-    "rules",
-  ]);
-  for (const key of Object.keys(raw)) {
-    if (!allowedRootFields.has(key)) {
-      throw new Error(
-        `${DESIGN_SYSTEM_SOURCE_FILENAME} has unknown field "${key}"; allowed fields are ` +
-          `${[...allowedRootFields].join(", ")}.`,
-      );
-    }
-  }
-  if (raw.schemaVersion !== SOURCE_SCHEMA_VERSION) {
-    throw new Error(
-      `${DESIGN_SYSTEM_SOURCE_FILENAME} has schemaVersion ${JSON.stringify(
-        raw.schemaVersion,
-      )}; expected ${SOURCE_SCHEMA_VERSION}.`,
-    );
-  }
-  if (raw.contract !== "v2") {
-    throw new Error(
-      `${DESIGN_SYSTEM_SOURCE_FILENAME} must declare "contract": "v2" (received ${JSON.stringify(
-        raw.contract ?? null,
-      )}).`,
-    );
-  }
-  const name = requireNonEmptyString(raw.name, "name");
-
-  if (!isPlainObject(raw.components)) {
-    throw new Error(`${DESIGN_SYSTEM_SOURCE_FILENAME} "components" must be an object.`);
-  }
-  const declared = Object.keys(raw.components);
-  const missing = V2_REQUIRED_COMPONENTS.filter((component) => !declared.includes(component));
-  const extra = declared.filter((component) => !V2_REQUIRED_COMPONENTS.includes(component));
-  if (missing.length > 0 || extra.length > 0) {
-    throw new Error(
-      `${DESIGN_SYSTEM_SOURCE_FILENAME} "components" must declare exactly the fourteen V2 ` +
-        `components.${missing.length > 0 ? ` Missing: ${missing.join(", ")}.` : ""}${
-          extra.length > 0 ? ` Unknown: ${extra.join(", ")}.` : ""
-        }`,
-    );
-  }
-  const components = {};
-  for (const component of V2_REQUIRED_COMPONENTS) {
-    components[component] = normalizeComponent(
-      raw.components[component],
-      `components.${component}`,
-    );
-  }
-
-  return {
-    schemaVersion: SOURCE_SCHEMA_VERSION,
-    contract: "v2",
-    name,
-    components,
-    design: normalizeDesign(raw.design, "design"),
-    rules: normalizeRules(raw.rules, "rules"),
-  };
+  const descriptor = parseSourceDescriptor(raw);
+  return { ...descriptor, tokens: readTokensSource(packageDir) };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1333,7 +1374,7 @@ function scanStringToken(source, start) {
  * Tokenize JS/TS source into a minimal stream: comments are dropped, string
  * literals carry their decoded value and the offsets of their raw inner text,
  * and every other character becomes an identifier, number, or punctuation
- * token. This is enough to parse the `defineDesignSystemV2(...)` argument
+ * token. This is enough to parse the `defineDesignSystem(...)` argument
  * deterministically without an AST dependency.
  */
 function tokenizeRuntimeSource(source) {
@@ -1460,7 +1501,7 @@ function findDesignSystemCall(tokens, callName, fileLabel) {
 }
 
 /**
- * Parse the top-level properties of the `defineDesignSystemV2(...)` object.
+ * Parse the top-level properties of the `defineDesignSystem(...)` object.
  *
  * Only plain `key: value` properties with an identifier or string key are
  * accepted. Spreads, computed keys, getters, setters, methods, generator
@@ -1559,40 +1600,27 @@ function topLevelObjectProperties(tokens, open, close, callName) {
 }
 
 /**
- * Runtime identity helpers. The `contract` argument defaults to `"v2"` so every
- * existing V2 caller keeps its exact behavior and messages; V4 callers pass
- * `"v4"` to parse the `defineDesignSystemV4(...)` call in `src/design-system.ts`.
+ * Runtime identity helpers. There is exactly one current runtime call,
+ * `defineDesignSystem(...)` in `src/design-system.ts`.
  */
-const RUNTIME_CONTRACTS = Object.freeze({
-  v2: Object.freeze({ callName: "defineDesignSystemV2", fileLabel: "src/index.ts" }),
-  v4: Object.freeze({ callName: "defineDesignSystemV4", fileLabel: "src/design-system.ts" }),
+const RUNTIME_CONTRACT = Object.freeze({
+  callName: "defineDesignSystem",
+  fileLabel: "src/design-system.ts",
 });
 
-function resolveRuntimeContract(contract) {
-  const resolved = RUNTIME_CONTRACTS[contract];
-  if (!resolved) {
-    throw new Error(
-      `Unsupported runtime contract ${JSON.stringify(contract)}; expected "v2" or "v4".`,
-    );
-  }
-  return resolved;
-}
-
 /**
- * Read the single top-level `version` of the `defineDesignSystemV2(...)` or
- * `defineDesignSystemV4(...)` argument, selected by `contract` (default
- * `"v2"`). The value must be exactly one static string literal or a
+ * Read the single top-level `version` of the `defineDesignSystem(...)`
+ * argument. The value must be exactly one static string literal or a
  * no-substitution template literal (comments around it are allowed). Fails
  * closed on a missing, duplicate, nested-only, commented-only, or dynamic
  * (concatenated, identifier, member access, call, interpolated, conditional, or
  * otherwise non-literal) version.
  *
  * @param {string} source  Runtime source text.
- * @param {"v2" | "v4"} [contract="v2"]  Which runtime call to read.
  * @returns {{ version: string, valueStart: number, valueEnd: number }}
  */
-export function parseRuntimeDesignSystemVersion(source, contract = "v2") {
-  const { callName, fileLabel } = resolveRuntimeContract(contract);
+export function parseRuntimeDesignSystemVersion(source) {
+  const { callName, fileLabel } = RUNTIME_CONTRACT;
   const tokens = tokenizeRuntimeSource(source);
   const span = findDesignSystemCall(tokens, callName, fileLabel);
   const properties = topLevelObjectProperties(tokens, span.open, span.close, callName);
@@ -1619,21 +1647,19 @@ export function parseRuntimeDesignSystemVersion(source, contract = "v2") {
 }
 
 /**
- * Read the runtime `DesignSystem.version` string. `contract` selects the
- * runtime call and defaults to `"v2"` (V2: `src/index.ts` /
- * `defineDesignSystemV2`; V4: `src/design-system.ts` / `defineDesignSystemV4`).
+ * Read the runtime `DesignSystem.version` string from the package-owned
+ * `src/design-system.ts` (`defineDesignSystem`).
  */
-export function readRuntimeDesignSystemVersion(source, contract = "v2") {
-  return parseRuntimeDesignSystemVersion(source, contract).version;
+export function readRuntimeDesignSystemVersion(source) {
+  return parseRuntimeDesignSystemVersion(source).version;
 }
 
 /**
  * Return `source` with the runtime `DesignSystem.version` set to `version`,
  * replacing only the inner string text of the validated top-level property.
- * `contract` defaults to `"v2"` for backward compatibility.
  */
-export function syncRuntimeDesignSystemVersion(source, version, contract = "v2") {
-  const parsed = parseRuntimeDesignSystemVersion(source, contract);
+export function syncRuntimeDesignSystemVersion(source, version) {
+  const parsed = parseRuntimeDesignSystemVersion(source);
   if (parsed.version === version) return { source, changed: false };
   return {
     source: source.slice(0, parsed.valueStart) + version + source.slice(parsed.valueEnd),
@@ -1735,56 +1761,23 @@ export function buildManifest({ id, packageDir }) {
     );
   }
 
-  if (source.contract === "v4") {
-    return buildV4Manifest({
-      resolvedId,
-      pkg,
-      version,
-      tokensExport,
-      uiClass,
-      displayName,
-      source,
-    });
-  }
-
+  const implementedOptional = OPTIONAL_COMPONENTS.filter((name) => name in source.components);
   return {
     $schema: MANIFEST_SCHEMA_URL,
-    schemaVersion: MANIFEST_SCHEMA_VERSION,
+    schemaVersion: DESIGN_SYSTEM_MANIFEST_SCHEMA_VERSION,
     generated: GENERATED_MARKER,
-    contract: "v2",
+    contractVersion: CONTRACT_VERSION,
     id: resolvedId,
     name: displayName,
     package: toPackageName(resolvedId),
     version,
     exports: pkg.exports,
     publicApi: {
-      ".": [...V2_REQUIRED_COMPONENTS, "DesignSystem", tokensExport],
+      ".": [...REQUIRED_COMPONENTS, ...implementedOptional, "DesignSystem", tokensExport],
       "./tokens": [tokensExport],
     },
     components: source.components,
-    design: source.design,
-    rules: source.rules,
-  };
-}
-
-/** Build the canonical V4 manifest object. Pure and synchronous. */
-function buildV4Manifest({ resolvedId, pkg, version, tokensExport, uiClass, displayName, source }) {
-  const implementedOptional = V4_OPTIONAL_COMPONENTS.filter((name) => name in source.components);
-  return {
-    $schema: V4_MANIFEST_SCHEMA_URL,
-    schemaVersion: MANIFEST_V4_SCHEMA_VERSION,
-    generated: GENERATED_MARKER,
-    contract: "v4",
-    id: resolvedId,
-    name: displayName,
-    package: toPackageName(resolvedId),
-    version,
-    exports: pkg.exports,
-    publicApi: {
-      ".": [...V4_REQUIRED_COMPONENTS, ...implementedOptional, "DesignSystem", tokensExport],
-      "./tokens": [tokensExport],
-    },
-    components: source.components,
+    capabilities: { categories: buildCapabilityCategories() },
     design: source.design,
     rules: source.rules,
     tokens: buildTokenManifest(source.tokens, uiClass),
@@ -1815,11 +1808,11 @@ export function readDesignSystemManifest(packageDir) {
 }
 
 /**
- * Render the three V4 token artifacts for a package from its validated
+ * Render the three token artifacts for a package from its validated
  * `tokens.source.json`. `parseTokenSource`/`resolveTokenSource` guarantee the
  * source is type-safe and every `$ref` resolves before rendering. Pure.
  */
-export function renderV4TokenArtifactFiles(packageDir) {
+export function renderTokenArtifactFiles(packageDir) {
   const pkg = readJsonFile(join(packageDir, "package.json"));
   const tokensExport = requireNonEmptyString(
     pkg.prismSystem?.tokensExport,
@@ -1832,9 +1825,8 @@ export function renderV4TokenArtifactFiles(packageDir) {
 }
 
 /**
- * Compare the on-disk manifest (and, for V4, the three token artifacts) with a
- * freshly built/rendered set. V2 packages check only `design-system.json`, so
- * their output and failure messages are unchanged.
+ * Compare the on-disk manifest and the three token artifacts with a freshly
+ * built/rendered set.
  *
  * @returns {{ ok: boolean, failures: string[], expected: object | null, actual: object | null, tokenArtifacts: object | null }}
  */
@@ -1879,18 +1871,16 @@ export function checkDesignSystemManifest({ id, packageDir }) {
   }
 
   let tokenArtifacts = null;
-  if (expected.contract === "v4") {
-    try {
-      const result = checkTokenArtifactFiles({
-        id,
-        packageDir,
-        files: renderV4TokenArtifactFiles(packageDir),
-      });
-      tokenArtifacts = result.artifacts;
-      failures.push(...result.failures);
-    } catch (error) {
-      failures.push(error.message);
-    }
+  try {
+    const result = checkTokenArtifactFiles({
+      id,
+      packageDir,
+      files: renderTokenArtifactFiles(packageDir),
+    });
+    tokenArtifacts = result.artifacts;
+    failures.push(...result.failures);
+  } catch (error) {
+    failures.push(error.message);
   }
 
   return { ok: failures.length === 0, failures, expected, actual, tokenArtifacts };
@@ -1935,12 +1925,12 @@ export async function renderDesignSystemManifest({ id, packageDir }) {
 
 /**
  * Render every generated artifact for a package without writing: the manifest
- * source plus, for V4 only, the three token artifact descriptors. Pure except
- * for reading package-owned inputs.
+ * source plus the three token artifact descriptors. Pure except for reading
+ * package-owned inputs.
  */
 export async function renderDesignSystemArtifacts({ id, packageDir }) {
   const { manifest, source } = await renderDesignSystemManifest({ id, packageDir });
-  const tokenArtifacts = manifest.contract === "v4" ? renderV4TokenArtifactFiles(packageDir) : [];
+  const tokenArtifacts = renderTokenArtifactFiles(packageDir);
   return { manifest, manifestSource: source, tokenArtifacts };
 }
 
@@ -1971,10 +1961,9 @@ function writeFilesTransactional(writes) {
 }
 
 /**
- * Build, format, and atomically write the generated manifest. For V4 packages
- * this also writes the three deterministic token artifacts
- * (`src/tokens/index.ts`, `src/styles/tokens.css`, `src/styles/tailwind.css`)
- * in one transaction. V2 packages write only `design-system.json`.
+ * Build, format, and atomically write the generated manifest plus the three
+ * deterministic token artifacts (`src/tokens/index.ts`, `src/styles/tokens.css`,
+ * `src/styles/tailwind.css`) in one transaction.
  */
 export async function writeDesignSystemManifest({ id, packageDir }) {
   const { manifest, manifestSource, tokenArtifacts } = await renderDesignSystemArtifacts({

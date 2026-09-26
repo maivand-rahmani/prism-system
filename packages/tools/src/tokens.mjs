@@ -3,7 +3,7 @@
  * Offline token catalog for installed design systems (`prism-ds tokens`).
  *
  * This is the read-only, offline counterpart of the registry `info` path for
- * the V4 semantic token catalog. It resolves the design system already installed
+ * the semantic token catalog. It resolves the design system already installed
  * in a consumer and reports the token names declared by its public `./manifest`
  * export, mapped to the CSS custom properties and Tailwind theme names the
  * system's generated bridge actually emits. It never:
@@ -16,14 +16,9 @@
  *   - reads `package.json` metadata to invent a token prefix (the prefixes come
  *     only from the validated `manifest.tokens.names`).
  *
- * Contract handling is dual-contract and fail-closed:
- *
- *   - V2 manifests declare no token schema; they produce a clear
- *     `supported: false` / no-token-catalog result and never throw, so V2
- *     connect/info/doctor remain unaffected;
- *   - V4 manifests must declare `tokens.names.cssVariablePrefix` and
- *     `tokens.names.tailwindUtilityPrefix`; a missing or invalid prefix fails
- *     closed with an actionable error.
+ * A manifest must declare `tokens.names.cssVariablePrefix` and
+ * `tokens.names.tailwindUtilityPrefix`; a missing or invalid prefix fails
+ * closed with an actionable error.
  *
  * Name derivation mirrors `scripts/design-system-tokens.mjs` exactly:
  *
@@ -55,7 +50,7 @@
  * Breakpoints are reported as variants, not utility classes.
  */
 
-import { CONTRACT_V4, TOKEN_NAMESPACE_PATTERN, V4_TOKEN_GROUP_KEYS } from "./constants.mjs";
+import { CONTRACT_VERSION, TOKEN_NAMESPACE_PATTERN, TOKEN_GROUP_KEYS } from "./constants.mjs";
 import {
   discoverConsumerPackage,
   resolveConsumerRoot,
@@ -63,11 +58,6 @@ import {
   verifyConsumerDesignSystem,
 } from "./consumer.mjs";
 import { detectManifestContract, isUniqueStringArray } from "./manifest.mjs";
-
-/** The reason a V2 manifest yields an empty token catalog. */
-export const V2_NO_TOKEN_CATALOG_REASON =
-  "V2 design systems declare no token catalog; the tokens catalog is a V4 " +
-  "contract (manifest.tokens.groups plus manifest.tokens.names).";
 
 function isPlainObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -96,12 +86,12 @@ function kebabPath(path) {
 /** Validate and normalize one required token prefix. Fails closed with a label. */
 function normalizePrefix(value, label) {
   if (typeof value !== "string" || value.trim().length === 0) {
-    throw new Error(`V4 manifest ${label} must be a non-empty string.`);
+    throw new Error(`Manifest ${label} must be a non-empty string.`);
   }
   const prefix = value.trim();
   if (!TOKEN_NAMESPACE_PATTERN.test(prefix)) {
     throw new Error(
-      `V4 manifest ${label} ${JSON.stringify(prefix)} is not a safe lower-kebab namespace.`,
+      `Manifest ${label} ${JSON.stringify(prefix)} is not a safe lower-kebab namespace.`,
     );
   }
   return prefix;
@@ -113,7 +103,7 @@ function readTokenPrefixes(manifest) {
   const names = tokens.names;
   if (!isPlainObject(names)) {
     throw new Error(
-      'V4 manifest is missing "tokens.names"; a V4 token catalog requires ' +
+      'Manifest is missing "tokens.names"; the token catalog requires ' +
         "tokens.names.cssVariablePrefix and tokens.names.tailwindUtilityPrefix.",
     );
   }
@@ -323,10 +313,10 @@ function buildTokenEntry({ group, path, cssPrefix, twPrefix }) {
 /** Select a requested group, or throw a clear unknown-group error. */
 function selectRequestedGroup({ requested, groups }) {
   const group = requireNonEmptyString(requested, "token group");
-  if (!V4_TOKEN_GROUP_KEYS.includes(group)) {
+  if (!TOKEN_GROUP_KEYS.includes(group)) {
     throw new Error(
       `Unknown token group ${JSON.stringify(group)}; known groups are: ` +
-        `${V4_TOKEN_GROUP_KEYS.join(", ")}.`,
+        `${TOKEN_GROUP_KEYS.join(", ")}.`,
     );
   }
   const found = groups.find((entry) => entry.group === group);
@@ -340,13 +330,13 @@ function selectRequestedGroup({ requested, groups }) {
  * from {@link listDesignSystemTokens} so the mapping rules can be exercised
  * against manifest data without any consumer or filesystem access.
  *
- * V2 returns a non-throwing `supported: false` result. V4 requires
- * `tokens.names.cssVariablePrefix` and `tokens.names.tailwindUtilityPrefix` and
- * fails closed when either is missing or invalid.
+ * A manifest requires `tokens.names.cssVariablePrefix` and
+ * `tokens.names.tailwindUtilityPrefix` and fails closed when either is missing
+ * or invalid.
  *
  * @param {{ manifest: object, group?: string }} [options]
  * @returns {{
- *   contract: "v2" | "v4",
+ *   contractVersion: 4,
  *   supported: boolean,
  *   reason: string | null,
  *   id: string,
@@ -362,44 +352,27 @@ export function buildTokenCatalog({ manifest, group } = {}) {
   if (!isPlainObject(manifest)) {
     throw new Error("A design-system manifest object is required.");
   }
-  const contract = detectManifestContract(manifest);
-  if (contract === null) {
+  if (detectManifestContract(manifest) === null) {
     throw new Error(
-      'Unsupported design-system manifest; expected the (1, "v2") or (2, "v4") ' +
-        "schema/contract pair.",
+      "Unsupported design-system manifest; expected schemaVersion 4 and contractVersion 4.",
     );
-  }
-
-  if (contract !== CONTRACT_V4) {
-    return {
-      contract,
-      supported: false,
-      reason: V2_NO_TOKEN_CATALOG_REASON,
-      id: manifest.id,
-      name: manifest.name,
-      prefixes: null,
-      groupNames: [],
-      groups: [],
-      counts: { groups: 0, tokens: 0 },
-      requested: null,
-    };
   }
 
   const prefixes = readTokenPrefixes(manifest);
   const tokenGroups = isPlainObject(manifest.tokens.groups) ? manifest.tokens.groups : null;
   if (tokenGroups === null) {
-    throw new Error('V4 manifest is missing "tokens.groups".');
+    throw new Error('Manifest is missing "tokens.groups".');
   }
   for (const key of Object.keys(tokenGroups)) {
-    if (!V4_TOKEN_GROUP_KEYS.includes(key)) {
+    if (!TOKEN_GROUP_KEYS.includes(key)) {
       throw new Error(
         `Unsupported token group ${JSON.stringify(key)}; known groups are: ` +
-          `${V4_TOKEN_GROUP_KEYS.join(", ")}.`,
+          `${TOKEN_GROUP_KEYS.join(", ")}.`,
       );
     }
   }
 
-  const groups = V4_TOKEN_GROUP_KEYS.filter((key) => hasOwn(tokenGroups, key)).map((key) => {
+  const groups = TOKEN_GROUP_KEYS.filter((key) => hasOwn(tokenGroups, key)).map((key) => {
     const paths = tokenGroups[key];
     if (!Array.isArray(paths) || !isUniqueStringArray(paths)) {
       throw new Error(`tokens.groups.${key} must be an array of unique non-empty strings.`);
@@ -418,7 +391,7 @@ export function buildTokenCatalog({ manifest, group } = {}) {
       : selectRequestedGroup({ requested: group, groups });
 
   return {
-    contract,
+    contractVersion: CONTRACT_VERSION,
     supported: true,
     reason: null,
     id: manifest.id,
@@ -445,11 +418,11 @@ export function buildTokenCatalog({ manifest, group } = {}) {
  *
  * @param {{ cwd?: string, group?: string }} [options] `cwd` is the required
  *   consumer root (it never falls back to a repository root); `group` optionally
- *   selects one of the nine V4 token groups.
+ *   selects one of the nine token groups.
  * @returns {{
  *   ok: true,
  *   supported: boolean,
- *   contract: "v2" | "v4",
+ *   contractVersion: 4,
  *   package: string,
  *   version: string,
  *   id: string,
@@ -478,7 +451,7 @@ export function listDesignSystemTokens({ cwd, group } = {}) {
   return {
     ok: true,
     supported: catalog.supported,
-    contract: catalog.contract,
+    contractVersion: catalog.contractVersion,
     package: discovered.packageName,
     version,
     id: catalog.id,

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Manifest-driven static app integration for the V2/V4 factory (Phase 4).
+ * Manifest-driven static app integration for the factory.
  *
  * Showcase and Reference App are integrated from `config/design-systems.json`
  * with **static imports only** — no runtime package discovery, no dynamic
@@ -10,12 +10,9 @@
  *
  *   app/registry.ts   fully generated: one static import (package + tokens) per
  *                     manifest entry, the common `RegisteredSystem` type, and a
- *                     throwing lookup. V2 systems register through the V2
- *                     registry, V4 systems through the V4 registry; a mixed
- *                     manifest keeps both guards, discriminates V2 from V4, and
- *                     never relabels a contract. Every V4 entry also imports the
- *                     package's public generated `./manifest` metadata and
- *                     exposes the full runtime V4 component map.
+ *                     throwing lookup. Every entry imports the package's public
+ *                     generated `./manifest` metadata and exposes the full
+ *                     runtime component map.
  *   app/layout.tsx    generated import block for every registered stylesheet,
  *                     with the surrounding metadata/body preserved verbatim.
  *   package.json      workspace dependency set reconciled to the manifest, all
@@ -110,7 +107,7 @@ export function toPascalCase(id) {
 }
 
 /**
- * Local alias for a V4 package's default `./manifest` import.
+ * Local alias for a package's default `./manifest` import.
  * `SystemA` -> `systemAManifest`, `FancyTech` -> `fancyTechManifest`.
  */
 function toManifestAlias(alias) {
@@ -139,7 +136,7 @@ function prepareEntries(manifest) {
     if (!isPlainObject(raw)) {
       throw new Error(`Manifest entry #${index} must be an object.`);
     }
-    const { id, packageName, uiClass, tokensExport } = raw;
+    const { id, packageName, uiClass, tokensExport, contractVersion } = raw;
     if (typeof id !== "string" || !SYSTEM_ID_PATTERN.test(id)) {
       throw new Error(
         `App integration: invalid system id ${JSON.stringify(id)} at entry #${index}.`,
@@ -160,24 +157,21 @@ function prepareEntries(manifest) {
         `App integration: "${id}" has unsafe token export ${JSON.stringify(tokensExport)}; expected a valid identifier.`,
       );
     }
-    if (raw.contract !== "v2" && raw.contract !== "v4") {
+    if (contractVersion !== 4) {
       throw new Error(
-        `App integration: "${id}" has contract ${JSON.stringify(raw.contract ?? null)}; ` +
-          `app integration supports "v2" and "v4" and never normalizes to "v1". ` +
-          `Set "contract": "v2" or "contract": "v4" for "${id}" in the design-system manifest.`,
+        `App integration: "${id}" has contractVersion ${JSON.stringify(
+          contractVersion ?? null,
+        )}; the only current contract is the numeric contractVersion: 4.`,
       );
     }
-    const contract = raw.contract;
-    return { id, packageName, uiClass, tokensExport, contract, alias: toPascalCase(id) };
+    return { id, packageName, uiClass, tokensExport, alias: toPascalCase(id) };
   });
 
   entries.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
   const localNames = new Set();
   for (const entry of entries) {
-    const names = [entry.alias, entry.tokensExport];
-    // V4 entries also import the package's `./manifest` under a derived alias.
-    if (entry.contract === "v4") names.push(toManifestAlias(entry.alias));
+    const names = [entry.alias, entry.tokensExport, toManifestAlias(entry.alias)];
     for (const name of names) {
       if (localNames.has(name)) {
         throw new Error(
@@ -200,128 +194,34 @@ function requiredPackages(entries) {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Registry source for a manifest that contains only V2 systems.
- * V2 props come from the shared contract, independent of registration order.
+ * Registry source for the current single contract: one static package import
+ * per manifest entry, the package's public generated `./manifest` metadata, the
+ * full runtime component map, and a throwing lookup.
  */
-function buildV2RegistrySource(entries) {
-  const packageImports = entries.map(
-    (entry) =>
-      `import { DesignSystem as ${entry.alias}, ${entry.tokensExport} } from ${JSON.stringify(
-        entry.packageName,
-      )};`,
-  );
+function buildRegistrySource(entries) {
+  const packageImports = entries.flatMap((entry) => [
+    `import { DesignSystem as ${entry.alias}, ${entry.tokensExport} } from ${JSON.stringify(
+      entry.packageName,
+    )};`,
+    `import ${toManifestAlias(entry.alias)} from ${JSON.stringify(
+      `${entry.packageName}/manifest`,
+    )};`,
+  ]);
+
   const registrations = entries.map(
     (entry) =>
       `  { ...${entry.alias}, uiClass: ${JSON.stringify(entry.uiClass)}, tokens: ${
         entry.tokensExport
-      } } as unknown as RegisteredSystem,`,
+      }, manifest: ${toManifestAlias(entry.alias)} },`,
   );
-
-  return [
-    REGISTRY_HEADER,
-    "",
-    `import { createDesignSystemRegistry, type DesignSystem } from ${JSON.stringify(CORE_PACKAGE)};`,
-    ...packageImports,
-    "",
-    "/** A group of related token values, for example the color or motion scale. */",
-    "export type TokenGroup = Record<string, string>;",
-    "",
-    "/** Token groups every registered system exposes; typography is optional. */",
-    "export type TokenSet = {",
-    "  color: TokenGroup;",
-    "  radius: TokenGroup;",
-    "  shadow: TokenGroup;",
-    "  motion: TokenGroup;",
-    "  typography?: TokenGroup;",
-    "};",
-    "",
-    "/** Shared V2 props; package-specific extensions are not universal. */",
-    'type RegisteredComponents = DesignSystem["components"];',
-    "",
-    "/** A registered system with its scoped UI class and token groups. */",
-    'export type RegisteredSystem = Omit<DesignSystem, "components"> & {',
-    '  components: DesignSystem["components"] & RegisteredComponents;',
-    "  uiClass: string;",
-    "  tokens: TokenSet;",
-    "};",
-    "",
-    "/** Every registered system, in stable ascending id order. */",
-    "export const registeredSystems: readonly RegisteredSystem[] = [",
-    ...registrations,
-    "];",
-    "",
-    "export const systemRegistry = createDesignSystemRegistry(",
-    "  registeredSystems as readonly DesignSystem[],",
-    ");",
-    "",
-    "/** Resolve a registered system by id. Throws when the id is unknown. */",
-    "export function getRegisteredSystem(id: string): RegisteredSystem {",
-    "  return systemRegistry.require(id) as RegisteredSystem;",
-    "}",
-    "",
-  ].join("\n");
-}
-
-/**
- * Registry source for a manifest that contains at least one V4 system (mixed
- * V2/V4 or V4-only).
- *
- * V2 values are registered through `createDesignSystemRegistry` and V4 values
- * through `createDesignSystemRegistryV4`, each behind its own runtime guard,
- * and the exported `RegisteredSystem` is a discriminated union of the two
- * shapes: contract markers are never relabeled by a cast.
- *
- * V4 entries expose the full runtime component map — the twenty required names
- * plus whichever optional names the package actually declares — typed from the
- * public `DesignSystemComponentsV4` contract. Package-specific extensions are
- * not assumed by shared compositions. Optional presence is answered
- * by the real runtime map keys at run time; the generated registry never
- * fabricates an optional entry or guesses availability from a name list.
- *
- * Every V4 entry also imports its package's public generated `./manifest`
- * metadata (`design-system.json`) and carries it as `manifest`, so consumers
- * read the package's promised components, variants, sizes, and members from the
- * same generated source the package ships. V2 entries keep the original shape
- * and never import a manifest.
- */
-function buildMixedRegistrySource(entries) {
-  const packageImports = entries.flatMap((entry) => {
-    const main = `import { DesignSystem as ${entry.alias}, ${entry.tokensExport} } from ${JSON.stringify(
-      entry.packageName,
-    )};`;
-    if (entry.contract !== "v4") return [main];
-    return [
-      main,
-      `import ${toManifestAlias(entry.alias)} from ${JSON.stringify(
-        `${entry.packageName}/manifest`,
-      )};`,
-    ];
-  });
-
-  const registrationV2 = (entry) =>
-    `  { ...${entry.alias}, uiClass: ${JSON.stringify(entry.uiClass)}, tokens: ${
-      entry.tokensExport
-    } },`;
-  const registrationV4 = (entry) =>
-    `  { ...${entry.alias}, uiClass: ${JSON.stringify(entry.uiClass)}, tokens: ${
-      entry.tokensExport
-    }, manifest: ${toManifestAlias(entry.alias)} },`;
-
-  const v2Entries = entries.filter((entry) => entry.contract === "v2");
-  const v4Entries = entries.filter((entry) => entry.contract === "v4");
-  if (v4Entries.length === 0) {
-    throw new Error("Mixed registry generation requires at least one V4 system.");
-  }
 
   return [
     REGISTRY_HEADER,
     "",
     "import {",
     "  createDesignSystemRegistry,",
-    "  createDesignSystemRegistryV4,",
     "  type DesignSystem,",
-    "  type DesignSystemComponentsV4,",
-    "  type DesignSystemV4,",
+    "  type DesignSystemComponents,",
     `} from ${JSON.stringify(CORE_PACKAGE)};`,
     ...packageImports,
     "",
@@ -347,115 +247,63 @@ function buildMixedRegistrySource(entries) {
     "  example?: string;",
     "};",
     "",
+    "/** One capability category of a package's generated `./manifest` metadata. */",
+    "export type RegisteredManifestCapabilityCategory = {",
+    "  required: readonly string[];",
+    "  optional: readonly string[];",
+    "};",
+    "",
     "/**",
-    " * The public generated `./manifest` metadata a V4 package publishes.",
+    " * The public generated `./manifest` metadata a package publishes.",
     " *",
     " * It describes the components, variants, sizes, and compound members the",
-    " * package promises. The registered runtime component map stays the source of",
-    " * truth for what actually exists. JSON imports widen string literals, so",
-    ' * `contract` is typed as a string; the exact `"v4"` marker lives on',
-    " * `RegisteredSystemV4.componentContract`.",
+    " * package promises, plus the generated capability-category inventory. The",
+    " * category membership is a reference only: the registered runtime component",
+    " * map stays the source of truth for what actually exists. JSON imports widen",
+    " * literals, so the metadata versions are typed as numbers.",
     " */",
     "export type RegisteredManifest = {",
     "  schemaVersion: number;",
-    "  contract: string;",
+    "  contractVersion: number;",
     "  id: string;",
     "  name: string;",
     "  package: string;",
     "  version: string;",
     "  components: Readonly<Record<string, RegisteredManifestComponent>>;",
+    "  capabilities: {",
+    "    categories: Readonly<Record<string, RegisteredManifestCapabilityCategory>>;",
+    "  };",
     "};",
     "",
     "/**",
-    " * Shared V2 props for the original fourteen-component surface.",
-    " */",
-    'type RegisteredComponentsV2 = DesignSystem["components"];',
-    "",
-    "/**",
-    " * Shared props for the full V4 runtime component map.",
+    " * A registered system with its scoped UI class, token groups, and the",
+    " * package's public generated `./manifest` metadata.",
     " *",
-    " * Required props come from core, every optional V4 name stays optional,",
-    " * and a component the package does not implement stays absent. Availability",
-    " * is a runtime question answered by the real component-map keys, never by",
-    " * this type or by the manifest.",
+    " * Availability of an optional component is a runtime question answered by the",
+    " * real component-map keys, never by this type or by the manifest.",
     " */",
-    "type RegisteredComponentsV4 = DesignSystemComponentsV4;",
-    "",
-    "/** A V2 system registered through the V2 guard, with its scoped UI class and tokens. */",
-    'export type RegisteredSystemV2 = Omit<DesignSystem, "components"> & {',
-    '  components: DesignSystem["components"] & RegisteredComponentsV2;',
-    "  uiClass: string;",
-    "  tokens: TokenSet;",
-    "};",
-    "",
-    "/**",
-    " * A V4 system registered through the V4 guard.",
-    " *",
-    " * `components` is the full runtime V4 component map and `manifest` is the",
-    " * package's public generated `./manifest` metadata. `componentContract`",
-    ' * keeps the package\'s real `"v4"` marker; a V2 system is never relabeled as V4.',
-    " */",
-    'export type RegisteredSystemV4 = Omit<DesignSystemV4, "components"> & {',
-    "  components: RegisteredComponentsV4;",
+    'export type RegisteredSystem = Omit<DesignSystem, "components"> & {',
+    "  components: DesignSystemComponents;",
     "  manifest: RegisteredManifest;",
     "  uiClass: string;",
     "  tokens: TokenSet;",
     "};",
     "",
-    "/**",
-    " * Every registered system, discriminated by `componentContract`.",
-    " *",
-    " * Narrow to `RegisteredSystemV4` before reaching V4-only components or the",
-    " * package manifest.",
-    " */",
-    "export type RegisteredSystem = RegisteredSystemV2 | RegisteredSystemV4;",
+    "/** Every registered system, in stable ascending id order. */",
+    "export const registeredSystems = [",
+    ...registrations,
+    "] as unknown as readonly RegisteredSystem[];",
     "",
-    "/** V2 systems, registered through the V2 guard. */",
-    "const v2Systems = [",
-    ...v2Entries.map(registrationV2),
-    "] as unknown as readonly DesignSystem[];",
-    "",
-    "/** V4 systems, registered through the V4 guard. */",
-    "const v4Systems = [",
-    ...v4Entries.map(registrationV4),
-    "] as unknown as readonly DesignSystemV4[];",
-    "",
-    "/** Every registered system: V2 systems, then V4 systems, each in id order. */",
-    "export const registeredSystems: readonly RegisteredSystem[] = [",
-    "  ...(v2Systems as unknown as readonly RegisteredSystemV2[]),",
-    "  ...(v4Systems as unknown as readonly RegisteredSystemV4[]),",
-    "];",
-    "",
-    "/** The V2 registry; it only receives V2 values and enforces the V2 guard. */",
-    "export const systemRegistry = createDesignSystemRegistry(v2Systems);",
-    "",
-    "/** The V4 registry; it only receives V4 values and enforces the V4 guard. */",
-    "export const systemRegistryV4 = createDesignSystemRegistryV4(v4Systems);",
+    "export const systemRegistry = createDesignSystemRegistry(",
+    "  registeredSystems as unknown as readonly DesignSystem[],",
+    ");",
     "",
     "/** Resolve a registered system by id. Throws when the id is unknown. */",
     "export function getRegisteredSystem(id: string): RegisteredSystem {",
-    "  const system = systemRegistry.get(id) ?? systemRegistryV4.get(id);",
-    "  if (!system) {",
-    "    throw new Error(",
-    '      `Design system "${id}" is not registered. Known systems: ${',
-    '        registeredSystems.map((item) => item.id).join(", ") || "(none)"',
-    "      }.`,",
-    "    );",
-    "  }",
-    "  return system as unknown as RegisteredSystem;",
+    "  return systemRegistry.require(id) as unknown as RegisteredSystem;",
     "}",
     "",
   ].join("\n");
-}
-
-/**
- * Pick the registry generator. A manifest with no V4 entry keeps the exact
- * original V2 output; once any entry is V4 the mixed generator handles V2, V4,
- * or both without relabeling either contract.
- */
-function buildRegistrySource(entries) {
-  const hasV4 = entries.some((entry) => entry.contract === "v4");
-  return hasV4 ? buildMixedRegistrySource(entries) : buildV2RegistrySource(entries);
 }
 
 function buildStylesBlock(entries) {
@@ -656,13 +504,6 @@ function migrateNextConfig(source, packages, relativePath) {
 /* Per-file content computation                                               */
 /* -------------------------------------------------------------------------- */
 
-/**
- * V1-only markers. The known legacy app registry (pre-marker, V1-shaped)
- * contains none of these, so it can still be migrated once; anything else that
- * advertises a V1 registry is refused rather than silently rewritten.
- */
-const LEGACY_V1_MARKERS = /\bV1\b|contract\s*[:=]\s*["']v1["']|DesignSystemV1/;
-
 function computeRegistry(existing, entries, relativePath) {
   if (existing === null || existing.includes(TOOL_OWNED_MARKER)) {
     return { after: buildRegistrySource(entries), source: "update" };
@@ -674,12 +515,6 @@ function computeRegistry(existing, entries, relativePath) {
   if (!looksLegacy) {
     throw new Error(
       `Refusing to rewrite ${relativePath}: it is neither tool-owned nor a recognized legacy registry.`,
-    );
-  }
-  if (LEGACY_V1_MARKERS.test(existing)) {
-    throw new Error(
-      `Refusing to rewrite ${relativePath}: it looks like a legacy V1 registry, which is no longer supported. ` +
-        `Regenerate it from the V2 manifest with "pnpm ds:register <id>".`,
     );
   }
   return { after: buildRegistrySource(entries), source: "migrate" };
