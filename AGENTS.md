@@ -221,6 +221,7 @@ pnpm dev            # run dev targets through Turborepo
 pnpm build          # build all packages
 pnpm lint           # lint all packages
 pnpm typecheck      # typecheck all packages
+pnpm test           # Node regression suites (run after build)
 pnpm format         # format with Prettier
 pnpm changeset      # record a release change
 ```
@@ -270,3 +271,7 @@ implementation that ships as `@prism-system/tools`; `ds:create`, `ds:register`,
 Lifecycle skills: `skills/create-design-system/SKILL.md` (create),
 `skills/use-design-system/SKILL.md` (consume), and
 `skills/modify-design-system/SKILL.md` (evolve).
+
+Quality criteria and coverage limits: `docs/v4/quality.md`. CI, release and publish
+verification jobs share `.github/workflows/verify.yml`; V4 acceptance includes the
+packed-tools gate, while `ds:check-v3` remains historical only.

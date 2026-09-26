@@ -1,0 +1,57 @@
+name: Quality checks
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: V4 quality gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: 10.34.5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Build
+        run: pnpm build
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test contracts, maintainer scripts and consumer tooling
+        run: pnpm test
+
+      - name: Check version consistency
+        run: pnpm ds:sync-versions --check
+
+      - name: Check active V4 documentation
+        run: pnpm ds:check-v4-docs
+
+      # Includes ds:check-v4-tools; do not run that packed gate twice.
+      - name: Check packed V4 lifecycle and V2 consumer compatibility
+        run: pnpm ds:check-v4

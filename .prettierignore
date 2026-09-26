@@ -3,6 +3,12 @@ dist
 .next
 .turbo
 coverage
+TEMP
+.agents
+.codex
+
+# Generated token modules are checked against their source by ds:check-v4.
+packages/*/src/tokens/index.ts
 pnpm-lock.yaml
 .playwright-mcp
 qa-*.png

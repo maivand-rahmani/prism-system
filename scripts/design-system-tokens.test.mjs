@@ -58,7 +58,11 @@ function tempCopy(sourceDir) {
 }
 
 function cleanup(testContext, dir) {
-  testContext.after(() => rmSync(dir, { recursive: true, force: true }));
+  // Temporary filesystem locks must not turn a passing assertion into a failure.
+  // Only cleanup is retried; test assertions still run once.
+  testContext.after(() =>
+    rmSync(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }),
+  );
 }
 
 /* -------------------------------------------------------------------------- */

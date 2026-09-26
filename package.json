@@ -14,6 +14,7 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
+    "test": "node scripts/test-unit.mjs",
     "clean": "turbo run clean",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

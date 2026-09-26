@@ -76,6 +76,7 @@ Changesets, а публикация всегда остаётся ручным �
 
 - **Подробный гайд для человека:** [`docs/guide.md`](docs/guide.md)
 - **Правила для coding-агентов:** [`AGENTS.md`](AGENTS.md)
+- **Критерии качества и проверки CI:** [`docs/v4/quality.md`](docs/v4/quality.md)
 - **Пакеты:** [`packages/core/README.md`](packages/core/README.md),
   [`packages/system-a/README.md`](packages/system-a/README.md),
   [`packages/system-b/README.md`](packages/system-b/README.md),
