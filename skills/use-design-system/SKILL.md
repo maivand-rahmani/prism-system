@@ -11,9 +11,8 @@ appearance and reusable visual patterns. This works from the installed package a
 the consumer does not need the design-system monorepo, package source, or
 `tokens.source.json`.
 
-For contract rules and the V2/V4 CSS distinction, read
-[V4 lifecycle guidance](../references/v4-lifecycle.md). To create or evolve a package,
-use [`create-design-system`](../create-design-system/SKILL.md) or
+For contract rules, read [lifecycle guidance](../references/lifecycle.md). To create or
+evolve a package, use [`create-design-system`](../create-design-system/SKILL.md) or
 [`modify-design-system`](../modify-design-system/SKILL.md).
 
 ## Discover the exact installed system
@@ -33,20 +32,21 @@ substitute examples from a newer source checkout.
 The manifest is the authority for the shipped component catalog, variants, sizes,
 compound members, usage rules, token names, and CSS/documentation paths. Check that the
 installed package, config, and manifest versions match exactly. Do not infer installed
-features from repository sources, another system, or a newer manifest. When config is
-absent or stale, configure/update explicitly with `prism-ds use` or `prism-ds connect`
-and validate before coding.
+features from repository sources, another system, or a newer manifest. Current shipped
+manifests are `schemaVersion: 4`: tools that only understand schema 3 (an older
+`prism-ds` or a custom reader) cannot read them and must be upgraded in lockstep with
+the package. When config is absent or stale, configure/update explicitly with
+`prism-ds use` or `prism-ds connect` and validate before coding.
 
-For either installed contract, use the offline component catalog as needed:
+Use the offline component and token catalogs as needed:
 
 ```bash
 npx prism-ds components --cwd <consumer-root>
 npx prism-ds tokens --cwd <consumer-root>
 ```
 
-`tokens` is the V4 token-name catalog and is unsupported for V2. For diagnostics, choose
-the package/config check (which also runs strict usage validation) or the standalone
-usage check when that is all that is needed:
+For diagnostics, choose the package/config check (which also runs strict usage
+validation) or the standalone usage check when that is all that is needed:
 
 ```bash
 npx prism-ds check --cwd <consumer-root> [--css <explicit-file>]
@@ -68,7 +68,7 @@ metadata, and removed/added token names against the product's actual imports and
 The manifest does not contain token values, so review package documentation and rendered
 screens for visual changes as well. After upgrading, rediscover the selected version and
 manifest; repair call sites using only the new public API, then run `check` once (with an
-explicit `--css` path for V4 Tailwind import-order validation).
+explicit `--css` path for Tailwind import-order validation).
 
 ## Compose semantically
 
@@ -76,35 +76,35 @@ Import UI and CSS only through the package's public exports. Never copy componen
 source, generated tokens, or CSS into the consumer; never import package internals.
 Compose the product interface using real HTML semantics and the installed contract:
 
-- **V4:** use `Heading` levels to reflect the page's heading hierarchy and `FormField`
-  where its contract fits to associate labels, descriptions, and errors. Preserve
-  accessible names for controls and links; keep validation and submission behavior in
-  the product. Use the preserved control ref to focus the first invalid field when
-  requested. Choose native validation or product-timed validation deliberately; with
-  custom submit handling, `noValidate` prevents the browser from intercepting submission
-  before the product displays its error.
-- **V2:** its contract does not include `Heading` or `FormField`. Use semantic native
-  headings and labels/fieldset/description associations composed with the installed V2
-  controls, guided by their shipped types and docs. Do not assume newer props or exports.
-- Use optional components only when the installed manifest declares them. If a needed
-  optional capability is absent, compose the same semantic result from available system
-  primitives and layout utilities. For example, render a labeled feedback region without
+- Use `Heading` levels to reflect the page's heading hierarchy and `FormField` where its
+  contract fits to associate labels, descriptions, and errors. Preserve accessible names
+  for controls and links; keep validation and submission behavior in the product. Use the
+  preserved control ref to focus the first invalid field when requested. Choose native
+  validation or product-timed validation deliberately; with custom submit handling,
+  `noValidate` prevents the browser from intercepting submission before the product
+  displays its error.
+- Use optional components only when the installed manifest declares them: support is the
+  presence of the component name as a key in `manifest.components`. The manifest's
+  `capabilities.categories` inventory maps names to composition/forms/data-display
+  membership; it is not availability, and components outside those categories are still
+  available by key. If a needed optional capability is absent, compose the same semantic
+  result from available system primitives and layout utilities. For example, render a labeled feedback region without
   `Alert`, a list of links without `Breadcrumbs`, or a data table with native table
   semantics when `Table` is absent. Do not create a visually restyled local primitive.
 - Use the design system for reusable appearance and states; use Tailwind/layout utilities
   for product-owned placement and responsive composition. Avoid arbitrary product colors,
   radii, shadows, or overrides of system components.
 
-For either contract with ordinary CSS, import `<package>/styles.css`. The Tailwind bridge
-workflow applies only when the installed manifest identifies V4. For V4 and Tailwind v4,
-run setup against the explicitly chosen CSS file:
+With ordinary CSS, import `<package>/styles.css`. The Tailwind bridge workflow applies
+when the installed system ships a bridge. With Tailwind v4, run setup against the
+explicitly chosen CSS file:
 
 ```bash
 npx prism-ds setup-tailwind --cwd <consumer-root> --css <file>
 ```
 
-For V4, the required Tailwind order is Tailwind, the selected package bridge, then its
-ordinary styles:
+The required Tailwind order is Tailwind, the selected package bridge, then its ordinary
+styles:
 
 ```css
 @import "tailwindcss";
@@ -112,16 +112,15 @@ ordinary styles:
 @import "@prism-system/ui-system-a/styles.css";
 ```
 
-Use one selected V4 system bridge per build. The setup command checks/maintains these
+Use one selected system bridge per build. The setup command checks/maintains these
 imports in the explicitly named file; it does not install Tailwind or edit other files.
-V2 packages keep their existing manifest and stylesheet behavior and do not provide a
-V4 bridge or V4 token catalog. Tailwind can still handle product layout independently;
-do not require a Prism bridge for V2.
+Tailwind can still handle product layout independently; a Prism bridge is only needed
+when the installed system provides one.
 
 ## Check and report
 
 Run `npx prism-ds check --cwd <consumer-root>` for package/config diagnostics; it also
-runs strict usage validation. For a V4 Tailwind project, run
+runs strict usage validation. For a Tailwind project, run
 `npx prism-ds check --cwd <consumer-root> --css <explicit-file>` when checking import
 order, because the tool does not guess which CSS file the product builds. `--css`
 requires an explicit CSS file path.

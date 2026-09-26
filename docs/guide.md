@@ -18,17 +18,20 @@
 coding-агент просто читает файлы-инструкции (`AGENTS.md`, `skills/`) и запускает
 обычные команды `pnpm ds:*`.
 
-## 2. Аналогия и архитектура
+Материалы завершённых этапов разработки лежат в
+[`docs/archive/`](archive/README.md). Это архив, а не текущие правила: актуальная
+документация — этот гайд и [текущая спецификация](v4/README.md).
+
+## 2. Архитектура и направление зависимостей
 
 Представьте конструктор:
 
 - `@prism-system/ui-core` — **фундамент и правила**: какие компоненты обязаны
-  существовать и какие у них типы. Описаны два слоя контрактов: действующий **V2**
-  (14 компонентов) и дополнительный **V4** (20 обязательных и 12 дополнительных
-  контрактов). Без цветов и стилей.
+  существовать и какие у них типы. Единственный текущий контракт — **версия 4**:
+  29 обязательных компонентов и 17 дополнительных контрактов. Без цветов и стилей.
 - `@prism-system/ui-system-a` / `@prism-system/ui-system-b` — **наборы деталей
   внешнего вида**: смысловые токены, CSS, варианты, состояния, анимации. Каждая
-  система реализует все 20 обязательных компонентов V4 и только те дополнительные,
+  система реализует все 29 обязательных компонентов и только те дополнительные,
   которые объявила в манифесте.
 - `apps/showcase` — **витрина**: живой каталог зарегистрированных систем,
   Foundations и компонентов по маршруту `/showcase/<id>`.
@@ -99,40 +102,49 @@ pnpm --filter @prism-system/reference-app dev
 `pnpm dev` запускает все dev-цели через Turborepo сразу; для повседневной работы
 удобнее запускать приложения по одному.
 
-## 6. System A/B и контракт V4
+## 6. Контракт: 29 обязательных и 17 дополнительных
 
-Обе системы реализуют **20 обязательных компонентов V4**:
+Текущий контракт один — **версия 4** (в runtime — числовое
+`contractVersion: 4`). Обе системы реализуют **29 обязательных компонентов**:
 
 ```text
 Button, Input, Textarea, Card, Badge, Checkbox, RadioGroup, Switch, Select,
 Tabs, Dialog, DropdownMenu, Tooltip, Separator, Heading, Text, Link, Container,
-Stack, FormField
+Stack, FormField, Center, Cluster, Sidebar, AspectRatio, Combobox, DatePicker,
+NumberField, Slider, FileUpload
 ```
 
-Первые четырнадцать из этого списка — те же компоненты, что и в действующем
-контракте V2: их публичный API не изменился, поэтому V2-совместимость сохраняется.
-
-Дополнительно каждая система может реализовать любой из **12 дополнительных
+Дополнительно каждая система может реализовать любой из **17 дополнительных
 контрактов**:
 
 ```text
 Grid, Section, Fieldset, Alert, Progress, Skeleton, Toast, Accordion, Avatar,
-Breadcrumbs, Pagination, Table
+Breadcrumbs, Pagination, Table, Metric, DescriptionList, Timeline, Meter,
+EmptyState
 ```
 
 Дополнительные компоненты — это реальные capabilities, а не заглушки. Если системы
 нет в списке — значит, она его не предоставляет. Фактический набор:
 
-| Система  | Дополнительные capabilities                                                                      |
-| -------- | ------------------------------------------------------------------------------------------------ |
-| System A | `Grid`, `Fieldset`, `Alert`, `Progress`, `Accordion`, `Pagination`, `Table`                      |
-| System B | `Section`, `Alert`, `Skeleton`, `Toast`, `Avatar`, `Breadcrumbs`                                 |
+| Система  | Дополнительные capabilities |
+| -------- | --------------------------- |
+| System A | `Grid`, `Fieldset`, `Alert`, `Progress`, `Accordion`, `Pagination`, `Table`, `Metric`, `DescriptionList`, `Meter`, `Timeline` |
+| System B | `Section`, `Alert`, `Skeleton`, `Toast`, `Avatar`, `Breadcrumbs`, `Metric`, `Timeline`, `EmptyState` |
 
 Разница между A и B — во внешнем виде и в наборе дополнительных компонентов.
 Именно поэтому Reference App может переключать систему, не переписывая интерфейс.
 
 Источник истины по составу, вариантам, размерам и составным частям — манифест
-`design-system.json` (публичный путь `./manifest`). Посмотреть конкретную систему:
+`design-system.json` (`schemaVersion: 4`, `contractVersion: 4`; публичный путь
+`./manifest`). Доступность компонента в конкретной системе определяет только
+наличие ключа в `components` манифеста; `capabilities.categories` (`composition`,
+`forms`, `data-display`) — канонический перечень принадлежности категориям, общий
+для всех систем, а не второй список доступности, и категории охватывают не все
+контракты. Package-owned descriptor `design-system.source.json` остаётся
+`schemaVersion: 3`, служит только входом генератора и не содержит блок
+`capabilities` — его туда не добавляют и не повторяют. Форма манифеста одна:
+читатели `schemaVersion: 3` обновляются вместе с системой, потому что текущий
+`prism-ds` требует schema 4 и отклоняет schema 3. Посмотреть конкретную систему:
 
 ```bash
 # документация и правила пакета
@@ -167,7 +179,7 @@ ls packages/system-a/src
    ```
 
 4. **Реализация внешнего вида** — только внутри `packages/<id>` (токены, стили,
-   компоненты). Новый пакет уже содержит 20 обязательных компонентов; выбранные
+   компоненты). Новый пакет уже содержит 29 обязательных компонентов; выбранные
    дополнительные добавляются по той же структуре и объявляются в
    `design-system.source.json`.
 5. **Регистрация и синхронизация приложений** (обычно уже сделана генератором;
@@ -190,7 +202,7 @@ ls packages/system-a/src
    ```
 
 `ds:create` сам пишет `README.md`, `AGENTS.md`, `LICENSE`, `package.json`,
-`design-brief.json`, `design-system.json` и 20 обязательных компонентов. Руками
+`design-brief.json`, `design-system.json` и 29 обязательных компонентов. Руками
 структуру пакета не создавайте: обязательный набор фиксирован, а дополнительные
 компоненты добавляются только осознанно.
 
@@ -237,9 +249,8 @@ npx prism-ds doctor --cwd .
 Границы команд:
 
 - `search` и `info` — **явная сеть, только чтение** (реестр npm; `--registry` для
-  другого реестра). `info` проверяет точную версию, `prismSystem.contract`
-  (`"v2"` или `"v4"`), `exports["./manifest"]`, SRI-целостность и манифест
-  `design-system.json`.
+  другого реестра). `info` проверяет точную версию, `contractVersion: 4`,
+  `exports["./manifest"]`, SRI-целостность и манифест `design-system.json`.
 - `install`, `use` и `upgrade` — **единственные команды, которые меняют зависимости
   продукта**. Они сначала проверяют точную версию в реестре, определяют npm/pnpm
   (без молчаливого выбора npm), запускают фиксированную команду с `--ignore-scripts`
@@ -292,8 +303,8 @@ npx prism-ds check-usage --cwd .
 `pnpm ds:connect --cwd <root>` и `pnpm ds:check-usage --cwd <root>`. Они используют
 ровно ту же реализацию, что и опубликованный `prism-ds`, и нужны для локальной
 разработки и проверок. Остальные команды `ds:*` (`ds:create`, `ds:check`,
-`ds:manifest`, `ds:release`, `ds:check-v4-tools`, `ds:check-v3`) — инструменты
-мейнтейнера и не публикуются.
+`ds:manifest`, `ds:release`, `ds:check-tools`, `ds:check-docs`, `ds:check-all`) —
+инструменты мейнтейнера и не публикуются.
 
 ### Обычный CSS и Tailwind v4
 
@@ -319,7 +330,7 @@ Tailwind по-прежнему работает. Повторный `prism-ds se
 он не меняет файл, если импорты уже стоят правильно.
 
 Готовые примеры контентной страницы, доступной формы и страницы с данными — в
-[V4-рецептах потребителя](v4/recipes.md).
+[рецептах потребителя](v4/recipes.md).
 
 ## 9. Стилизация: продукт vs дизайн-система
 
@@ -377,7 +388,7 @@ export function SaveCard() {
    ↓ да → возвращаем в репозиторий дизайн-системы
 ```
 
-Если нужен один из дополнительных контрактов V4 (`Table`, `Toast`, `Accordion`
+Если нужен один из дополнительных контрактов (`Table`, `Toast`, `Accordion`
 и т. п.), которого у системы пока нет, — это осознанное расширение системы:
 компонент реализуется полностью и объявляется в descriptor и манифесте. Пустые
 заглушки запрещены.
@@ -409,24 +420,18 @@ workflow публикации           # защищённое окружени�
 
 Что **никогда** не происходит автоматически:
 
-- локальные команды `ds:release`, `ds:check`, `ds:check-v4-tools`, `ds:check-v3`
-  не публикуют и не версионируют пакеты;
+- локальные команды `ds:release`, `ds:check`, `ds:check-tools`, `ds:check-docs`
+  и `ds:check-all` не публикуют и не версионируют пакеты;
 - `ds:release <id> --approved` только готовит релиз: валидирует, синхронизирует
   версии, собирает, упаковывает и создаёт/переиспользует Changeset;
 - `pnpm version-packages-and-sync` — это CI-команда (её запускает workflow перед
   созданием version PR), а не повседневная команда.
 
-Подготовленные версии V4 (`ui-core` и системы — `2.0.0`,
-`@prism-system/tools` — `1.1.0`, приватный корень — `0.4.0`) применены в исходном
-дереве в рамках подготовки версии фазы 5 через Changesets и синхронизацию
-(`pnpm version-packages-and-sync`; согласованность подтверждает
-`pnpm ds:sync-versions --check`). Приватный корень обновлён отдельно, потому что
-Changesets его не версионирует. Это **подготовленные значения исходного дерева, а
-не выпущенные релизы**: npm-публикации, git-тега и GitHub Release не было.
-Пошаговый переход продукта с V2-системы на V4-систему — в
-[`docs/v4/migration-v2-to-v4.md`](v4/migration-v2-to-v4.md); использовать
-подготовленные номера в продукте можно только после реальной публикации. Фазы и
-версии плана — в [`docs/v4/PLAN.md`](v4/PLAN.md).
+Версия установленного пакета, runtime `DesignSystem.version`, сгенерированный
+`design-system.json` и запись в `config/design-systems.json` должны совпадать;
+синхронизирует их `pnpm ds:sync-versions` (проверка — `--check`). Историю
+подготовки версий и миграцию потребителя с прежнего контракта смотрите в
+[архиве](archive/README.md).
 
 ## 12. Шпаргалка по командам
 
@@ -453,10 +458,11 @@ Changesets его не версионирует. Это **подготовлен
 | `pnpm ds:register <id>`                | Зарегистрировать и синхронизировать систему       |
 | `pnpm ds:manifest <id> [--write]`      | Проверить/пересобрать `design-system.json`        |
 | `pnpm ds:sync-versions [id] [--check]` | Синхронизировать версии runtime/манифест/реестр   |
+| `pnpm ds:check-tools`                  | Проверка `prism-ds` и манифестов на packed-артефактах |
+| `pnpm ds:check-docs`                   | Проверка активной документации и локальных ссылок |
+| `pnpm ds:check-all`                    | Полный приёмочный прогон                          |
 | `pnpm ds:connect --cwd <root>`         | Настроить продукт-потребитель                     |
 | `pnpm ds:check-usage --cwd <root>`     | Строгая проверка использования в продукте         |
-| `pnpm ds:check-v4-tools`               | Проверка `prism-ds` на упакованных V2/V4-пакетах  |
-| `pnpm ds:check-v3`                     | Историческая сквозная проверка V3 (V2-пакеты)      |
 | `pnpm version-packages`                | CI: применить Changesets                          |
 | `pnpm version-packages-and-sync`       | CI: версии + синхронизация                        |
 | `pnpm release`                         | CI: проверка синхронизации, сборка, публикация    |
@@ -486,7 +492,7 @@ Changesets его не версионирует. Это **подготовлен
 | Ошибка про `--cwd`                               | Команде нужен явный корень продукта: `--cwd ../my-product`. Без него команда не угадывает путь.                                                     |
 | «Версии не совпадают»                            | Конфиг, установленный пакет и манифест разошлись. В репозитории дизайн-систем запустите `pnpm ds:sync-versions`; в продукте повторите `prism-ds connect`. |
 | Находки `ds:check-usage`                         | В продукте есть обходы дизайн-системы. Замените произвольные цвета/радиусы/тени и inline-стили на API компонентов.                                  |
-| `ds:check-v4-tools` / `ds:check-v3` падают        | Сначала `pnpm install && pnpm build` — проверкам нужны собранные пакеты. `ds:check-v3` — историческая V3-проверка (V2-пакеты и шаблон).               |
+| `ds:check-tools` / `ds:check-all` падают         | Сначала `pnpm install && pnpm build` — проверкам нужны собранные пакеты.                                                                            |
 | Tailwind-классы не работают                      | Проверьте порядок импортов: `tailwindcss` → `<package>/tailwind.css` → `<package>/styles.css`, и что подключён мост именно выбранной системы.        |
 | Компонент из манифеста не найден                 | Дополнительные компоненты есть только у систем, которые их объявили: сверьтесь с `prism-ds components <Name>` и манифестом.                           |
 | Не знаю, как пользоваться пакетом                | Смотрите `packages/<id>/README.md` и `packages/<id>/AGENTS.md`, манифест `<package>/manifest` и каталог `prism-ds components`.                        |
@@ -498,9 +504,10 @@ Changesets его не версионирует. Это **подготовлен
 - Гайд для агента по созданию: [`../skills/create-design-system/SKILL.md`](../skills/create-design-system/SKILL.md)
 - Гайд для агента по использованию: [`../skills/use-design-system/SKILL.md`](../skills/use-design-system/SKILL.md)
 - Гайд для агента по изменению: [`../skills/modify-design-system/SKILL.md`](../skills/modify-design-system/SKILL.md)
-- V4: [спецификация](v4/README.md) и [план из пяти фаз](v4/PLAN.md)
-- Архив спецификаций: [`archive/README.md`](archive/README.md),
-  [`V1`](archive/v1/README), [`V2`](archive/v2/README), [`V3`](archive/v3/README)
+- Текущая спецификация: [v4/README.md](v4/README.md)
+- Рецепты потребителя: [v4/recipes.md](v4/recipes.md)
+- Критерии качества: [v4/quality.md](v4/quality.md)
+- Архив истории: [`archive/README.md`](archive/README.md)
 - Пакеты: [`../packages/core/README.md`](../packages/core/README.md),
   [`../packages/system-a/README.md`](../packages/system-a/README.md),
   [`../packages/system-b/README.md`](../packages/system-b/README.md),

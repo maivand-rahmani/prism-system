@@ -21,22 +21,22 @@ workspace source paths.
 
 ## Trying the consumer lifecycle
 
-The repository's packed consumer check (`pnpm ds:check-v4-tools`) hydrates its own
-scratch copies under a fresh `TEMP/v4/tools-packed-<run-id>/` directory and runs
+The repository's packed consumer check (`pnpm ds:check-tools`) hydrates its own
+scratch copies under a fresh `TEMP/lifecycle/tools-packed-<run-id>/` directory and runs
 `prism-ds connect`, `components`, `tokens`, `check`, `setup-tailwind`,
 `check-usage`, `doctor`, and the dependency-mutating commands against packed
 artifacts, without mutating this repository.
 
 To exercise the maintainer wrapper manually, pack the artifacts and extract them
-into a scratch copy under `TEMP/v4/`:
+into a scratch copy under `TEMP/lifecycle/`:
 
 ```bash
-pnpm --filter @prism-system/ui-system-a pack --pack-destination TEMP/v4/pack
-pnpm --filter @prism-system/ui-system-b pack --pack-destination TEMP/v4/pack
+pnpm --filter @prism-system/ui-system-a pack --pack-destination TEMP/lifecycle/pack
+pnpm --filter @prism-system/ui-system-b pack --pack-destination TEMP/lifecycle/pack
 
 # then extract the tarball you want to consume into
-# TEMP/v4/<scratch>/node_modules/@prism-system/ui-system-a and run:
-pnpm ds:connect @prism-system/ui-system-a --cwd TEMP/v4/<scratch>
+# TEMP/lifecycle/<scratch>/node_modules/@prism-system/ui-system-a and run:
+pnpm ds:connect @prism-system/ui-system-a --cwd TEMP/lifecycle/<scratch>
 ```
 
 `ds:connect` writes `.design-system/config.json` and `.design-system/AGENTS.md`
