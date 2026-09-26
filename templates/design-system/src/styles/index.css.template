@@ -1,30 +1,32 @@
 @import "./tokens.css";
-@import '../components/button/button.css';
-@import '../components/input/input.css';
-@import '../components/textarea/textarea.css';
-@import '../components/card/card.css';
-@import '../components/badge/badge.css';
-@import '../components/checkbox/checkbox.css';
-@import '../components/radio-group/radio-group.css';
-@import '../components/switch/switch.css';
-@import '../components/select/select.css';
-@import '../components/tabs/tabs.css';
-@import '../components/dialog/dialog.css';
-@import '../components/dropdown-menu/dropdown-menu.css';
-@import '../components/tooltip/tooltip.css';
-@import '../components/separator/separator.css';
-@import '../components/heading/heading.css';
-@import '../components/text/text.css';
-@import '../components/link/link.css';
-@import '../components/container/container.css';
-@import '../components/stack/stack.css';
-@import '../components/form-field/form-field.css';
+@import "../components/button/button.css";
+@import "../components/input/input.css";
+@import "../components/textarea/textarea.css";
+@import "../components/card/card.css";
+@import "../components/badge/badge.css";
+@import "../components/checkbox/checkbox.css";
+@import "../components/radio-group/radio-group.css";
+@import "../components/switch/switch.css";
+@import "../components/select/select.css";
+@import "../components/tabs/tabs.css";
+@import "../components/dialog/dialog.css";
+@import "../components/dropdown-menu/dropdown-menu.css";
+@import "../components/tooltip/tooltip.css";
+@import "../components/separator/separator.css";
+@import "../components/heading/heading.css";
+@import "../components/text/text.css";
+@import "../components/link/link.css";
+@import "../components/container/container.css";
+@import "../components/stack/stack.css";
+@import "../components/form-field/form-field.css";
 
 /* Base scope. Every component root carries the package UI class, so the shared
    reset and typography live here rather than in any single component file. */
 :where(.{{SYSTEM_CLASS}}-ui) {
   color: var(--{{SYSTEM_CLASS}}-color-text-primary);
   font-family: var(--{{SYSTEM_CLASS}}-typography-family-sans);
+  font-size: var(--{{SYSTEM_CLASS}}-typography-size-md);
+  line-height: var(--{{SYSTEM_CLASS}}-typography-line-height-normal);
 }
 :where(.{{SYSTEM_CLASS}}-ui) *,
 :where(.{{SYSTEM_CLASS}}-ui) *::before,
@@ -42,7 +44,11 @@
   :where(.{{SYSTEM_CLASS}}-ui) *,
   :where(.{{SYSTEM_CLASS}}-ui) *::before,
   :where(.{{SYSTEM_CLASS}}-ui) *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
+    animation-duration: var(
+      --{{SYSTEM_CLASS}}-motion-duration-reduced
+    ) !important;
+    transition-duration: var(
+      --{{SYSTEM_CLASS}}-motion-duration-reduced
+    ) !important;
   }
 }

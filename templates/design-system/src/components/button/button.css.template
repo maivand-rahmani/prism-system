@@ -4,34 +4,143 @@
   border-radius: var(--{{SYSTEM_CLASS}}-radius-sm);
   cursor: pointer;
   display: inline-flex;
-  gap: 8px;
+  gap: var(--{{SYSTEM_CLASS}}-spacing-scale-2);
   justify-content: center;
   line-height: 1;
-  transition: background var(--{{SYSTEM_CLASS}}-motion-duration-fast) var(--{{SYSTEM_CLASS}}-motion-easing-standard), border-color var(--{{SYSTEM_CLASS}}-motion-duration-fast) var(--{{SYSTEM_CLASS}}-motion-easing-standard), color var(--{{SYSTEM_CLASS}}-motion-duration-fast) var(--{{SYSTEM_CLASS}}-motion-easing-standard), box-shadow var(--{{SYSTEM_CLASS}}-motion-duration-fast) var(--{{SYSTEM_CLASS}}-motion-easing-standard), transform var(--{{SYSTEM_CLASS}}-motion-duration-fast) var(--{{SYSTEM_CLASS}}-motion-easing-standard);
+  transition:
+    background var(--{{SYSTEM_CLASS}}-motion-duration-fast)
+      var(--{{SYSTEM_CLASS}}-motion-easing-standard),
+    border-color var(--{{SYSTEM_CLASS}}-motion-duration-fast)
+      var(--{{SYSTEM_CLASS}}-motion-easing-standard),
+    color var(--{{SYSTEM_CLASS}}-motion-duration-fast)
+      var(--{{SYSTEM_CLASS}}-motion-easing-standard),
+    box-shadow var(--{{SYSTEM_CLASS}}-motion-duration-fast)
+      var(--{{SYSTEM_CLASS}}-motion-easing-standard),
+    transform var(--{{SYSTEM_CLASS}}-motion-duration-fast)
+      var(--{{SYSTEM_CLASS}}-motion-easing-standard);
 }
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--{{SYSTEM_CLASS}}-color-border-focus) 38%, transparent);
+:where(
+    .{{SYSTEM_CLASS}}-ui
+  ).{{SYSTEM_CLASS}}-button:focus-visible {
+  outline: 3px solid
+    color-mix(
+      in srgb,
+      var(--{{SYSTEM_CLASS}}-color-border-focus) 38%,
+      transparent
+    );
   outline-offset: 2px;
 }
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button:hover:not(:disabled) { transform: translateY(-1px); }
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button:active:not(:disabled) { transform: translateY(0); }
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button:disabled { cursor: not-allowed; opacity: .5; }
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-primary { background: var(--{{SYSTEM_CLASS}}-color-action-primary); color: var(--{{SYSTEM_CLASS}}-color-action-primary-text); box-shadow: var(--{{SYSTEM_CLASS}}-shadow-sm); }
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-primary:hover:not(:disabled) { background: var(--{{SYSTEM_CLASS}}-color-action-primary-hover); }
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-secondary { background: var(--{{SYSTEM_CLASS}}-color-surface-sunken); color: var(--{{SYSTEM_CLASS}}-color-text-primary); }
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-outline { background: var(--{{SYSTEM_CLASS}}-color-surface-raised); border-color: var(--{{SYSTEM_CLASS}}-color-border-default); color: var(--{{SYSTEM_CLASS}}-color-text-primary); }
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-outline:hover:not(:disabled) { border-color: var(--{{SYSTEM_CLASS}}-color-border-strong); background: var(--{{SYSTEM_CLASS}}-color-surface-sunken); }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button:hover:not(
+    :disabled
+  ) {
+  transform: translateY(-1px);
+}
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button:active:not(
+    :disabled
+  ) {
+  transform: translateY(0);
+}
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-primary {
+  background: var(--{{SYSTEM_CLASS}}-color-action-primary);
+  color: var(--{{SYSTEM_CLASS}}-color-action-primary-text);
+  box-shadow: var(--{{SYSTEM_CLASS}}-shadow-sm);
+}
+:where(
+    .{{SYSTEM_CLASS}}-ui
+  ).{{SYSTEM_CLASS}}-button-primary:hover:not(:disabled) {
+  background: var(--{{SYSTEM_CLASS}}-color-action-primary-hover);
+}
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-secondary {
+  background: var(--{{SYSTEM_CLASS}}-color-surface-sunken);
+  color: var(--{{SYSTEM_CLASS}}-color-text-primary);
+}
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-outline {
+  background: var(--{{SYSTEM_CLASS}}-color-surface-raised);
+  border-color: var(--{{SYSTEM_CLASS}}-color-border-default);
+  color: var(--{{SYSTEM_CLASS}}-color-text-primary);
+}
+:where(
+    .{{SYSTEM_CLASS}}-ui
+  ).{{SYSTEM_CLASS}}-button-outline:hover:not(:disabled) {
+  border-color: var(--{{SYSTEM_CLASS}}-color-border-strong);
+  background: var(--{{SYSTEM_CLASS}}-color-surface-sunken);
+}
 :where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-ghost,
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-link { background: transparent; color: var(--{{SYSTEM_CLASS}}-color-action-primary-hover); }
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-ghost:hover:not(:disabled) { background: var(--{{SYSTEM_CLASS}}-color-action-secondary); }
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button[data-state="open"] { background: var(--{{SYSTEM_CLASS}}-color-action-secondary); color: var(--{{SYSTEM_CLASS}}-color-action-primary-hover); }
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-destructive { background: var(--{{SYSTEM_CLASS}}-color-status-danger); color: var(--{{SYSTEM_CLASS}}-color-action-primary-text); }
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-destructive:hover:not(:disabled) { filter: brightness(.92); }
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-link { padding-left: 0; padding-right: 0; text-decoration: underline; text-underline-offset: 3px; }
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-full { width: 100%; }
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-sm { min-height: 32px; padding: 0 11px; font-size: 12px; }
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-md { min-height: 40px; padding: 0 15px; font-size: 14px; }
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-lg { min-height: 48px; padding: 0 19px; font-size: 15px; }
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-icon { min-width: 40px; padding: 0; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-spinner { animation: {{SYSTEM_CLASS}}-spin .7s linear infinite; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; height: 14px; width: 14px; }
-@keyframes {{SYSTEM_CLASS}}-spin { to { transform: rotate(360deg); } }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-link {
+  background: transparent;
+  color: var(--{{SYSTEM_CLASS}}-color-action-primary-hover);
+}
+:where(
+    .{{SYSTEM_CLASS}}-ui
+  ).{{SYSTEM_CLASS}}-button-ghost:hover:not(:disabled) {
+  background: var(--{{SYSTEM_CLASS}}-color-action-secondary);
+}
+:where(
+    .{{SYSTEM_CLASS}}-ui
+  ).{{SYSTEM_CLASS}}-button[data-state="open"] {
+  background: var(--{{SYSTEM_CLASS}}-color-action-secondary);
+  color: var(--{{SYSTEM_CLASS}}-color-action-primary-hover);
+}
+:where(
+  .{{SYSTEM_CLASS}}-ui
+).{{SYSTEM_CLASS}}-button-destructive {
+  background: var(--{{SYSTEM_CLASS}}-color-status-danger);
+  color: var(--{{SYSTEM_CLASS}}-color-action-primary-text);
+}
+:where(
+    .{{SYSTEM_CLASS}}-ui
+  ).{{SYSTEM_CLASS}}-button-destructive:hover:not(:disabled) {
+  filter: brightness(0.92);
+}
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-link {
+  padding-left: 0;
+  padding-right: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-full {
+  width: 100%;
+}
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-sm {
+  min-height: var(--{{SYSTEM_CLASS}}-spacing-scale-8);
+  padding: 0 var(--{{SYSTEM_CLASS}}-spacing-semantic-inline);
+  font-size: var(--{{SYSTEM_CLASS}}-typography-size-xs);
+}
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-md {
+  min-height: calc(
+    var(--{{SYSTEM_CLASS}}-spacing-scale-8) +
+      var(--{{SYSTEM_CLASS}}-spacing-scale-2)
+  );
+  padding: 0 var(--{{SYSTEM_CLASS}}-spacing-scale-4);
+  font-size: var(--{{SYSTEM_CLASS}}-typography-size-sm);
+}
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-lg {
+  min-height: var(--{{SYSTEM_CLASS}}-spacing-scale-12);
+  padding: 0 var(--{{SYSTEM_CLASS}}-spacing-semantic-inset);
+  font-size: var(--{{SYSTEM_CLASS}}-typography-size-md);
+}
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-button-icon {
+  min-width: calc(
+    var(--{{SYSTEM_CLASS}}-spacing-scale-8) +
+      var(--{{SYSTEM_CLASS}}-spacing-scale-2)
+  );
+  padding: 0;
+}
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-spinner {
+  animation: {{SYSTEM_CLASS}}-spin
+    calc(var(--{{SYSTEM_CLASS}}-motion-duration-normal) * 4) linear infinite;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  height: 14px;
+  width: 14px;
+}
+@keyframes {{SYSTEM_CLASS}}-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

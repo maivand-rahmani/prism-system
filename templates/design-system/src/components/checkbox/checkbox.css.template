@@ -1,13 +1,81 @@
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-checkbox { align-items: flex-start; display: flex; gap: 10px; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-checkbox-control { align-items: center; background: transparent; border: 0; cursor: pointer; display: flex; justify-content: center; padding: 0; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-checkbox-control:focus-visible { outline: 3px solid color-mix(in srgb, var(--{{SYSTEM_CLASS}}-color-border-focus) 38%, transparent); outline-offset: 2px; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-checkbox-control:disabled { cursor: not-allowed; opacity: .5; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-checkbox-box { align-items: center; background: var(--{{SYSTEM_CLASS}}-color-surface-raised); border: 1px solid var(--{{SYSTEM_CLASS}}-color-border-strong); border-radius: 5px; display: flex; height: 19px; justify-content: center; transition: background var(--{{SYSTEM_CLASS}}-motion-duration-fast), border-color var(--{{SYSTEM_CLASS}}-motion-duration-fast); width: 19px; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-checkbox-control[aria-checked="true"] .{{SYSTEM_CLASS}}-checkbox-box,
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-checkbox-control[aria-checked="mixed"] .{{SYSTEM_CLASS}}-checkbox-box { background: var(--{{SYSTEM_CLASS}}-color-action-primary); border-color: var(--{{SYSTEM_CLASS}}-color-action-primary); color: var(--{{SYSTEM_CLASS}}-color-action-primary-text); }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-checkbox-mark { color: transparent; font-size: 13px; font-weight: 700; line-height: 1; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-checkbox-control[aria-checked="true"] .{{SYSTEM_CLASS}}-checkbox-mark,
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-checkbox-control[aria-checked="mixed"] .{{SYSTEM_CLASS}}-checkbox-mark { color: var(--{{SYSTEM_CLASS}}-color-action-primary-text); }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-checkbox-copy { display: grid; gap: 3px; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-checkbox-label { font-size: 14px; line-height: 1.3; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-checkbox-description { color: var(--{{SYSTEM_CLASS}}-color-text-muted); font-size: 12px; line-height: 1.4; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-checkbox {
+  align-items: flex-start;
+  display: flex;
+  gap: var(--{{SYSTEM_CLASS}}-spacing-semantic-inline);
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-checkbox-control {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  padding: 0;
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-checkbox-control:focus-visible {
+  outline: 3px solid
+    color-mix(
+      in srgb,
+      var(--{{SYSTEM_CLASS}}-color-border-focus) 38%,
+      transparent
+    );
+  outline-offset: 2px;
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-checkbox-control:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-checkbox-box {
+  align-items: center;
+  background: var(--{{SYSTEM_CLASS}}-color-surface-raised);
+  border: 1px solid var(--{{SYSTEM_CLASS}}-color-border-strong);
+  border-radius: 5px;
+  display: flex;
+  height: 19px;
+  justify-content: center;
+  transition:
+    background var(--{{SYSTEM_CLASS}}-motion-duration-fast),
+    border-color var(--{{SYSTEM_CLASS}}-motion-duration-fast);
+  width: 19px;
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-checkbox-control[aria-checked="true"]
+  .{{SYSTEM_CLASS}}-checkbox-box,
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-checkbox-control[aria-checked="mixed"]
+  .{{SYSTEM_CLASS}}-checkbox-box {
+  background: var(--{{SYSTEM_CLASS}}-color-action-primary);
+  border-color: var(--{{SYSTEM_CLASS}}-color-action-primary);
+  color: var(--{{SYSTEM_CLASS}}-color-action-primary-text);
+}
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-checkbox-mark {
+  color: transparent;
+  font-size: var(--{{SYSTEM_CLASS}}-typography-size-sm);
+  font-weight: var(--{{SYSTEM_CLASS}}-typography-weight-bold);
+  line-height: 1;
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-checkbox-control[aria-checked="true"]
+  .{{SYSTEM_CLASS}}-checkbox-mark,
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-checkbox-control[aria-checked="mixed"]
+  .{{SYSTEM_CLASS}}-checkbox-mark {
+  color: var(--{{SYSTEM_CLASS}}-color-action-primary-text);
+}
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-checkbox-copy {
+  display: grid;
+  gap: var(--{{SYSTEM_CLASS}}-spacing-scale-1);
+}
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-checkbox-label {
+  font-size: var(--{{SYSTEM_CLASS}}-typography-size-sm);
+  line-height: var(--{{SYSTEM_CLASS}}-typography-line-height-normal);
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-checkbox-description {
+  color: var(--{{SYSTEM_CLASS}}-color-text-muted);
+  font-size: var(--{{SYSTEM_CLASS}}-typography-size-xs);
+  line-height: var(--{{SYSTEM_CLASS}}-typography-line-height-normal);
+}

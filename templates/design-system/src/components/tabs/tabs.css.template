@@ -1,10 +1,65 @@
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-tabs { display: grid; gap: 16px; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-tabs-list { align-items: center; border-bottom: 1px solid var(--{{SYSTEM_CLASS}}-color-border-default); display: flex; gap: 20px; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-tabs-trigger { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--{{SYSTEM_CLASS}}-color-text-muted); cursor: pointer; font-size: 13px; padding: 9px 1px 11px; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-tabs-trigger:focus-visible { outline: 3px solid color-mix(in srgb, var(--{{SYSTEM_CLASS}}-color-border-focus) 38%, transparent); outline-offset: 2px; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-tabs-trigger:hover { color: var(--{{SYSTEM_CLASS}}-color-text-primary); }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-tabs-trigger:disabled { cursor: not-allowed; opacity: .45; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-tabs-trigger[data-state="active"] { border-color: var(--{{SYSTEM_CLASS}}-color-action-primary); color: var(--{{SYSTEM_CLASS}}-color-action-primary-hover); font-weight: 650; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-tabs-content { animation: {{SYSTEM_CLASS}}-fade-in var(--{{SYSTEM_CLASS}}-motion-duration-normal) var(--{{SYSTEM_CLASS}}-motion-easing-standard); outline: 0; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-tabs-content[hidden] { display: none; }
-@keyframes {{SYSTEM_CLASS}}-fade-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-tabs {
+  display: grid;
+  gap: var(--{{SYSTEM_CLASS}}-spacing-scale-4);
+}
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-tabs-list {
+  align-items: center;
+  border-bottom: 1px solid var(--{{SYSTEM_CLASS}}-color-border-default);
+  display: flex;
+  gap: var(--{{SYSTEM_CLASS}}-spacing-semantic-inset);
+}
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-tabs-trigger {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--{{SYSTEM_CLASS}}-color-text-muted);
+  cursor: pointer;
+  font-size: var(--{{SYSTEM_CLASS}}-typography-size-sm);
+  padding: var(--{{SYSTEM_CLASS}}-spacing-scale-2) 1px
+    var(--{{SYSTEM_CLASS}}-spacing-semantic-inline);
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-tabs-trigger:focus-visible {
+  outline: 3px solid
+    color-mix(
+      in srgb,
+      var(--{{SYSTEM_CLASS}}-color-border-focus) 38%,
+      transparent
+    );
+  outline-offset: 2px;
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-tabs-trigger:hover {
+  color: var(--{{SYSTEM_CLASS}}-color-text-primary);
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-tabs-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-tabs-trigger[data-state="active"] {
+  border-color: var(--{{SYSTEM_CLASS}}-color-action-primary);
+  color: var(--{{SYSTEM_CLASS}}-color-action-primary-hover);
+  font-weight: var(--{{SYSTEM_CLASS}}-typography-weight-semibold);
+}
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-tabs-content {
+  animation: {{SYSTEM_CLASS}}-fade-in
+    var(--{{SYSTEM_CLASS}}-motion-duration-normal)
+    var(--{{SYSTEM_CLASS}}-motion-easing-standard);
+  outline: 0;
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-tabs-content[hidden] {
+  display: none;
+}
+@keyframes {{SYSTEM_CLASS}}-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

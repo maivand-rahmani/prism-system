@@ -1,16 +1,114 @@
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-select-trigger { align-items: center; background: var(--{{SYSTEM_CLASS}}-color-surface-raised); border: 1px solid var(--{{SYSTEM_CLASS}}-color-border-default); border-radius: var(--{{SYSTEM_CLASS}}-radius-sm); color: var(--{{SYSTEM_CLASS}}-color-text-primary); cursor: pointer; display: flex; justify-content: space-between; min-height: 40px; padding: 0 12px; width: 100%; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-select-trigger:focus-visible { outline: 3px solid color-mix(in srgb, var(--{{SYSTEM_CLASS}}-color-border-focus) 38%, transparent); outline-offset: 2px; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-select-trigger:hover { border-color: var(--{{SYSTEM_CLASS}}-color-border-strong); }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-select-trigger[data-state="open"] { border-color: var(--{{SYSTEM_CLASS}}-color-border-focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--{{SYSTEM_CLASS}}-color-border-focus) 18%, transparent); }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-select-trigger:disabled { cursor: not-allowed; opacity: .5; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-select-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-select-content { animation: {{SYSTEM_CLASS}}-pop-in var(--{{SYSTEM_CLASS}}-motion-duration-fast) var(--{{SYSTEM_CLASS}}-motion-easing-standard); background: var(--{{SYSTEM_CLASS}}-color-surface-raised); border: 1px solid var(--{{SYSTEM_CLASS}}-color-border-default); border-radius: var(--{{SYSTEM_CLASS}}-radius-md); box-shadow: var(--{{SYSTEM_CLASS}}-shadow-md); min-width: var(--radix-select-trigger-width); overflow: hidden; padding: 5px; z-index: 60; }
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-select-content[data-state="closed"] { pointer-events: none; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-select-item { align-items: center; border-radius: var(--{{SYSTEM_CLASS}}-radius-sm); cursor: pointer; display: flex; min-height: 34px; outline: 0; padding: 7px 10px; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-select-item:hover,
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-select-item[data-highlighted] { background: var(--{{SYSTEM_CLASS}}-color-action-secondary); color: var(--{{SYSTEM_CLASS}}-color-action-primary-hover); }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-select-item[data-disabled] { cursor: not-allowed; opacity: .45; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-select-group { padding: 3px 0; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-select-label { color: var(--{{SYSTEM_CLASS}}-color-text-muted); font-size: 11px; font-weight: 650; padding: 7px 9px 4px; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-select-separator { background: var(--{{SYSTEM_CLASS}}-color-border-default); height: 1px; margin: 5px 0; }
-@keyframes {{SYSTEM_CLASS}}-pop-in { from { opacity: 0; transform: translateY(-2px) scale(.99); } to { opacity: 1; transform: none; } }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-select-trigger {
+  align-items: center;
+  background: var(--{{SYSTEM_CLASS}}-color-surface-raised);
+  border: 1px solid var(--{{SYSTEM_CLASS}}-color-border-default);
+  border-radius: var(--{{SYSTEM_CLASS}}-radius-sm);
+  color: var(--{{SYSTEM_CLASS}}-color-text-primary);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  min-height: 40px;
+  padding: 0 var(--{{SYSTEM_CLASS}}-spacing-semantic-inline);
+  width: 100%;
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-select-trigger:focus-visible {
+  outline: 3px solid
+    color-mix(
+      in srgb,
+      var(--{{SYSTEM_CLASS}}-color-border-focus) 38%,
+      transparent
+    );
+  outline-offset: 2px;
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-select-trigger:hover {
+  border-color: var(--{{SYSTEM_CLASS}}-color-border-strong);
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-select-trigger[data-state="open"] {
+  border-color: var(--{{SYSTEM_CLASS}}-color-border-focus);
+  box-shadow: 0 0 0 3px
+    color-mix(
+      in srgb,
+      var(--{{SYSTEM_CLASS}}-color-border-focus) 18%,
+      transparent
+    );
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-select-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-select-content {
+  animation: {{SYSTEM_CLASS}}-pop-in
+    var(--{{SYSTEM_CLASS}}-motion-duration-fast)
+    var(--{{SYSTEM_CLASS}}-motion-easing-standard);
+  background: var(--{{SYSTEM_CLASS}}-color-surface-raised);
+  border: 1px solid var(--{{SYSTEM_CLASS}}-color-border-default);
+  border-radius: var(--{{SYSTEM_CLASS}}-radius-md);
+  box-shadow: var(--{{SYSTEM_CLASS}}-shadow-md);
+  min-width: var(--radix-select-trigger-width);
+  overflow: hidden;
+  padding: var(--{{SYSTEM_CLASS}}-spacing-scale-1);
+  z-index: var(--{{SYSTEM_CLASS}}-layers-dropdown);
+}
+:where(
+    .{{SYSTEM_CLASS}}-ui
+  ).{{SYSTEM_CLASS}}-select-content[data-state="closed"] {
+  pointer-events: none;
+}
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-select-item {
+  align-items: center;
+  border-radius: var(--{{SYSTEM_CLASS}}-radius-sm);
+  cursor: pointer;
+  display: flex;
+  min-height: 34px;
+  outline: 0;
+  padding: var(--{{SYSTEM_CLASS}}-spacing-scale-2)
+    var(--{{SYSTEM_CLASS}}-spacing-semantic-inline);
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-select-item:hover,
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-select-item[data-highlighted] {
+  background: var(--{{SYSTEM_CLASS}}-color-action-secondary);
+  color: var(--{{SYSTEM_CLASS}}-color-action-primary-hover);
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-select-item[data-disabled] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-select-group {
+  padding: var(--{{SYSTEM_CLASS}}-spacing-scale-1) 0;
+}
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-select-label {
+  color: var(--{{SYSTEM_CLASS}}-color-text-muted);
+  font-size: var(--{{SYSTEM_CLASS}}-typography-size-xs);
+  font-weight: var(--{{SYSTEM_CLASS}}-typography-weight-semibold);
+  padding: var(--{{SYSTEM_CLASS}}-spacing-scale-2)
+    var(--{{SYSTEM_CLASS}}-spacing-scale-2)
+    var(--{{SYSTEM_CLASS}}-spacing-scale-1);
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-select-separator {
+  background: var(--{{SYSTEM_CLASS}}-color-border-default);
+  height: 1px;
+  margin: var(--{{SYSTEM_CLASS}}-spacing-scale-1) 0;
+}
+@keyframes {{SYSTEM_CLASS}}-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

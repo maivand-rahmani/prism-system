@@ -1,7 +1,53 @@
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-textarea { background: var(--{{SYSTEM_CLASS}}-color-surface-raised); border: 1px solid var(--{{SYSTEM_CLASS}}-color-border-default); border-radius: var(--{{SYSTEM_CLASS}}-radius-sm); color: var(--{{SYSTEM_CLASS}}-color-text-primary); min-height: 104px; outline: 0; padding: 10px 12px; resize: vertical; width: 100%; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-textarea:focus-visible { outline: 3px solid color-mix(in srgb, var(--{{SYSTEM_CLASS}}-color-border-focus) 38%, transparent); outline-offset: 2px; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-textarea:focus { border-color: var(--{{SYSTEM_CLASS}}-color-border-focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--{{SYSTEM_CLASS}}-color-border-focus) 18%, transparent); }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-textarea::placeholder { color: var(--{{SYSTEM_CLASS}}-color-text-muted); opacity: .7; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-textarea:disabled { cursor: not-allowed; opacity: .55; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-textarea[data-size="sm"] { min-height: 76px; padding: 8px 10px; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-textarea[data-size="lg"] { min-height: 132px; padding: 13px 14px; }
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-textarea {
+  background: var(--{{SYSTEM_CLASS}}-color-surface-raised);
+  border: 1px solid var(--{{SYSTEM_CLASS}}-color-border-default);
+  border-radius: var(--{{SYSTEM_CLASS}}-radius-sm);
+  color: var(--{{SYSTEM_CLASS}}-color-text-primary);
+  min-height: 104px;
+  outline: 0;
+  padding: var(--{{SYSTEM_CLASS}}-spacing-semantic-inline)
+    var(--{{SYSTEM_CLASS}}-spacing-semantic-inline);
+  resize: vertical;
+  width: 100%;
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-textarea:focus-visible {
+  outline: 3px solid
+    color-mix(
+      in srgb,
+      var(--{{SYSTEM_CLASS}}-color-border-focus) 38%,
+      transparent
+    );
+  outline-offset: 2px;
+}
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-textarea:focus {
+  border-color: var(--{{SYSTEM_CLASS}}-color-border-focus);
+  box-shadow: 0 0 0 3px
+    color-mix(
+      in srgb,
+      var(--{{SYSTEM_CLASS}}-color-border-focus) 18%,
+      transparent
+    );
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-textarea::placeholder {
+  color: var(--{{SYSTEM_CLASS}}-color-text-muted);
+  opacity: 0.7;
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-textarea[data-size="sm"] {
+  min-height: 76px;
+  padding: var(--{{SYSTEM_CLASS}}-spacing-scale-2)
+    var(--{{SYSTEM_CLASS}}-spacing-semantic-inline);
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-textarea[data-size="lg"] {
+  min-height: 132px;
+  padding: var(--{{SYSTEM_CLASS}}-spacing-scale-3)
+    var(--{{SYSTEM_CLASS}}-spacing-scale-3);
+}

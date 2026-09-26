@@ -1,6 +1,43 @@
-:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-radio-group { align-items: flex-start; display: flex; gap: 10px; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-radio-item { align-items: center; background: var(--{{SYSTEM_CLASS}}-color-surface-raised); border: 1px solid var(--{{SYSTEM_CLASS}}-color-border-strong); border-radius: 50%; cursor: pointer; display: flex; height: 19px; justify-content: center; padding: 0; position: relative; width: 19px; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-radio-item:focus-visible { outline: 3px solid color-mix(in srgb, var(--{{SYSTEM_CLASS}}-color-border-focus) 38%, transparent); outline-offset: 2px; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-radio-item[data-state="checked"] { border-color: var(--{{SYSTEM_CLASS}}-color-action-primary); }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-radio-item:disabled { cursor: not-allowed; opacity: .5; }
-:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-radio-indicator { background: var(--{{SYSTEM_CLASS}}-color-action-primary); border-radius: 50%; height: 9px; width: 9px; }
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-radio-group {
+  align-items: flex-start;
+  display: flex;
+  gap: var(--{{SYSTEM_CLASS}}-spacing-semantic-inline);
+}
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-radio-item {
+  align-items: center;
+  background: var(--{{SYSTEM_CLASS}}-color-surface-raised);
+  border: 1px solid var(--{{SYSTEM_CLASS}}-color-border-strong);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  height: 19px;
+  justify-content: center;
+  padding: 0;
+  position: relative;
+  width: 19px;
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-radio-item:focus-visible {
+  outline: 3px solid
+    color-mix(
+      in srgb,
+      var(--{{SYSTEM_CLASS}}-color-border-focus) 38%,
+      transparent
+    );
+  outline-offset: 2px;
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-radio-item[data-state="checked"] {
+  border-color: var(--{{SYSTEM_CLASS}}-color-action-primary);
+}
+:where(.{{SYSTEM_CLASS}}-ui)
+  .{{SYSTEM_CLASS}}-radio-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+:where(.{{SYSTEM_CLASS}}-ui) .{{SYSTEM_CLASS}}-radio-indicator {
+  background: var(--{{SYSTEM_CLASS}}-color-action-primary);
+  border-radius: 50%;
+  height: 9px;
+  width: 9px;
+}
