@@ -6,23 +6,143 @@ on:
       - closed
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Number of the merged release pull request
+        required: true
+        type: string
+      head_sha:
+        description: Expected head commit SHA of the release pull request
+        required: true
+        type: string
+      merge_sha:
+        description: Expected merge commit SHA of the release pull request on main
+        required: true
+        type: string
 
 concurrency:
-  group: publish-${{ github.ref }}
+  group: publish-main
   cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
+  validate:
+    name: Validate release pull request
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+        github.event.pull_request.merged == true &&
+        github.event.pull_request.base.ref == 'main' &&
+        github.event.pull_request.base.repo.full_name == github.repository &&
+        github.event.pull_request.head.ref == 'changeset-release/main' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        startsWith(github.event.pull_request.title, 'chore: version packages'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      pr_number: ${{ steps.validate.outputs.pr_number }}
+      head_sha: ${{ steps.validate.outputs.head_sha }}
+      merge_sha: ${{ steps.validate.outputs.merge_sha }}
+    steps:
+      - name: Validate release pull request
+        id: validate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          EVENT_MERGED: ${{ github.event.pull_request.merged }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          EXPECTED_HEAD_SHA: ${{ inputs.head_sha }}
+          EXPECTED_MERGE_SHA: ${{ inputs.merge_sha }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+              echo "::error::Release dispatch must run from refs/heads/main, received ${GITHUB_REF}."
+              exit 1
+            fi
+            if [ -z "$EXPECTED_HEAD_SHA" ] || [ -z "$EXPECTED_MERGE_SHA" ]; then
+              echo "::error::Release dispatch requires expected head and merge commit SHAs."
+              exit 1
+            fi
+          elif [ "$EVENT_NAME" = "pull_request" ]; then
+            if [ "$EVENT_MERGED" != "true" ]; then
+              echo "::error::Release pull request was not merged; refusing to publish."
+              exit 1
+            fi
+          else
+            echo "::error::Unsupported publish trigger ${EVENT_NAME}."
+            exit 1
+          fi
+
+          case "$PR_NUMBER" in
+            '' | *[!0-9]*)
+              echo "::error::Missing or invalid release pull request number."
+              exit 1
+              ;;
+          esac
+
+          pr_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
+          if ! jq -e --arg repo "$GITHUB_REPOSITORY" '
+            (.merged == true)
+            and (.state == "closed")
+            and (.base.ref == "main")
+            and (.base.repo.full_name == $repo)
+            and (.head.ref == "changeset-release/main")
+            and (.head.repo.full_name == $repo)
+            and (.title | startswith("chore: version packages"))
+            and (.head.sha != null)
+            and (.merge_commit_sha != null)
+          ' > /dev/null <<<"$pr_json"; then
+            echo "::error::PR #${PR_NUMBER} is not a merged release pull request in ${GITHUB_REPOSITORY}."
+            exit 1
+          fi
+
+          head_sha="$(jq -r '.head.sha' <<<"$pr_json")"
+          merge_sha="$(jq -r '.merge_commit_sha' <<<"$pr_json")"
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ "$head_sha" != "$EXPECTED_HEAD_SHA" ]; then
+              echo "::error::PR #${PR_NUMBER} head ${head_sha} does not match expected head ${EXPECTED_HEAD_SHA}."
+              exit 1
+            fi
+            if [ "$merge_sha" != "$EXPECTED_MERGE_SHA" ]; then
+              echo "::error::PR #${PR_NUMBER} merge ${merge_sha} does not match expected merge ${EXPECTED_MERGE_SHA}."
+              exit 1
+            fi
+          else
+            if [ "$head_sha" != "$EVENT_HEAD_SHA" ] || [ "$merge_sha" != "$EVENT_MERGE_SHA" ]; then
+              echo "::error::PR #${PR_NUMBER} no longer matches the merged event payload."
+              exit 1
+            fi
+          fi
+
+          echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "head_sha=${head_sha}" >> "$GITHUB_OUTPUT"
+          echo "merge_sha=${merge_sha}" >> "$GITHUB_OUTPUT"
+          echo "Releasing pull request #${PR_NUMBER} head ${head_sha} merged as ${merge_sha}"
+
   verify:
-    if: "github.event.pull_request.merged == true && startsWith(github.event.pull_request.title, 'chore: version packages')"
+    name: Verify merged commit
+    needs: validate
+    if: needs.validate.outputs.merge_sha != ''
     uses: ./.github/workflows/verify.yml
+    with:
+      ref: ${{ needs.validate.outputs.merge_sha }}
 
   publish:
     name: Publish packages
-    needs: verify
-    if: "github.event.pull_request.merged == true && startsWith(github.event.pull_request.title, 'chore: version packages')"
+    needs:
+      - validate
+      - verify
+    if: needs.validate.outputs.merge_sha != ''
     runs-on: ubuntu-latest
     environment: npm-release
     permissions:
@@ -32,6 +152,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ needs.validate.outputs.merge_sha }}
           fetch-depth: 0
 
       - name: Setup pnpm
@@ -48,6 +169,16 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Confirm exact merge commit
+        env:
+          MERGE_SHA: ${{ needs.validate.outputs.merge_sha }}
+        run: |
+          set -euo pipefail
+          if [ "$(git rev-parse HEAD)" != "$MERGE_SHA" ]; then
+            echo "::error::Checked out commit does not match merge commit ${MERGE_SHA}."
+            exit 1
+          fi
 
       - name: Publish to npm
         run: pnpm release

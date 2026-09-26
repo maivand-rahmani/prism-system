@@ -23,6 +23,9 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    outputs:
+      pr_number: ${{ steps.inspect.outputs.pr_number }}
+      head_sha: ${{ steps.inspect.outputs.head_sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -44,6 +47,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Create version pull request
+        id: changesets
         uses: changesets/action@52025003bf4794281597cb5b5e566485d9473389 # v1.5.0
         with:
           version: pnpm version-packages-and-sync
@@ -51,3 +55,128 @@ jobs:
           title: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Inspect version pull request
+        id: inspect
+        if: steps.changesets.outputs.pullRequestNumber != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.changesets.outputs.pullRequestNumber }}
+        run: |
+          set -euo pipefail
+          pr_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
+          if ! jq -e --arg repo "$GITHUB_REPOSITORY" '
+            (.state == "open")
+            and (.merged == false)
+            and (.base.ref == "main")
+            and (.base.repo.full_name == $repo)
+            and (.head.ref == "changeset-release/main")
+            and (.head.repo.full_name == $repo)
+            and (.title | startswith("chore: version packages"))
+          ' > /dev/null <<<"$pr_json"; then
+            echo "::error::PR #${PR_NUMBER} is not an open release pull request in ${GITHUB_REPOSITORY}."
+            exit 1
+          fi
+          head_sha="$(jq -r '.head.sha' <<<"$pr_json")"
+          if [ -z "$head_sha" ] || [ "$head_sha" = "null" ]; then
+            echo "::error::PR #${PR_NUMBER} has no head commit."
+            exit 1
+          fi
+          echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "head_sha=${head_sha}" >> "$GITHUB_OUTPUT"
+          echo "Release pull request #${PR_NUMBER} head ${head_sha}"
+
+  verify-pr:
+    name: Verify version pull request
+    needs: version
+    if: needs.version.outputs.pr_number != '' && needs.version.outputs.head_sha != ''
+    uses: ./.github/workflows/verify.yml
+    with:
+      ref: ${{ needs.version.outputs.head_sha }}
+
+  merge:
+    name: Merge version pull request
+    needs:
+      - version
+      - verify-pr
+    if: needs.version.outputs.pr_number != '' && needs.version.outputs.head_sha != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - name: Re-check version pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ needs.version.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.version.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          pr_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
+          if ! jq -e --arg repo "$GITHUB_REPOSITORY" --arg head_sha "$HEAD_SHA" '
+            (.state == "open")
+            and (.merged == false)
+            and (.base.ref == "main")
+            and (.base.repo.full_name == $repo)
+            and (.head.ref == "changeset-release/main")
+            and (.head.repo.full_name == $repo)
+            and (.head.sha == $head_sha)
+            and (.title | startswith("chore: version packages"))
+          ' > /dev/null <<<"$pr_json"; then
+            echo "::error::Release pull request #${PR_NUMBER} changed after verification; refusing to merge."
+            exit 1
+          fi
+
+      - name: Merge version pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ needs.version.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.version.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --squash --match-head-commit "$HEAD_SHA"
+
+      - name: Capture merge commit
+        id: capture
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ needs.version.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.version.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          merge_sha=""
+          for attempt in 1 2 3 4 5; do
+            pr_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
+            if jq -e --arg head_sha "$HEAD_SHA" '
+              (.merged == true)
+              and (.state == "closed")
+              and (.head.sha == $head_sha)
+              and (.merge_commit_sha != null)
+            ' > /dev/null <<<"$pr_json"; then
+              merge_sha="$(jq -r '.merge_commit_sha' <<<"$pr_json")"
+              break
+            fi
+            sleep 3
+          done
+          if [ -z "$merge_sha" ]; then
+            echo "::error::Release pull request #${PR_NUMBER} was not merged with head ${HEAD_SHA}."
+            exit 1
+          fi
+          echo "merge_sha=${merge_sha}" >> "$GITHUB_OUTPUT"
+          echo "Release pull request #${PR_NUMBER} merged as ${merge_sha}"
+
+      - name: Dispatch publish workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ needs.version.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.version.outputs.head_sha }}
+          MERGE_SHA: ${{ steps.capture.outputs.merge_sha }}
+        run: |
+          set -euo pipefail
+          gh workflow run publish.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f "pr_number=${PR_NUMBER}" \
+            -f "head_sha=${HEAD_SHA}" \
+            -f "merge_sha=${MERGE_SHA}"
