@@ -148,6 +148,7 @@ export function collectActiveDocs(root) {
   addFile("fixtures/consumer-product/AGENTS.md");
   addFile("templates/design-system/README.md.template");
   addFile("templates/design-system/AGENTS.md.template");
+  addFile("templates/design-system/USAGE.md.template");
 
   for (const group of ["apps", "packages"]) {
     const groupDir = join(root, group);
@@ -156,6 +157,7 @@ export function collectActiveDocs(root) {
       if (!entry.isDirectory() || isExcludedDocPath(entry.name)) continue;
       addFile(`${group}/${entry.name}/README.md`);
       if (group === "packages") addFile(`${group}/${entry.name}/AGENTS.md`);
+      if (group === "packages") addFile(`${group}/${entry.name}/USAGE.md`);
     }
   }
 
@@ -380,7 +382,12 @@ function classifyLinkTarget(raw) {
 
 /** True when `target` exists relative to the containing document. */
 function resolvesFromDocument(root, docRelPath, target) {
-  return existsSync(resolve(root, dirname(docRelPath), target));
+  const path = resolve(root, dirname(docRelPath), target);
+  if (existsSync(path)) return true;
+  // Generator templates link to the final package filename. Validate against
+  // the sibling source template, while ordinary documents still require an
+  // actual target and packed-package checks validate the generated filename.
+  return docRelPath.endsWith(".template") && existsSync(`${path}.template`);
 }
 
 /* -------------------------------------------------------------------------- */

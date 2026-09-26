@@ -882,6 +882,11 @@ async function main() {
         assert(manifest.version === pkg.version, `${target.id} manifest/package version mismatch`);
         assert(manifest.contract === "v4", `${target.id} manifest must declare contract v4`);
         assert(manifest.schemaVersion === 2, `${target.id} manifest must be schemaVersion 2`);
+        assert(
+          manifest.docs?.usage === "./USAGE.md",
+          `${target.id} must declare shipped usage docs`,
+        );
+        assert(existsSync(join(extracted, "USAGE.md")), `${target.id} tarball is missing USAGE.md`);
         for (const subpath of ["./styles.css", "./tailwind.css", "./tokens"]) {
           assert(
             typeof pkg.exports?.[subpath] !== "undefined",
@@ -1012,6 +1017,12 @@ async function main() {
       for (const target of [...systemTargets, generatedTarget]) {
         assert(target.extractedPackageDir, `${target.id} was not extracted`);
         stagePackedPackage(dir, target.packageName, target.extractedPackageDir);
+        const usage = readFileSync(join(target.extractedPackageDir, "USAGE.md"), "utf8");
+        const examples = [...usage.matchAll(/```tsx\r?\n([\s\S]*?)```/g)];
+        assert(examples.length >= 2, `${target.id} usage docs must include page and form examples`);
+        for (const [index, example] of examples.entries()) {
+          writeFile(dir, `src/${target.id}-usage-${index}.tsx`, example[1]);
+        }
       }
       const coreDir = join(EXTRACT_DIR, "core", "package");
       stagePackedPackage(dir, CORE_PACKAGE_NAME, coreDir);

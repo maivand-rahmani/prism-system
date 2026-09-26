@@ -53,8 +53,11 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Inp
   ref,
 ) {
   const generatedId = React.useId();
-  const id = providedId || `{{SYSTEM_CLASS}}-input-${generatedId.replace(/:/g, "")}`;
-  const hasError = Boolean(error || invalid);
+  const id =
+    providedId || `{{SYSTEM_CLASS}}-input-${generatedId.replace(/:/g, "")}`;
+  const hasError = Boolean(
+    error || invalid || props["aria-invalid"] === true || props["aria-invalid"] === "true",
+  );
   const describedBy =
     [error ? `${id}-error` : hint ? `${id}-hint` : null, props["aria-describedby"]]
       .filter(Boolean)
@@ -85,10 +88,12 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Inp
           size={size}
           invalid={hasError}
           className={cn("{{SYSTEM_CLASS}}-input", className)}
-          aria-describedby={describedBy}
           {...props}
+          aria-describedby={describedBy}
         />
-        {endAdornment && <span className="{{SYSTEM_CLASS}}-adornment">{endAdornment}</span>}
+        {endAdornment && (
+          <span className="{{SYSTEM_CLASS}}-adornment">{endAdornment}</span>
+        )}
       </div>
       <FieldMessage id={id} hint={hint} error={error} />
     </div>

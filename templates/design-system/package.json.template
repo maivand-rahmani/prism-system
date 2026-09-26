@@ -35,7 +35,15 @@
     },
     "./manifest": "./design-system.json"
   },
-  "files": ["dist", "README.md", "AGENTS.md", "design-system.json", "design-brief.json", "LICENSE"],
+  "files": [
+    "dist",
+    "README.md",
+    "USAGE.md",
+    "AGENTS.md",
+    "design-system.json",
+    "design-brief.json",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsup src/index.ts src/tokens/index.ts --format esm,cjs --dts --clean && node -e \"require('node:fs').copyFileSync('src/styles/tailwind.css','dist/tailwind.css')\"",
     "typecheck": "tsc --noEmit -p tsconfig.json",

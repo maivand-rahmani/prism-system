@@ -42,8 +42,11 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(fun
   ref,
 ) {
   const generatedId = React.useId();
-  const id = providedId || `{{SYSTEM_CLASS}}-textarea-${generatedId.replace(/:/g, "")}`;
-  const hasError = Boolean(error || invalid);
+  const id =
+    providedId || `{{SYSTEM_CLASS}}-textarea-${generatedId.replace(/:/g, "")}`;
+  const hasError = Boolean(
+    error || invalid || props["aria-invalid"] === true || props["aria-invalid"] === "true",
+  );
   const describedBy =
     [error ? `${id}-error` : hint ? `${id}-hint` : null, props["aria-describedby"]]
       .filter(Boolean)
@@ -61,8 +64,8 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(fun
         size={size}
         invalid={hasError}
         className={cn("{{SYSTEM_CLASS}}-textarea", className)}
-        aria-describedby={describedBy}
         {...props}
+        aria-describedby={describedBy}
       />
       <FieldMessage id={id} hint={hint} error={error} />
     </div>

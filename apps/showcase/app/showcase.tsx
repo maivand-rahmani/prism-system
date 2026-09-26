@@ -435,6 +435,49 @@ function FoundationSection({ system }: { system: RegisteredSystem }) {
   );
 }
 
+/** The same labelled specimen also works with systems exposing only the core API. */
+function SpecimenField({
+  system,
+  id,
+  label,
+  description,
+  error,
+  disabled,
+  children,
+}: {
+  system: RegisteredSystem;
+  id: string;
+  label: React.ReactNode;
+  description?: React.ReactNode;
+  error?: React.ReactNode;
+  disabled?: boolean;
+  children: React.ReactElement;
+}) {
+  if (system.componentContract === "v4") {
+    const { FormField } = system.components;
+    return (
+      <FormField id={id} invalid={Boolean(error)} disabled={disabled}>
+        <FormField.Label>{label}</FormField.Label>
+        <FormField.Control asChild>{children}</FormField.Control>
+        {description && <FormField.Description>{description}</FormField.Description>}
+        {error && <FormField.Error>{error}</FormField.Error>}
+      </FormField>
+    );
+  }
+  return (
+    <div>
+      <label htmlFor={id}>{label}</label>
+      {children}
+      {description && <p id={`${id}-description`}>{description}</p>}
+      {error && (
+        <p id={`${id}-error`} role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ComponentsSection({ system }: { system: RegisteredSystem }) {
   const {
     Button,
@@ -528,9 +571,7 @@ function ComponentsSection({ system }: { system: RegisteredSystem }) {
                   <small>unavailable</small>
                 </div>
                 <div>
-                  <Button loading loadingText="Saving">
-                    Loading
-                  </Button>
+                  <Button loading>Saving</Button>
                   <small>busy</small>
                 </div>
               </div>
@@ -544,16 +585,31 @@ function ComponentsSection({ system }: { system: RegisteredSystem }) {
               <Card.Description>Labels, hints, and validation.</Card.Description>
             </Card.Header>
             <Card.Content>
-              <Input
+              <SpecimenField
+                system={system}
+                id="specimen-workspace"
                 label="Workspace name"
-                placeholder="e.g. Northstar"
-                hint="Shown to your team"
-              />
-              <Input
+                description="Shown to your team"
+              >
+                <Input
+                  id="specimen-workspace"
+                  aria-describedby="specimen-workspace-description"
+                  placeholder="e.g. Northstar"
+                />
+              </SpecimenField>
+              <SpecimenField
+                system={system}
+                id="specimen-invalid"
                 label="Invalid field"
-                defaultValue="Needs attention"
                 error="Please choose another name."
-              />
+              >
+                <Input
+                  id="specimen-invalid"
+                  aria-describedby="specimen-invalid-error"
+                  invalid
+                  defaultValue="Needs attention"
+                />
+              </SpecimenField>
             </Card.Content>
           </Card>
           <Card id="component-badge">
@@ -579,13 +635,34 @@ function ComponentsSection({ system }: { system: RegisteredSystem }) {
             </Card.Header>
             <Card.Content>
               <div className="checkbox-stack">
-                <Checkbox
-                  defaultChecked
+                <SpecimenField
+                  system={system}
+                  id="specimen-digest"
                   label="Weekly digest"
                   description="A short summary every Monday."
-                />
-                <Checkbox label="Product updates" description="Occasional notes from the team." />
-                <Checkbox disabled label="Locked preference" />
+                >
+                  <Checkbox
+                    id="specimen-digest"
+                    aria-describedby="specimen-digest-description"
+                    defaultChecked
+                  />
+                </SpecimenField>
+                <SpecimenField
+                  system={system}
+                  id="specimen-updates"
+                  label="Product updates"
+                  description="Occasional notes from the team."
+                >
+                  <Checkbox id="specimen-updates" aria-describedby="specimen-updates-description" />
+                </SpecimenField>
+                <SpecimenField
+                  system={system}
+                  id="specimen-locked"
+                  label="Locked preference"
+                  disabled
+                >
+                  <Checkbox id="specimen-locked" disabled />
+                </SpecimenField>
               </div>
             </Card.Content>
           </Card>
@@ -595,14 +672,17 @@ function ComponentsSection({ system }: { system: RegisteredSystem }) {
               <Card.Description>A package-owned accessible choice field.</Card.Description>
             </Card.Header>
             <Card.Content>
-              <Select
-                label="Theme preference"
-                defaultValue="balanced"
-                hint="This specimen uses the package select."
-              >
-                <Select.Trigger aria-label="Theme preference">
-                  <Select.Value />
-                </Select.Trigger>
+              <Select defaultValue="balanced">
+                <SpecimenField
+                  system={system}
+                  id="specimen-theme"
+                  label="Theme preference"
+                  description="This specimen uses the package select."
+                >
+                  <Select.Trigger id="specimen-theme" aria-describedby="specimen-theme-description">
+                    <Select.Value />
+                  </Select.Trigger>
+                </SpecimenField>
                 <Select.Content>
                   <Select.Item value="balanced">Balanced</Select.Item>
                   <Select.Item value="quiet">Quiet</Select.Item>
@@ -650,7 +730,9 @@ function ComponentsSection({ system }: { system: RegisteredSystem }) {
                       Share a workspace invitation without losing your place.
                     </Dialog.Description>
                   </Dialog.Header>
-                  <Input label="Email address" type="email" placeholder="name@example.com" />
+                  <SpecimenField system={system} id="specimen-invite" label="Email address">
+                    <Input id="specimen-invite" type="email" placeholder="name@example.com" />
+                  </SpecimenField>
                   <Dialog.Footer>
                     <Dialog.Close>Cancel</Dialog.Close>
                     <Button>Send invite</Button>
@@ -940,8 +1022,12 @@ function OptionalSpecimen({ system, name }: { system: RegisteredSystem; name: Op
       return (
         <Fieldset>
           <Fieldset.Legend>Notification preferences</Fieldset.Legend>
-          <Checkbox label="Product notes" />
-          <Checkbox label="Release updates" />
+          <SpecimenField system={system} id="specimen-product-notes" label="Product notes">
+            <Checkbox id="specimen-product-notes" />
+          </SpecimenField>
+          <SpecimenField system={system} id="specimen-release-updates" label="Release updates">
+            <Checkbox id="specimen-release-updates" />
+          </SpecimenField>
         </Fieldset>
       );
     }

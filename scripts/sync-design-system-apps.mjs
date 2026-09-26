@@ -200,10 +200,8 @@ function requiredPackages(entries) {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Registry source for a manifest that contains only V2 systems. This is the
- * original V2 generator output and must stay byte-for-byte stable: the V2-only
- * manifest is the current repository state and its generated registries are
- * committed.
+ * Registry source for a manifest that contains only V2 systems.
+ * V2 props come from the shared contract, independent of registration order.
  */
 function buildV2RegistrySource(entries) {
   const packageImports = entries.map(
@@ -218,16 +216,6 @@ function buildV2RegistrySource(entries) {
         entry.tokensExport
       } } as unknown as RegisteredSystem,`,
   );
-
-  // Every manifest entry is V2. The first registered package supplies the
-  // concrete component-prop type used by the app composition; the remaining
-  // systems may expose implementation-specific props behind the shared core
-  // contract, so each registration is cast through `unknown` to the common
-  // heterogeneous type.
-  const typeEntry = entries[0];
-  const registeredComponents = typeEntry
-    ? `(typeof ${typeEntry.alias})["components"]`
-    : `DesignSystem["components"]`;
 
   return [
     REGISTRY_HEADER,
@@ -247,8 +235,8 @@ function buildV2RegistrySource(entries) {
     "  typography?: TokenGroup;",
     "};",
     "",
-    "/** Concrete component props from the first registered package. */",
-    `type RegisteredComponents = ${registeredComponents};`,
+    "/** Shared V2 props; package-specific extensions are not universal. */",
+    'type RegisteredComponents = DesignSystem["components"];',
     "",
     "/** A registered system with its scoped UI class and token groups. */",
     'export type RegisteredSystem = Omit<DesignSystem, "components"> & {',
@@ -285,9 +273,8 @@ function buildV2RegistrySource(entries) {
  *
  * V4 entries expose the full runtime component map — the twenty required names
  * plus whichever optional names the package actually declares — typed from the
- * public `DesignSystemComponentsV4` contract with the concrete props of the
- * first registered V4 package for the shared surface, so system-specific props
- * (for example Button `loadingText`) stay usable. Optional presence is answered
+ * public `DesignSystemComponentsV4` contract. Package-specific extensions are
+ * not assumed by shared compositions. Optional presence is answered
  * by the real runtime map keys at run time; the generated registry never
  * fabricates an optional entry or guesses availability from a name list.
  *
@@ -322,13 +309,9 @@ function buildMixedRegistrySource(entries) {
 
   const v2Entries = entries.filter((entry) => entry.contract === "v2");
   const v4Entries = entries.filter((entry) => entry.contract === "v4");
-  // Mixed output is only produced when at least one V4 entry exists, and the
-  // concrete component-prop type comes from the first V4 package.
-  const v4TypeEntry = v4Entries[0];
-  if (!v4TypeEntry) {
+  if (v4Entries.length === 0) {
     throw new Error("Mixed registry generation requires at least one V4 system.");
   }
-  const v2TypeEntry = v2Entries[0];
 
   return [
     REGISTRY_HEADER,
@@ -384,25 +367,19 @@ function buildMixedRegistrySource(entries) {
     "};",
     "",
     "/**",
-    " * Concrete V2 props for the original fourteen-component surface, taken from",
-    " * the first registered V2 package; the core V2 map is used when the manifest",
-    " * registers no V2 system.",
+    " * Shared V2 props for the original fourteen-component surface.",
     " */",
-    `type RegisteredComponentsV2 = ${
-      v2TypeEntry ? `(typeof ${v2TypeEntry.alias})["components"]` : `DesignSystem["components"]`
-    };`,
+    'type RegisteredComponentsV2 = DesignSystem["components"];',
     "",
     "/**",
-    " * Concrete props for the full V4 runtime component map.",
+    " * Shared props for the full V4 runtime component map.",
     " *",
-    " * The twenty required names keep the concrete props of the first registered",
-    " * V4 package (so system-specific props such as Button `loadingText` stay",
-    " * usable), every optional V4 name stays optional, and an optional component",
-    " * the package does not implement stays representable as absent. Availability",
+    " * Required props come from core, every optional V4 name stays optional,",
+    " * and a component the package does not implement stays absent. Availability",
     " * is a runtime question answered by the real component-map keys, never by",
     " * this type or by the manifest.",
     " */",
-    `type RegisteredComponentsV4 = DesignSystemComponentsV4 & Partial<(typeof ${v4TypeEntry.alias})["components"]>;`,
+    "type RegisteredComponentsV4 = DesignSystemComponentsV4;",
     "",
     "/** A V2 system registered through the V2 guard, with its scoped UI class and tokens. */",
     'export type RegisteredSystemV2 = Omit<DesignSystem, "components"> & {',

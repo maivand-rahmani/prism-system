@@ -1,0 +1,164 @@
+# Compose with {{SYSTEM_NAME}}
+
+These examples use the twenty required V4 contracts and public package imports.
+They also work with a different V4 system after changing the package import.
+Optional capabilities must be checked in the installed `./manifest` first.
+Import `{{PACKAGE_NAME}}/styles.css` once in the application entry point.
+For Tailwind v4, use the import order shown in [README.md](./README.md).
+
+## A content page
+
+The product owns content, routes, actions, and page composition. The package
+owns typography, surfaces, component spacing, variants, and interaction states.
+
+```tsx
+import {
+  Button,
+  Card,
+  Container,
+  Heading,
+  Link,
+  Stack,
+  Text,
+} from "{{PACKAGE_NAME}}";
+
+export function Overview({ onCreate }: { onCreate: () => void }) {
+  return (
+    <Container as="main">
+      <Stack>
+        <Heading level={1}>Your workspace</Heading>
+        <Text>Keep the next step visible to everyone on the team.</Text>
+        <Card>
+          <Card.Header>
+            <Card.Title>Start a project</Card.Title>
+            <Card.Description>Give your work a shared home.</Card.Description>
+          </Card.Header>
+          <Card.Content>
+            <Stack direction="horizontal" wrap>
+              <Button onClick={onCreate}>Create project</Button>
+              <Link href="/projects">Browse projects</Link>
+            </Stack>
+          </Card.Content>
+        </Card>
+      </Stack>
+    </Container>
+  );
+}
+```
+
+`Stack` uses `direction` and `wrap`; it has no `variant` prop. Use semantic
+HTML for product regions and layout utilities for product placement. Choose
+token names from `prism-ds tokens`, rather than inventing utilities or applying
+visual classes to package components.
+
+## An interactive form
+
+In Next.js App Router this module needs `"use client"`. Supply the real product
+action through `onSave`; validation and request state remain in the product.
+
+```tsx
+"use client";
+
+import * as React from "react";
+import { Button, FormField, Input, Select, Stack, Text } from "{{PACKAGE_NAME}}";
+
+export function InviteForm({
+  onSave,
+}: {
+  onSave: (input: { email: string; role: string }) => Promise<void>;
+}) {
+  const id = React.useId();
+  const emailRef = React.useRef<HTMLInputElement>(null);
+  const [email, setEmail] = React.useState("");
+  const [role, setRole] = React.useState("member");
+  const [error, setError] = React.useState<string>();
+  const [requestError, setRequestError] = React.useState<string>();
+  const [pending, setPending] = React.useState(false);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (pending) return;
+    setRequestError(undefined);
+    if (!email.trim() || !emailRef.current?.validity.valid) {
+      setError("Enter a valid email address.");
+      emailRef.current?.focus();
+      return;
+    }
+    setError(undefined);
+    setPending(true);
+    try {
+      await onSave({ email: email.trim(), role });
+    } catch {
+      setRequestError("The invitation could not be sent. Please try again.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} noValidate>
+      <Stack>
+        <FormField id={`${id}-email`} required invalid={Boolean(error)} disabled={pending}>
+          <FormField.Label>Email address</FormField.Label>
+          <FormField.Control asChild>
+            <Input
+              ref={emailRef}
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              aria-describedby={`${id}-privacy`}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </FormField.Control>
+          <FormField.Description>Use the address your teammate works with.</FormField.Description>
+          {error && <FormField.Error>{error}</FormField.Error>}
+        </FormField>
+        <Text id={`${id}-privacy`}>This address is used only for this invitation.</Text>
+        <Select value={role} onValueChange={setRole} disabled={pending}>
+          <FormField id={`${id}-role`} disabled={pending}>
+            <FormField.Label>Role</FormField.Label>
+            <FormField.Control asChild>
+              <Select.Trigger>
+                <Select.Value />
+              </Select.Trigger>
+            </FormField.Control>
+            <FormField.Description>
+              Choose the permissions for this workspace.
+            </FormField.Description>
+          </FormField>
+          <Select.Content>
+            <Select.Item value="member">Member</Select.Item>
+            <Select.Item value="viewer">Viewer</Select.Item>
+          </Select.Content>
+        </Select>
+        {requestError && <Text role="alert">{requestError}</Text>}
+        <Button type="submit" loading={pending}>
+          Send invitation
+        </Button>
+      </Stack>
+    </form>
+  );
+}
+```
+
+`FormField.Control asChild` forwards the field id and state to its one child,
+preserves the child's ref and handlers, and combines existing ARIA descriptions
+with the mounted help/error parts. Client registration updates those part
+references after hydration. The default `Control` renders a `div` wrapper;
+use `asChild` to wire the actual focusable control. For `Select`, wire the
+`Trigger`, and set root `Select.disabled` for its popup behavior too.
+
+`FormField.required` exposes `aria-required`. Set native `Input.required` when
+native validity is needed. `noValidate` in this example lets the product choose
+when to display the error and focus the preserved input ref. Root `invalid`
+sets the input's invalid appearance without an additional system-specific prop.
+
+## Verify the consumer
+
+Run `prism-ds check --cwd . --css <entry.css>` to check configuration, component
+usage, and the selected CSS entry, or `prism-ds check-usage --cwd .` for usage
+alone. These checks are read-only. They catch supported syntax violations, not
+every visual override: semantic utility classes and unrelated stylesheets still
+need review. Inspect keyboard access, focus, errors, disabled state, and responsive
+composition in the real product.

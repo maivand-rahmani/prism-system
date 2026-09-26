@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { cn } from "@prism-system/ui-core";
+import { cn, mergeProps, useComposedRefs } from "@prism-system/ui-core";
 import type {
   FormFieldControlProps,
   FormFieldDescriptionProps,
@@ -17,6 +17,8 @@ interface FormFieldContextValue {
   invalid: boolean;
   descriptionId: string;
   errorId: string;
+  parts: { description: boolean; error: boolean };
+  setPart: (part: "description" | "error", present: boolean) => void;
 }
 
 const FormFieldContext = React.createContext<FormFieldContextValue | null>(null);
@@ -31,6 +33,10 @@ const FormFieldRoot = React.forwardRef<HTMLDivElement, FormFieldProps>(function 
   { id, required = false, disabled = false, invalid = false, className, children, ...props },
   ref,
 ) {
+  const [parts, setParts] = React.useState({ description: false, error: false });
+  const setPart = React.useCallback((part: "description" | "error", present: boolean) => {
+    setParts((current) => (current[part] === present ? current : { ...current, [part]: present }));
+  }, []);
   const value = React.useMemo<FormFieldContextValue>(
     () => ({
       id,
@@ -39,8 +45,10 @@ const FormFieldRoot = React.forwardRef<HTMLDivElement, FormFieldProps>(function 
       invalid,
       descriptionId: `${id}-description`,
       errorId: `${id}-error`,
+      parts,
+      setPart,
     }),
-    [id, required, disabled, invalid],
+    [id, required, disabled, invalid, parts, setPart],
   );
   return (
     <FormFieldContext.Provider value={value}>
@@ -73,34 +81,65 @@ const FormFieldLabel = React.forwardRef<HTMLLabelElement, FormFieldLabelProps>(
   },
 );
 
-const FormFieldControl = React.forwardRef<HTMLDivElement, FormFieldControlProps>(
+const FormFieldControl = React.forwardRef<HTMLElement, FormFieldControlProps>(
   function FormFieldControl({ asChild = false, className, children, ...props }, ref) {
     const field = useFormField();
+    const child =
+      asChild && React.isValidElement(children)
+        ? (children as React.ReactElement<{
+            className?: string;
+            ref?: React.Ref<HTMLElement>;
+            "aria-describedby"?: string;
+          }>)
+        : null;
+    const childProps = child?.props as
+      { className?: string; ref?: React.Ref<HTMLElement>; "aria-describedby"?: string } | undefined;
+    const childRef = child
+      ? React.version.startsWith("18.")
+        ? (child as React.ReactElement & { ref?: React.Ref<HTMLElement> }).ref
+        : child.props.ref
+      : undefined;
+    const composedRef = useComposedRefs(ref, childRef);
     const describedBy =
-      [field.descriptionId, field.invalid ? field.errorId : null].filter(Boolean).join(" ") ||
-      undefined;
+      [
+        ...new Set(
+          [
+            field.parts.description && field.descriptionId,
+            field.invalid && field.parts.error && field.errorId,
+            (props as Record<string, unknown>)["aria-describedby"],
+            childProps?.["aria-describedby"],
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .split(/\s+/)
+            .filter(Boolean),
+        ),
+      ].join(" ") || undefined;
     const owned = {
       id: field.id,
       "aria-describedby": describedBy,
-      "aria-invalid": field.invalid || undefined,
-      "aria-required": field.required || undefined,
-      disabled: field.disabled || undefined,
+      "aria-invalid": field.invalid ? true : undefined,
+      "aria-required": field.required ? true : undefined,
+      "aria-disabled": field.disabled ? true : undefined,
+      disabled: field.disabled ? true : undefined,
     };
     const mergedClassName = cn("maivand-b-form-field-control", className);
     if (asChild) {
-      if (!React.isValidElement(children)) {
+      if (!child) {
         throw new Error("FormField.Control with asChild requires exactly one React element child.");
       }
-      const child = children as React.ReactElement<{ className?: string }>;
       return React.cloneElement(child, {
-        ...props,
-        ...owned,
+        ...mergeProps(
+          child.props as Record<string, unknown>,
+          props as Record<string, unknown>,
+          owned,
+        ),
         className: cn(child.props.className, mergedClassName),
-        ref,
+        ref: composedRef,
       } as never);
     }
     return (
-      <div ref={ref} {...owned} className={mergedClassName} {...props}>
+      <div ref={ref as React.Ref<HTMLDivElement>} className={mergedClassName} {...props}>
         {children}
       </div>
     );
@@ -110,6 +149,11 @@ const FormFieldControl = React.forwardRef<HTMLDivElement, FormFieldControlProps>
 const FormFieldDescription = React.forwardRef<HTMLParagraphElement, FormFieldDescriptionProps>(
   function FormFieldDescription({ className, ...props }, ref) {
     const field = useFormField();
+    const { setPart } = field;
+    React.useEffect(() => {
+      setPart("description", true);
+      return () => setPart("description", false);
+    }, [setPart]);
     return (
       <p
         ref={ref}
@@ -124,6 +168,12 @@ const FormFieldDescription = React.forwardRef<HTMLParagraphElement, FormFieldDes
 const FormFieldError = React.forwardRef<HTMLParagraphElement, FormFieldErrorProps>(
   function FormFieldError({ className, ...props }, ref) {
     const field = useFormField();
+    const { setPart, invalid } = field;
+    React.useEffect(() => {
+      if (!invalid) return;
+      setPart("error", true);
+      return () => setPart("error", false);
+    }, [invalid, setPart]);
     if (!field.invalid) return null;
     return (
       <p

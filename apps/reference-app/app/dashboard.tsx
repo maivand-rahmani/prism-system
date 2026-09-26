@@ -5,6 +5,39 @@ import { OPTIONAL_COMPONENTS_V4 } from "@prism-system/ui-core";
 import type { REQUIRED_COMPONENTS, REQUIRED_COMPONENTS_V4 } from "@prism-system/ui-core";
 import { getRegisteredSystem, registeredSystems, type RegisteredSystem } from "./registry";
 
+/** Application composition using shared props, including the supported V2 fallback. */
+function ReferenceField({
+  system,
+  id,
+  label,
+  description,
+  children,
+}: {
+  system: RegisteredSystem;
+  id: string;
+  label: React.ReactNode;
+  description?: React.ReactNode;
+  children: React.ReactElement;
+}) {
+  if (system.componentContract === "v4") {
+    const { FormField } = system.components;
+    return (
+      <FormField id={id}>
+        <FormField.Label>{label}</FormField.Label>
+        <FormField.Control asChild>{children}</FormField.Control>
+        {description && <FormField.Description>{description}</FormField.Description>}
+      </FormField>
+    );
+  }
+  return (
+    <div>
+      <label htmlFor={id}>{label}</label>
+      {children}
+      {description && <p id={`${id}-description`}>{description}</p>}
+    </div>
+  );
+}
+
 type OptionalName = (typeof OPTIONAL_COMPONENTS_V4)[number];
 type RequiredV4Name = Exclude<
   (typeof REQUIRED_COMPONENTS_V4)[number],
@@ -268,8 +301,12 @@ function OptionalReference({ system, name }: { system: RegisteredSystem; name: O
       return (
         <Fieldset>
           <Fieldset.Legend>Updates</Fieldset.Legend>
-          <Checkbox label="Weekly digest" />
-          <Checkbox label="Product news" />
+          <ReferenceField system={system} id="reference-weekly-digest" label="Weekly digest">
+            <Checkbox id="reference-weekly-digest" />
+          </ReferenceField>
+          <ReferenceField system={system} id="reference-product-news" label="Product news">
+            <Checkbox id="reference-product-news" />
+          </ReferenceField>
         </Fieldset>
       );
     }
@@ -611,13 +648,28 @@ export function Dashboard() {
                 <Card variant="muted">
                   <Card.Content>
                     <div className="dialog-form">
-                      <Input label="Report title" placeholder="September studio pulse" />
-                      <Input label="Owner" defaultValue="Maya Chen" />
-                      <Checkbox
-                        defaultChecked
+                      <ReferenceField
+                        system={system}
+                        id="reference-report-title"
+                        label="Report title"
+                      >
+                        <Input id="reference-report-title" placeholder="September studio pulse" />
+                      </ReferenceField>
+                      <ReferenceField system={system} id="reference-report-owner" label="Owner">
+                        <Input id="reference-report-owner" defaultValue="Maya Chen" />
+                      </ReferenceField>
+                      <ReferenceField
+                        system={system}
+                        id="reference-notify"
                         label="Notify the studio"
                         description="Send a note when the report is ready."
-                      />
+                      >
+                        <Checkbox
+                          id="reference-notify"
+                          aria-describedby="reference-notify-description"
+                          defaultChecked
+                        />
+                      </ReferenceField>
                     </div>
                   </Card.Content>
                 </Card>
@@ -795,9 +847,27 @@ export function Dashboard() {
                 </Card.Header>
                 <Card.Content>
                   <div className="todo-list">
-                    <Checkbox defaultChecked label="Review launch notes" />
-                    <Checkbox label="Send partner recap" />
-                    <Checkbox label="Plan Friday retro" />
+                    <ReferenceField
+                      system={system}
+                      id="reference-launch-notes"
+                      label="Review launch notes"
+                    >
+                      <Checkbox id="reference-launch-notes" defaultChecked />
+                    </ReferenceField>
+                    <ReferenceField
+                      system={system}
+                      id="reference-partner-recap"
+                      label="Send partner recap"
+                    >
+                      <Checkbox id="reference-partner-recap" />
+                    </ReferenceField>
+                    <ReferenceField
+                      system={system}
+                      id="reference-friday-retro"
+                      label="Plan Friday retro"
+                    >
+                      <Checkbox id="reference-friday-retro" />
+                    </ReferenceField>
                   </div>
                 </Card.Content>
                 <Card.Footer>
@@ -833,13 +903,22 @@ export function Dashboard() {
               </Card.Header>
               <Card.Content>
                 <div className="invite-grid">
-                  <Input
+                  <ReferenceField
+                    system={system}
+                    id="reference-invite-email"
                     label="Email address"
-                    type="email"
-                    placeholder="name@company.com"
-                    hint="They will receive a workspace invite."
-                  />
-                  <Input label="Role" defaultValue="Contributor" />
+                    description="They will receive a workspace invite."
+                  >
+                    <Input
+                      id="reference-invite-email"
+                      aria-describedby="reference-invite-email-description"
+                      type="email"
+                      placeholder="name@company.com"
+                    />
+                  </ReferenceField>
+                  <ReferenceField system={system} id="reference-invite-role" label="Role">
+                    <Input id="reference-invite-role" defaultValue="Contributor" />
+                  </ReferenceField>
                   <Button variant="primary">Send invitation</Button>
                 </div>
               </Card.Content>

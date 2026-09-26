@@ -143,10 +143,41 @@ test("the current repository documentation and V4 contracts pass", () => {
   assert.ok(result.documents.includes("packages/system-a/README.md"));
   assert.ok(result.documents.includes("packages/system-b/AGENTS.md"));
   assert.ok(result.documents.includes("templates/design-system/README.md.template"));
+  assert.ok(result.documents.includes("templates/design-system/USAGE.md.template"));
+  assert.ok(result.documents.includes("packages/system-a/USAGE.md"));
   assert.ok(result.documents.includes("fixtures/consumer-product/README.md"));
   assert.ok(result.documents.includes("docs/v4/migration-v2-to-v4.md"));
   assert.equal(result.stats.migration, true);
   assert.ok(result.stats.links > 0);
+});
+
+test("template links resolve generated filenames only from template documents", (t) => {
+  const root = tempRoot(t);
+  writeRegistry(root, []);
+  write(
+    root,
+    "templates/design-system/README.md.template",
+    templateReadme() + "\n[Usage](./USAGE.md)\n",
+  );
+  write(root, "templates/design-system/AGENTS.md.template", "# Rules\n");
+  write(root, "templates/design-system/USAGE.md.template", "# Usage\n\n[Readme](./README.md)\n");
+  const passed = runDocsCheck({ root, verifyContracts: false });
+  assert.equal(passed.ok, true, passed.failures.join("\n"));
+  write(root, "docs/v4/ordinary.md", "[Usage](../../templates/design-system/USAGE.md)\n");
+  const failed = runDocsCheck({ root, verifyContracts: false });
+  assert.equal(failed.ok, false);
+  assert.ok(
+    failed.failures.some(
+      (failure) => failure.includes("ordinary.md") && failure.includes("does not resolve"),
+    ),
+  );
+  write(root, "templates/design-system/USAGE.md.template", "[Missing](./missing.md)\n");
+  const missing = runDocsCheck({ root, verifyContracts: false });
+  assert.ok(
+    missing.failures.some(
+      (failure) => failure.includes("USAGE.md.template") && failure.includes("missing.md"),
+    ),
+  );
 });
 
 /* -------------------------------------------------------------------------- */

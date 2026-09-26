@@ -344,6 +344,7 @@
   },
   "docs": {
     "readme": "./README.md",
-    "agents": "./AGENTS.md"
+    "agents": "./AGENTS.md",
+    "usage": "./USAGE.md"
   }
 }

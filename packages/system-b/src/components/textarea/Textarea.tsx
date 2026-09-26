@@ -19,7 +19,9 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(fun
 ) {
   const generatedId = React.useId();
   const id = providedId || `maivand-b-textarea-${generatedId.replace(/:/g, "")}`;
-  const hasError = Boolean(error || invalid);
+  const hasError = Boolean(
+    error || invalid || props["aria-invalid"] === true || props["aria-invalid"] === "true",
+  );
   const describedBy =
     [error ? `${id}-error` : hint ? `${id}-hint` : null, props["aria-describedby"]]
       .filter(Boolean)
@@ -37,8 +39,8 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(fun
         size={size}
         invalid={hasError}
         className={cn("maivand-b-textarea", `maivand-b-input-${size}`, className)}
-        aria-describedby={describedBy}
         {...props}
+        aria-describedby={describedBy}
       />
       {error ? (
         <span className="maivand-b-error" id={`${id}-error`} role="alert">

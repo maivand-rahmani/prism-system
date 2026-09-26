@@ -36,7 +36,9 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Inp
     [error ? errorId : null, !error && hint ? hintId : null, props["aria-describedby"]]
       .filter(Boolean)
       .join(" ") || undefined;
-  const hasError = Boolean(error || invalid);
+  const hasError = Boolean(
+    error || invalid || props["aria-invalid"] === true || props["aria-invalid"] === "true",
+  );
   return (
     <div className="maivand-a-ui maivand-a-field">
       {label && (
@@ -62,8 +64,8 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Inp
           size={size}
           invalid={hasError}
           className={cn("maivand-a-input", className)}
-          aria-describedby={describedBy}
           {...props}
+          aria-describedby={describedBy}
         />
         {endAdornment && <span className="maivand-a-adornment">{endAdornment}</span>}
       </div>

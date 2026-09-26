@@ -121,7 +121,7 @@
       "members": []
     },
     "Stack": {
-      "variants": ["horizontal", "vertical"],
+      "variants": [],
       "sizes": [],
       "members": []
     },
@@ -189,6 +189,7 @@
   },
   "docs": {
     "readme": "./README.md",
-    "agents": "./AGENTS.md"
+    "agents": "./AGENTS.md",
+    "usage": "./USAGE.md"
   }
 }

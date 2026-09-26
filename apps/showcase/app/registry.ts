@@ -56,23 +56,19 @@ export type RegisteredManifest = {
 };
 
 /**
- * Concrete V2 props for the original fourteen-component surface, taken from
- * the first registered V2 package; the core V2 map is used when the manifest
- * registers no V2 system.
+ * Shared V2 props for the original fourteen-component surface.
  */
 type RegisteredComponentsV2 = DesignSystem["components"];
 
 /**
- * Concrete props for the full V4 runtime component map.
+ * Shared props for the full V4 runtime component map.
  *
- * The twenty required names keep the concrete props of the first registered
- * V4 package (so system-specific props such as Button `loadingText` stay
- * usable), every optional V4 name stays optional, and an optional component
- * the package does not implement stays representable as absent. Availability
+ * Required props come from core, every optional V4 name stays optional,
+ * and a component the package does not implement stays absent. Availability
  * is a runtime question answered by the real component-map keys, never by
  * this type or by the manifest.
  */
-type RegisteredComponentsV4 = DesignSystemComponentsV4 & Partial<(typeof SystemA)["components"]>;
+type RegisteredComponentsV4 = DesignSystemComponentsV4;
 
 /** A V2 system registered through the V2 guard, with its scoped UI class and tokens. */
 export type RegisteredSystemV2 = Omit<DesignSystem, "components"> & {

@@ -60,13 +60,19 @@ export function Example() {
         <Button>Continue</Button>
         <FormField id="email">
           <FormField.Label>Email</FormField.Label>
-          <FormField.Control asChild><Input type="email" autoComplete="email" /></FormField.Control>
+          <FormField.Control asChild>
+            <Input type="email" autoComplete="email" />
+          </FormField.Control>
         </FormField>
       </Card.Content>
     </Card>
   );
 }
 ```
+
+See [USAGE.md](./USAGE.md) for a complete content page and interactive form,
+including validation, focus refs, and Select trigger composition. The examples
+ship with this package and use only required V4 components.
 
 ## Foundations
 

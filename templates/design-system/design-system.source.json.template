@@ -1,30 +1,99 @@
 {
-  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system.source.schema.json",
+  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system-source-v4.schema.json",
   "schemaVersion": 2,
   "contract": "v4",
   "name": "{{SYSTEM_NAME}}",
   "components": {
-    "Button": { "variants": ["primary", "secondary", "outline", "ghost", "destructive", "link"], "sizes": ["sm", "md", "lg", "icon"], "members": [] },
+    "Button": {
+      "variants": ["primary", "secondary", "outline", "ghost", "destructive", "link"],
+      "sizes": ["sm", "md", "lg", "icon"],
+      "members": []
+    },
     "Input": { "variants": [], "sizes": ["sm", "md", "lg"], "members": [] },
     "Textarea": { "variants": [], "sizes": ["sm", "md", "lg"], "members": [] },
-    "Card": { "variants": ["default", "muted", "outline", "elevated", "interactive"], "sizes": [], "members": ["Header", "Title", "Description", "Content", "Footer"] },
-    "Badge": { "variants": ["default", "secondary", "success", "warning", "danger", "info", "outline"], "sizes": ["sm", "md"], "members": [] },
+    "Card": {
+      "variants": ["default", "muted", "outline", "elevated", "interactive"],
+      "sizes": [],
+      "members": ["Header", "Title", "Description", "Content", "Footer"]
+    },
+    "Badge": {
+      "variants": ["default", "secondary", "success", "warning", "danger", "info", "outline"],
+      "sizes": ["sm", "md"],
+      "members": []
+    },
     "Checkbox": { "variants": [], "sizes": ["sm", "md", "lg"], "members": [] },
     "RadioGroup": { "variants": [], "sizes": [], "members": ["Item", "Indicator"] },
     "Switch": { "variants": [], "sizes": ["sm", "md", "lg"], "members": ["Thumb"] },
-    "Select": { "variants": [], "sizes": ["sm", "md", "lg"], "members": ["Trigger", "Value", "Content", "Group", "Label", "Item", "Separator"] },
+    "Select": {
+      "variants": [],
+      "sizes": ["sm", "md", "lg"],
+      "members": ["Trigger", "Value", "Content", "Group", "Label", "Item", "Separator"]
+    },
     "Tabs": { "variants": [], "sizes": [], "members": ["List", "Trigger", "Content"] },
-    "Dialog": { "variants": [], "sizes": [], "members": ["Trigger", "Portal", "Overlay", "Content", "Header", "Footer", "Title", "Description", "Close"] },
-    "DropdownMenu": { "variants": [], "sizes": [], "members": ["Trigger", "Portal", "Content", "Group", "Label", "Item", "CheckboxItem", "RadioGroup", "RadioItem", "ItemIndicator", "Separator", "Arrow", "Sub", "SubTrigger", "SubContent"] },
-    "Tooltip": { "variants": [], "sizes": [], "members": ["Provider", "Trigger", "Portal", "Content", "Arrow"] },
+    "Dialog": {
+      "variants": [],
+      "sizes": [],
+      "members": [
+        "Trigger",
+        "Portal",
+        "Overlay",
+        "Content",
+        "Header",
+        "Footer",
+        "Title",
+        "Description",
+        "Close"
+      ]
+    },
+    "DropdownMenu": {
+      "variants": [],
+      "sizes": [],
+      "members": [
+        "Trigger",
+        "Portal",
+        "Content",
+        "Group",
+        "Label",
+        "Item",
+        "CheckboxItem",
+        "RadioGroup",
+        "RadioItem",
+        "ItemIndicator",
+        "Separator",
+        "Arrow",
+        "Sub",
+        "SubTrigger",
+        "SubContent"
+      ]
+    },
+    "Tooltip": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Provider", "Trigger", "Portal", "Content", "Arrow"]
+    },
     "Separator": { "variants": [], "sizes": [], "members": [] },
     "Heading": { "variants": [], "sizes": [], "members": [] },
     "Text": { "variants": [], "sizes": [], "members": [] },
     "Link": { "variants": [], "sizes": [], "members": [] },
     "Container": { "variants": [], "sizes": [], "members": [] },
-    "Stack": { "variants": ["horizontal", "vertical"], "sizes": [], "members": [] },
-    "FormField": { "variants": [], "sizes": [], "members": ["Label", "Control", "Description", "Error"] }
+    "Stack": { "variants": [], "sizes": [], "members": [] },
+    "FormField": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Label", "Control", "Description", "Error"]
+    }
   },
-  "design": { "density": "comfortable", "theme": "light-first", "radius": "small", "keywords": ["restrained", "clear", "accessible"] },
-  "rules": { "allowArbitraryColors": false, "allowArbitraryRadius": false, "allowArbitraryShadows": false, "allowPrimitiveDuplication": false }
+  "design": {
+    "density": "comfortable",
+    "theme": "light-first",
+    "radius": "small",
+    "keywords": ["restrained", "clear", "accessible"]
+  },
+  "rules": {
+    "allowArbitraryColors": false,
+    "allowArbitraryRadius": false,
+    "allowArbitraryShadows": false,
+    "allowPrimitiveDuplication": false
+  },
+  "docs": { "readme": "./README.md", "agents": "./AGENTS.md", "usage": "./USAGE.md" }
 }

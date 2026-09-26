@@ -92,6 +92,9 @@ it. An external coding agent consuming this package must:
    package. Consumers compose with props; they must not restyle components or
    copy package CSS.
 
+See [USAGE.md](./USAGE.md) for complete page and form compositions using only
+required V4 contracts, including control refs, invalid state, and Select wiring.
+
 ### Usage rules
 
 - Prefer an existing component over a local replacement.
@@ -105,6 +108,10 @@ it. An external coding agent consuming this package must:
 Strict usage disallows arbitrary colors, arbitrary radius values, arbitrary
 shadows, duplicated primitives, large visual overrides, and local replacements
 for components that already exist here.
+
+The strict checker covers supported TS/TSX syntax. It does not prove component
+identity or detect every visual override in semantic utilities or external CSS;
+review those against the package styling rules as well.
 
 ### Extension rules
 

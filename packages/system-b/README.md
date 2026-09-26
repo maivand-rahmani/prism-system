@@ -92,6 +92,10 @@ content width.
 </Stack>
 ```
 
+See [USAGE.md](./USAGE.md) for a complete content page and interactive form,
+including validation, focus refs, and Select trigger composition. The examples
+ship with this package and use only required V4 components.
+
 ## Foundations
 
 Values live only in this package's `tokens.source.json`; the generated artifacts are

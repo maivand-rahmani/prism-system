@@ -179,5 +179,10 @@
     "allowArbitraryRadius": false,
     "allowArbitraryShadows": false,
     "allowPrimitiveDuplication": false
+  },
+  "docs": {
+    "readme": "./README.md",
+    "agents": "./AGENTS.md",
+    "usage": "./USAGE.md"
   }
 }

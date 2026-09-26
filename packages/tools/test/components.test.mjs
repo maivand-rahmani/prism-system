@@ -210,7 +210,9 @@ test("available components expose declared variants, sizes, and compound members
     "Content",
     "Footer",
   ]);
-  assert.deepEqual(byName.get("Stack").variants, ["horizontal", "vertical"]);
+  // direction is a Stack prop, not a variant. The shipped catalog must not
+  // advertise a variant API that the component does not implement.
+  assert.deepEqual(byName.get("Stack").variants, []);
   assert.deepEqual(byName.get("FormField").members, ["Label", "Control", "Description", "Error"]);
 });
 
