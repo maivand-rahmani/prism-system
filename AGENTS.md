@@ -187,7 +187,7 @@ use`, and `prism-ds upgrade` (the only commands that mutate consumer dependencie
   Every package ships a generated `design-system.json` manifest exposed at `./manifest`,
   with `package.json.version` authoritative across the runtime `DesignSystem.version`,
   the manifest, and the registry (`pnpm ds:sync-versions`). The agent-agnostic lifecycle
-  skills live in `skills/`: `create-design-system` (V2), `use-design-system`, and
+  skills live in `skills/`: `create-design-system` (V4), `use-design-system`, and
   `modify-design-system`. Versioning and publishing remain explicit Changesets and human
   steps; this tooling never publishes a package.
 - **V4 — phases 1–5 complete, including Gate 5 (limited scope).** The V4
@@ -209,7 +209,8 @@ use`, and `prism-ds upgrade` (the only commands that mutate consumer dependencie
   private root `0.4.0`. These are prepared source-tree values only: no package has been
   published to npm or otherwise released, so they must not be consumed from a registry
   yet, and no public release readiness is implied. The lifecycle skills under
-  `skills/` remain untouched and await separate explicit user approval.
+  `skills/` now cover V4 creation and evolution, manifest-driven consumer
+  composition, and compatibility with installed V2 packages.
 - Do not scaffold V2, V3, or V4 tooling beyond what is implemented unless explicitly asked.
 
 ## Commands

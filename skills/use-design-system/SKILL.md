@@ -1,216 +1,132 @@
-# Skill: Use a Design System
+---
+name: use-design-system
+description: Build product interfaces with an installed Prism design system and its published API.
+---
 
-Agent-neutral instructions for consuming an installed `@prism-system` design system
-inside a real product repository. Any compatible external coding agent can follow this
-document. It uses only Markdown, repository files, and repository scripts — no model
-APIs, SDKs, MCP servers, hosted agents, or agent-specific tool syntax.
+# Use a Design System
 
-This skill is the consumer side of the lifecycle. To create a new system use
-[`../create-design-system/SKILL.md`](../create-design-system/SKILL.md); to change an
-existing system use [`../modify-design-system/SKILL.md`](../modify-design-system/SKILL.md).
-Do not duplicate their content here.
+Use this skill when writing product UI with an installed `@prism-system` package. The
+product owns data, behavior, routes, and page composition; the package owns component
+appearance and reusable visual patterns. This works from the installed package alone:
+the consumer does not need the design-system monorepo, package source, or
+`tokens.source.json`.
 
-## When to use this skill
+For contract rules and the V2/V4 CSS distinction, read
+[V4 lifecycle guidance](../references/v4-lifecycle.md). To create or evolve a package,
+use [`create-design-system`](../create-design-system/SKILL.md) or
+[`modify-design-system`](../modify-design-system/SKILL.md).
 
-Use this skill whenever you write product UI that should use an already-installed design
-system, for example:
+## Discover the exact installed system
 
-> Add a settings page to this product using our design system.
+Use config-first discovery:
 
-The product consumes the visual language. The design system owns it. Your job is to
-build the product inside that contract, not to invent styling.
+1. Read `.design-system/config.json` for the selected package and exact version.
+2. Read the installed package's public manifest subpath, normally
+   `<package>/manifest` (for example `@prism-system/ui-system-a/manifest`).
+3. Read the package's shipped `AGENTS.md` and README, then inspect its public TypeScript
+   exports and declarations. Use documented exports only.
 
-**This repository contains no AI runtime.** The user runs their own coding agent; this
-skill is the process that agent follows.
+For whole-page or form composition, read the shipped usage document when the installed
+manifest declares `docs.usage`. Its examples must match that installed version; do not
+substitute examples from a newer source checkout.
 
-## 1. Discover the design system (config first)
+The manifest is the authority for the shipped component catalog, variants, sizes,
+compound members, usage rules, token names, and CSS/documentation paths. Check that the
+installed package, config, and manifest versions match exactly. Do not infer installed
+features from repository sources, another system, or a newer manifest. When config is
+absent or stale, configure/update explicitly with `prism-ds use` or `prism-ds connect`
+and validate before coding.
 
-Determine the installed design system and its exact version before writing any UI.
-Follow this order; do not guess.
-
-1. `.design-system/config.json` — the consumer contract written by `connect` (or `use`).
-   It records the selected `package`, the exact `version`, the `manifest` subpath
-   (`./manifest`), and `strict` mode.
-2. The shipped manifest, resolved through the public export
-   (`<package>/manifest`, for example `@prism-system/ui-system-a/manifest`). It lists
-   the component catalog, variants, sizes, compound members, and usage rules.
-3. `<package>/AGENTS.md` (in `node_modules`) — the package consumer contract and
-   restrictions.
-4. `<package>/README.md` — installation, setup, and usage.
-5. The public TypeScript API exported by `<package>`.
-
-If `.design-system/config.json` is missing, configure the consumer with the published
-tool, then validate:
+For either installed contract, use the offline component catalog as needed:
 
 ```bash
-npx prism-ds connect --cwd <consumer-root>
+npx prism-ds components --cwd <consumer-root>
+npx prism-ds tokens --cwd <consumer-root>
+```
+
+`tokens` is the V4 token-name catalog and is unsupported for V2. For diagnostics, choose
+the package/config check (which also runs strict usage validation) or the standalone
+usage check when that is all that is needed:
+
+```bash
+npx prism-ds check --cwd <consumer-root> [--css <explicit-file>]
 npx prism-ds check-usage --cwd <consumer-root>
 ```
 
-To choose a system first, the published tool can list and inspect published styles
-(`search`/`info` are explicit network, read-only) and install one explicitly:
+To discover published choices, `search` and `info` are explicit network reads. Install
+or switch only through an explicit `install` or `use` command. Preview an exact target
+with `prism-ds upgrade <package> <exact-version> --cwd <consumer-root> --dry-run`; review
+the reported component, public export, metadata, and token-name changes. Token values
+are not in the manifest, so this diff cannot reveal actual visual-value changes. Only
+after the user has explicitly selected the upgrade, run the command without
+`--dry-run`, then refresh config and re-read the installed manifest, types, and docs.
+Upgrade never publishes packages.
+
+Treat the preview as an API/capability migration diagnostic: compare required and
+optional component availability, changed variants/sizes/compound members, public exports,
+metadata, and removed/added token names against the product's actual imports and usage.
+The manifest does not contain token values, so review package documentation and rendered
+screens for visual changes as well. After upgrading, rediscover the selected version and
+manifest; repair call sites using only the new public API, then run `check` once (with an
+explicit `--css` path for V4 Tailwind import-order validation).
+
+## Compose semantically
+
+Import UI and CSS only through the package's public exports. Never copy components,
+source, generated tokens, or CSS into the consumer; never import package internals.
+Compose the product interface using real HTML semantics and the installed contract:
+
+- **V4:** use `Heading` levels to reflect the page's heading hierarchy and `FormField`
+  where its contract fits to associate labels, descriptions, and errors. Preserve
+  accessible names for controls and links; keep validation and submission behavior in
+  the product. Use the preserved control ref to focus the first invalid field when
+  requested. Choose native validation or product-timed validation deliberately; with
+  custom submit handling, `noValidate` prevents the browser from intercepting submission
+  before the product displays its error.
+- **V2:** its contract does not include `Heading` or `FormField`. Use semantic native
+  headings and labels/fieldset/description associations composed with the installed V2
+  controls, guided by their shipped types and docs. Do not assume newer props or exports.
+- Use optional components only when the installed manifest declares them. If a needed
+  optional capability is absent, compose the same semantic result from available system
+  primitives and layout utilities. For example, render a labeled feedback region without
+  `Alert`, a list of links without `Breadcrumbs`, or a data table with native table
+  semantics when `Table` is absent. Do not create a visually restyled local primitive.
+- Use the design system for reusable appearance and states; use Tailwind/layout utilities
+  for product-owned placement and responsive composition. Avoid arbitrary product colors,
+  radii, shadows, or overrides of system components.
+
+For either contract with ordinary CSS, import `<package>/styles.css`. The Tailwind bridge
+workflow applies only when the installed manifest identifies V4. For V4 and Tailwind v4,
+run setup against the explicitly chosen CSS file:
 
 ```bash
-npx prism-ds search "calm editorial"
-npx prism-ds info @prism-system/ui-system-a
-npx prism-ds use @prism-system/ui-system-a --cwd <consumer-root> --check-usage
+npx prism-ds setup-tailwind --cwd <consumer-root> --css <file>
 ```
 
-Install the tool from npm like any other dependency
-(`npm install --save-dev @prism-system/tools`) next to the design system
-(`npm install @prism-system/ui-system-a`). Only `install`/`use` may change the product's
-dependencies; `connect`, `check-usage`, and `doctor` are offline. `connect` is
-configure-only: it never installs packages, edits `package.json`, copies component source,
-or mutates the design-system repository. Inside the design-systems repository the same
-implementation is available as `pnpm ds:connect` and `pnpm ds:check-usage`; those are
-maintainer wrappers. The tool never publishes and never accesses the design-systems source
-repository at runtime.
+For V4, the required Tailwind order is Tailwind, the selected package bridge, then its
+ordinary styles:
 
-## 2. Be exact about the version
-
-`package.json.version` is authoritative. The installed package version, the shipped
-manifest version, and the consumer config version must match exactly. Never assume a
-component, prop, variant, or compound member exists because it is present in a newer
-release — read the installed manifest and the installed package's public API.
-
-When the product updates the package, re-run discovery and validation:
-
-```bash
-npx prism-ds connect --cwd <consumer-root>
-npx prism-ds check-usage --cwd <consumer-root>
+```css
+@import "tailwindcss";
+@import "@prism-system/ui-system-a/tailwind.css";
+@import "@prism-system/ui-system-a/styles.css";
 ```
 
-## 3. Use existing primitives through the public API
+Use one selected V4 system bridge per build. The setup command checks/maintains these
+imports in the explicitly named file; it does not install Tailwind or edit other files.
+V2 packages keep their existing manifest and stylesheet behavior and do not provide a
+V4 bridge or V4 token catalog. Tailwind can still handle product layout independently;
+do not require a Prism bridge for V2.
 
-- Import components from the package root, tokens from `<package>/tokens`, the
-  stylesheet from `<package>/styles.css`, and the manifest from `<package>/manifest`.
-- Never import package internals, source files, or paths that are not in the package's
-  public `exports`.
-- Never copy package source, CSS, or tokens into the product. The installed package is
-  the single source of truth.
-- Compose with props. Do not restyle components with class overrides, inline visual
-  styles, or duplicated CSS.
+## Check and report
 
-```tsx
-// Correct: compose the design system.
-import { Button, Card, Input } from "@prism-system/ui-system-a";
-import "@prism-system/ui-system-a/styles.css";
-
-export function SaveCard() {
-  return (
-    <Card>
-      <Card.Header>
-        <Card.Title>Save changes</Card.Title>
-      </Card.Header>
-      <Card.Content>
-        <Input label="Name" />
-        <Button variant="primary">Save</Button>
-      </Card.Content>
-    </Card>
-  );
-}
-```
-
-```tsx
-// Wrong: override the visual language.
-<Button className="rounded-full bg-[#356AFF] shadow-[0_8px_30px_rgba(0,0,0,0.2)]">Save</Button>
-```
-
-## 4. Respect product vs design-system ownership
-
-The product owns:
-
-```text
-business logic, data, routing, feature state, page composition,
-product-specific behavior, application layout
-```
-
-The design system owns:
-
-```text
-colors, typography, spacing, radius, borders, surfaces, shadows,
-component states, variants, motion, reusable visual patterns
-```
-
-Layout is allowed in the product: `grid`, `flex`, `gap`, spacing, sizing, positioning,
-responsive rules, alignment, and page composition. Visual language changes are not.
-
-## 5. Run strict usage checks
-
-`npx prism-ds check-usage --cwd <consumer-root>` validates the product against the design
-system deterministically, using the TypeScript AST and the manifest rules:
-
-- arbitrary colors, radii, and shadows in class tokens (including variant prefixes);
-- static and unverifiable inline visual style overrides;
-- obvious local primitive replacements;
-- files under `node_modules`, generated output, declarations, and configured ignores
-  are skipped.
-
-In strict mode, findings are errors and the command exits non-zero. In non-strict mode
-they are warnings and it exits zero. A clean run exits zero. Fix findings by using the
-design system's API; do not silence them by editing package source.
-
-## 6. Decide: local component or design-system change?
-
-When the existing UI is not enough, work through this order:
-
-```text
-Need new UI
-   ↓
-Does the design system already provide it (check the manifest and public API)?
-   ↓ yes → use it
-   ↓ no
-Is it business- or feature-specific?
-   ↓ yes → keep it in the product, composed from design-system primitives
-   ↓ no
-Is it a reusable visual pattern shared across the product?
-   ↓ yes → propose a design-system change (skills/modify-design-system)
-```
-
-Do not create a local alternative to a primitive that already exists. Do not send every
-new React component back to the design system; keep the design system clean.
-
-## 7. Update and feedback loop
-
-```text
-installed design system
-   ↓
-product development
-   ↓
-new reusable UI requirement
-   ↓
-design-system change (skills/modify-design-system)
-   ↓
-new package version (human-controlled release)
-   ↓
-product updates the package and re-validates
-```
-
-Never version or publish a package from the product. Never assume a breaking change is
-safe: after an update, run `ds:connect` and `ds:check-usage`, then typecheck and build
-the product, and verify visually where it matters.
-
-## Stop / finish checklist
-
-- [ ] The installed package and exact version were read from `.design-system/config.json`
-      and the shipped manifest.
-- [ ] Components were imported only through the public API.
-- [ ] No package source, CSS, or tokens were copied into the product.
-- [ ] No component was restyled with visual overrides.
-- [ ] Product layout and business logic stayed in the product.
-- [ ] `npx prism-ds check-usage --cwd <consumer-root>` was run and reported honestly.
-- [ ] If a new reusable pattern was needed, it was proposed as a design-system change.
-- [ ] Nothing was versioned or published.
-
-## Common failure modes
-
-- **Guessing the API.** Read the installed manifest and public API instead of assuming a
-  prop, variant, or compound member exists.
-- **Styling over the system.** Class or inline-style visual overrides belong in the
-  design system, not the product.
-- **Copying source.** Vendoring package code or CSS creates a second, drifting design
-  system.
-- **Importing internals.** Only documented `exports` are supported.
-- **Silencing checks.** Fix usage findings by using the design system; do not weaken the
-  checker or move code to dodge it.
-- **Over-claiming.** Do not report a passing usage check unless the command actually ran.
+Run `npx prism-ds check --cwd <consumer-root>` for package/config diagnostics; it also
+runs strict usage validation. For a V4 Tailwind project, run
+`npx prism-ds check --cwd <consumer-root> --css <explicit-file>` when checking import
+order, because the tool does not guess which CSS file the product builds. `--css`
+requires an explicit CSS file path.
+Do not run a duplicate `check-usage` after a completed `check`. Neither command proves
+semantic component identity or scans arbitrary CSS outside its documented TS/TSX AST
+scope. Do not claim a command passed unless it ran. Review responsive, loading, error,
+and empty states where the change touches them. Keep a missing reusable capability as a
+design-system request rather than pretending it is present in the installed package.

@@ -1,180 +1,80 @@
-# Skill: Modify a Design System
+---
+name: modify-design-system
+description: Evolve a Prism design-system package while preserving its published contract and visual language.
+---
 
-Agent-neutral instructions for safely evolving an existing `@prism-system` design
-system. Any compatible external coding agent can follow this document. It uses only
-Markdown, repository files, and repository scripts — no model APIs, SDKs, MCP servers,
-hosted agents, or agent-specific tool syntax.
+# Modify a Design System
 
-This skill is the evolution side of the lifecycle. To create a new system use
-[`../create-design-system/SKILL.md`](../create-design-system/SKILL.md); to consume an
-installed system in a product use
-[`../use-design-system/SKILL.md`](../use-design-system/SKILL.md). Do not duplicate their
-content here.
+Use this skill to change an existing Prism design system in its source repository.
+Product UI work belongs to the consuming product and follows
+[`use-design-system`](../use-design-system/SKILL.md). For contract and V2/V4 rules, see
+[V4 lifecycle guidance](../references/v4-lifecycle.md); rely on core types and schemas
+for component catalogs rather than maintaining a duplicate list here.
 
-## When to use this skill
+## Inspect and classify
 
-Use this skill when an existing design system must change, for example:
+Identify the system's exact contract from `package.json` and its descriptor/generated
+manifest. Read its brief, package instructions, `tokens.source.json` for V4 (or the
+existing token source for V2), styles, implementations, public exports, and shipped
+documentation. V2 packages do not need V4 token-source files or a Tailwind bridge.
 
-> Add a SegmentedControl to System A.
+Classify the requested change before editing:
 
-> The buttons need a clearer destructive state.
+- token or appearance change;
+- variant, state, or compound-member change;
+- optional capability addition/removal for V4;
+- public API or required-contract change;
+- product-owned page/workflow composition.
 
-The goal: new work should look as if it had always been part of this system. Never build
-a mini design system inside one component.
+Check whether the request is a reusable visual pattern or a product-specific feature.
+Keep domain data, routing, business behavior, and one-off page composition in the
+product. An optional contract is available only if the system actually implements and
+exports it and declares it in its descriptor/manifest. Do not infer a capability from
+the 32-name core catalog, a brief request, or a local example.
 
-**This repository contains no AI runtime.** The user runs their own coding agent; this
-skill is the process that agent follows.
+## Preserve compatibility
 
-This skill operates on the design-systems source repository: it edits `packages/<id>`,
-updates the generated manifest, and prepares a Changeset. It is **maintainer-only**.
-External products that merely consume a released package never need this repository; they
-use the published `@prism-system/tools` package (`prism-ds connect`, `prism-ds
-check-usage`, `prism-ds doctor`) and the installed package's `AGENTS.md`/manifest.
+- V2 remains the exact fourteen-component contract and uses manifest pair
+  `(schemaVersion: 1, contract: "v2")`.
+- V4 uses `(schemaVersion: 2, contract: "v4")`, the canonical twenty required names,
+  and only the optional capabilities actually implemented by that system.
+- Keep the V2 prop contracts frozen, including when a V4 system implements those same
+  names. Do not change canonical required names or contracts to satisfy a local request.
+  A major version does not authorize breaking the canonical contract.
+- Treat required-name removal/renaming or incompatible props as disallowed contract
+  changes; propose an additive compatible design. Preserve public exports and compound
+  members unless an explicitly supported deprecation path exists.
+- Keep `@prism-system/ui-core` unstyled and avoid cross-system imports.
 
-## 1. Read before you write
+## Implement and regenerate
 
-Always inspect the existing system first. Do not invent a new visual language.
+Make changes in the target package and only the related app composition/documentation
+needed to demonstrate them. Keep product layouts in apps and visual decisions in the
+system. For V4, edit `tokens.source.json` as the one token source and edit the source
+descriptor for actual variants, examples, compound members, and documentation paths.
+Public artifact and CSS paths belong to `package.json` exports and entrypoints.
+Regenerate TypeScript/CSS/Tailwind bridge/manifest through the repository's
+`pnpm ds:manifest <id> --write` command. Never hand-edit generated token artifacts or
+`design-system.json`. V2 does not acquire V4 `tokens.source.json`, bridge, or capability
+requirements merely because this workflow now supports V4.
 
-1. `packages/<id>/design-brief.json` — the confirmed visual contract.
-2. `packages/<id>/AGENTS.md` — package rules, consumer contract, and restrictions.
-3. `packages/<id>/src/tokens` — colors, typography, spacing, radius, borders, shadows,
-   motion.
-4. `packages/<id>/src/styles` — surfaces, states, and composition rules.
-5. `packages/<id>/src/components` — existing components, variants, and states.
-6. `packages/<id>/design-system.source.json` and the shipped
-   `packages/<id>/design-system.json` — the declared public API.
+Use package-local patterns already established by the target system. If a user requests
+a reusable new pattern, first look for an existing core contract; when none fits, do
+not invent a new core capability route as part of ordinary package work. Keep a
+product-specific scenario in the app or document the contract gap for a separate
+explicit core design decision.
 
-Reuse the existing tokens, class prefix, spacing rhythm, radius, states, and motion.
-A new component must continue the existing hierarchy and composition patterns.
+## Validate and hand back
 
-## 2. Non-negotiables
+Run `pnpm ds:check <id>` once after the final package edits. This is the required full
+check and includes package build, typecheck, and lint unless invoked with
+`--no-commands`; do not rerun those checks redundantly. Run `pnpm ds:sync-versions <id>
+--check` only when version alignment/release metadata is affected. Run consumer usage or
+visual checks when the change affects a consumer or rendered behavior. Report what ran
+and what remains unverified.
 
-- **Preserve the public V2 API.** The fourteen required components, their compound
-  statics, and their documented props must stay intact:
-  `Button`, `Input`, `Textarea`, `Card`, `Badge`, `Checkbox`, `RadioGroup`, `Switch`,
-  `Select`, `Tabs`, `Dialog`, `DropdownMenu`, `Tooltip`, `Separator`. Never rename,
-  remove, or alter a required export. V2 is the only supported contract.
-- **Visual work belongs to the design system package.** Implement colors, typography,
-  spacing, radius, borders, shadows, surfaces, variants, states, and motion only inside
-  `packages/<id>`.
-- **Core stays unstyled.** Never add visual decisions to `@prism-system/ui-core`.
-- **No cross-system imports.** A system never imports another system; use only
-  `@prism-system/ui-core`, React, and the package's own modules.
-- **Additions are additive.** Optional components are package-local and must not reduce
-  or substitute the required set.
-- **Apps compose only.** Never edit Showcase or Reference App to restyle a system or work
-  around a package gap.
-
-## 3. Workflow
-
-### Step 1 — Inspect the existing system
-
-Read the design brief, tokens, styles, existing components, and the declared manifest
-API (see section 1). Identify the closest existing pattern to extend or reuse.
-
-### Step 2 — Implement the change (package only)
-
-- Edit only files inside `packages/<id>`.
-- Prefer an existing `@prism-system/ui-core` contract, primitive, `cn`, and `cva`
-  before writing a new primitive.
-- Preserve compound static members such as `Card.Header`, `Tabs.List`,
-  `Dialog.Content`, and `DropdownMenu.Item`.
-- Keep selectors scoped under the package's CSS class prefix.
-- If you add a component, add it as a separate package-local module under
-  `src/components` and export it additively.
-
-### Step 3 — Declare the public API
-
-Update `packages/<id>/design-system.source.json` with the new component's variants,
-sizes, and compound members, then regenerate and check the manifest:
-
-```bash
-pnpm ds:manifest <id> --write
-pnpm ds:manifest <id>
-```
-
-Do not hand-edit the generated `design-system.json`.
-
-### Step 4 — Show the change
-
-Add or update the component's examples in Showcase so it is visible in isolation.
-Showcase and Reference App integration is manifest-driven; `pnpm ds:register <id>`
-projects the manifest automatically. Never edit the apps by hand to make a system look
-right. If Reference App composition is relevant to the change, verify the same interface
-there.
-
-### Step 5 — Update documentation
-
-Update `packages/<id>/README.md` and `packages/<id>/AGENTS.md` when the change affects
-the public API, variants, usage, or restrictions. Keep the consumer contract accurate;
-do not duplicate the root contract.
-
-### Step 6 — Validate
-
-```bash
-pnpm ds:check <id>
-pnpm ds:sync-versions <id> --check
-```
-
-`pnpm ds:check <id>` is the required full validation: package structure, naming, exports,
-the required components, tokens/theme, boundaries, the design brief, documentation,
-Showcase / Reference App integration, and the package/app scripts (`--no-commands` skips
-the script runs). It never mutates the package. Then run the package build, lint, and
-typecheck (they run as part of `ds:check` unless skipped), and verify usage/visuals where
-relevant:
-
-- if the change affects a consuming product, run
-  `pnpm ds:check-usage --cwd <consumer-root>` against a configured consumer;
-- review the change in Showcase and, where relevant, Reference App.
-
-### Step 7 — Record a Changeset
-
-```bash
-pnpm changeset
-```
-
-Describe the change and the appropriate bump. Breaking API or visual-language changes
-must be recorded honestly. Do not version or publish from here.
-
-### Step 8 — Stop at the human-controlled steps
-
-Versioning and publishing are explicit human decisions and are never implicit:
-
-```bash
-pnpm version-packages   # human
-pnpm ds:sync-versions   # align runtime/manifest/registry to package.json.version
-pnpm build              # human
-pnpm release            # human; runs the sync check, then build and publish
-```
-
-`pnpm ds:release <id> --approved` prepares a release (validate, sync, build, pack,
-Changeset) and never versions or publishes. Stop there and hand back to the human.
-
-## Stop / finish checklist
-
-- [ ] The design brief, tokens, styles, existing components, and declared API were read.
-- [ ] The fourteen required components and their compound statics are unchanged.
-- [ ] All visual work is inside `packages/<id>`; core and apps were not edited.
-- [ ] No cross-system import was introduced.
-- [ ] `design-system.source.json` was updated and `pnpm ds:manifest <id> --write` run.
-- [ ] Showcase examples were added or updated; Reference App verified where relevant.
-- [ ] `packages/<id>/README.md` and `AGENTS.md` reflect the change.
-- [ ] `pnpm ds:check <id>` passed and was reported honestly.
-- [ ] Usage/visual verification was run where relevant.
-- [ ] A Changeset was added.
-- [ ] Versioning and publishing were left to the human; nothing was published.
-
-## Common failure modes
-
-- **Reinventing the language.** New components must continue the existing tokens,
-  spacing, radius, states, and motion.
-- **Breaking the contract.** Never rename, remove, or alter a required component or its
-  compound statics.
-- **Styling outside the package.** Visual work in core, an app, or a consumer product is
-  wrong; fix the package.
-- **Hand-editing the generated manifest.** Update the source descriptor and regenerate.
-- **Editing apps to compensate.** If Showcase or Reference App needs overrides, the
-  system is incomplete.
-- **Implicit release.** Never run versioning or publishing as part of a modification.
-- **Over-claiming.** Do not report `ds:check`, usage checks, or release preparation as
-  passing unless the commands actually ran.
+Add a user-visible Changeset for every package change by running `pnpm changeset` and
+recording the package and appropriate bump/reason. A Changeset records release intent;
+it does not version or publish. Versioning, release preparation, and publishing remain
+separate explicit actions; never infer approval for them from a request to modify a
+package.

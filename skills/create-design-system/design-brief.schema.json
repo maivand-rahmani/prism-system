@@ -143,8 +143,44 @@
     },
     "components": {
       "$ref": "#/$defs/stringArray",
-      "description": "Components and composition scenarios the system should cover. The fourteen required V2 components are always generated, so list product-specific additions and the scenarios they must support here.",
+      "description": "Legacy-compatible mixed notes about components and scenarios. Keep existing briefs valid; new briefs should classify reusable capability requests and product compositions in the optional fields below instead of treating every note as a component request.",
       "examples": [["CommandBar", "MetricCard", "StatusIndicator", "dense data table toolbar"]]
+    },
+    "requestedCapabilities": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Optional requests for reusable capabilities, especially optional core contracts. Requests are intent only: the package descriptor and generated public manifest define actual available capabilities.",
+      "examples": [["Alert", "Table"]]
+    },
+    "productCompositions": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Optional whole-product page, form, workflow, and domain-specific composition scenarios to guide the visual system. These do not become component contracts merely by appearing here.",
+      "examples": [
+        ["Responsive project overview with activity table", "Invite members form with validation"]
+      ]
+    },
+    "responsiveRequirements": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Optional concrete behavior expected across target viewport sizes, such as navigation changes, content reflow, and dense-table treatment.",
+      "examples": [
+        [
+          "At narrow widths, stack filters above results",
+          "Keep primary actions reachable without horizontal scrolling"
+        ]
+      ]
+    },
+    "typographyRequirements": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Optional hierarchy and legibility requirements for headings, body copy, labels, metadata, and dense data. Older briefs may omit this; the interview can derive it from foundations.typographyCharacter.",
+      "examples": [
+        ["Clear page-to-section heading hierarchy", "Tabular numerals for aligned metrics"]
+      ]
+    },
+    "stateScenarios": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Optional complete-page or form loading, error, empty, success, and validation scenarios to design and review.",
+      "examples": [
+        ["Loading project activity", "Empty search results", "Inline invalid invite email"]
+      ]
     },
     "avoid": {
       "$ref": "#/$defs/stringArray",
