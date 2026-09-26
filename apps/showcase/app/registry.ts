@@ -4,10 +4,8 @@
 
 import {
   createDesignSystemRegistry,
-  createDesignSystemRegistryV4,
   type DesignSystem,
-  type DesignSystemComponentsV4,
-  type DesignSystemV4,
+  type DesignSystemComponents,
 } from "@prism-system/ui-core";
 import { DesignSystem as SystemA, systemATokens } from "@prism-system/ui-system-a";
 import systemAManifest from "@prism-system/ui-system-a/manifest";
@@ -36,99 +34,59 @@ export type RegisteredManifestComponent = {
   example?: string;
 };
 
+/** One capability category of a package's generated `./manifest` metadata. */
+export type RegisteredManifestCapabilityCategory = {
+  required: readonly string[];
+  optional: readonly string[];
+};
+
 /**
- * The public generated `./manifest` metadata a V4 package publishes.
+ * The public generated `./manifest` metadata a package publishes.
  *
  * It describes the components, variants, sizes, and compound members the
- * package promises. The registered runtime component map stays the source of
- * truth for what actually exists. JSON imports widen string literals, so
- * `contract` is typed as a string; the exact `"v4"` marker lives on
- * `RegisteredSystemV4.componentContract`.
+ * package promises, plus the generated capability-category inventory. The
+ * category membership is a reference only: the registered runtime component
+ * map stays the source of truth for what actually exists. JSON imports widen
+ * literals, so the metadata versions are typed as numbers.
  */
 export type RegisteredManifest = {
   schemaVersion: number;
-  contract: string;
+  contractVersion: number;
   id: string;
   name: string;
   package: string;
   version: string;
   components: Readonly<Record<string, RegisteredManifestComponent>>;
+  capabilities: {
+    categories: Readonly<Record<string, RegisteredManifestCapabilityCategory>>;
+  };
 };
 
 /**
- * Shared V2 props for the original fourteen-component surface.
- */
-type RegisteredComponentsV2 = DesignSystem["components"];
-
-/**
- * Shared props for the full V4 runtime component map.
+ * A registered system with its scoped UI class, token groups, and the
+ * package's public generated `./manifest` metadata.
  *
- * Required props come from core, every optional V4 name stays optional,
- * and a component the package does not implement stays absent. Availability
- * is a runtime question answered by the real component-map keys, never by
- * this type or by the manifest.
+ * Availability of an optional component is a runtime question answered by the
+ * real component-map keys, never by this type or by the manifest.
  */
-type RegisteredComponentsV4 = DesignSystemComponentsV4;
-
-/** A V2 system registered through the V2 guard, with its scoped UI class and tokens. */
-export type RegisteredSystemV2 = Omit<DesignSystem, "components"> & {
-  components: DesignSystem["components"] & RegisteredComponentsV2;
-  uiClass: string;
-  tokens: TokenSet;
-};
-
-/**
- * A V4 system registered through the V4 guard.
- *
- * `components` is the full runtime V4 component map and `manifest` is the
- * package's public generated `./manifest` metadata. `componentContract`
- * keeps the package's real `"v4"` marker; a V2 system is never relabeled as V4.
- */
-export type RegisteredSystemV4 = Omit<DesignSystemV4, "components"> & {
-  components: RegisteredComponentsV4;
+export type RegisteredSystem = Omit<DesignSystem, "components"> & {
+  components: DesignSystemComponents;
   manifest: RegisteredManifest;
   uiClass: string;
   tokens: TokenSet;
 };
 
-/**
- * Every registered system, discriminated by `componentContract`.
- *
- * Narrow to `RegisteredSystemV4` before reaching V4-only components or the
- * package manifest.
- */
-export type RegisteredSystem = RegisteredSystemV2 | RegisteredSystemV4;
-
-/** V2 systems, registered through the V2 guard. */
-const v2Systems = [] as unknown as readonly DesignSystem[];
-
-/** V4 systems, registered through the V4 guard. */
-const v4Systems = [
+/** Every registered system, in stable ascending id order. */
+export const registeredSystems = [
   { ...SystemA, uiClass: "maivand-a-ui", tokens: systemATokens, manifest: systemAManifest },
   { ...SystemB, uiClass: "maivand-b-ui", tokens: systemBTokens, manifest: systemBManifest },
-] as unknown as readonly DesignSystemV4[];
+] as unknown as readonly RegisteredSystem[];
 
-/** Every registered system: V2 systems, then V4 systems, each in id order. */
-export const registeredSystems: readonly RegisteredSystem[] = [
-  ...(v2Systems as unknown as readonly RegisteredSystemV2[]),
-  ...(v4Systems as unknown as readonly RegisteredSystemV4[]),
-];
-
-/** The V2 registry; it only receives V2 values and enforces the V2 guard. */
-export const systemRegistry = createDesignSystemRegistry(v2Systems);
-
-/** The V4 registry; it only receives V4 values and enforces the V4 guard. */
-export const systemRegistryV4 = createDesignSystemRegistryV4(v4Systems);
+export const systemRegistry = createDesignSystemRegistry(
+  registeredSystems as unknown as readonly DesignSystem[],
+);
 
 /** Resolve a registered system by id. Throws when the id is unknown. */
 export function getRegisteredSystem(id: string): RegisteredSystem {
-  const system = systemRegistry.get(id) ?? systemRegistryV4.get(id);
-  if (!system) {
-    throw new Error(
-      `Design system "${id}" is not registered. Known systems: ${
-        registeredSystems.map((item) => item.id).join(", ") || "(none)"
-      }.`,
-    );
-  }
-  return system as unknown as RegisteredSystem;
+  return systemRegistry.require(id) as unknown as RegisteredSystem;
 }

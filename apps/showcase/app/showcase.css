@@ -634,6 +634,38 @@ h1 em {
 [data-system="system-b"] .state-grid small {
   color: var(--maivand-b-ink-muted);
 }
+.form-field-specimen,
+.slider-specimen,
+.meter-specimen {
+  display: grid;
+  gap: 12px;
+}
+.center-specimen-copy {
+  margin-inline: auto;
+  max-width: 28rem;
+  text-align: center;
+}
+.sidebar-specimen-nav ul {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.aspect-ratio-specimen {
+  max-width: 34rem;
+}
+.aspect-ratio-specimen > * {
+  display: grid;
+  place-items: center;
+}
+.meter-specimen meter {
+  width: 100%;
+}
+.meter-specimen p,
+.slider-specimen output {
+  margin: 0;
+}
 @keyframes orbit {
   from {
     transform: translateX(0) rotate(0);

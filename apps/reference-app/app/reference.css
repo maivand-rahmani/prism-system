@@ -408,12 +408,53 @@ body {
 .form-reference .maivand-b-card {
   max-width: 930px;
 }
-.v4-primitives,
+.required-primitives,
 .optional-reference,
 .required-control-reference {
   display: grid;
   gap: 20px;
   min-width: 0;
+}
+.required-layout-reference,
+.required-form-reference {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.required-layout-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.required-layout-example {
+  min-width: 0;
+}
+.required-layout-example > h3 {
+  font-size: 12px;
+  margin: 0 0 12px;
+}
+.required-layout-example--sidebar {
+  grid-column: 1 / -1;
+}
+.required-sidebar-links {
+  align-content: start;
+  display: grid;
+  gap: 9px;
+}
+.required-form-reference .maivand-a-card,
+.required-form-reference .maivand-b-card {
+  max-width: 930px;
+}
+.required-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.required-form-grid > * {
+  min-width: 0;
+}
+.combobox-empty-message {
+  margin: 8px 0 0;
 }
 .reference-section-heading {
   align-items: flex-end;
@@ -438,7 +479,7 @@ body {
 .reference-section-heading .eyebrow {
   margin-bottom: 7px;
 }
-.v4-primitives-grid {
+.required-primitives-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 24px;
@@ -580,7 +621,7 @@ body {
   .secondary-column {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .v4-primitives-grid {
+  .required-primitives-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .required-control-grid {
@@ -604,6 +645,9 @@ body {
     gap: 10px;
   }
   .optional-reference-grid {
+    grid-template-columns: 1fr;
+  }
+  .required-form-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -745,10 +789,16 @@ body {
   .dashboard-content {
     padding-top: 24px;
   }
-  .v4-primitives-grid {
+  .required-primitives-grid {
     grid-template-columns: 1fr;
   }
   .required-control-grid {
     grid-template-columns: 1fr;
+  }
+  .required-layout-grid {
+    grid-template-columns: 1fr;
+  }
+  .required-layout-example--sidebar {
+    grid-column: auto;
   }
 }

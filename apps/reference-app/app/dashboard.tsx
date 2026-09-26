@@ -1,11 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { OPTIONAL_COMPONENTS_V4 } from "@prism-system/ui-core";
-import type { REQUIRED_COMPONENTS, REQUIRED_COMPONENTS_V4 } from "@prism-system/ui-core";
+import { OPTIONAL_COMPONENTS } from "@prism-system/ui-core";
 import { getRegisteredSystem, registeredSystems, type RegisteredSystem } from "./registry";
 
-/** Application composition using shared props, including the supported V2 fallback. */
+/** Application composition rendered from the shared FormField contract. */
 function ReferenceField({
   system,
   id,
@@ -19,30 +18,33 @@ function ReferenceField({
   description?: React.ReactNode;
   children: React.ReactElement;
 }) {
-  if (system.componentContract === "v4") {
-    const { FormField } = system.components;
-    return (
-      <FormField id={id}>
-        <FormField.Label>{label}</FormField.Label>
-        <FormField.Control asChild>{children}</FormField.Control>
-        {description && <FormField.Description>{description}</FormField.Description>}
-      </FormField>
-    );
-  }
+  const { FormField } = system.components;
   return (
-    <div>
-      <label htmlFor={id}>{label}</label>
-      {children}
-      {description && <p id={`${id}-description`}>{description}</p>}
-    </div>
+    <FormField id={id}>
+      <FormField.Label>{label}</FormField.Label>
+      <FormField.Control asChild>{children}</FormField.Control>
+      {description && <FormField.Description>{description}</FormField.Description>}
+    </FormField>
   );
 }
 
-type OptionalName = (typeof OPTIONAL_COMPONENTS_V4)[number];
-type RequiredV4Name = Exclude<
-  (typeof REQUIRED_COMPONENTS_V4)[number],
-  (typeof REQUIRED_COMPONENTS)[number]
->;
+type OptionalName = (typeof OPTIONAL_COMPONENTS)[number];
+type AdditionalRequiredName =
+  | "Heading"
+  | "Text"
+  | "Link"
+  | "Container"
+  | "Stack"
+  | "FormField"
+  | "Center"
+  | "Cluster"
+  | "Sidebar"
+  | "AspectRatio"
+  | "Combobox"
+  | "DatePicker"
+  | "NumberField"
+  | "Slider"
+  | "FileUpload";
 
 function hasOwn(value: object, name: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, name);
@@ -63,7 +65,6 @@ function hasDarkTheme(system: RegisteredSystem): boolean {
 }
 
 function optionalComponent(system: RegisteredSystem, name: OptionalName): React.ElementType | null {
-  if (system.componentContract !== "v4") return null;
   const component = system.components[name];
   if (!hasOwn(system.components, name) || component == null) return null;
   if (!hasOwn(system.manifest.components, name)) return null;
@@ -119,6 +120,16 @@ type CompoundParts = {
     Body: PartComponent;
     Cell: PartComponent;
   };
+  Combobox: { Input: PartComponent; Content: PartComponent; Item: PartComponent };
+  Metric: { Label: PartComponent; Value: PartComponent; Description: PartComponent };
+  DescriptionList: { Item: PartComponent; Term: PartComponent; Description: PartComponent };
+  Timeline: {
+    Item: PartComponent;
+    Title: PartComponent;
+    Time: PartComponent;
+    Description: PartComponent;
+  };
+  EmptyState: { Title: PartComponent; Description: PartComponent; Action: PartComponent };
 };
 
 function compound<Name extends keyof CompoundParts>(
@@ -190,11 +201,10 @@ function SystemSelector({
   );
 }
 
-function requiredV4Component(
+function requiredComponent(
   system: RegisteredSystem,
-  name: RequiredV4Name,
+  name: AdditionalRequiredName,
 ): React.ElementType | null {
-  if (system.componentContract !== "v4") return null;
   const component = system.components[name];
   if (!hasOwn(system.components, name) || component == null) return null;
   if (!hasOwn(system.manifest.components, name)) return null;
@@ -202,28 +212,30 @@ function requiredV4Component(
 }
 
 function V4RequiredComposition({ system }: { system: RegisteredSystem }) {
-  const Heading = requiredV4Component(system, "Heading");
-  const Text = requiredV4Component(system, "Text");
-  const Link = requiredV4Component(system, "Link");
-  const Container = requiredV4Component(system, "Container");
-  const Stack = requiredV4Component(system, "Stack");
-  const FormFieldBase = requiredV4Component(system, "FormField");
+  const Heading = requiredComponent(system, "Heading");
+  const Text = requiredComponent(system, "Text");
+  const Link = requiredComponent(system, "Link");
+  const Container = requiredComponent(system, "Container");
+  const Stack = requiredComponent(system, "Stack");
+  const FormFieldBase = requiredComponent(system, "FormField");
   if (!Heading || !Text || !Link || !Container || !Stack || !FormFieldBase) return null;
   const FormField = compound(FormFieldBase, "FormField");
   const { Card, Input } = system.components;
 
   return (
-    <section className="v4-primitives" aria-labelledby="v4-primitives-title">
+    <section className="required-primitives" aria-labelledby="required-primitives-title">
       <div className="reference-section-heading">
         <div>
           <p className="eyebrow">Composition primitives</p>
-          <h2 id="v4-primitives-title">The rest of the required contract</h2>
+          <h2 id="required-primitives-title">Text and field foundations</h2>
         </div>
-        <p>Six V4 building blocks, composed from the active package with no visual overrides.</p>
+        <p>
+          Semantic copy, content width, rhythm, and form structure come from the active package.
+        </p>
       </div>
       <Card>
         <Card.Content>
-          <div className="v4-primitives-grid">
+          <div className="required-primitives-grid">
             <div className="primitive-example">
               <Heading level={3}>Heading</Heading>
               <Text as="p">Semantic levels set the outline; the package sets the voice.</Text>
@@ -263,6 +275,196 @@ function V4RequiredComposition({ system }: { system: RegisteredSystem }) {
                 <FormField.Description>Used for workspace updates.</FormField.Description>
               </FormField>
             </div>
+          </div>
+        </Card.Content>
+      </Card>
+    </section>
+  );
+}
+
+function RequiredLayoutComposition({ system }: { system: RegisteredSystem }) {
+  const Center = requiredComponent(system, "Center");
+  const Cluster = requiredComponent(system, "Cluster");
+  const SidebarLayout = requiredComponent(system, "Sidebar");
+  const AspectRatio = requiredComponent(system, "AspectRatio");
+  const Heading = requiredComponent(system, "Heading");
+  const Text = requiredComponent(system, "Text");
+  const Link = requiredComponent(system, "Link");
+  if (!Center || !Cluster || !SidebarLayout || !AspectRatio || !Heading || !Text || !Link) {
+    return null;
+  }
+  const { Badge, Button, Card } = system.components;
+
+  return (
+    <section className="required-layout-reference" aria-labelledby="required-layout-title">
+      <div className="reference-section-heading">
+        <div>
+          <p className="eyebrow">Required composition primitives</p>
+          <h2 id="required-layout-title">Shape the page, not the package</h2>
+        </div>
+        <p>Four layout building blocks, composed directly from the active design system.</p>
+      </div>
+      <Card>
+        <Card.Content>
+          <div className="required-layout-grid">
+            <article className="required-layout-example">
+              <h3>Center</h3>
+              <Center>
+                <Text as="p">A focused reading region, centered by the active system.</Text>
+              </Center>
+            </article>
+            <article className="required-layout-example">
+              <h3>Cluster</h3>
+              <Cluster>
+                <Badge variant="info">Research</Badge>
+                <Badge variant="success">Ready to share</Badge>
+                <Button variant="outline" size="sm">
+                  Add label
+                </Button>
+              </Cluster>
+            </article>
+            <article className="required-layout-example required-layout-example--sidebar">
+              <h3>Sidebar</h3>
+              <SidebarLayout>
+                <nav className="required-sidebar-links" aria-label="Project pages">
+                  <Link href="#overview">Overview</Link>
+                  <Link href="#activity">Activity</Link>
+                  <Link href="#projects">Milestones</Link>
+                </nav>
+                <div>
+                  <Heading level={4}>Atlas launch</Heading>
+                  <Text as="p">A side region beside the current project details.</Text>
+                </div>
+              </SidebarLayout>
+            </article>
+            <article className="required-layout-example">
+              <h3>AspectRatio</h3>
+              <AspectRatio ratio={16 / 9}>
+                <Card variant="muted">
+                  <Card.Content>
+                    <Heading level={4}>Atlas launch</Heading>
+                    <Text as="p">A stable frame for a project preview.</Text>
+                  </Card.Content>
+                </Card>
+              </AspectRatio>
+            </article>
+          </div>
+        </Card.Content>
+      </Card>
+    </section>
+  );
+}
+
+const collaborators = ["Ari Lane", "Jules Moss", "Maya Chen", "Sana Kim"];
+
+function RequiredFormComposition({ system }: { system: RegisteredSystem }) {
+  const [assigneeQuery, setAssigneeQuery] = React.useState("");
+  const [targetHours, setTargetHours] = React.useState(6);
+  const FormFieldBase = requiredComponent(system, "FormField");
+  const ComboboxBase = requiredComponent(system, "Combobox");
+  const DatePicker = requiredComponent(system, "DatePicker");
+  const NumberField = requiredComponent(system, "NumberField");
+  const Slider = requiredComponent(system, "Slider");
+  const FileUpload = requiredComponent(system, "FileUpload");
+  if (!FormFieldBase || !ComboboxBase || !DatePicker || !NumberField || !Slider || !FileUpload) {
+    return null;
+  }
+  const FormField = compound(FormFieldBase, "FormField");
+  const Combobox = compound(ComboboxBase, "Combobox");
+  const { Card } = system.components;
+  const matchingCollaborators = collaborators.filter((person) =>
+    person.toLowerCase().includes(assigneeQuery.trim().toLowerCase()),
+  );
+  const hasNoMatches = assigneeQuery.trim().length > 0 && matchingCollaborators.length === 0;
+
+  return (
+    <section className="required-form-reference" aria-labelledby="required-form-title">
+      <Card>
+        <Card.Header>
+          <Card.Title id="required-form-title">More required form controls</Card.Title>
+          <Card.Description>
+            Native inputs and a filtered combobox, each connected to a visible label and help text.
+          </Card.Description>
+        </Card.Header>
+        <Card.Content>
+          <div className="required-form-grid">
+            <FormField id="reference-assignee">
+              <FormField.Label>Assign to</FormField.Label>
+              <Combobox inputValue={assigneeQuery} onInputValueChange={setAssigneeQuery}>
+                <FormField.Control asChild>
+                  <Combobox.Input id="reference-assignee" placeholder="Search teammates" />
+                </FormField.Control>
+                <Combobox.Content>
+                  {matchingCollaborators.map((person) => (
+                    <Combobox.Item
+                      key={person}
+                      value={person.toLowerCase().replace(/\s/g, "-")}
+                      textValue={person}
+                    >
+                      {person}
+                    </Combobox.Item>
+                  ))}
+                </Combobox.Content>
+              </Combobox>
+              <FormField.Description>
+                Type a name to filter the teammate list.
+              </FormField.Description>
+              {hasNoMatches && (
+                <p className="combobox-empty-message" role="status">
+                  No teammates match “{assigneeQuery}”.
+                </p>
+              )}
+            </FormField>
+            <ReferenceField
+              system={system}
+              id="reference-kickoff-date"
+              label="Kickoff date"
+              description="Choose the planned first day for this project."
+            >
+              <DatePicker id="reference-kickoff-date" type="date" defaultValue="2026-10-01" />
+            </ReferenceField>
+            <ReferenceField
+              system={system}
+              id="reference-team-size"
+              label="Project team size"
+              description="Enter the number of people on the project."
+            >
+              <NumberField
+                id="reference-team-size"
+                type="number"
+                min={1}
+                max={24}
+                step={1}
+                defaultValue={4}
+              />
+            </ReferenceField>
+            <ReferenceField
+              system={system}
+              id="reference-target-hours"
+              label="Weekly focus hours"
+              description={`Current target: ${targetHours} hours per person.`}
+            >
+              <Slider
+                id="reference-target-hours"
+                type="range"
+                min={1}
+                max={12}
+                step={1}
+                value={targetHours}
+                aria-valuetext={`${targetHours} hours per person`}
+                onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                  setTargetHours(event.currentTarget.valueAsNumber)
+                }
+              />
+            </ReferenceField>
+            <ReferenceField
+              system={system}
+              id="reference-project-brief"
+              label="Attach a project brief"
+              description="Choose a PDF or Word document. This reference form does not upload files."
+            >
+              <FileUpload id="reference-project-brief" type="file" accept=".pdf,.doc,.docx" />
+            </ReferenceField>
           </div>
         </Card.Content>
       </Card>
@@ -417,15 +619,76 @@ function OptionalReference({ system, name }: { system: RegisteredSystem; name: O
         </Table>
       );
     }
+    case "Metric": {
+      const Metric = compound(Component, "Metric");
+      return (
+        <Metric>
+          <Metric.Label>Active members</Metric.Label>
+          <Metric.Value>2,842</Metric.Value>
+          <Metric.Description>12% more than last month</Metric.Description>
+        </Metric>
+      );
+    }
+    case "DescriptionList": {
+      const DescriptionList = compound(Component, "DescriptionList");
+      return (
+        <DescriptionList>
+          <DescriptionList.Item>
+            <DescriptionList.Term>Workspace</DescriptionList.Term>
+            <DescriptionList.Description>Northstar studio</DescriptionList.Description>
+          </DescriptionList.Item>
+          <DescriptionList.Item>
+            <DescriptionList.Term>Plan</DescriptionList.Term>
+            <DescriptionList.Description>Studio</DescriptionList.Description>
+          </DescriptionList.Item>
+        </DescriptionList>
+      );
+    }
+    case "Timeline": {
+      const Timeline = compound(Component, "Timeline");
+      return (
+        <Timeline>
+          <Timeline.Item>
+            <Timeline.Title>Brief approved</Timeline.Title>
+            <Timeline.Time dateTime="2026-09-24T14:30:00Z">Sep 24, 2:30 PM</Timeline.Time>
+            <Timeline.Description>
+              The studio is ready to begin the next phase.
+            </Timeline.Description>
+          </Timeline.Item>
+          <Timeline.Item>
+            <Timeline.Title>Kickoff scheduled</Timeline.Title>
+            <Timeline.Time dateTime="2026-09-28">Sep 28</Timeline.Time>
+            <Timeline.Description>
+              Project owners will meet for the first review.
+            </Timeline.Description>
+          </Timeline.Item>
+        </Timeline>
+      );
+    }
+    case "Meter":
+      return <Component aria-label="Workspace storage used" value={68} min={0} max={100} />;
+    case "EmptyState": {
+      const EmptyState = compound(Component, "EmptyState");
+      const { Button } = system.components;
+      return (
+        <EmptyState>
+          <EmptyState.Title>No reports yet</EmptyState.Title>
+          <EmptyState.Description>Published reports will appear here.</EmptyState.Description>
+          <EmptyState.Action>
+            <Button variant="secondary" size="sm">
+              Create a report
+            </Button>
+          </EmptyState.Action>
+        </EmptyState>
+      );
+    }
   }
   return null;
 }
 
 function OptionalReferenceSection({ system }: { system: RegisteredSystem }) {
   const { Card } = system.components;
-  const available = OPTIONAL_COMPONENTS_V4.filter(
-    (name) => optionalComponent(system, name) !== null,
-  );
+  const available = OPTIONAL_COMPONENTS.filter((name) => optionalComponent(system, name) !== null);
   return (
     <section className="optional-reference" aria-labelledby="optional-reference-title">
       <div className="reference-section-heading">
@@ -455,7 +718,7 @@ function OptionalReferenceSection({ system }: { system: RegisteredSystem }) {
         </div>
       ) : (
         <p className="optional-reference-empty">
-          This design system does not publish optional V4 components.
+          This design system does not publish these optional components.
         </p>
       )}
     </section>
@@ -925,6 +1188,8 @@ export function Dashboard() {
             </Card>
           </section>
           <V4RequiredComposition system={system} />
+          <RequiredLayoutComposition system={system} />
+          <RequiredFormComposition system={system} />
           <OptionalReferenceSection system={system} />
         </div>
       </div>

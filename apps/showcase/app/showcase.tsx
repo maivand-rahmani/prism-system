@@ -1,28 +1,15 @@
 "use client";
 
 import * as React from "react";
-import {
-  OPTIONAL_COMPONENTS_V4,
-  REQUIRED_COMPONENTS,
-  REQUIRED_COMPONENTS_V4,
-} from "@prism-system/ui-core";
+import { OPTIONAL_COMPONENTS, REQUIRED_COMPONENTS } from "@prism-system/ui-core";
 import { registeredSystems, getRegisteredSystem, type RegisteredSystem } from "./registry";
 
-type ComponentName =
-  (typeof REQUIRED_COMPONENTS_V4)[number] | (typeof OPTIONAL_COMPONENTS_V4)[number];
+type ComponentName = (typeof REQUIRED_COMPONENTS)[number] | (typeof OPTIONAL_COMPONENTS)[number];
 type TokenRecord = Record<string, unknown>;
 type ComponentAvailability = { available: true } | { available: false; reason: string };
 
-const LEGACY_COMPONENTS = new Set<string>(REQUIRED_COMPONENTS);
-const REQUIRED_V4_COMPONENTS = new Set<string>(REQUIRED_COMPONENTS_V4);
-const OPTIONAL_V4_COMPONENTS = new Set<string>(OPTIONAL_COMPONENTS_V4);
-
 function hasOwn(value: object, name: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, name);
-}
-
-function isLegacyComponentName(name: ComponentName): name is (typeof REQUIRED_COMPONENTS)[number] {
-  return LEGACY_COMPONENTS.has(name);
 }
 
 function asRecord(value: unknown): TokenRecord {
@@ -46,20 +33,6 @@ function componentAvailability(
   system: RegisteredSystem,
   name: ComponentName,
 ): ComponentAvailability {
-  if (system.componentContract === "v2") {
-    if (!isLegacyComponentName(name)) {
-      return { available: false, reason: "This component is not part of the V2 contract." };
-    }
-    if (!hasOwn(system.components, name) || system.components[name] == null) {
-      return { available: false, reason: "The active runtime does not export this component." };
-    }
-    return { available: true };
-  }
-
-  const v4Name = REQUIRED_V4_COMPONENTS.has(name) || OPTIONAL_V4_COMPONENTS.has(name);
-  if (!v4Name) {
-    return { available: false, reason: "This component is not part of the V4 contract." };
-  }
   if (!hasOwn(system.components, name) || system.components[name] == null) {
     return { available: false, reason: "The active runtime does not export this component." };
   }
@@ -74,14 +47,18 @@ function componentAvailability(
 
 function runtimeComponent(system: RegisteredSystem, name: ComponentName): React.ElementType | null {
   if (!componentAvailability(system, name).available) return null;
-  if (system.componentContract === "v4") return system.components[name] ?? null;
-  if (isLegacyComponentName(name)) return system.components[name];
-  return null;
+  return system.components[name] ?? null;
 }
 
 type PartComponent = React.ComponentType<Record<string, unknown>>;
 type CompoundParts = {
-  FormField: { Label: PartComponent; Control: PartComponent; Description: PartComponent };
+  FormField: {
+    Label: PartComponent;
+    Control: PartComponent;
+    Description: PartComponent;
+    Error: PartComponent;
+  };
+  Combobox: { Input: PartComponent; Content: PartComponent; Item: PartComponent };
   Section: {
     Header: PartComponent;
     Title: PartComponent;
@@ -128,6 +105,15 @@ type CompoundParts = {
     Body: PartComponent;
     Cell: PartComponent;
   };
+  Metric: { Label: PartComponent; Value: PartComponent; Description: PartComponent };
+  DescriptionList: { Item: PartComponent; Term: PartComponent; Description: PartComponent };
+  Timeline: {
+    Item: PartComponent;
+    Title: PartComponent;
+    Time: PartComponent;
+    Description: PartComponent;
+  };
+  EmptyState: { Title: PartComponent; Description: PartComponent; Action: PartComponent };
 };
 
 function withParts<Name extends keyof CompoundParts>(
@@ -194,16 +180,12 @@ function SystemPicker({
 function FoundationSection({ system }: { system: RegisteredSystem }) {
   const tokens = system.tokens as unknown as TokenRecord;
   const themes = asRecord(tokens.themes);
-  const themeColors = Object.entries(themes).flatMap(
+  const colors = Object.entries(themes).flatMap(
     ([theme, value]): Array<[string, Array<[string, string]>]> => {
-      const colors = tokenEntries(asRecord(value).color);
-      return colors.length > 0 ? [[theme, colors]] : [];
+      const items = tokenEntries(asRecord(value).color);
+      return items.length > 0 ? [[theme, items]] : [];
     },
   );
-  // Older V2 packages expose flat groups such as `color.primary`; keep that
-  // shape readable instead of assuming every package has nested V4 themes.
-  const colors: Array<[string, Array<[string, string]>]> =
-    themeColors.length > 0 ? themeColors : [["", tokenEntries(tokens.color)]];
   const typography = tokenEntries(tokens.typography);
   const spacing = tokenEntries(tokens.spacing);
   const containers = tokenEntries(tokens.containers);
@@ -211,7 +193,7 @@ function FoundationSection({ system }: { system: RegisteredSystem }) {
   const shadows = tokenEntries(tokens.shadow);
   const motion = tokenEntries(tokens.motion);
   const defaultTheme = Object.values(themes)[0];
-  const borderColors = tokenEntries(tokenAt(defaultTheme ?? tokens, "color.border"));
+  const borderColors = tokenEntries(tokenAt(defaultTheme, "color.border"));
   const sans = tokenAt(tokens, "typography.family.sans");
   const mono = tokenAt(tokens, "typography.family.mono");
   const displaySize = tokenAt(tokens, "typography.size.4xl");
@@ -435,7 +417,7 @@ function FoundationSection({ system }: { system: RegisteredSystem }) {
   );
 }
 
-/** The same labelled specimen also works with systems exposing only the core API. */
+/** The labelled specimen is rendered from the package FormField contract. */
 function SpecimenField({
   system,
   id,
@@ -443,6 +425,7 @@ function SpecimenField({
   description,
   error,
   disabled,
+  required,
   children,
 }: {
   system: RegisteredSystem;
@@ -451,30 +434,17 @@ function SpecimenField({
   description?: React.ReactNode;
   error?: React.ReactNode;
   disabled?: boolean;
+  required?: boolean;
   children: React.ReactElement;
 }) {
-  if (system.componentContract === "v4") {
-    const { FormField } = system.components;
-    return (
-      <FormField id={id} invalid={Boolean(error)} disabled={disabled}>
-        <FormField.Label>{label}</FormField.Label>
-        <FormField.Control asChild>{children}</FormField.Control>
-        {description && <FormField.Description>{description}</FormField.Description>}
-        {error && <FormField.Error>{error}</FormField.Error>}
-      </FormField>
-    );
-  }
+  const { FormField } = system.components;
   return (
-    <div>
-      <label htmlFor={id}>{label}</label>
-      {children}
-      {description && <p id={`${id}-description`}>{description}</p>}
-      {error && (
-        <p id={`${id}-error`} role="alert">
-          {error}
-        </p>
-      )}
-    </div>
+    <FormField id={id} invalid={Boolean(error)} disabled={disabled} required={required}>
+      <FormField.Label>{label}</FormField.Label>
+      <FormField.Control asChild>{children}</FormField.Control>
+      {description && <FormField.Description>{description}</FormField.Description>}
+      {error && <FormField.Error>{error}</FormField.Error>}
+    </FormField>
   );
 }
 
@@ -508,7 +478,7 @@ function ComponentsSection({ system }: { system: RegisteredSystem }) {
         </p>
       </div>
       <nav className="catalog-shortcuts" aria-label="Jump to a component specimen">
-        {[...REQUIRED_COMPONENTS_V4, ...OPTIONAL_COMPONENTS_V4].map((name) => (
+        {[...REQUIRED_COMPONENTS, ...OPTIONAL_COMPONENTS].map((name) => (
           <a key={name} href={`#component-${name.toLowerCase()}`}>
             {name}
           </a>
@@ -591,11 +561,7 @@ function ComponentsSection({ system }: { system: RegisteredSystem }) {
                 label="Workspace name"
                 description="Shown to your team"
               >
-                <Input
-                  id="specimen-workspace"
-                  aria-describedby="specimen-workspace-description"
-                  placeholder="e.g. Northstar"
-                />
+                <Input placeholder="e.g. Northstar" />
               </SpecimenField>
               <SpecimenField
                 system={system}
@@ -603,12 +569,7 @@ function ComponentsSection({ system }: { system: RegisteredSystem }) {
                 label="Invalid field"
                 error="Please choose another name."
               >
-                <Input
-                  id="specimen-invalid"
-                  aria-describedby="specimen-invalid-error"
-                  invalid
-                  defaultValue="Needs attention"
-                />
+                <Input defaultValue="Needs attention" />
               </SpecimenField>
             </Card.Content>
           </Card>
@@ -641,11 +602,7 @@ function ComponentsSection({ system }: { system: RegisteredSystem }) {
                   label="Weekly digest"
                   description="A short summary every Monday."
                 >
-                  <Checkbox
-                    id="specimen-digest"
-                    aria-describedby="specimen-digest-description"
-                    defaultChecked
-                  />
+                  <Checkbox defaultChecked />
                 </SpecimenField>
                 <SpecimenField
                   system={system}
@@ -653,7 +610,7 @@ function ComponentsSection({ system }: { system: RegisteredSystem }) {
                   label="Product updates"
                   description="Occasional notes from the team."
                 >
-                  <Checkbox id="specimen-updates" aria-describedby="specimen-updates-description" />
+                  <Checkbox />
                 </SpecimenField>
                 <SpecimenField
                   system={system}
@@ -661,7 +618,7 @@ function ComponentsSection({ system }: { system: RegisteredSystem }) {
                   label="Locked preference"
                   disabled
                 >
-                  <Checkbox id="specimen-locked" disabled />
+                  <Checkbox />
                 </SpecimenField>
               </div>
             </Card.Content>
@@ -679,7 +636,7 @@ function ComponentsSection({ system }: { system: RegisteredSystem }) {
                   label="Theme preference"
                   description="This specimen uses the package select."
                 >
-                  <Select.Trigger id="specimen-theme" aria-describedby="specimen-theme-description">
+                  <Select.Trigger>
                     <Select.Value />
                   </Select.Trigger>
                 </SpecimenField>
@@ -840,15 +797,30 @@ function ComponentsSection({ system }: { system: RegisteredSystem }) {
             <code>{system.packageName}</code>
           </p>
         </div>
-        <RequiredV4Specimens system={system} />
+        <RequiredAdditionSpecimens system={system} />
         <OptionalSpecimens system={system} />
       </div>
     </section>
   );
 }
 
-type AdditionalRequiredName = "Heading" | "Text" | "Link" | "Container" | "Stack" | "FormField";
-type OptionalName = (typeof OPTIONAL_COMPONENTS_V4)[number];
+type AdditionalRequiredName =
+  | "Heading"
+  | "Text"
+  | "Link"
+  | "Container"
+  | "Stack"
+  | "FormField"
+  | "Center"
+  | "Cluster"
+  | "Sidebar"
+  | "AspectRatio"
+  | "Combobox"
+  | "DatePicker"
+  | "NumberField"
+  | "Slider"
+  | "FileUpload";
+type OptionalName = (typeof OPTIONAL_COMPONENTS)[number];
 
 function CapabilityCard({
   system,
@@ -885,13 +857,17 @@ function CapabilityCard({
   );
 }
 
-function RequiredV4Specimen({
+function RequiredAdditionSpecimen({
   system,
   name,
 }: {
   system: RegisteredSystem;
   name: AdditionalRequiredName;
 }) {
+  const controlRef = React.useRef<HTMLInputElement>(null);
+  const [studioQuery, setStudioQuery] = React.useState("Orchard");
+  const [selectedStudio, setSelectedStudio] = React.useState("orchard");
+  const [threshold, setThreshold] = React.useState(64);
   const Component = runtimeComponent(system, name);
   if (!Component) return null;
 
@@ -925,27 +901,203 @@ function RequiredV4Specimen({
     }
     case "FormField": {
       const FormField = withParts(Component, "FormField");
-      const Input = system.components.Input;
+      const Input = system.components.Input as React.ElementType;
+      const Button = system.components.Button;
       return (
-        <FormField id="showcase-v4-contact" required>
-          <FormField.Label>Email address</FormField.Label>
-          <FormField.Control asChild>
-            <Input type="email" placeholder="name@example.com" />
-          </FormField.Control>
-          <FormField.Description>Used for workspace updates.</FormField.Description>
+        <div className="form-field-specimen">
+          <FormField id="showcase-contact" required invalid>
+            <FormField.Label>Email address</FormField.Label>
+            <FormField.Control asChild>
+              <Input ref={controlRef} type="email" defaultValue="updates@" />
+            </FormField.Control>
+            <FormField.Description>Used for workspace updates.</FormField.Description>
+            <FormField.Error>Enter a complete email address.</FormField.Error>
+          </FormField>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => controlRef.current?.focus()}
+          >
+            Focus the email field
+          </Button>
+        </div>
+      );
+    }
+    case "Center":
+      return (
+        <Component>
+          <div className="center-specimen-copy">
+            <h4>A clear point of focus</h4>
+            <p>Center keeps this reading sample aligned without app-owned width values.</p>
+          </div>
+        </Component>
+      );
+    case "Cluster": {
+      const Badge = runtimeComponent(system, "Badge");
+      if (!Badge) return null;
+      return (
+        <Component role="group" aria-label="Active project filters">
+          <Badge variant="outline">Research</Badge>
+          <Badge variant="outline">In progress</Badge>
+          <Badge variant="outline">This quarter</Badge>
+        </Component>
+      );
+    }
+    case "Sidebar": {
+      const Link = system.components.Link;
+      return (
+        <Component>
+          <nav className="sidebar-specimen-nav" aria-label="Project sections">
+            <ul>
+              <li>
+                <Link href="#component-input">Project details</Link>
+              </li>
+              <li>
+                <Link href="#component-tabs">Activity</Link>
+              </li>
+              <li>
+                <Link href="#component-badge">Labels</Link>
+              </li>
+            </ul>
+          </nav>
+          <section aria-labelledby="sidebar-specimen-title">
+            <h4 id="sidebar-specimen-title">Northstar refresh</h4>
+            <p>Three sections stay in reading order as the layout narrows.</p>
+          </section>
+        </Component>
+      );
+    }
+    case "AspectRatio":
+      return (
+        <div className="aspect-ratio-specimen">
+          <Component ratio={16 / 9} role="img" aria-label="Sixteen by nine media preview">
+            <span>16:9 preview area</span>
+          </Component>
+        </div>
+      );
+    case "Combobox": {
+      const Combobox = withParts(Component, "Combobox");
+      const ComboboxInput = Combobox.Input as React.ElementType;
+      const FormField = system.components.FormField;
+      const studios = [
+        { value: "northstar", label: "Northstar" },
+        { value: "orchard", label: "Orchard" },
+        { value: "paper-street", label: "Paper Street" },
+        { value: "river-and-pine", label: "River & Pine" },
+      ];
+      const matchingStudios = studios.filter((studio) =>
+        studio.label.toLocaleLowerCase().includes(studioQuery.trim().toLocaleLowerCase()),
+      );
+      return (
+        <FormField id="showcase-studio" required>
+          <FormField.Label>Studio</FormField.Label>
+          <Combobox
+            name="studio"
+            value={selectedStudio}
+            onValueChange={setSelectedStudio}
+            inputValue={studioQuery}
+            onInputValueChange={setStudioQuery}
+            required
+            requiredMessage="Choose a studio from the list."
+          >
+            <FormField.Control asChild>
+              <ComboboxInput ref={controlRef} placeholder="Type to filter studios" />
+            </FormField.Control>
+            <Combobox.Content aria-label="Studio options">
+              {matchingStudios.length === 0 ? (
+                <Combobox.Item value="no-matches" disabled>
+                  No matching studios
+                </Combobox.Item>
+              ) : (
+                matchingStudios.map((studio) => (
+                  <Combobox.Item key={studio.value} value={studio.value} textValue={studio.label}>
+                    {studio.label}
+                  </Combobox.Item>
+                ))
+              )}
+            </Combobox.Content>
+          </Combobox>
+          <FormField.Description>
+            Type to narrow the list, then choose a studio.
+          </FormField.Description>
         </FormField>
+      );
+    }
+    case "DatePicker": {
+      const DatePicker = system.components.DatePicker as React.ElementType;
+      return (
+        <SpecimenField
+          system={system}
+          id="showcase-review-date"
+          label="Review date"
+          description="A native date field; this sample does not book or submit anything."
+        >
+          <DatePicker ref={controlRef} defaultValue="2026-10-14" />
+        </SpecimenField>
+      );
+    }
+    case "NumberField": {
+      const NumberField = system.components.NumberField as React.ElementType;
+      return (
+        <SpecimenField
+          system={system}
+          id="showcase-seat-count"
+          label="Seats"
+          description="Choose a whole number from 1 to 12."
+        >
+          <NumberField ref={controlRef} min={1} max={12} step={1} defaultValue={4} />
+        </SpecimenField>
+      );
+    }
+    case "Slider": {
+      const Slider = system.components.Slider as React.ElementType;
+      return (
+        <div className="slider-specimen">
+          <SpecimenField
+            system={system}
+            id="showcase-alert-threshold"
+            label="Alert threshold"
+            description="Set when a usage alert should appear."
+          >
+            <Slider
+              ref={controlRef}
+              min={0}
+              max={100}
+              step={5}
+              value={threshold}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                setThreshold(event.currentTarget.valueAsNumber)
+              }
+            />
+          </SpecimenField>
+          <output htmlFor="showcase-alert-threshold">Current threshold: {threshold}%</output>
+        </div>
+      );
+    }
+    case "FileUpload": {
+      const FileUpload = system.components.FileUpload as React.ElementType;
+      return (
+        <SpecimenField
+          system={system}
+          id="showcase-attachment"
+          label="Attach a document"
+          description="PDF or Markdown only. The showcase does not upload or submit selected files."
+        >
+          <FileUpload ref={controlRef} accept=".pdf,.md" />
+        </SpecimenField>
       );
     }
   }
   return null;
 }
 
-function RequiredV4Specimens({ system }: { system: RegisteredSystem }) {
+function RequiredAdditionSpecimens({ system }: { system: RegisteredSystem }) {
   return (
-    <div className="component-extension-group" aria-label="Additional required V4 components">
+    <div className="component-extension-group" aria-label="Additional required components">
       <div className="component-extension-heading">
-        <p className="eyebrow">Required V4 additions</p>
-        <p>Semantic text and composition primitives remain part of every V4 system.</p>
+        <p className="eyebrow">Required additions</p>
+        <p>Layout, input, and media primitives are part of every system.</p>
       </div>
       <div className="component-grid">
         <CapabilityCard
@@ -953,38 +1105,101 @@ function RequiredV4Specimens({ system }: { system: RegisteredSystem }) {
           name="Heading"
           description="Semantic heading levels from the package."
         >
-          <RequiredV4Specimen system={system} name="Heading" />
+          <RequiredAdditionSpecimen system={system} name="Heading" />
         </CapabilityCard>
         <CapabilityCard system={system} name="Text" description="Body and inline text primitives.">
-          <RequiredV4Specimen system={system} name="Text" />
+          <RequiredAdditionSpecimen system={system} name="Text" />
         </CapabilityCard>
         <CapabilityCard
           system={system}
           name="Link"
           description="Native navigation with the package visual language."
         >
-          <RequiredV4Specimen system={system} name="Link" />
+          <RequiredAdditionSpecimen system={system} name="Link" />
         </CapabilityCard>
         <CapabilityCard
           system={system}
           name="Container"
           description="Token-owned content width and padding."
         >
-          <RequiredV4Specimen system={system} name="Container" />
+          <RequiredAdditionSpecimen system={system} name="Container" />
         </CapabilityCard>
         <CapabilityCard
           system={system}
           name="Stack"
           description="One-dimensional flow without an app-set gap."
         >
-          <RequiredV4Specimen system={system} name="Stack" />
+          <RequiredAdditionSpecimen system={system} name="Stack" />
         </CapabilityCard>
         <CapabilityCard
           system={system}
           name="FormField"
-          description="Label, control, help, and error associations."
+          description="Labels, refs, help, and validation stay connected."
         >
-          <RequiredV4Specimen system={system} name="FormField" />
+          <RequiredAdditionSpecimen system={system} name="FormField" />
+        </CapabilityCard>
+        <CapabilityCard
+          system={system}
+          name="Center"
+          description="A centered content region with package-owned width."
+        >
+          <RequiredAdditionSpecimen system={system} name="Center" />
+        </CapabilityCard>
+        <CapabilityCard
+          system={system}
+          name="Cluster"
+          description="Related labels gathered into a wrapping group."
+        >
+          <RequiredAdditionSpecimen system={system} name="Cluster" />
+        </CapabilityCard>
+        <CapabilityCard
+          system={system}
+          name="Sidebar"
+          description="A side region and main content that can reflow."
+        >
+          <RequiredAdditionSpecimen system={system} name="Sidebar" />
+        </CapabilityCard>
+        <CapabilityCard
+          system={system}
+          name="AspectRatio"
+          description="A responsive frame that keeps its width-to-height ratio."
+        >
+          <RequiredAdditionSpecimen system={system} name="AspectRatio" />
+        </CapabilityCard>
+        <CapabilityCard
+          system={system}
+          name="Combobox"
+          description="Editable filtering with keyboard-selectable options."
+        >
+          <RequiredAdditionSpecimen system={system} name="Combobox" />
+        </CapabilityCard>
+        <CapabilityCard
+          system={system}
+          name="DatePicker"
+          description="A labeled native date control with a useful starting value."
+        >
+          <RequiredAdditionSpecimen system={system} name="DatePicker" />
+        </CapabilityCard>
+        <CapabilityCard
+          system={system}
+          name="NumberField"
+          description="A numeric control with an explicit range and step."
+        >
+          <RequiredAdditionSpecimen system={system} name="NumberField" />
+        </CapabilityCard>
+        <CapabilityCard
+          system={system}
+          name="Slider"
+          description="An adjustable range with its current value shown."
+        >
+          <RequiredAdditionSpecimen system={system} name="Slider" />
+        </CapabilityCard>
+        <CapabilityCard
+          system={system}
+          name="FileUpload"
+          description="A native file picker with no upload or submission flow."
+        >
+          <RequiredAdditionSpecimen system={system} name="FileUpload" />
         </CapabilityCard>
       </div>
     </div>
@@ -1141,6 +1356,70 @@ function OptionalSpecimen({ system, name }: { system: RegisteredSystem; name: Op
         </Table>
       );
     }
+    case "Metric": {
+      const Metric = withParts(Component, "Metric");
+      return (
+        <Metric>
+          <Metric.Label>Active projects</Metric.Label>
+          <Metric.Value>18</Metric.Value>
+          <Metric.Description>Across three workspaces</Metric.Description>
+        </Metric>
+      );
+    }
+    case "DescriptionList": {
+      const DescriptionList = withParts(Component, "DescriptionList");
+      return (
+        <DescriptionList>
+          <DescriptionList.Item>
+            <DescriptionList.Term>Owner</DescriptionList.Term>
+            <DescriptionList.Description>Maya Chen</DescriptionList.Description>
+          </DescriptionList.Item>
+          <DescriptionList.Item>
+            <DescriptionList.Term>Updated</DescriptionList.Term>
+            <DescriptionList.Description>26 September 2026</DescriptionList.Description>
+          </DescriptionList.Item>
+        </DescriptionList>
+      );
+    }
+    case "Timeline": {
+      const Timeline = withParts(Component, "Timeline");
+      return (
+        <Timeline aria-label="Project activity">
+          <Timeline.Item>
+            <Timeline.Time dateTime="2026-09-24">24 September</Timeline.Time>
+            <Timeline.Title>Work started</Timeline.Title>
+            <Timeline.Description>Implementation began on the first draft.</Timeline.Description>
+          </Timeline.Item>
+          <Timeline.Item>
+            <Timeline.Time dateTime="2026-09-25">25 September</Timeline.Time>
+            <Timeline.Title>Review completed</Timeline.Title>
+            <Timeline.Description>The team approved the first draft.</Timeline.Description>
+          </Timeline.Item>
+        </Timeline>
+      );
+    }
+    case "Meter":
+      return (
+        <div className="meter-specimen">
+          <Component aria-label="Storage used" min={0} max={100} low={60} high={85} value={72} />
+          <p>72 of 100 GB used</p>
+        </div>
+      );
+    case "EmptyState": {
+      const EmptyState = withParts(Component, "EmptyState");
+      const Link = system.components.Link;
+      return (
+        <EmptyState>
+          <EmptyState.Title>No saved views yet</EmptyState.Title>
+          <EmptyState.Description>
+            Saved views will appear here when they are created.
+          </EmptyState.Description>
+          <EmptyState.Action>
+            <Link href="#components">Explore the component catalog</Link>
+          </EmptyState.Action>
+        </EmptyState>
+      );
+    }
   }
   return null;
 }
@@ -1158,17 +1437,22 @@ const OPTIONAL_DESCRIPTIONS: Record<OptionalName, string> = {
   Breadcrumbs: "A navigation trail with an announced current page.",
   Pagination: "URL-first page links without data logic.",
   Table: "A semantic data table with native header relationships.",
+  Metric: "A compact statistic with its label, value, and context.",
+  DescriptionList: "Related terms and descriptions in a semantic group.",
+  Timeline: "An ordered sequence of dated events.",
+  Meter: "A named measurement within a known range.",
+  EmptyState: "A normal-content placeholder for a surface with no items.",
 };
 
 function OptionalSpecimens({ system }: { system: RegisteredSystem }) {
   return (
-    <div className="component-extension-group" aria-label="Optional V4 capabilities">
+    <div className="component-extension-group" aria-label="Optional capabilities">
       <div className="component-extension-heading">
         <p className="eyebrow">Optional capabilities</p>
         <p>Unavailable items stay visible as unavailable; no missing component is rendered.</p>
       </div>
       <div className="component-grid">
-        {OPTIONAL_COMPONENTS_V4.map((name) => (
+        {OPTIONAL_COMPONENTS.map((name) => (
           <CapabilityCard
             key={name}
             system={system}
