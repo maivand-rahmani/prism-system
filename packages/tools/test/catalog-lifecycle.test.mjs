@@ -759,6 +759,7 @@ test("upgrade --dry-run reports removals/additions and the exact command without
   assert.equal(result.toVersion, "2.0.0");
   assert.deepEqual(result.diff.components.removed, ["Grid"]);
   assert.deepEqual(result.diff.components.added, ["Section"]);
+  assert.deepEqual(result.diff.components.changed, []);
   assert.deepEqual(result.diff.tokens.removed.spacing, ["scale.24"]);
   assert.deepEqual(result.diff.tokens.added.spacing, ["scale.32"]);
   assert.ok(
@@ -790,6 +791,130 @@ test("upgrade --dry-run reports removals/additions and the exact command without
     dryRun: true,
   });
   assert.deepEqual(again, result);
+});
+
+test("upgrade diff reports component assortment, contract metadata, and public export changes", async (t) => {
+  const from = structuredClone(upgradeFrom);
+  const to = structuredClone(upgradeTo);
+  from.components.Alert = { variants: ["info"], sizes: ["sm"], members: ["Title"] };
+  to.components.Alert = {
+    variants: ["warning", "info"],
+    sizes: ["sm", "lg"],
+    members: ["Title", "Action"],
+  };
+  // Reordering declared arrays is not a capability change.
+  from.components.Stack.variants = ["vertical", "horizontal"];
+  to.components.Stack.variants = ["horizontal", "vertical"];
+  from.components.Stack.sizes = ["sm"];
+  to.components.Stack.sizes = ["sm", "lg"];
+  from.exports = { ".": "./dist/index.js", "./manifest": "./design-system.json" };
+  to.exports = {
+    ".": "./dist/new-index.js",
+    "./manifest": "./design-system.json",
+    "./styles.css": "./dist/index.css",
+  };
+  to.version = "2.1.0";
+
+  const registry = createRegistry({ packageName: from.package, versions: { [to.version]: to } });
+  const consumer = createConsumer(t, {
+    packageName: from.package,
+    manifest: from,
+    connected: true,
+  });
+  const result = await upgradeDesignSystem({
+    cwd: consumer.root,
+    package: from.package,
+    version: to.version,
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: makeManager().spawnImpl,
+    dryRun: true,
+  });
+
+  assert.equal(result.ok, true, result.failures?.join(" "));
+  assert.deepEqual(result.diff.components.changed, [
+    { name: "Stack", fields: { sizes: { added: ["lg"], removed: [] } } },
+    {
+      name: "Alert",
+      fields: {
+        variants: { added: ["warning"], removed: [] },
+        sizes: { added: ["lg"], removed: [] },
+        members: { added: ["Action"], removed: [] },
+      },
+    },
+  ]);
+  assert.deepEqual(result.diff.metadata, {});
+  assert.deepEqual(result.diff.exports, {
+    added: [{ target: "./styles.css", value: "./dist/index.css" }],
+    removed: [],
+    changed: [{ target: ".", from: "./dist/index.js", to: "./dist/new-index.js" }],
+  });
+  assert.ok(
+    result.preview.some((line) =>
+      line.includes("components changed (Alert variants added): warning"),
+    ),
+  );
+  assert.ok(result.preview.some((line) => line.includes("public export changed (.)")));
+});
+
+test("upgrade diff identifies a V2-to-V4 manifest pair transition", async (t) => {
+  const from = structuredClone(v2Manifest);
+  const to = structuredClone(systemAManifest);
+  from.version = "1.1.0";
+  to.version = "2.1.0";
+  to.id = from.id;
+  to.name = from.name;
+  to.package = from.package;
+  const registry = createRegistry({ packageName: from.package, versions: { [to.version]: to } });
+  const consumer = createConsumer(t, {
+    packageName: from.package,
+    manifest: from,
+    connected: true,
+  });
+  const result = await upgradeDesignSystem({
+    cwd: consumer.root,
+    package: from.package,
+    version: to.version,
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: makeManager().spawnImpl,
+    dryRun: true,
+  });
+  assert.equal(result.ok, true, result.failures?.join(" "));
+  assert.deepEqual(result.diff.metadata, {
+    schemaVersion: { from: 1, to: 2 },
+    contract: { from: "v2", to: "v4" },
+  });
+  assert.ok(result.preview.some((line) => line.includes("manifest metadata changed (contract)")));
+});
+
+test("upgrade diff treats reordered component and token names as unchanged sets", async (t) => {
+  const from = structuredClone(systemAManifest);
+  const to = structuredClone(from);
+  from.version = "1.1.0";
+  to.version = "2.1.0";
+  from.components.Stack.variants = ["vertical", "horizontal"];
+  to.components.Stack.variants = ["horizontal", "vertical"];
+  from.tokens.groups.spacing = ["scale.4", "scale.8"];
+  to.tokens.groups.spacing = ["scale.8", "scale.4"];
+  const registry = createRegistry({ packageName: from.package, versions: { [to.version]: to } });
+  const consumer = createConsumer(t, {
+    packageName: from.package,
+    manifest: from,
+    connected: true,
+  });
+  const result = await upgradeDesignSystem({
+    cwd: consumer.root,
+    package: from.package,
+    version: to.version,
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: makeManager().spawnImpl,
+    dryRun: true,
+  });
+  assert.equal(result.ok, true, result.failures?.join(" "));
+  assert.deepEqual(result.diff.components.changed, []);
+  assert.deepEqual(result.diff.tokens, { added: {}, removed: {} });
 });
 
 test("upgrade reports removals even when the manager later fails", async (t) => {

@@ -105,7 +105,12 @@ preflight, spawn, manager, verify, connect, check-usage, setup-tailwind).
 Explicitly upgrade an installed design system to an exact registry version. The exact
 version is required. Before any dependency mutation it validates the registry target and
 compares its valid manifest against the installed one, reporting deterministic component
-and token removals/additions. On a real run it uses the same fixed npm/pnpm path as `use`,
+and token name additions/removals, changes to existing component variants/sizes/members,
+schema/contract metadata, and public export targets. JSON output keeps the existing
+`components.added/removed` and `tokens.added/removed` fields and adds `components.changed`,
+`metadata`, and `exports`. Component and token names are compared as sets, so reordering
+does not report a change. The manifest contains token names rather than token values, so
+the diff cannot report value changes. On a real run it uses the same fixed npm/pnpm path as `use`,
 verifies the exact installed identity/version, then reconnects. `--dry-run` resolves the
 target and manager and returns the exact command plus the planned consumer file effects
 without spawning or writing. It only mutates consumer dependencies and never the

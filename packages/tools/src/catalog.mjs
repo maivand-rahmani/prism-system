@@ -231,6 +231,40 @@ function tokenGroupNames(groups, group) {
   return Array.isArray(value) ? value.filter((name) => typeof name === "string") : [];
 }
 
+/** Read a manifest array as a set while keeping source order for stable output. */
+function manifestStringSet(value) {
+  return Array.isArray(value) ? value.filter((entry) => typeof entry === "string") : [];
+}
+
+function diffStringSets(beforeValue, afterValue) {
+  const before = manifestStringSet(beforeValue);
+  const after = manifestStringSet(afterValue);
+  const beforeSet = new Set(before);
+  const afterSet = new Set(after);
+  return {
+    added: after.filter((value) => !beforeSet.has(value)),
+    removed: before.filter((value) => !afterSet.has(value)),
+  };
+}
+
+function manifestExportTargets(exportsMap) {
+  const targets = {};
+  if (!isPlainObject(exportsMap)) return targets;
+  for (const subpath of Object.keys(exportsMap).sort()) {
+    const value = exportsMap[subpath];
+    if (typeof value === "string") {
+      targets[subpath] = value;
+      continue;
+    }
+    if (!isPlainObject(value)) continue;
+    for (const condition of Object.keys(value).sort()) {
+      const target = value[condition];
+      if (typeof target === "string") targets[`${subpath}#${condition}`] = target;
+    }
+  }
+  return targets;
+}
+
 /**
  * Deterministic component and token removals/additions between an installed
  * manifest and a validated registry target. Component names follow the canonical
@@ -245,7 +279,40 @@ function computeManifestDiff(fromManifest, toManifest) {
   const components = {
     added: toComponents.filter((name) => !fromComponentSet.has(name)),
     removed: fromComponents.filter((name) => !toComponentSet.has(name)),
+    changed: [],
   };
+  for (const name of toComponents) {
+    if (!fromComponentSet.has(name)) continue;
+    const before = fromManifest.components[name];
+    const after = toManifest.components[name];
+    const fields = {};
+    for (const field of ["variants", "sizes", "members"]) {
+      const change = diffStringSets(before?.[field], after?.[field]);
+      if (change.added.length || change.removed.length) fields[field] = change;
+    }
+    if (Object.keys(fields).length) components.changed.push({ name, fields });
+  }
+
+  const metadata = {};
+  for (const field of ["schemaVersion", "contract"]) {
+    if (fromManifest?.[field] !== toManifest?.[field]) {
+      metadata[field] = { from: fromManifest?.[field] ?? null, to: toManifest?.[field] ?? null };
+    }
+  }
+
+  const fromExports = manifestExportTargets(fromManifest?.exports);
+  const toExports = manifestExportTargets(toManifest?.exports);
+  const exportKeys = [...new Set([...Object.keys(fromExports), ...Object.keys(toExports)])].sort();
+  const exports = { added: [], removed: [], changed: [] };
+  for (const key of exportKeys) {
+    if (!Object.prototype.hasOwnProperty.call(fromExports, key)) {
+      exports.added.push({ target: key, value: toExports[key] });
+    } else if (!Object.prototype.hasOwnProperty.call(toExports, key)) {
+      exports.removed.push({ target: key, value: fromExports[key] });
+    } else if (fromExports[key] !== toExports[key]) {
+      exports.changed.push({ target: key, from: fromExports[key], to: toExports[key] });
+    }
+  }
 
   const fromGroups = isPlainObject(fromManifest?.tokens?.groups) ? fromManifest.tokens.groups : {};
   const toGroups = isPlainObject(toManifest?.tokens?.groups) ? toManifest.tokens.groups : {};
@@ -271,7 +338,7 @@ function computeManifestDiff(fromManifest, toManifest) {
     if (groupRemoved.length > 0) removed[group] = groupRemoved;
   }
 
-  return { components, tokens: { added, removed } };
+  return { components, tokens: { added, removed }, metadata, exports };
 }
 
 /** Deterministic, human-readable preview of an upgrade comparison. */
@@ -284,13 +351,37 @@ function buildUpgradePreview({ packageName, fromVersion, toVersion, command, dif
   if (diff.components.added.length > 0) {
     lines.push(`components added: ${diff.components.added.join(", ")}`);
   }
+  for (const component of diff.components.changed) {
+    for (const [field, change] of Object.entries(component.fields)) {
+      if (change.removed.length)
+        lines.push(
+          `components changed (${component.name} ${field} removed): ${change.removed.join(", ")}`,
+        );
+      if (change.added.length)
+        lines.push(
+          `components changed (${component.name} ${field} added): ${change.added.join(", ")}`,
+        );
+    }
+  }
   for (const [group, names] of Object.entries(diff.tokens.removed)) {
     lines.push(`tokens removed (${group}): ${names.join(", ")}`);
   }
   for (const [group, names] of Object.entries(diff.tokens.added)) {
     lines.push(`tokens added (${group}): ${names.join(", ")}`);
   }
-  if (lines.length === 2) lines.push("no component or token changes");
+  for (const [field, change] of Object.entries(diff.metadata)) {
+    lines.push(
+      `manifest metadata changed (${field}): ${JSON.stringify(change.from)} -> ${JSON.stringify(change.to)}`,
+    );
+  }
+  for (const item of diff.exports.removed)
+    lines.push(`public export removed (${item.target}): ${item.value}`);
+  for (const item of diff.exports.added)
+    lines.push(`public export added (${item.target}): ${item.value}`);
+  for (const item of diff.exports.changed)
+    lines.push(`public export changed (${item.target}): ${item.from} -> ${item.to}`);
+  if (lines.length === 2)
+    lines.push("no manifest metadata, component, token, or public export changes");
   return lines;
 }
 
