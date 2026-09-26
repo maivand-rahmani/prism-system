@@ -1,0 +1,7 @@
+:where(.maivand-a-ui) .maivand-a-number-field {
+  font-variant-numeric: tabular-nums;
+}
+:where(.maivand-a-ui) .maivand-a-number-field::-webkit-inner-spin-button,
+:where(.maivand-a-ui) .maivand-a-number-field::-webkit-outer-spin-button {
+  opacity: 0.72;
+}

@@ -1,0 +1,24 @@
+:where(.maivand-a-ui) .maivand-a-file-upload {
+  cursor: pointer;
+  padding: 6px;
+}
+:where(.maivand-a-ui) .maivand-a-file-upload::file-selector-button {
+  background: var(--maivand-a-color-action-secondary);
+  border: 0;
+  border-radius: var(--maivand-a-radius-sm);
+  color: var(--maivand-a-color-action-secondary-text);
+  cursor: pointer;
+  font: inherit;
+  margin-inline-end: 10px;
+  padding: 7px 11px;
+  transition: background var(--maivand-a-motion-duration-fast)
+    var(--maivand-a-motion-easing-standard);
+}
+:where(.maivand-a-ui) .maivand-a-file-upload::file-selector-button:hover {
+  background: var(--maivand-a-color-action-secondary-hover);
+}
+:where(.maivand-a-ui) .maivand-a-file-upload:disabled,
+:where(.maivand-a-ui) .maivand-a-file-upload:disabled::file-selector-button {
+  cursor: not-allowed;
+  opacity: 0.55;
+}

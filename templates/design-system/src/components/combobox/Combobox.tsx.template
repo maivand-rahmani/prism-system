@@ -1,0 +1,78 @@
+"use client";
+
+import * as React from "react";
+import {
+  Combobox as ComboboxPrimitive,
+  cn,
+  type ComboboxContentProps,
+  type ComboboxInputProps,
+  type ComboboxItemProps,
+  type ComboboxProps,
+} from "@prism-system/ui-core";
+
+const ui = "{{SYSTEM_CLASS}}-ui";
+
+export type { ComboboxProps, ComboboxInputProps, ComboboxContentProps, ComboboxItemProps };
+
+const ComboboxRoot = React.forwardRef<HTMLDivElement, ComboboxProps>(function ComboboxRoot(
+  { className, ...props },
+  ref,
+) {
+  return (
+    <ComboboxPrimitive
+      ref={ref}
+      className={cn(ui, "{{SYSTEM_CLASS}}-combobox", className)}
+      {...props}
+    />
+  );
+});
+
+const ComboboxInput = React.forwardRef<HTMLInputElement, ComboboxInputProps>(function ComboboxInput(
+  { className, ...props },
+  ref,
+) {
+  return (
+    <ComboboxPrimitive.Input
+      ref={ref}
+      className={cn("{{SYSTEM_CLASS}}-combobox-input", className)}
+      {...props}
+    />
+  );
+});
+
+const ComboboxContent = React.forwardRef<HTMLDivElement, ComboboxContentProps>(function ComboboxContent(
+  { className, ...props },
+  ref,
+) {
+  return (
+    <ComboboxPrimitive.Content
+      ref={ref}
+      className={cn(ui, "{{SYSTEM_CLASS}}-combobox-content", className)}
+      {...props}
+    />
+  );
+});
+
+const ComboboxItem = React.forwardRef<HTMLDivElement, ComboboxItemProps>(function ComboboxItem(
+  { className, ...props },
+  ref,
+) {
+  return (
+    <ComboboxPrimitive.Item
+      ref={ref}
+      className={cn("{{SYSTEM_CLASS}}-combobox-item", className)}
+      {...props}
+    />
+  );
+});
+
+export const Combobox = Object.assign(ComboboxRoot, {
+  Input: ComboboxInput,
+  Content: ComboboxContent,
+  Item: ComboboxItem,
+});
+export { ComboboxInput, ComboboxContent, ComboboxItem };
+ComboboxRoot.displayName = "Combobox";
+ComboboxInput.displayName = "Combobox.Input";
+ComboboxContent.displayName = "Combobox.Content";
+ComboboxItem.displayName = "Combobox.Item";

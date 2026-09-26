@@ -131,6 +131,38 @@ export type {
   FormFieldErrorProps,
 } from "./form-field/index.js";
 
+export { Center } from "./center/index.js";
+export type { CenterProps } from "./center/index.js";
+
+export { Cluster } from "./cluster/index.js";
+export type { ClusterProps } from "./cluster/index.js";
+
+export { Sidebar } from "./sidebar/index.js";
+export type { SidebarProps } from "./sidebar/index.js";
+
+export { AspectRatio } from "./aspect-ratio/index.js";
+export type { AspectRatioProps } from "./aspect-ratio/index.js";
+
+export { Combobox } from "./combobox/index.js";
+export type {
+  ComboboxProps,
+  ComboboxInputProps,
+  ComboboxContentProps,
+  ComboboxItemProps,
+} from "./combobox/index.js";
+
+export { DatePicker } from "./date-picker/index.js";
+export type { DatePickerProps } from "./date-picker/index.js";
+
+export { NumberField } from "./number-field/index.js";
+export type { NumberFieldProps } from "./number-field/index.js";
+
+export { Slider } from "./slider/index.js";
+export type { SliderProps } from "./slider/index.js";
+
+export { FileUpload } from "./file-upload/index.js";
+export type { FileUploadProps } from "./file-upload/index.js";
+
 export {
   Section,
   SectionHeader,
@@ -181,3 +213,39 @@ export type {
   BreadcrumbsLinkProps,
   BreadcrumbsCurrentProps,
 } from "./breadcrumbs/index.js";
+
+export { Metric, MetricDescription, MetricLabel, MetricValue } from "./metric/index.js";
+export type {
+  MetricProps,
+  MetricLabelProps,
+  MetricValueProps,
+  MetricDescriptionProps,
+} from "./metric/index.js";
+
+export {
+  Timeline,
+  TimelineDescription,
+  TimelineItem,
+  TimelineTime,
+  TimelineTitle,
+} from "./timeline/index.js";
+export type {
+  TimelineProps,
+  TimelineItemProps,
+  TimelineTitleProps,
+  TimelineTimeProps,
+  TimelineDescriptionProps,
+} from "./timeline/index.js";
+
+export {
+  EmptyState,
+  EmptyStateAction,
+  EmptyStateDescription,
+  EmptyStateTitle,
+} from "./empty-state/index.js";
+export type {
+  EmptyStateProps,
+  EmptyStateTitleProps,
+  EmptyStateDescriptionProps,
+  EmptyStateActionProps,
+} from "./empty-state/index.js";

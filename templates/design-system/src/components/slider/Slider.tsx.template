@@ -1,0 +1,20 @@
+import * as React from "react";
+import { cn, type SliderProps } from "@prism-system/ui-core";
+
+export type { SliderProps };
+
+export const Slider = React.forwardRef<HTMLInputElement, SliderProps>(function Slider(
+  { className, invalid = false, ...props },
+  ref,
+) {
+  return (
+    <input
+      ref={ref}
+      className={cn("{{SYSTEM_CLASS}}-ui", "{{SYSTEM_CLASS}}-slider", className)}
+      {...props}
+      aria-invalid={invalid ? true : props["aria-invalid"]}
+      type="range"
+    />
+  );
+});
+Slider.displayName = "Slider";

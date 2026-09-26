@@ -1,0 +1,60 @@
+/* Base scope. Every component root carries the package UI class, so the shared
+   reset and typography live here rather than in any single component file. */
+:where(.maivand-a-ui) {
+  color: var(--maivand-a-color-text-primary);
+  font-family: var(--maivand-a-typography-family-sans);
+}
+:where(.maivand-a-ui) *,
+:where(.maivand-a-ui) *::before,
+:where(.maivand-a-ui) *::after {
+  box-sizing: border-box;
+}
+:where(.maivand-a-ui) button,
+:where(.maivand-a-ui) input,
+:where(.maivand-a-ui) select,
+:where(.maivand-a-ui) textarea {
+  font: inherit;
+}
+
+:where(.maivand-a-ui) .maivand-a-native-control {
+  background: var(--maivand-a-color-surface-raised);
+  border: 1px solid var(--maivand-a-color-border-default);
+  border-radius: var(--maivand-a-radius-sm);
+  color: var(--maivand-a-color-text-primary);
+  font: inherit;
+  min-height: 40px;
+  min-width: 0;
+  outline: 0;
+  padding: 9px 12px;
+  transition:
+    border-color var(--maivand-a-motion-duration-fast) var(--maivand-a-motion-easing-standard),
+    box-shadow var(--maivand-a-motion-duration-fast) var(--maivand-a-motion-easing-standard);
+  width: 100%;
+}
+:where(.maivand-a-ui) .maivand-a-native-control:focus-visible {
+  border-color: var(--maivand-a-color-border-focus);
+  box-shadow: var(--maivand-a-shadow-focus);
+}
+:where(.maivand-a-ui) .maivand-a-native-control-error,
+:where(.maivand-a-ui) .maivand-a-native-control[aria-invalid="true"] {
+  border-color: var(--maivand-a-color-status-danger);
+}
+:where(.maivand-a-ui) .maivand-a-native-control:disabled {
+  background: var(--maivand-a-color-surface-sunken);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+:where(.maivand-a-ui) .maivand-a-native-control[type="file"] {
+  color: var(--maivand-a-color-text-secondary);
+  cursor: pointer;
+  padding: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-a-ui) *,
+  :where(.maivand-a-ui) *::before,
+  :where(.maivand-a-ui) *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

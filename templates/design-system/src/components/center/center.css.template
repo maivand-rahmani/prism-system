@@ -1,0 +1,6 @@
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-center {
+  margin-inline: auto;
+  max-width: var(--{{SYSTEM_CLASS}}-containers-content);
+  padding-inline: var(--{{SYSTEM_CLASS}}-spacing-semantic-inset);
+  width: 100%;
+}

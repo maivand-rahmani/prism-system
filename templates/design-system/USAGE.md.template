@@ -1,8 +1,12 @@
 # Compose with {{SYSTEM_NAME}}
 
-These examples use the twenty required V4 contracts and public package imports.
-They also work with a different V4 system after changing the package import.
-Optional capabilities must be checked in the installed `./manifest` first.
+These examples use components from the current twenty-nine-component required
+contract (version 4) and public package imports.
+They also work with a different system implementing the same contract after changing
+the package import.
+Optional capabilities must be checked in the installed `./manifest` first: a component
+is available only as a key in `manifest.components`, and `capabilities.categories` maps
+names to categories rather than declaring availability.
 Import `{{PACKAGE_NAME}}/styles.css` once in the application entry point.
 For Tailwind v4, use the import order shown in [README.md](./README.md).
 
@@ -153,6 +157,12 @@ use `asChild` to wire the actual focusable control. For `Select`, wire the
 native validity is needed. `noValidate` in this example lets the product choose
 when to display the error and focus the preserved input ref. Root `invalid`
 sets the input's invalid appearance without an additional system-specific prop.
+
+`DatePicker`, `NumberField`, `Slider`, and `FileUpload` render their native input
+directly with a fixed type. `Combobox.Input` is also the real, focusable text
+input. Use each with `FormField.Control asChild` to wire the field id, ARIA
+state, and ref; the controls keep their native value, change, and form behavior.
+`FileUpload` stays a native file input rather than adding dropzone behavior.
 
 ## Verify the consumer
 

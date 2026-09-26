@@ -1,0 +1,20 @@
+import * as React from "react";
+import { cn, type FileUploadProps } from "@prism-system/ui-core";
+
+export type { FileUploadProps };
+
+export const FileUpload = React.forwardRef<HTMLInputElement, FileUploadProps>(function FileUpload(
+  { className, invalid = false, ...props },
+  ref,
+) {
+  return (
+    <input
+      ref={ref}
+      className={cn("{{SYSTEM_CLASS}}-ui", "{{SYSTEM_CLASS}}-file-upload", className)}
+      {...props}
+      aria-invalid={invalid ? true : props["aria-invalid"]}
+      type="file"
+    />
+  );
+});
+FileUpload.displayName = "FileUpload";

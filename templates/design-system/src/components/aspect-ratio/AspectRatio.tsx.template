@@ -1,0 +1,24 @@
+import * as React from "react";
+import { cn, type AspectRatioProps } from "@prism-system/ui-core";
+
+export type { AspectRatioProps };
+
+export const AspectRatio = React.forwardRef<HTMLDivElement, AspectRatioProps>(function AspectRatio(
+  { className, ratio = 1, style, ...props },
+  ref,
+) {
+  if (!Number.isFinite(ratio) || ratio <= 0) {
+    throw new RangeError("AspectRatio ratio must be a positive finite number.");
+  }
+  const mergedStyle = { aspectRatio: ratio, ...style };
+
+  return (
+    <div
+      ref={ref}
+      className={cn("{{SYSTEM_CLASS}}-ui", "{{SYSTEM_CLASS}}-aspect-ratio", className)}
+      style={mergedStyle}
+      {...props}
+    />
+  );
+});
+AspectRatio.displayName = "AspectRatio";

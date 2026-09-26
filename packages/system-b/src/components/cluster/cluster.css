@@ -1,0 +1,9 @@
+:where(.maivand-b-ui).maivand-b-cluster {
+  align-items: center;
+  display: flex;
+  flex-flow: row wrap;
+  gap: var(--maivand-b-spacing-scale-2) var(--maivand-b-spacing-scale-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}

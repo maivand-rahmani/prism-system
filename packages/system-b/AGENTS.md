@@ -1,8 +1,9 @@
 # @prism-system/ui-system-b package rules
 
-`@prism-system/ui-system-b` is an independent V4 design system. Keep its visual
-language inside `tokens.source.json`, `src/styles`, and `src/components`;
-consuming apps should compose the components rather than replace their appearance.
+`@prism-system/ui-system-b` is an independent design system implementing the current
+contract (version 4). Keep its visual language inside `tokens.source.json`,
+`src/styles`, and `src/components`; consuming apps should compose the components
+rather than replace their appearance.
 
 ## Visual direction and design brief
 
@@ -20,15 +21,17 @@ overrides.
 
 ## Available components
 
-The package always exports the twenty required V4 contract components, in
-canonical order:
+The package always exports the twenty-nine required components of the current
+contract (version 4), in canonical order:
 
 `Button`, `Input`, `Textarea`, `Card`, `Badge`, `Checkbox`, `RadioGroup`,
 `Switch`, `Select`, `Tabs`, `Dialog`, `DropdownMenu`, `Tooltip`, `Separator`,
-`Heading`, `Text`, `Link`, `Container`, `Stack`, `FormField`.
+`Heading`, `Text`, `Link`, `Container`, `Stack`, `FormField`, `Center`,
+`Cluster`, `Sidebar`, `AspectRatio`, `Combobox`, `DatePicker`, `NumberField`,
+`Slider`, `FileUpload`.
 
-The fourteen V2 names keep their existing public API. These required exports are
-fixed: never rename, remove, or alter one to make room for something else. Every
+The public API of these required exports is stable: never rename, remove, or alter one
+to make room for something else. Every
 component lives in its own `src/components/<component>/` folder with `<Name>.tsx`,
 `<kebab>.css`, and `index.ts`. Do not maintain a second component catalog here or in
 `README.md`: variants, sizes, and compound members are published by the generated
@@ -41,8 +44,9 @@ Structural primitives take props, not visual variants: `Stack` uses
 
 ## Optional capabilities
 
-System B declares exactly six optional V4 components: `Section`, `Alert`,
-`Skeleton`, `Toast`, `Avatar`, and `Breadcrumbs`. The twelve optional V4
+System B declares exactly nine optional components: `Section`, `Alert`,
+`Skeleton`, `Toast`, `Avatar`, `Breadcrumbs`, `Metric`, `Timeline`, and
+`EmptyState`. The optional
 contracts are capabilities, not stubs: only implement and declare an optional
 component when it has real behavior, local CSS, and a public export. An omitted
 optional name means it is unavailable. Do not add other optional components to
@@ -74,7 +78,7 @@ System A, another design system, app code, or app-owned styles. Consuming apps o
 layout and composition; they must use System B props instead of copying its CSS,
 overriding its visual language, or styling package internals.
 
-## Consumer contract (V4)
+## Consumer contract
 
 `@prism-system/ui-system-b` is the visual source of truth for products that adopt
 it. An external coding agent consuming this package must:
@@ -82,10 +86,11 @@ it. An external coding agent consuming this package must:
 1. **Identify the system and version.** The installed package is
    `@prism-system/ui-system-b`. `package.json.version` is authoritative, and the
    generated `design-system.json` manifest (also exported as
-   `@prism-system/ui-system-b/manifest`) records the same exact version, the
-   component catalog, variants, sizes, compound members, token names, and the
-   strict usage rules below. Read the manifest and this file before writing UI.
-2. **Use the public API.** Import the twenty required V4 components from the
+   `@prism-system/ui-system-b/manifest`) records the current contract
+   (`contractVersion: 4`), the same exact version, the component catalog, variants,
+   sizes, compound members, token names, and the strict usage rules below. Read the
+   manifest and this file before writing UI.
+2. **Use the public API.** Import the twenty-nine required components from the
    package root and design tokens from `@prism-system/ui-system-b/tokens`. Import
    ordinary CSS from `@prism-system/ui-system-b/styles.css`; Tailwind v4 products
    may additionally load `@prism-system/ui-system-b/tailwind.css`. Never import
@@ -96,7 +101,7 @@ it. An external coding agent consuming this package must:
    copy package CSS.
 
 See [USAGE.md](./USAGE.md) for complete page and form compositions using only
-required V4 contracts, including control refs, invalid state, and Select wiring.
+required contracts, including control refs, invalid state, and Select wiring.
 
 ### Usage rules
 

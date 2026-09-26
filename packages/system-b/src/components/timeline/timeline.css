@@ -1,0 +1,60 @@
+:where(.maivand-b-ui).maivand-b-timeline {
+  display: grid;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+:where(.maivand-b-ui) .maivand-b-timeline-item {
+  display: grid;
+  gap: var(--maivand-b-spacing-scale-3);
+  grid-template-columns: 20px minmax(0, 1fr);
+  min-height: 68px;
+  position: relative;
+}
+:where(.maivand-b-ui) .maivand-b-timeline-item::before {
+  background: var(--maivand-b-color-surface-canvas);
+  border: 2px solid var(--maivand-b-color-border-strong);
+  border-radius: var(--maivand-b-radius-sm);
+  content: "";
+  height: 14px;
+  left: 1px;
+  position: absolute;
+  top: 1px;
+  width: 14px;
+  z-index: 1;
+}
+:where(.maivand-b-ui) .maivand-b-timeline-item:not(:last-child)::after {
+  background: var(--maivand-b-color-border-default);
+  content: "";
+  left: 7px;
+  position: absolute;
+  top: 18px;
+  bottom: -1px;
+  width: 2px;
+}
+:where(.maivand-b-ui) .maivand-b-timeline-item::before {
+  box-shadow: inset 0 0 0 3px var(--maivand-b-color-surface-canvas);
+}
+:where(.maivand-b-ui) .maivand-b-timeline-time {
+  color: var(--maivand-b-color-action-primary-hover);
+  display: block;
+  font-family: var(--maivand-b-typography-family-mono);
+  font-size: var(--maivand-b-typography-size-xs);
+  letter-spacing: var(--maivand-b-typography-letter-spacing-wide);
+  margin-bottom: var(--maivand-b-spacing-scale-1);
+  text-transform: uppercase;
+}
+:where(.maivand-b-ui) .maivand-b-timeline-title {
+  color: var(--maivand-b-color-text-primary);
+  font-size: var(--maivand-b-typography-size-lg);
+  font-weight: var(--maivand-b-typography-weight-semibold);
+  line-height: var(--maivand-b-typography-line-height-tight);
+  margin: 0;
+}
+:where(.maivand-b-ui) .maivand-b-timeline-description {
+  color: var(--maivand-b-color-text-secondary);
+  font-size: var(--maivand-b-typography-size-sm);
+  line-height: var(--maivand-b-typography-line-height-normal);
+  margin-top: var(--maivand-b-spacing-scale-1);
+}

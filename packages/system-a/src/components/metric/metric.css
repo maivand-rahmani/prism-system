@@ -1,0 +1,35 @@
+:where(.maivand-a-ui).maivand-a-metric {
+  background: var(--maivand-a-color-surface-raised);
+  border: 1px solid var(--maivand-a-color-border-default);
+  border-radius: var(--maivand-a-radius-md);
+  display: grid;
+  gap: var(--maivand-a-spacing-scale-2);
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  min-width: 0;
+  padding: var(--maivand-a-spacing-semantic-inset);
+}
+:where(.maivand-a-ui).maivand-a-metric .maivand-a-metric-value {
+  color: var(--maivand-a-color-text-primary);
+  font-size: clamp(var(--maivand-a-typography-size-2xl), 4vw, var(--maivand-a-typography-size-4xl));
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--maivand-a-typography-weight-semibold);
+  letter-spacing: var(--maivand-a-typography-letter-spacing-tight);
+  line-height: var(--maivand-a-typography-line-height-tight);
+}
+:where(.maivand-a-ui).maivand-a-metric .maivand-a-metric-label {
+  align-self: end;
+  color: var(--maivand-a-color-text-secondary);
+  font-size: var(--maivand-a-typography-size-sm);
+  font-weight: var(--maivand-a-typography-weight-medium);
+}
+:where(.maivand-a-ui).maivand-a-metric .maivand-a-metric-value {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+:where(.maivand-a-ui).maivand-a-metric .maivand-a-metric-description {
+  color: var(--maivand-a-color-text-muted);
+  font-size: var(--maivand-a-typography-size-sm);
+  line-height: var(--maivand-a-typography-line-height-normal);
+  margin: 0;
+}

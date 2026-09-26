@@ -1,0 +1,59 @@
+:where(.maivand-b-ui).maivand-b-slider {
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  display: block;
+  height: 28px;
+  margin: 0;
+  width: 100%;
+}
+:where(.maivand-b-ui).maivand-b-slider::-webkit-slider-runnable-track {
+  background: var(--maivand-b-color-surface-sunken);
+  border: 1px solid var(--maivand-b-color-border-default);
+  border-radius: var(--maivand-b-radius-sm);
+  height: 6px;
+}
+:where(.maivand-b-ui).maivand-b-slider::-moz-range-track {
+  background: var(--maivand-b-color-surface-sunken);
+  border: 1px solid var(--maivand-b-color-border-default);
+  border-radius: var(--maivand-b-radius-sm);
+  height: 6px;
+}
+:where(.maivand-b-ui).maivand-b-slider::-webkit-slider-thumb {
+  appearance: none;
+  background: var(--maivand-b-color-action-primary);
+  border: 2px solid var(--maivand-b-color-text-primary);
+  border-radius: var(--maivand-b-radius-sm);
+  box-shadow: var(--maivand-b-shadow-sm);
+  height: 17px;
+  margin-top: -7px;
+  transition: transform var(--maivand-b-motion-duration-fast)
+    var(--maivand-b-motion-easing-standard);
+  width: 17px;
+}
+:where(.maivand-b-ui).maivand-b-slider::-moz-range-thumb {
+  background: var(--maivand-b-color-action-primary);
+  border: 2px solid var(--maivand-b-color-text-primary);
+  border-radius: var(--maivand-b-radius-sm);
+  box-shadow: var(--maivand-b-shadow-sm);
+  height: 13px;
+  transition: transform var(--maivand-b-motion-duration-fast)
+    var(--maivand-b-motion-easing-standard);
+  width: 13px;
+}
+:where(.maivand-b-ui).maivand-b-slider:hover::-webkit-slider-thumb {
+  transform: translateY(-1px);
+}
+:where(.maivand-b-ui).maivand-b-slider:focus-visible {
+  outline: none;
+}
+:where(.maivand-b-ui).maivand-b-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow: var(--maivand-b-shadow-focus), var(--maivand-b-shadow-sm);
+}
+:where(.maivand-b-ui).maivand-b-slider:focus-visible::-moz-range-thumb {
+  box-shadow: var(--maivand-b-shadow-focus), var(--maivand-b-shadow-sm);
+}
+:where(.maivand-b-ui).maivand-b-slider:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}

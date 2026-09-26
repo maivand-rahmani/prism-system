@@ -1,0 +1,71 @@
+:where(.maivand-a-ui).maivand-a-combobox-field {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+:where(.maivand-a-ui) .maivand-a-combobox-root {
+  min-width: 0;
+  position: relative;
+}
+:where(.maivand-a-ui) .maivand-a-combobox-input {
+  background: var(--maivand-a-color-surface-raised);
+  border: 1px solid var(--maivand-a-color-border-default);
+  border-radius: var(--maivand-a-radius-sm);
+  color: var(--maivand-a-color-text-primary);
+  font: inherit;
+  min-height: 40px;
+  min-width: 0;
+  outline: 0;
+  padding: 9px 12px;
+  transition:
+    border-color var(--maivand-a-motion-duration-fast) var(--maivand-a-motion-easing-standard),
+    box-shadow var(--maivand-a-motion-duration-fast) var(--maivand-a-motion-easing-standard);
+  width: 100%;
+}
+:where(.maivand-a-ui) .maivand-a-combobox-input:focus-visible {
+  border-color: var(--maivand-a-color-border-focus);
+  box-shadow: var(--maivand-a-shadow-focus);
+}
+:where(.maivand-a-ui) .maivand-a-combobox-input[aria-invalid="true"] {
+  border-color: var(--maivand-a-color-status-danger);
+}
+:where(.maivand-a-ui) .maivand-a-combobox-input:disabled {
+  background: var(--maivand-a-color-surface-sunken);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+:where(.maivand-a-ui).maivand-a-combobox-content {
+  background: var(--maivand-a-color-surface-raised);
+  border: 1px solid var(--maivand-a-color-border-default);
+  border-radius: var(--maivand-a-radius-md);
+  box-shadow: var(--maivand-a-shadow-md);
+  max-height: min(22rem, 60vh);
+  min-width: 12rem;
+  overflow: auto;
+  padding: 5px;
+  position: absolute;
+  inset-block-start: calc(100% + 4px);
+  inset-inline: 0;
+  width: 100%;
+  z-index: var(--maivand-a-layers-dropdown);
+}
+:where(.maivand-a-ui) .maivand-a-combobox-item {
+  align-items: center;
+  border-radius: var(--maivand-a-radius-sm);
+  cursor: pointer;
+  display: flex;
+  min-height: 36px;
+  outline: 0;
+  padding: 8px 10px;
+}
+:where(.maivand-a-ui) .maivand-a-combobox-item[data-active],
+:where(.maivand-a-ui) .maivand-a-combobox-item[data-highlighted],
+:where(.maivand-a-ui) .maivand-a-combobox-item[aria-selected="true"] {
+  background: var(--maivand-a-color-action-secondary);
+  color: var(--maivand-a-color-action-secondary-text);
+}
+:where(.maivand-a-ui) .maivand-a-combobox-item[data-disabled],
+:where(.maivand-a-ui) .maivand-a-combobox-item[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}

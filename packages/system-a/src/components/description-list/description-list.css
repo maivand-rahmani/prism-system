@@ -1,0 +1,36 @@
+:where(.maivand-a-ui).maivand-a-description-list {
+  display: grid;
+  gap: var(--maivand-a-spacing-semantic-inline);
+  margin: 0;
+  min-width: 0;
+}
+:where(.maivand-a-ui) .maivand-a-description-list-item {
+  display: grid;
+  gap: var(--maivand-a-spacing-scale-2) var(--maivand-a-spacing-semantic-inline);
+  grid-template-columns: minmax(8rem, 0.72fr) minmax(0, 1.8fr);
+  min-width: 0;
+}
+:where(.maivand-a-ui) .maivand-a-description-list-term {
+  color: var(--maivand-a-color-text-secondary);
+  font-size: var(--maivand-a-typography-size-sm);
+  font-weight: var(--maivand-a-typography-weight-medium);
+  grid-column: 1;
+  grid-row: 1;
+  line-height: var(--maivand-a-typography-line-height-normal);
+}
+:where(.maivand-a-ui) .maivand-a-description-list-description {
+  color: var(--maivand-a-color-text-primary);
+  grid-column: 2;
+  margin: 0;
+  min-width: 0;
+}
+@media (max-width: 40rem) {
+  :where(.maivand-a-ui) .maivand-a-description-list-item {
+    gap: var(--maivand-a-spacing-scale-1);
+    grid-template-columns: 1fr;
+  }
+  :where(.maivand-a-ui) .maivand-a-description-list-term,
+  :where(.maivand-a-ui) .maivand-a-description-list-description {
+    grid-column: 1;
+  }
+}

@@ -1,10 +1,10 @@
-import { defineDesignSystemV4 } from "@prism-system/ui-core";
-import { Button, Input, Textarea, Card, Badge, Checkbox, RadioGroup, Switch, Select, Tabs, Dialog, DropdownMenu, Tooltip, Separator, Heading, Text, Link, Container, Stack, FormField } from "./components/index.js";
+import { defineDesignSystem } from "@prism-system/ui-core";
+import { Button, Input, Textarea, Card, Badge, Checkbox, RadioGroup, Switch, Select, Tabs, Dialog, DropdownMenu, Tooltip, Separator, Heading, Text, Link, Container, Stack, FormField, Center, Cluster, Sidebar, AspectRatio, Combobox, DatePicker, NumberField, Slider, FileUpload } from "./components/index.js";
 
-/** Canonical V4 runtime map. Optional components are capabilities and are omitted until implemented. */
-export const DesignSystem = defineDesignSystemV4({
-  id: "{{SYSTEM_ID}}", name: "{{SYSTEM_NAME}}", packageName: "{{PACKAGE_NAME}}", version: "0.1.0", componentContract: "v4",
-  components: { Button, Input, Textarea, Card, Badge, Checkbox, RadioGroup, Switch, Select, Tabs, Dialog, DropdownMenu, Tooltip, Separator, Heading, Text, Link, Container, Stack, FormField },
+/** Canonical runtime map. Optional components are capabilities and are omitted until implemented. */
+export const DesignSystem = defineDesignSystem({
+  id: "{{SYSTEM_ID}}", name: "{{SYSTEM_NAME}}", packageName: "{{PACKAGE_NAME}}", version: "0.1.0", contractVersion: 4,
+  components: { Button, Input, Textarea, Card, Badge, Checkbox, RadioGroup, Switch, Select, Tabs, Dialog, DropdownMenu, Tooltip, Separator, Heading, Text, Link, Container, Stack, FormField, Center, Cluster, Sidebar, AspectRatio, Combobox, DatePicker, NumberField, Slider, FileUpload },
   meta: { description: "{{BRIEF_SUMMARY}}", design: { density: "comfortable", theme: "light-first", radius: "small", keywords: ["{{VISUAL_DIRECTION}}"] }, rules: { allowArbitraryColors: false, allowArbitraryRadius: false, allowArbitraryShadows: false } },
 });
 export type DesignSystem = typeof DesignSystem;

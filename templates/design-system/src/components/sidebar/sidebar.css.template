@@ -1,0 +1,10 @@
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-sidebar {
+  align-items: start;
+  display: grid;
+  gap: var(--{{SYSTEM_CLASS}}-spacing-semantic-stack);
+  grid-template-columns: minmax(min-content, max-content) minmax(0, 1fr);
+  min-width: 0;
+}
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-sidebar > * {
+  min-width: 0;
+}

@@ -1,11 +1,11 @@
 {
   "name": "@prism-system/ui-system-b",
   "version": "2.0.0",
-  "description": "A contrasty, expressive V4 visual system built on @prism-system/ui-core.",
+  "description": "A contrasty, expressive design system for editorial interfaces, built on @prism-system/ui-core.",
   "license": "MIT",
   "prismSystem": {
     "name": "System B",
-    "contract": "v4",
+    "contractVersion": 4,
     "uiClass": "maivand-b-ui",
     "tokensExport": "systemBTokens"
   },

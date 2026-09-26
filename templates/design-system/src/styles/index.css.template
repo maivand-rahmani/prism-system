@@ -19,6 +19,15 @@
 @import "../components/container/container.css";
 @import "../components/stack/stack.css";
 @import "../components/form-field/form-field.css";
+@import "../components/center/center.css";
+@import "../components/cluster/cluster.css";
+@import "../components/sidebar/sidebar.css";
+@import "../components/aspect-ratio/aspect-ratio.css";
+@import "../components/combobox/combobox.css";
+@import "../components/date-picker/date-picker.css";
+@import "../components/number-field/number-field.css";
+@import "../components/slider/slider.css";
+@import "../components/file-upload/file-upload.css";
 
 /* Base scope. Every component root carries the package UI class, so the shared
    reset and typography live here rather than in any single component file. */

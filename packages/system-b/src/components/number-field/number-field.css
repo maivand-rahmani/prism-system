@@ -1,0 +1,34 @@
+:where(.maivand-b-ui).maivand-b-number-field {
+  appearance: textfield;
+  background: var(--maivand-b-color-surface-raised);
+  border: 1px solid var(--maivand-b-color-border-default);
+  border-radius: var(--maivand-b-radius-sm);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+  color: var(--maivand-b-color-text-primary);
+  min-height: 40px;
+  padding: 8px 10px;
+  transition:
+    border-color var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard),
+    box-shadow var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard);
+  width: 100%;
+}
+:where(.maivand-b-ui).maivand-b-number-field::-webkit-inner-spin-button,
+:where(.maivand-b-ui).maivand-b-number-field::-webkit-outer-spin-button {
+  appearance: auto;
+  margin: 0;
+}
+:where(.maivand-b-ui).maivand-b-number-field:hover:not(:disabled) {
+  border-color: var(--maivand-b-color-border-strong);
+}
+:where(.maivand-b-ui).maivand-b-number-field:focus-visible {
+  border-color: var(--maivand-b-color-border-focus);
+  box-shadow: var(--maivand-b-shadow-focus);
+  outline: none;
+}
+:where(.maivand-b-ui).maivand-b-number-field[aria-invalid="true"] {
+  border-color: var(--maivand-b-color-status-danger);
+}
+:where(.maivand-b-ui).maivand-b-number-field:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}

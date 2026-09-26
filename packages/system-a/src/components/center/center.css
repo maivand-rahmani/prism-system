@@ -1,0 +1,6 @@
+:where(.maivand-a-ui).maivand-a-center {
+  margin-inline: auto;
+  max-width: var(--maivand-a-containers-content);
+  padding-inline: var(--maivand-a-spacing-semantic-inset);
+  width: 100%;
+}

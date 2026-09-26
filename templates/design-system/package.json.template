@@ -5,7 +5,7 @@
   "license": "MIT",
   "prismSystem": {
     "name": "{{SYSTEM_NAME}}",
-    "contract": "v4",
+    "contractVersion": 4,
     "uiClass": "{{SYSTEM_CLASS}}-ui",
     "tokensExport": "{{TOKENS_EXPORT}}"
   },

@@ -1,0 +1,30 @@
+:where(.maivand-b-ui).maivand-b-date-picker {
+  appearance: none;
+  background: var(--maivand-b-color-surface-raised);
+  border: 1px solid var(--maivand-b-color-border-default);
+  border-radius: var(--maivand-b-radius-sm);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+  color: var(--maivand-b-color-text-primary);
+  color-scheme: dark;
+  min-height: 40px;
+  padding: 8px 10px;
+  transition:
+    border-color var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard),
+    box-shadow var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard);
+  width: 100%;
+}
+:where(.maivand-b-ui).maivand-b-date-picker:hover:not(:disabled) {
+  border-color: var(--maivand-b-color-border-strong);
+}
+:where(.maivand-b-ui).maivand-b-date-picker:focus-visible {
+  border-color: var(--maivand-b-color-border-focus);
+  box-shadow: var(--maivand-b-shadow-focus);
+  outline: none;
+}
+:where(.maivand-b-ui).maivand-b-date-picker[aria-invalid="true"] {
+  border-color: var(--maivand-b-color-status-danger);
+}
+:where(.maivand-b-ui).maivand-b-date-picker:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}

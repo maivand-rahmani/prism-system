@@ -1,0 +1,10 @@
+:where(.maivand-a-ui) .maivand-a-date-picker {
+  min-width: 0;
+}
+:where(.maivand-a-ui) .maivand-a-date-picker::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.72;
+}
+:where(.maivand-a-ui) .maivand-a-date-picker::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}

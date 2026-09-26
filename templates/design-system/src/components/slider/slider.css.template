@@ -1,0 +1,51 @@
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-slider {
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  display: block;
+  min-height: var(--{{SYSTEM_CLASS}}-spacing-scale-8);
+  width: 100%;
+}
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-slider:focus-visible {
+  border-radius: var(--{{SYSTEM_CLASS}}-radius-full);
+  box-shadow: var(--{{SYSTEM_CLASS}}-shadow-focus);
+  outline: 0;
+}
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-slider::-webkit-slider-runnable-track {
+  background: var(--{{SYSTEM_CLASS}}-color-surface-sunken);
+  border-radius: var(--{{SYSTEM_CLASS}}-radius-full);
+  height: var(--{{SYSTEM_CLASS}}-spacing-scale-1);
+}
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-slider::-moz-range-track {
+  background: var(--{{SYSTEM_CLASS}}-color-surface-sunken);
+  border-radius: var(--{{SYSTEM_CLASS}}-radius-full);
+  height: var(--{{SYSTEM_CLASS}}-spacing-scale-1);
+}
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-slider[aria-invalid="true"]::-webkit-slider-runnable-track,
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-slider[aria-invalid="true"]::-moz-range-track {
+  background: var(--{{SYSTEM_CLASS}}-color-status-danger);
+}
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-slider::-webkit-slider-thumb {
+  appearance: none;
+  background: var(--{{SYSTEM_CLASS}}-color-action-primary);
+  border: 1px solid var(--{{SYSTEM_CLASS}}-color-surface-raised);
+  border-radius: var(--{{SYSTEM_CLASS}}-radius-full);
+  box-shadow: var(--{{SYSTEM_CLASS}}-shadow-sm);
+  height: var(--{{SYSTEM_CLASS}}-spacing-scale-4);
+  margin-top: calc(
+    (var(--{{SYSTEM_CLASS}}-spacing-scale-1) - var(--{{SYSTEM_CLASS}}-spacing-scale-4)) / 2
+  );
+  width: var(--{{SYSTEM_CLASS}}-spacing-scale-4);
+}
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-slider::-moz-range-thumb {
+  background: var(--{{SYSTEM_CLASS}}-color-action-primary);
+  border: 1px solid var(--{{SYSTEM_CLASS}}-color-surface-raised);
+  border-radius: var(--{{SYSTEM_CLASS}}-radius-full);
+  box-shadow: var(--{{SYSTEM_CLASS}}-shadow-sm);
+  height: var(--{{SYSTEM_CLASS}}-spacing-scale-4);
+  width: var(--{{SYSTEM_CLASS}}-spacing-scale-4);
+}
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-slider:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}

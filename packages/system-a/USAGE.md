@@ -1,8 +1,12 @@
 # Compose with System A
 
-These examples use the twenty required V4 contracts and public package imports.
-They also work with a different V4 system after changing the package import.
-Optional capabilities must be checked in the installed `./manifest` first.
+These examples use the twenty-nine required components of the current contract
+(version 4) and public package imports.
+They also work with a different system implementing the same contract after changing
+the package import.
+Optional capabilities must be checked in the installed `./manifest` first: a component
+is available only as a key in `manifest.components`, and `capabilities.categories` maps
+names to categories rather than declaring availability.
 Import `@prism-system/ui-system-a/styles.css` once in the application entry point.
 For Tailwind v4, use the import order shown in [README.md](./README.md).
 

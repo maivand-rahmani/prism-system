@@ -1,0 +1,20 @@
+import * as React from "react";
+import { cn, type DatePickerProps } from "@prism-system/ui-core";
+
+export type { DatePickerProps };
+
+export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(function DatePicker(
+  { className, invalid = false, ...props },
+  ref,
+) {
+  return (
+    <input
+      ref={ref}
+      className={cn("{{SYSTEM_CLASS}}-ui", "{{SYSTEM_CLASS}}-date-picker", className)}
+      {...props}
+      aria-invalid={invalid ? true : props["aria-invalid"]}
+      type="date"
+    />
+  );
+});
+DatePicker.displayName = "DatePicker";

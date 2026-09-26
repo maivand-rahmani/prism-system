@@ -2,8 +2,8 @@
 
 System A is the quiet option in the Maivand component family: warm surfaces,
 ink-led typography, fine borders, and restrained motion. It implements the
-canonical **V4 contract** — twenty required components plus the optional
-components this package explicitly ships.
+current contract (version 4) — twenty-nine required components plus the eleven
+optional capabilities this package explicitly ships.
 
 ## Design brief
 
@@ -74,7 +74,7 @@ export function Example() {
 
 See [USAGE.md](./USAGE.md) for a complete content page and interactive form,
 including validation, focus refs, and Select trigger composition. The examples
-ship with this package and use only required V4 components.
+ship with this package and use only required components.
 
 ## Foundations
 
@@ -98,23 +98,24 @@ CSS/Tailwind names from the shipped manifest without publishing values.
 
 ## Components
 
-The package root always exports the twenty required V4 components, in canonical
-order:
+The package root always exports the twenty-nine required components of the current
+contract (version 4), in canonical order:
 
 `Button`, `Input`, `Textarea`, `Card`, `Badge`, `Checkbox`, `RadioGroup`,
 `Switch`, `Select`, `Tabs`, `Dialog`, `DropdownMenu`, `Tooltip`, `Separator`,
-`Heading`, `Text`, `Link`, `Container`, `Stack`, `FormField`.
+`Heading`, `Text`, `Link`, `Container`, `Stack`, `FormField`, `Center`,
+`Cluster`, `Sidebar`, `AspectRatio`, `Combobox`, `DatePicker`, `NumberField`,
+`Slider`, `FileUpload`.
 
-The fourteen V2 components keep their existing public API. Compound components expose
+The public API of these required components is stable: they are never renamed,
+removed, or altered to make room for something else. Compound components expose
 their documented static members (`Card.Header`, `Tabs.List`, `Dialog.Content`,
 `DropdownMenu.Item`, `FormField.Control`, and so on).
 
-System A also implements these optional V4 capabilities: `Grid`, `Fieldset`
-(`Fieldset.Legend`), `Alert` (`Alert.Title`, `Alert.Description`), `Progress`,
-`Accordion` (`Item`, `Header`, `Trigger`, `Content`), `Pagination` (`List`, `Item`,
-`Link`, `Previous`, `Next`, `Current`, `Ellipsis`), and `Table` (`Caption`,
-`Header`, `Body`, `Footer`, `Row`, `Head`, `Cell`). Other optional V4 names are
-not implemented by this package and are therefore unavailable.
+System A also implements these eleven optional capabilities: `Grid`, `Fieldset`,
+`Alert`, `Progress`, `Accordion`, `Pagination`, `Table`, `Metric`,
+`DescriptionList`, `Meter`, and `Timeline`. Other optional names are not
+implemented by this package and are therefore unavailable.
 
 Variants, sizes, compound members, and usage rules for every component are published
 in the generated manifest at `@prism-system/ui-system-a/manifest` — that is the
@@ -126,7 +127,7 @@ live catalog at **`/showcase/system-a`**, or read them offline with
 
 - **Identity:** the visual source of truth is `@prism-system/ui-system-a` at the
   installed version.
-- **Available UI:** the twenty required V4 components, the optional capabilities
+- **Available UI:** the twenty-nine required components, the optional capabilities
   listed above, their compound members, and the tokens from
   `@prism-system/ui-system-a/tokens`.
 - **Compose with props.** Prefer existing components over local replacements, and use
@@ -158,11 +159,20 @@ calm, warm visual language.
 ## Manifest and version
 
 Every installed System A package ships a generated `design-system.json` manifest,
-available at `@prism-system/ui-system-a/manifest`. It records the exact package
-version, the component catalog, variants, sizes, compound members, token names, and
-the strict usage rules for this system. Regenerate the manifest with
-`pnpm ds:manifest system-a --write` after changing the package-owned
-`design-system.source.json`. After `changeset version` changes `package.json.version`,
+available at `@prism-system/ui-system-a/manifest`. It is `schemaVersion: 4` and
+records the current contract (`contractVersion: 4`), the exact package version, the
+component catalog, variants, sizes, compound members, token names, and the strict
+usage rules for this system. The manifest also carries the canonical
+`capabilities.categories` inventory (`composition`, `forms`, `data-display`)
+shared by every system: it maps component names to categories, not to availability.
+A component is available only when its name is a key in `manifest.components`;
+derive category availability by intersecting the two, and remember that categories
+do not cover every component. The package-owned `design-system.source.json` stays
+`schemaVersion: 3` and must never declare a `capabilities` block. Regenerate the
+manifest with `pnpm ds:manifest system-a --write` after changing the package-owned
+`design-system.source.json`. Readers built for `schemaVersion: 3` must be upgraded
+in lockstep: current `prism-ds` requires schema 4 and rejects schema 3, and an older
+`prism-ds` cannot read a schema-4 manifest. After `changeset version` changes `package.json.version`,
 run `pnpm ds:sync-versions` from the monorepo root to align the runtime version, the
 generated manifest, and the registry entry; `pnpm ds:sync-versions --check` fails
 without writing when they drift.

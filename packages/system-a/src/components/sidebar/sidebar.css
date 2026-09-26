@@ -1,0 +1,25 @@
+:where(.maivand-a-ui).maivand-a-sidebar {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--maivand-a-spacing-semantic-section);
+  min-width: 0;
+}
+:where(.maivand-a-ui).maivand-a-sidebar > :first-child {
+  flex-basis: 15rem;
+  flex-grow: 1;
+  min-width: 0;
+}
+:where(.maivand-a-ui).maivand-a-sidebar > :last-child {
+  flex-basis: 0;
+  flex-grow: 999;
+  min-width: min(50%, 28rem);
+}
+@media (max-width: 40rem) {
+  :where(.maivand-a-ui).maivand-a-sidebar {
+    gap: var(--maivand-a-spacing-semantic-stack);
+  }
+  :where(.maivand-a-ui).maivand-a-sidebar > :last-child {
+    min-width: 100%;
+  }
+}

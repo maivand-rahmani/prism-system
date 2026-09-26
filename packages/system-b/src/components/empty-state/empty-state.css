@@ -1,0 +1,31 @@
+:where(.maivand-b-ui).maivand-b-empty-state {
+  background: var(--maivand-b-color-surface-raised);
+  border: 1px dashed var(--maivand-b-color-border-strong);
+  border-radius: var(--maivand-b-radius-sm);
+  box-shadow: var(--maivand-b-shadow-sm);
+  display: grid;
+  gap: var(--maivand-b-spacing-scale-2);
+  justify-items: start;
+  padding: var(--maivand-b-spacing-scale-6);
+}
+:where(.maivand-b-ui) .maivand-b-empty-state-title {
+  color: var(--maivand-b-color-text-primary);
+  font-size: var(--maivand-b-typography-size-xl);
+  font-weight: var(--maivand-b-typography-weight-semibold);
+  letter-spacing: var(--maivand-b-typography-letter-spacing-tight);
+  line-height: var(--maivand-b-typography-line-height-tight);
+  margin: 0;
+}
+:where(.maivand-b-ui) .maivand-b-empty-state-description {
+  color: var(--maivand-b-color-text-secondary);
+  font-size: var(--maivand-b-typography-size-sm);
+  line-height: var(--maivand-b-typography-line-height-relaxed);
+  margin: var(--maivand-b-spacing-scale-2) 0 0;
+  max-width: 34rem;
+}
+:where(.maivand-b-ui) .maivand-b-empty-state-action {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--maivand-b-spacing-scale-2);
+  margin-top: var(--maivand-b-spacing-scale-2);
+}

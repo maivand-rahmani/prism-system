@@ -2,8 +2,8 @@
 
 System B is the sharp, expressive option in the Maivand component family: night
 surfaces, electric coral actions, cyan focus cues, and confident physical motion.
-It is a V4 design system for products with a strong point of view and a little
-more visual voltage.
+It is a design system for the current contract (version 4) for products with a strong
+point of view and a little more visual voltage.
 
 ## Design brief
 
@@ -94,7 +94,7 @@ content width.
 
 See [USAGE.md](./USAGE.md) for a complete content page and interactive form,
 including validation, focus refs, and Select trigger composition. The examples
-ship with this package and use only required V4 components.
+ship with this package and use only required components.
 
 ## Foundations
 
@@ -118,19 +118,22 @@ CSS/Tailwind names from the shipped manifest without publishing values.
 
 ## Components
 
-The package root always exports the twenty required V4 components, in canonical
-order:
+The package root always exports the twenty-nine required components of the current
+contract (version 4), in canonical order:
 
 `Button`, `Input`, `Textarea`, `Card`, `Badge`, `Checkbox`, `RadioGroup`,
 `Switch`, `Select`, `Tabs`, `Dialog`, `DropdownMenu`, `Tooltip`, `Separator`,
-`Heading`, `Text`, `Link`, `Container`, `Stack`, `FormField`.
+`Heading`, `Text`, `Link`, `Container`, `Stack`, `FormField`, `Center`,
+`Cluster`, `Sidebar`, `AspectRatio`, `Combobox`, `DatePicker`, `NumberField`,
+`Slider`, `FileUpload`.
 
-The fourteen V2 components keep their existing public API. Compound components expose
+The public API of these required components is stable: they are never renamed,
+removed, or altered to make room for something else. Compound components expose
 their documented static members (`Card.Header`, `Tabs.List`, `Select.Item`,
 `Dialog.Content`, `FormField.Control`, `Section.Header`, `Toast.Viewport`,
 `Avatar.Image`, `Breadcrumbs.List`, and so on).
 
-System B also implements six optional V4 capabilities with real behavior, local CSS,
+System B also implements nine optional capabilities with real behavior, local CSS,
 and public exports:
 
 - `Section` — a page region with `Header`, `Title`, `Description`, `Content`, and `Footer`.
@@ -139,6 +142,9 @@ and public exports:
 - `Toast` — polite, pausable notifications with `Provider`, `Viewport`, `Root`, `Title`, `Description`, `Action`, and `Close`.
 - `Avatar` — an image with an initials `Fallback`.
 - `Breadcrumbs` — an accessible navigation trail with `List`, `Item`, `Link`, and `Current`.
+- `Metric` — a compact, labelled statistic with supporting context.
+- `Timeline` — an ordered sequence of events.
+- `EmptyState` — a neutral "nothing here yet" placeholder with `Title`, `Description`, and `Action`.
 
 Optional components that are not listed here are simply unavailable; this package
 never ships empty stubs. Variants, sizes, compound members, and usage rules for every
@@ -151,8 +157,8 @@ list. See the states, variants, and examples in the live catalog at
 
 - **Identity:** the visual source of truth is `@prism-system/ui-system-b` at the
   installed version.
-- **Available UI:** the twenty required V4 components, the six optional capabilities
-  above, their compound members, and the tokens from
+- **Available UI:** the twenty-nine required components, the nine optional
+  capabilities above, their compound members, and the tokens from
   `@prism-system/ui-system-b/tokens`.
 - **Compose with props.** Prefer existing components over local replacements, and use
   component props rather than class overrides.
@@ -191,9 +197,20 @@ generated CSS variables.
 ## Manifest and version
 
 Every installed System B package ships a generated `design-system.json` manifest,
-available at `@prism-system/ui-system-b/manifest`. It records the exact package
-version, the component catalog, variants, sizes, compound members, token names,
-and the strict usage rules for this system. After `changeset version` changes
+available at `@prism-system/ui-system-b/manifest`. It is `schemaVersion: 4` and
+records the current contract (`contractVersion: 4`), the exact package version, the
+component catalog, variants, sizes, compound members, token names, and the strict
+usage rules for this system. The manifest also carries the canonical
+`capabilities.categories` inventory (`composition`, `forms`, `data-display`)
+shared by every system: it maps component names to categories, not to availability.
+A component is available only when its name is a key in `manifest.components`;
+derive category availability by intersecting the two, and remember that categories
+do not cover every component. The package-owned `design-system.source.json` stays
+`schemaVersion: 3` and must never declare a `capabilities` block. Regenerate the
+manifest with `pnpm ds:manifest system-b --write` after changing the package-owned
+`design-system.source.json`. Readers built for `schemaVersion: 3` must be upgraded
+in lockstep: current `prism-ds` requires schema 4 and rejects schema 3, and an older
+`prism-ds` cannot read a schema-4 manifest. After `changeset version` changes
 `package.json.version`, run `pnpm ds:sync-versions` from the monorepo root to
 align the runtime version, the generated manifest, and the registry entry;
 `pnpm ds:sync-versions --check` fails without writing when they drift.

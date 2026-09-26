@@ -1,4 +1,4 @@
-import { defineDesignSystemV4 } from "@prism-system/ui-core";
+import { defineDesignSystem } from "@prism-system/ui-core";
 import {
   Alert,
   Avatar,
@@ -7,41 +7,54 @@ import {
   Button,
   Card,
   Checkbox,
+  Center,
+  Cluster,
+  AspectRatio,
+  Combobox,
   Container,
+  DatePicker,
   Dialog,
   DropdownMenu,
+  EmptyState,
+  FileUpload,
   FormField,
   Heading,
   Input,
   Link,
+  Metric,
+  NumberField,
   RadioGroup,
   Section,
   Select,
   Separator,
   Skeleton,
+  Sidebar,
+  Slider,
   Stack,
   Switch,
   Tabs,
   Text,
   Textarea,
+  Timeline,
   Toast,
   Tooltip,
 } from "./components/index.js";
 
 /**
- * Canonical V4 runtime map for System B.
+ * Canonical runtime map for System B.
  *
- * The twenty required V4 components plus exactly the optional capabilities this
- * system implements: `Section`, `Alert`, `Skeleton`, `Toast`, `Avatar`, and
- * `Breadcrumbs`. Omitted optional components are simply unavailable; there are
- * no empty stubs. The component map mirrors `design-system.source.json`.
+ * The twenty-nine required components plus exactly the optional capabilities
+ * this system implements: `Section`, `Alert`, `Skeleton`, `Toast`, `Avatar`,
+ * `Breadcrumbs`, `Metric`, `Timeline`, and `EmptyState`. Omitted optional
+ * components are simply unavailable; there are no empty stubs. The component
+ * map mirrors `design-system.source.json`.
  */
-export const DesignSystem = defineDesignSystemV4({
+export const DesignSystem = defineDesignSystem({
   id: "system-b",
   name: "System B",
   packageName: "@prism-system/ui-system-b",
   version: "2.0.0",
-  componentContract: "v4",
+  contractVersion: 4,
   components: {
     Button,
     Input,
@@ -63,15 +76,27 @@ export const DesignSystem = defineDesignSystemV4({
     Container,
     Stack,
     FormField,
+    Center,
+    Cluster,
+    Sidebar,
+    AspectRatio,
+    Combobox,
+    DatePicker,
+    NumberField,
+    Slider,
+    FileUpload,
     Section,
     Alert,
     Skeleton,
     Toast,
     Avatar,
     Breadcrumbs,
+    Metric,
+    Timeline,
+    EmptyState,
   },
   meta: {
-    description: "A contrasty, expressive V4 system with electric accents and physical motion.",
+    description: "A contrasty, expressive system with electric accents and physical motion.",
     design: {
       density: "compact",
       theme: "dark-first",

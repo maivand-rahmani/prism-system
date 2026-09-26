@@ -1,0 +1,18 @@
+import * as React from "react";
+import { cn, type SidebarProps } from "@prism-system/ui-core";
+
+export type { SidebarProps };
+
+export const Sidebar = React.forwardRef<HTMLDivElement, SidebarProps>(function Sidebar(
+  { className, ...props },
+  ref,
+) {
+  return (
+    <div
+      ref={ref}
+      className={cn("{{SYSTEM_CLASS}}-ui", "{{SYSTEM_CLASS}}-sidebar", className)}
+      {...props}
+    />
+  );
+});
+Sidebar.displayName = "Sidebar";

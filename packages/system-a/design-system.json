@@ -1,8 +1,8 @@
 {
-  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system-v4.schema.json",
-  "schemaVersion": 2,
+  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system.schema.json",
+  "schemaVersion": 4,
   "generated": "prism-system/design-system-manifest",
-  "contract": "v4",
+  "contractVersion": 4,
   "id": "system-a",
   "name": "System A",
   "package": "@prism-system/ui-system-a",
@@ -44,6 +44,15 @@
       "Container",
       "Stack",
       "FormField",
+      "Center",
+      "Cluster",
+      "Sidebar",
+      "AspectRatio",
+      "Combobox",
+      "DatePicker",
+      "NumberField",
+      "Slider",
+      "FileUpload",
       "Grid",
       "Fieldset",
       "Alert",
@@ -51,6 +60,10 @@
       "Accordion",
       "Pagination",
       "Table",
+      "Metric",
+      "DescriptionList",
+      "Timeline",
+      "Meter",
       "DesignSystem",
       "systemATokens"
     ],
@@ -183,6 +196,51 @@
       "sizes": [],
       "members": ["Label", "Control", "Description", "Error"]
     },
+    "Center": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Cluster": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Sidebar": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "AspectRatio": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Combobox": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Input", "Content", "Item"]
+    },
+    "DatePicker": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "NumberField": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Slider": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "FileUpload": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
     "Grid": {
       "variants": [],
       "sizes": [],
@@ -217,6 +275,51 @@
       "variants": [],
       "sizes": [],
       "members": ["Caption", "Header", "Body", "Footer", "Row", "Head", "Cell"]
+    },
+    "Metric": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Label", "Value", "Description"]
+    },
+    "DescriptionList": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Item", "Term", "Description"]
+    },
+    "Timeline": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Item", "Title", "Time", "Description"]
+    },
+    "Meter": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    }
+  },
+  "capabilities": {
+    "categories": {
+      "composition": {
+        "required": ["Container", "Stack", "Center", "Cluster", "Sidebar", "AspectRatio"],
+        "optional": ["Grid", "Section"]
+      },
+      "forms": {
+        "required": ["FormField", "Combobox", "DatePicker", "NumberField", "Slider", "FileUpload"],
+        "optional": []
+      },
+      "data-display": {
+        "required": [],
+        "optional": [
+          "Table",
+          "Pagination",
+          "Progress",
+          "Metric",
+          "DescriptionList",
+          "Timeline",
+          "Meter",
+          "EmptyState"
+        ]
+      }
     }
   },
   "design": {

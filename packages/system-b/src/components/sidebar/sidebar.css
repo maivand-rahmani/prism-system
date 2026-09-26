@@ -1,0 +1,11 @@
+:where(.maivand-b-ui).maivand-b-sidebar {
+  align-items: start;
+  display: grid;
+  gap: var(--maivand-b-spacing-scale-6);
+  grid-template-columns: minmax(12rem, 0.72fr) minmax(0, 2fr);
+}
+@media (max-width: 48rem) {
+  :where(.maivand-b-ui).maivand-b-sidebar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

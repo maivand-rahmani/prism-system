@@ -1,0 +1,51 @@
+:where(.maivand-b-ui).maivand-b-metric {
+  align-items: start;
+  background: var(--maivand-b-color-surface-raised);
+  border: 1px solid var(--maivand-b-color-border-default);
+  border-top: 3px solid var(--maivand-b-color-action-primary);
+  border-radius: var(--maivand-b-radius-sm);
+  box-shadow: var(--maivand-b-shadow-sm);
+  display: grid;
+  gap: var(--maivand-b-spacing-scale-1);
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: var(--maivand-b-spacing-scale-4);
+  transition:
+    border-color var(--maivand-b-motion-duration-normal) var(--maivand-b-motion-easing-standard),
+    transform var(--maivand-b-motion-duration-normal) var(--maivand-b-motion-easing-standard),
+    box-shadow var(--maivand-b-motion-duration-normal) var(--maivand-b-motion-easing-standard);
+}
+:where(.maivand-b-ui).maivand-b-metric:hover {
+  border-color: var(--maivand-b-color-border-strong);
+  box-shadow: var(--maivand-b-shadow-md);
+  transform: translate(-2px, -2px);
+}
+:where(.maivand-b-ui).maivand-b-metric[data-trend="positive"] {
+  border-top-color: var(--maivand-b-color-status-success);
+}
+:where(.maivand-b-ui).maivand-b-metric[data-trend="negative"] {
+  border-top-color: var(--maivand-b-color-status-danger);
+}
+:where(.maivand-b-ui) .maivand-b-metric-label {
+  color: var(--maivand-b-color-text-secondary);
+  font-size: var(--maivand-b-typography-size-sm);
+  font-weight: var(--maivand-b-typography-weight-semibold);
+  grid-column: 1 / -1;
+  letter-spacing: var(--maivand-b-typography-letter-spacing-wide);
+  margin: 0;
+  text-transform: uppercase;
+}
+:where(.maivand-b-ui) .maivand-b-metric-value {
+  color: var(--maivand-b-color-text-primary);
+  font-size: var(--maivand-b-typography-size-3xl);
+  font-weight: var(--maivand-b-typography-weight-bold);
+  letter-spacing: var(--maivand-b-typography-letter-spacing-tight);
+  line-height: var(--maivand-b-typography-line-height-tight);
+  margin: 0;
+}
+:where(.maivand-b-ui) .maivand-b-metric-description {
+  color: var(--maivand-b-color-text-muted);
+  font-size: var(--maivand-b-typography-size-sm);
+  grid-column: 1 / -1;
+  line-height: var(--maivand-b-typography-line-height-normal);
+  margin: var(--maivand-b-spacing-scale-1) 0 0;
+}

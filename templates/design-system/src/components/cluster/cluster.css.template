@@ -1,0 +1,7 @@
+:where(.{{SYSTEM_CLASS}}-ui).{{SYSTEM_CLASS}}-cluster {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--{{SYSTEM_CLASS}}-spacing-semantic-inline);
+  min-width: 0;
+}

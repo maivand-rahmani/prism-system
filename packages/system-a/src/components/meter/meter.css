@@ -1,0 +1,25 @@
+:where(.maivand-a-ui).maivand-a-meter {
+  accent-color: var(--maivand-a-color-action-primary);
+  display: block;
+  height: 10px;
+  max-width: 100%;
+  width: 100%;
+}
+:where(.maivand-a-ui).maivand-a-meter::-webkit-meter-bar {
+  background: var(--maivand-a-color-surface-sunken);
+  border: 1px solid var(--maivand-a-color-border-default);
+  border-radius: var(--maivand-a-radius-full);
+  height: 10px;
+}
+:where(.maivand-a-ui).maivand-a-meter::-webkit-meter-optimum-value {
+  background: var(--maivand-a-color-status-success);
+  border-radius: var(--maivand-a-radius-full);
+}
+:where(.maivand-a-ui).maivand-a-meter::-webkit-meter-suboptimum-value {
+  background: var(--maivand-a-color-status-warning);
+  border-radius: var(--maivand-a-radius-full);
+}
+:where(.maivand-a-ui).maivand-a-meter::-webkit-meter-even-less-good-value {
+  background: var(--maivand-a-color-status-danger);
+  border-radius: var(--maivand-a-radius-full);
+}

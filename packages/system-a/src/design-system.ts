@@ -1,48 +1,62 @@
-import { defineDesignSystemV4 } from "@prism-system/ui-core";
+import { defineDesignSystem } from "@prism-system/ui-core";
 import {
   Accordion,
+  AspectRatio,
   Alert,
   Badge,
   Button,
   Card,
+  Center,
   Checkbox,
+  Cluster,
+  Combobox,
   Container,
+  DatePicker,
+  DescriptionList,
   Dialog,
   DropdownMenu,
+  FileUpload,
   Fieldset,
   FormField,
   Grid,
   Heading,
   Input,
   Link,
+  Meter,
+  Metric,
+  NumberField,
   Pagination,
   Progress,
   RadioGroup,
   Select,
   Separator,
+  Sidebar,
+  Slider,
   Stack,
   Switch,
   Table,
   Tabs,
   Text,
   Textarea,
+  Timeline,
   Tooltip,
 } from "./components/index.js";
 
 /**
- * Canonical V4 runtime map for System A.
+ * Canonical runtime map for System A.
  *
- * The twenty required components are always present; the optional components
+ * The twenty-nine required components are always present; the optional components
  * below are capabilities System A actually implements (Grid, Fieldset, Alert,
- * Progress, Accordion, Pagination, Table). Any other optional V4 name is
- * intentionally absent and therefore unavailable.
+ * Progress, Accordion, Pagination, Table, Metric, DescriptionList, Meter, and
+ * Timeline). Any other optional name is intentionally absent and therefore
+ * unavailable.
  */
-export const DesignSystem = defineDesignSystemV4({
+export const DesignSystem = defineDesignSystem({
   id: "system-a",
   name: "System A",
   packageName: "@prism-system/ui-system-a",
   version: "2.0.0",
-  componentContract: "v4",
+  contractVersion: 4,
   components: {
     Button,
     Input,
@@ -64,6 +78,15 @@ export const DesignSystem = defineDesignSystemV4({
     Container,
     Stack,
     FormField,
+    Center,
+    Cluster,
+    Sidebar,
+    AspectRatio,
+    Combobox,
+    DatePicker,
+    NumberField,
+    Slider,
+    FileUpload,
     Grid,
     Fieldset,
     Alert,
@@ -71,6 +94,10 @@ export const DesignSystem = defineDesignSystemV4({
     Accordion,
     Pagination,
     Table,
+    Metric,
+    DescriptionList,
+    Meter,
+    Timeline,
   },
   meta: {
     description: "A calm, focused visual system with warm surfaces and quiet rhythm.",

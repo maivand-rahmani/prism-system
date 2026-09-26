@@ -1,0 +1,6 @@
+:where(.maivand-b-ui).maivand-b-center {
+  box-sizing: border-box;
+  margin-inline: auto;
+  max-width: var(--maivand-b-containers-narrow);
+  width: 100%;
+}

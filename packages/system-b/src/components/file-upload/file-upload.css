@@ -1,0 +1,46 @@
+:where(.maivand-b-ui).maivand-b-file-upload {
+  background: var(--maivand-b-color-surface-raised);
+  border: 1px dashed var(--maivand-b-color-border-strong);
+  border-radius: var(--maivand-b-radius-sm);
+  color: var(--maivand-b-color-text-secondary);
+  min-height: 44px;
+  padding: 6px;
+  transition:
+    border-color var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard),
+    background-color var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard),
+    box-shadow var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard);
+  width: 100%;
+}
+:where(.maivand-b-ui).maivand-b-file-upload::file-selector-button {
+  background: var(--maivand-b-color-action-secondary);
+  border: 1px solid var(--maivand-b-color-border-default);
+  border-radius: var(--maivand-b-radius-sm);
+  color: var(--maivand-b-color-action-secondary-text);
+  cursor: pointer;
+  font: inherit;
+  font-weight: var(--maivand-b-typography-weight-semibold);
+  margin-inline-end: 10px;
+  padding: 7px 10px;
+  transition:
+    background-color var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard),
+    border-color var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard);
+}
+:where(.maivand-b-ui).maivand-b-file-upload:hover:not(:disabled) {
+  border-color: var(--maivand-b-color-border-focus);
+}
+:where(.maivand-b-ui).maivand-b-file-upload::file-selector-button:hover {
+  background: var(--maivand-b-color-action-secondary-hover);
+  border-color: var(--maivand-b-color-border-strong);
+}
+:where(.maivand-b-ui).maivand-b-file-upload:focus-visible {
+  border-color: var(--maivand-b-color-border-focus);
+  box-shadow: var(--maivand-b-shadow-focus);
+  outline: none;
+}
+:where(.maivand-b-ui).maivand-b-file-upload[aria-invalid="true"] {
+  border-color: var(--maivand-b-color-status-danger);
+}
+:where(.maivand-b-ui).maivand-b-file-upload:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}

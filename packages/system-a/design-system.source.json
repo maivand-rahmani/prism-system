@@ -1,7 +1,7 @@
 {
-  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system-source-v4.schema.json",
-  "schemaVersion": 2,
-  "contract": "v4",
+  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system.source.schema.json",
+  "schemaVersion": 3,
+  "contractVersion": 4,
   "name": "System A",
   "components": {
     "Button": {
@@ -130,6 +130,51 @@
       "sizes": [],
       "members": ["Label", "Control", "Description", "Error"]
     },
+    "Center": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Cluster": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Sidebar": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "AspectRatio": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Combobox": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Input", "Content", "Item"]
+    },
+    "DatePicker": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "NumberField": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Slider": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "FileUpload": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
     "Grid": {
       "variants": [],
       "sizes": [],
@@ -164,6 +209,26 @@
       "variants": [],
       "sizes": [],
       "members": ["Caption", "Header", "Body", "Footer", "Row", "Head", "Cell"]
+    },
+    "Metric": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Label", "Value", "Description"]
+    },
+    "DescriptionList": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Item", "Term", "Description"]
+    },
+    "Meter": {
+      "variants": [],
+      "sizes": [],
+      "members": []
+    },
+    "Timeline": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Item", "Title", "Time", "Description"]
     }
   },
   "design": {

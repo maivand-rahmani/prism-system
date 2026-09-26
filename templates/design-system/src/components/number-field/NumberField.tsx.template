@@ -1,0 +1,20 @@
+import * as React from "react";
+import { cn, type NumberFieldProps } from "@prism-system/ui-core";
+
+export type { NumberFieldProps };
+
+export const NumberField = React.forwardRef<HTMLInputElement, NumberFieldProps>(function NumberField(
+  { className, invalid = false, ...props },
+  ref,
+) {
+  return (
+    <input
+      ref={ref}
+      className={cn("{{SYSTEM_CLASS}}-ui", "{{SYSTEM_CLASS}}-number-field", className)}
+      {...props}
+      aria-invalid={invalid ? true : props["aria-invalid"]}
+      type="number"
+    />
+  );
+});
+NumberField.displayName = "NumberField";

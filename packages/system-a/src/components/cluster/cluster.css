@@ -1,0 +1,7 @@
+:where(.maivand-a-ui).maivand-a-cluster {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--maivand-a-spacing-semantic-inline);
+  min-width: 0;
+}
