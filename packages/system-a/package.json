@@ -1,6 +1,6 @@
 {
   "name": "@prism-system/ui-system-a",
-  "version": "3.0.0",
+  "version": "2.0.0",
   "description": "A calm, focused design system for clear editorial product interfaces, built on @prism-system/ui-core.",
   "prismSystem": {
     "name": "System A",

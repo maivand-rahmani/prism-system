@@ -6,7 +6,7 @@
       "name": "System A",
       "packageName": "@prism-system/ui-system-a",
       "packagePath": "packages/system-a",
-      "version": "3.0.0",
+      "version": "2.0.0",
       "uiClass": "maivand-a-ui",
       "tokensExport": "systemATokens",
       "contractVersion": 4
@@ -16,7 +16,7 @@
       "name": "System B",
       "packageName": "@prism-system/ui-system-b",
       "packagePath": "packages/system-b",
-      "version": "3.0.0",
+      "version": "2.0.0",
       "uiClass": "maivand-b-ui",
       "tokensExport": "systemBTokens",
       "contractVersion": 4
