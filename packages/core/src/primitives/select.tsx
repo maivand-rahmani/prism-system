@@ -17,7 +17,7 @@ export { SelectPrimitive };
  * stable `data-slot` markers.
  *
  * `Select`, `SelectGroup`, and `SelectValue` are Radix components whose props
- * already match the V1 contract (`SelectProps`, `SelectGroupProps`,
+ * already match the contract (`SelectProps`, `SelectGroupProps`,
  * `SelectValueProps`).
  */
 export const Select = SelectPrimitive.Root;

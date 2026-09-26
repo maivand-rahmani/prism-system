@@ -1,5 +1,5 @@
 /**
- * Shared, styling-agnostic types used by the V1 component contracts.
+ * Shared, styling-agnostic types used by the component contracts.
  *
  * These types describe semantics only. They deliberately contain no concrete
  * token values, colors, spacing, or other visual decisions.

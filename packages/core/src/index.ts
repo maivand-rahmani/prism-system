@@ -2,8 +2,8 @@
  * @prism-system/ui-core — unstyled shared foundation for Maivand design systems.
  *
  * Exposes:
- * - the V2 and additive V4 component contracts (types only)
- * - the data-driven `DesignSystem` / `DesignSystemV4` types and registries
+ * - the shared component contract (types only)
+ * - the data-driven `DesignSystem` type and its registry
  * - the unstyled shadcn/Radix foundation primitives
  * - shared utilities, accessibility helpers, and common hooks
  *

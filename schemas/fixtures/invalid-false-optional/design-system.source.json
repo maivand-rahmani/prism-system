@@ -1,8 +1,8 @@
 {
-  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system-source-v4.schema.json",
-  "schemaVersion": 2,
-  "contract": "v4",
-  "name": "V4 Unknown Component",
+  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system.source.schema.json",
+  "schemaVersion": 3,
+  "contractVersion": 4,
+  "name": "V4 False Optional",
   "components": {
     "Button": { "variants": [], "sizes": [], "members": [] },
     "Input": { "variants": [], "sizes": [], "members": [] },
@@ -24,7 +24,16 @@
     "Container": { "variants": [], "sizes": [], "members": [] },
     "Stack": { "variants": [], "sizes": [], "members": [] },
     "FormField": { "variants": [], "sizes": [], "members": [] },
-    "Widget": { "variants": [], "sizes": [], "members": [] }
+    "Center": { "variants": [], "sizes": [], "members": [] },
+    "Cluster": { "variants": [], "sizes": [], "members": [] },
+    "Sidebar": { "variants": [], "sizes": [], "members": [] },
+    "AspectRatio": { "variants": [], "sizes": [], "members": [] },
+    "Combobox": { "variants": [], "sizes": [], "members": [] },
+    "DatePicker": { "variants": [], "sizes": [], "members": [] },
+    "NumberField": { "variants": [], "sizes": [], "members": [] },
+    "Slider": { "variants": [], "sizes": [], "members": [] },
+    "FileUpload": { "variants": [], "sizes": [], "members": [] },
+    "Grid": false
   },
   "design": { "density": "comfortable", "theme": "dual", "radius": "medium", "keywords": [] },
   "rules": {

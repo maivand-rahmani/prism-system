@@ -7,7 +7,7 @@ import { cn } from "../utils/cn.js";
 import { cva, type VariantProps } from "../utils/cva.js";
 
 /**
- * Unstyled shadcn-style base recipe for the V1 `Badge` contract.
+ * Unstyled shadcn-style base recipe for the `Badge` contract.
  *
  * Every class slot is empty on purpose. The recipe preserves the variant/size
  * API shape while a design system owns all color, radius, and typography. The
@@ -39,7 +39,7 @@ export const badgeVariants = cva("", {
 /**
  * Structural base props for the shadcn-style Badge.
  *
- * The V1 `BadgeProps` `dot` affordance is a visual decision owned by the design
+ * The `BadgeProps` `dot` affordance is a visual decision owned by the design
  * system wrapper, so it is not part of the core base.
  */
 export interface BadgeBaseProps

@@ -7,7 +7,7 @@ import { cn } from "../utils/cn.js";
 import { cva, type VariantProps } from "../utils/cva.js";
 
 /**
- * Unstyled shadcn-style base recipe for the V1 `Button` contract.
+ * Unstyled shadcn-style base recipe for the `Button` contract.
  *
  * The base and every variant/size slot are intentionally empty: core never owns
  * colors, typography, spacing, radius, borders, shadows, or motion. A design
@@ -40,7 +40,7 @@ export const buttonVariants = cva("", {
 /**
  * Structural base props for the shadcn-style Button.
  *
- * This is deliberately narrower than the full V1 `ButtonProps` contract: the
+ * This is deliberately narrower than the full `ButtonProps` contract: the
  * visual concerns (`loading`, `leftIcon`, `rightIcon`, `fullWidth`) belong to a
  * design system wrapper, which can compose this base and add its own classes.
  */

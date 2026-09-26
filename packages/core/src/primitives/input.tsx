@@ -8,7 +8,7 @@ import { cn } from "../utils/cn.js";
  * Structural base props for the shadcn-style Input.
  *
  * The native `size` attribute is omitted so `size` refers to the control size.
- * The full V1 `InputProps` contract adds `startAdornment`/`endAdornment` and
+ * The full `InputProps` contract adds `startAdornment`/`endAdornment` and
  * field chrome, which a design system wrapper owns.
  */
 export interface InputBaseProps extends Omit<React.ComponentPropsWithoutRef<"input">, "size"> {

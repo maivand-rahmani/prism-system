@@ -8,6 +8,7 @@ import type {
   AlertDescriptionProps,
   AlertProps,
   AlertTitleProps,
+  AspectRatioProps,
   AvatarFallbackProps,
   AvatarImageProps,
   AvatarProps,
@@ -24,8 +25,19 @@ import type {
   CardHeaderProps,
   CardProps,
   CardTitleProps,
+  CenterProps,
   CheckboxProps,
+  ClusterProps,
+  ComboboxContentProps,
+  ComboboxInputProps,
+  ComboboxItemProps,
+  ComboboxProps,
   ContainerProps,
+  DatePickerProps,
+  DescriptionListDescriptionProps,
+  DescriptionListItemProps,
+  DescriptionListProps,
+  DescriptionListTermProps,
   DialogCloseProps,
   DialogContentProps,
   DialogDescriptionProps,
@@ -52,8 +64,13 @@ import type {
   DropdownMenuSubProps,
   DropdownMenuSubTriggerProps,
   DropdownMenuTriggerProps,
+  EmptyStateActionProps,
+  EmptyStateDescriptionProps,
+  EmptyStateProps,
+  EmptyStateTitleProps,
   FieldsetLegendProps,
   FieldsetProps,
+  FileUploadProps,
   FormFieldControlProps,
   FormFieldDescriptionProps,
   FormFieldErrorProps,
@@ -63,6 +80,12 @@ import type {
   HeadingProps,
   InputProps,
   LinkProps,
+  MeterProps,
+  MetricDescriptionProps,
+  MetricLabelProps,
+  MetricProps,
+  MetricValueProps,
+  NumberFieldProps,
   PaginationCurrentProps,
   PaginationEllipsisProps,
   PaginationItemProps,
@@ -90,7 +113,9 @@ import type {
   SelectTriggerProps,
   SelectValueProps,
   SeparatorProps,
+  SidebarProps,
   SkeletonProps,
+  SliderProps,
   StackProps,
   SwitchProps,
   SwitchThumbProps,
@@ -108,6 +133,11 @@ import type {
   TabsTriggerProps,
   TextProps,
   TextareaProps,
+  TimelineDescriptionProps,
+  TimelineItemProps,
+  TimelineProps,
+  TimelineTimeProps,
+  TimelineTitleProps,
   ToastActionProps,
   ToastCloseProps,
   ToastDescriptionProps,
@@ -124,18 +154,8 @@ import type {
 } from "../contracts/index.js";
 
 /* -------------------------------------------------------------------------- */
-/* Canonical component contracts                                               */
+/* Component contracts                                                         */
 /* -------------------------------------------------------------------------- */
-
-/**
- * The canonical shared component contract.
- *
- * Every design system must provide all fourteen entries with a compatible API
- * so Showcase and Reference App can swap systems without changing the
- * interface. The historical eight-component V1 contract
- * (`Button, Input, Card, Badge, Checkbox, Tabs, Dialog, Select`) is no longer an
- * active contract: it is referenced in comments only, for migration history.
- */
 
 export type ButtonComponent = ComponentType<ButtonProps>;
 export type InputComponent = ComponentType<InputProps>;
@@ -143,6 +163,23 @@ export type TextareaComponent = ComponentType<TextareaProps>;
 export type BadgeComponent = ComponentType<BadgeProps>;
 export type CheckboxComponent = ComponentType<CheckboxProps>;
 export type SeparatorComponent = ComponentType<SeparatorProps>;
+export type HeadingComponent = ComponentType<HeadingProps>;
+export type TextComponent = ComponentType<TextProps>;
+export type LinkComponent = ComponentType<LinkProps>;
+export type ContainerComponent = ComponentType<ContainerProps>;
+export type StackComponent = ComponentType<StackProps>;
+export type GridComponent = ComponentType<GridProps>;
+export type ProgressComponent = ComponentType<ProgressProps>;
+export type SkeletonComponent = ComponentType<SkeletonProps>;
+export type CenterComponent = ComponentType<CenterProps>;
+export type ClusterComponent = ComponentType<ClusterProps>;
+export type SidebarComponent = ComponentType<SidebarProps>;
+export type AspectRatioComponent = ComponentType<AspectRatioProps>;
+export type DatePickerComponent = ComponentType<DatePickerProps>;
+export type NumberFieldComponent = ComponentType<NumberFieldProps>;
+export type SliderComponent = ComponentType<SliderProps>;
+export type FileUploadComponent = ComponentType<FileUploadProps>;
+export type MeterComponent = ComponentType<MeterProps>;
 
 /**
  * Compound component contracts.
@@ -221,89 +258,6 @@ export type TooltipComponent = ComponentType<TooltipProps> & {
   Arrow: ComponentType<TooltipArrowProps>;
 };
 
-/**
- * The canonical shared component contract.
- *
- * Exactly fourteen entries, in canonical order:
- * `Button`, `Input`, `Textarea`, `Card`, `Badge`, `Checkbox`, `RadioGroup`,
- * `Switch`, `Select`, `Tabs`, `Dialog`, `DropdownMenu`, `Tooltip`, `Separator`.
- *
- * This is the only active V2 contract. A design system must satisfy it in full;
- * the eight-component V1 contract is historical and unsupported. The V4 contract
- * below is a separate, additive map that never widens this one.
- */
-export interface DesignSystemComponents {
-  Button: ButtonComponent;
-  Input: InputComponent;
-  Textarea: TextareaComponent;
-  Card: CardComponent;
-  Badge: BadgeComponent;
-  Checkbox: CheckboxComponent;
-  RadioGroup: RadioGroupComponent;
-  Switch: SwitchComponent;
-  Select: SelectComponent;
-  Tabs: TabsComponent;
-  Dialog: DialogComponent;
-  DropdownMenu: DropdownMenuComponent;
-  Tooltip: TooltipComponent;
-  Separator: SeparatorComponent;
-}
-
-export type DesignSystemComponentName = keyof DesignSystemComponents;
-
-/** The fourteen required component names, in canonical order. */
-export const REQUIRED_COMPONENTS = [
-  "Button",
-  "Input",
-  "Textarea",
-  "Card",
-  "Badge",
-  "Checkbox",
-  "RadioGroup",
-  "Switch",
-  "Select",
-  "Tabs",
-  "Dialog",
-  "DropdownMenu",
-  "Tooltip",
-  "Separator",
-] as const satisfies readonly DesignSystemComponentName[];
-
-/** A design system component that may carry additional system-specific members. */
-export type DesignSystemComponent = DesignSystemComponents[DesignSystemComponentName];
-
-/* -------------------------------------------------------------------------- */
-/* V2 aliases                                                                  */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Source-compatible aliases to the canonical contract above.
- *
- * The V2 names are kept so existing V2 consumers keep compiling, but they are
- * exact aliases: they must never describe a different shape than
- * {@link DesignSystemComponents} and {@link REQUIRED_COMPONENTS}.
- */
-export type DesignSystemComponentsV2 = DesignSystemComponents;
-export type DesignSystemComponentNameV2 = DesignSystemComponentName;
-export const REQUIRED_COMPONENTS_V2: typeof REQUIRED_COMPONENTS = REQUIRED_COMPONENTS;
-export type DesignSystemComponentV2 = DesignSystemComponent;
-
-/* -------------------------------------------------------------------------- */
-/* V4 contract (additive)                                                      */
-/* -------------------------------------------------------------------------- */
-
-/**
- * V4 single-component contracts for the six new required components.
- *
- * V4 reuses the canonical V2 components unchanged for the original fourteen;
- * only the six additions and the optional components get new component types.
- */
-export type HeadingComponent = ComponentType<HeadingProps>;
-export type TextComponent = ComponentType<TextProps>;
-export type LinkComponent = ComponentType<LinkProps>;
-export type ContainerComponent = ComponentType<ContainerProps>;
-export type StackComponent = ComponentType<StackProps>;
-
 export type FormFieldComponent = ComponentType<FormFieldProps> & {
   Label: ComponentType<FormFieldLabelProps>;
   Control: ComponentType<FormFieldControlProps>;
@@ -311,12 +265,12 @@ export type FormFieldComponent = ComponentType<FormFieldProps> & {
   Error: ComponentType<FormFieldErrorProps>;
 };
 
-/** V4 optional single-component contracts. */
-export type GridComponent = ComponentType<GridProps>;
-export type ProgressComponent = ComponentType<ProgressProps>;
-export type SkeletonComponent = ComponentType<SkeletonProps>;
+export type ComboboxComponent = ComponentType<ComboboxProps> & {
+  Input: ComponentType<ComboboxInputProps>;
+  Content: ComponentType<ComboboxContentProps>;
+  Item: ComponentType<ComboboxItemProps>;
+};
 
-/** V4 optional compound-component contracts. */
 export type SectionComponent = ComponentType<SectionProps> & {
   Header: ComponentType<SectionHeaderProps>;
   Title: ComponentType<SectionTitleProps>;
@@ -383,19 +337,55 @@ export type TableComponent = ComponentType<TableProps> & {
   Cell: ComponentType<TableCellProps>;
 };
 
+export type MetricComponent = ComponentType<MetricProps> & {
+  Label: ComponentType<MetricLabelProps>;
+  Value: ComponentType<MetricValueProps>;
+  Description: ComponentType<MetricDescriptionProps>;
+};
+
+export type DescriptionListComponent = ComponentType<DescriptionListProps> & {
+  Item: ComponentType<DescriptionListItemProps>;
+  Term: ComponentType<DescriptionListTermProps>;
+  Description: ComponentType<DescriptionListDescriptionProps>;
+};
+
+export type TimelineComponent = ComponentType<TimelineProps> & {
+  Item: ComponentType<TimelineItemProps>;
+  Title: ComponentType<TimelineTitleProps>;
+  Time: ComponentType<TimelineTimeProps>;
+  Description: ComponentType<TimelineDescriptionProps>;
+};
+
+export type EmptyStateComponent = ComponentType<EmptyStateProps> & {
+  Title: ComponentType<EmptyStateTitleProps>;
+  Description: ComponentType<EmptyStateDescriptionProps>;
+  Action: ComponentType<EmptyStateActionProps>;
+};
+
+/* -------------------------------------------------------------------------- */
+/* The shared component contract                                               */
+/* -------------------------------------------------------------------------- */
+
 /**
- * The V4 shared component contract.
+ * The shared component contract.
  *
- * Twenty required entries, in plan order (the canonical V2 fourteen followed by
- * `Heading`, `Text`, `Link`, `Container`, `Stack`, `FormField`), plus twelve
- * optional entries that a design system implements only when it declares the
- * capability: `Grid`, `Section`, `Fieldset`, `Alert`, `Progress`, `Skeleton`,
- * `Toast`, `Accordion`, `Avatar`, `Breadcrumbs`, `Pagination`, `Table`.
+ * Twenty-nine required entries, in canonical order: the established contract
+ * through `FormField`, followed by `Center`, `Cluster`, `Sidebar`,
+ * `AspectRatio`, `Combobox`, `DatePicker`, `NumberField`, `Slider`, and
+ * `FileUpload`.
  *
- * V4 is additive and separate from {@link DesignSystemComponents}: it never
- * widens the V2 map or its registry.
+ * Seventeen optional entries: `Grid`, `Section`, `Fieldset`, `Alert`,
+ * `Progress`, `Skeleton`, `Toast`, `Accordion`, `Avatar`, `Breadcrumbs`,
+ * `Pagination`, `Table`, `Metric`, `DescriptionList`, `Timeline`, `Meter`, and
+ * `EmptyState`.
+ *
+ * Every design system must provide all twenty-nine required entries with a
+ * compatible API so Showcase and Reference App can swap systems without
+ * changing the interface. Optional entries are capabilities: a system declares
+ * only the ones it really implements, and an omitted name is unavailable —
+ * empty stubs are not allowed.
  */
-export interface DesignSystemComponentsV4 {
+export interface DesignSystemComponents {
   Button: ButtonComponent;
   Input: InputComponent;
   Textarea: TextareaComponent;
@@ -416,6 +406,15 @@ export interface DesignSystemComponentsV4 {
   Container: ContainerComponent;
   Stack: StackComponent;
   FormField: FormFieldComponent;
+  Center: CenterComponent;
+  Cluster: ClusterComponent;
+  Sidebar: SidebarComponent;
+  AspectRatio: AspectRatioComponent;
+  Combobox: ComboboxComponent;
+  DatePicker: DatePickerComponent;
+  NumberField: NumberFieldComponent;
+  Slider: SliderComponent;
+  FileUpload: FileUploadComponent;
   Grid?: GridComponent;
   Section?: SectionComponent;
   Fieldset?: FieldsetComponent;
@@ -428,12 +427,17 @@ export interface DesignSystemComponentsV4 {
   Breadcrumbs?: BreadcrumbsComponent;
   Pagination?: PaginationComponent;
   Table?: TableComponent;
+  Metric?: MetricComponent;
+  DescriptionList?: DescriptionListComponent;
+  Timeline?: TimelineComponent;
+  Meter?: MeterComponent;
+  EmptyState?: EmptyStateComponent;
 }
 
-export type DesignSystemComponentNameV4 = keyof DesignSystemComponentsV4;
+export type DesignSystemComponentName = keyof DesignSystemComponents;
 
-/** The twenty required V4 component names, in plan order. */
-export const REQUIRED_COMPONENTS_V4 = [
+/** The twenty-nine required component names, in canonical order. */
+export const REQUIRED_COMPONENTS = [
   "Button",
   "Input",
   "Textarea",
@@ -454,10 +458,19 @@ export const REQUIRED_COMPONENTS_V4 = [
   "Container",
   "Stack",
   "FormField",
-] as const satisfies readonly DesignSystemComponentNameV4[];
+  "Center",
+  "Cluster",
+  "Sidebar",
+  "AspectRatio",
+  "Combobox",
+  "DatePicker",
+  "NumberField",
+  "Slider",
+  "FileUpload",
+] as const satisfies readonly DesignSystemComponentName[];
 
-/** The twelve optional V4 component names, in plan order. */
-export const OPTIONAL_COMPONENTS_V4 = [
+/** The seventeen optional component names, in canonical order. */
+export const OPTIONAL_COMPONENTS = [
   "Grid",
   "Section",
   "Fieldset",
@@ -470,7 +483,23 @@ export const OPTIONAL_COMPONENTS_V4 = [
   "Breadcrumbs",
   "Pagination",
   "Table",
-] as const satisfies readonly DesignSystemComponentNameV4[];
+  "Metric",
+  "DescriptionList",
+  "Timeline",
+  "Meter",
+  "EmptyState",
+] as const satisfies readonly DesignSystemComponentName[];
 
-/** A V4 design system component that may carry additional system-specific members. */
-export type DesignSystemComponentV4 = DesignSystemComponentsV4[DesignSystemComponentNameV4];
+type RequiredComponentName = (typeof REQUIRED_COMPONENTS)[number];
+type OptionalComponentName = (typeof OPTIONAL_COMPONENTS)[number];
+
+/**
+ * A component value a design system may declare in the shared contract.
+ *
+ * The union of every required and optional component type. Optional names are
+ * absent from systems that do not implement them; when declared, the value must
+ * be a real component, never `undefined` or `null`.
+ */
+export type DesignSystemComponent =
+  | DesignSystemComponents[RequiredComponentName]
+  | NonNullable<DesignSystemComponents[OptionalComponentName]>;

@@ -46,85 +46,60 @@ If a change would give core a visual opinion, it belongs in a design system pack
 - Runtime code that touches the DOM or React hooks must be marked `"use client"`.
 - Relative imports inside `src` use explicit `.js` extensions (NodeNext output).
 
-## The V2 contract (canonical)
+## The shared component contract
 
-The canonical V2 contract remains supported and unchanged. Exactly fourteen
-components are required, in canonical order:
-
-```text
-Button, Input, Textarea, Card, Badge, Checkbox, RadioGroup, Switch, Select,
-Tabs, Dialog, DropdownMenu, Tooltip, Separator
-```
-
-- `Button`, `Input`, `Textarea`, `Badge`, `Checkbox`, and `Separator` are single
-  components.
-- `Card`, `RadioGroup`, `Switch`, `Select`, `Tabs`, `Dialog`, `DropdownMenu`, and
-  `Tooltip` are compound components whose sub-components are attached as static members
-  (`Card.Header`, `RadioGroup.Item`, `Switch.Thumb`, `Select.Item`, `Tabs.Trigger`,
-  `Dialog.Content`, `DropdownMenu.Item`, `Tooltip.Content`).
-- `DesignSystemComponents` is the canonical fourteen-entry map, with
-  `DesignSystemComponentName`, `DesignSystemComponent`, and the exact
-  `REQUIRED_COMPONENTS` tuple. The `DesignSystemComponentsV2`,
-  `DesignSystemComponentNameV2`, `DesignSystemComponentV2`, and
-  `REQUIRED_COMPONENTS_V2` names are exact source-compatible aliases.
-- `DesignSystem` is V2-only and requires `componentContract: "v2"`.
-  `defineDesignSystem` and `defineDesignSystemV2` both enforce the full fourteen-entry
-  shape and marker; the registry rejects anything without the `"v2"` marker.
-- Contract types live in `src/contracts`. The assembly of all fourteen lives in
-  `src/design-system/components.ts`. Styling-agnostic contracts for the six added
-  components live in `src/contracts` (`textarea`, `radio-group`, `switch`,
-  `dropdown-menu`, `tooltip`, `separator`).
-- Unstyled behavior-only adapters live in `src/primitives` and may re-export the
-  corresponding Radix namespace. They add no colors, tokens, spacing, radius, shadows,
-  surfaces, motion, or visual variants.
-- `defineDesignSystemV2` and the V2 contract are allowed in core. V2 factory tooling
-  (skills, templates, generators, validation) and V3 lifecycle tooling are **not** —
-  keep them out of core.
-
-## The V4 contract (additive)
-
-V4 is an additional contract that coexists with V2. It never replaces, widens, or
-weakens the canonical V2 contract. Exactly twenty components are required, in plan
-order:
+There is exactly one current component contract. Exactly twenty-nine components are
+required, in canonical order:
 
 ```text
 Button, Input, Textarea, Card, Badge, Checkbox, RadioGroup, Switch, Select,
 Tabs, Dialog, DropdownMenu, Tooltip, Separator, Heading, Text, Link, Container,
-Stack, FormField
+Stack, FormField, Center, Cluster, Sidebar, AspectRatio, Combobox, DatePicker,
+NumberField, Slider, FileUpload
 ```
 
-Twelve more are optional: `Grid`, `Section`, `Fieldset`, `Alert`, `Progress`,
-`Skeleton`, `Toast`, `Accordion`, `Avatar`, `Breadcrumbs`, `Pagination`, `Table`.
+Seventeen more are optional: `Grid`, `Section`, `Fieldset`, `Alert`, `Progress`,
+`Skeleton`, `Toast`, `Accordion`, `Avatar`, `Breadcrumbs`, `Pagination`, `Table`,
+`Metric`, `DescriptionList`, `Timeline`, `Meter`, `EmptyState`.
 A system implements only the optional components it declares; empty stubs are not
-allowed.
+allowed, and an omitted optional name is simply unavailable.
 
-- The V4 names are separate exports: `DesignSystemComponentsV4`,
-  `DesignSystemComponentNameV4`, `DesignSystemComponentV4`, `REQUIRED_COMPONENTS_V4`,
-  `OPTIONAL_COMPONENTS_V4`, `DesignSystemV4`, `DesignSystemRegistryV4`,
-  `defineDesignSystemV4`, and `createDesignSystemRegistryV4`.
-- `DesignSystemComponentsV4` is additive: the existing V2 names
-  (`DesignSystemComponents`, `DesignSystemComponentName`, `DesignSystemComponent`,
-  `REQUIRED_COMPONENTS`, `DesignSystem`, `defineDesignSystem`,
-  `DesignSystemRegistry`, `createDesignSystemRegistry`) keep their exact V2 shape.
-  The V4 registry has its own runtime guard that validates the `"v4"` marker and
-  every required key; it never widens the V2 registry.
-- V4 contract types live in `src/contracts` (`heading`, `text`, `link`,
-  `container`, `stack`, `form-field`, and the twelve optional components). The V4
-  assembly lives in `src/design-system/components.ts`, and the V4 type, helper,
-  and registry live in `src/design-system/design-system.ts`.
-- V4 stays unstyled: the added contracts use native React props and expose no
-  colors, tokens, scales, variants, or spacing. `Grid`, `Container`, and `Stack`
-  deliberately carry no layout-scale props; layout values remain in the design
-  system.
-- V4 factory and lifecycle tooling (generators, validation, manifests) is **not**
-  part of core. Do not add it here.
-
-## The V1 contract (historical, unsupported)
-
-The historical eight-component V1 contract
-(`Button`, `Input`, `Card`, `Badge`, `Checkbox`, `Tabs`, `Dialog`, `Select`) is no longer
-supported. Do not restore it, create new V1 systems, or accept eight-component system
-maps; migrate existing consumers to the canonical V2 contract instead.
+- `Button`, `Input`, `Textarea`, `Badge`, `Checkbox`, `Separator`, `Heading`,
+  `Text`, `Link`, `Container`, `Stack`, `Grid`, `Progress`, `Skeleton`,
+  `Center`, `Cluster`, `Sidebar`, `AspectRatio`, `DatePicker`, `NumberField`,
+  `Slider`, `FileUpload`, and `Meter` are single components.
+- `Card`, `RadioGroup`, `Switch`, `Select`, `Tabs`, `Dialog`, `DropdownMenu`,
+  `Tooltip`, `FormField`, `Combobox`, and the optional compound components
+  (`Section`, `Fieldset`, `Alert`, `Toast`, `Accordion`, `Avatar`,
+  `Breadcrumbs`, `Pagination`, `Table`, `Metric`, `DescriptionList`, `Timeline`,
+  `EmptyState`) attach their sub-components as static members
+  (`Card.Header`, `RadioGroup.Item`, `Switch.Thumb`, `Select.Item`, `Tabs.Trigger`,
+  `Dialog.Content`, `DropdownMenu.Item`, `Tooltip.Content`, `FormField.Control`,
+  `Combobox.Input`, `Metric.Value`).
+- The public exports are neutral: `DesignSystemComponents`,
+  `DesignSystemComponentName`, `DesignSystemComponent`, `REQUIRED_COMPONENTS`,
+  `OPTIONAL_COMPONENTS`, `DesignSystem`, `defineDesignSystem`,
+  `DesignSystemRegistry`, and `createDesignSystemRegistry`. There is one map and
+  one registry; parallel versioned aliases and separate registries are not part of
+  the API.
+- `DesignSystem` requires the numeric `contractVersion: 4` marker.
+  `defineDesignSystem` enforces the full twenty-nine-entry required shape (plus
+  any declared optional subset); the registry rejects anything without the
+  numeric marker, missing a required component, carrying an unknown name, or
+  declaring a non-component value. Optional omission is allowed; an explicitly
+  declared `null`/`undefined` value is not.
+- Contract types live in `src/contracts`. The assembly of the full map lives in
+  `src/design-system/components.ts`; the `DesignSystem` type, the definition
+  helper, and the registry live in `src/design-system/design-system.ts`.
+- Unstyled behavior-only adapters live in `src/primitives` and may re-export the
+  corresponding Radix namespace or implement the behavior directly (Combobox).
+  They add no colors, tokens, spacing, radius, shadows, surfaces, motion, or
+  visual variants.
+- The contract stays unstyled: the added contracts use native React props and
+  expose no colors, tokens, scales, variants, or spacing. `Grid`, `Container`,
+  `Stack`, `Center`, `Cluster`, and `Sidebar` deliberately carry no layout-scale
+  props, and `AspectRatio` adds only the structural `ratio`; layout values remain
+  in the design system.
 
 ## Accessibility expectations
 
@@ -141,9 +116,9 @@ document the accessibility expectation next to the type. Reusable helpers in
 
 ## Scope
 
-Core owns the canonical fourteen-component V2 contract, the additive V4 contract
-(twenty required plus twelve optional), their unstyled adapters, and the historical
-V1 definitions kept only for migration history. The two contracts coexist: V4 is a
-separate set of exports and a separate registry, and does not restore V1 or replace
-V2. Do not add V2/V4 factory tooling (create-design-system skills, templates,
-generators, validation) or V3/V4 manifest/lifecycle tooling to core.
+Core owns the shared component contract (twenty-nine required plus seventeen
+optional), their unstyled adapters, utilities, accessibility helpers, and hooks.
+There is one map, one `DesignSystem` type, and one registry; do not add parallel
+versioned aliases, string contract markers, or separate registries. Do not add
+factory tooling (create-design-system skills, templates, generators, validation)
+or manifest/lifecycle tooling to core.

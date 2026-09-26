@@ -9,7 +9,7 @@ import { cn } from "../utils/cn.js";
  * Structural base props for the shadcn-style Card root.
  *
  * `variant` and `padding` are forwarded as `data-*` attributes only; core does
- * not define any surface, border, radius, or shadow values. The full V1
+ * not define any surface, border, radius, or shadow values. The full
  * `CardProps` contract is satisfied by a design system wrapper that adds
  * classes and assembles the compound `Card.Header`/`Card.Title`/... members.
  */

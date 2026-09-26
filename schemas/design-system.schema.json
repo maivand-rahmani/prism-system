@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/maivand-rahmani/prism-system/schemas/design-system.schema.json",
   "title": "Design System Manifest",
-  "description": "The generated, shipped consumer manifest at packages/<id>/design-system.json. It is produced deterministically by scripts/design-system-manifest.mjs from the package-owned design-system.source.json, package.json, and design-brief.json. Do not edit it by hand: run `pnpm ds:manifest <id> --write` to regenerate. `package.json.version` is authoritative; the manifest version, the registry entry version, and the runtime DesignSystem.version must all match it.",
+  "description": "The generated, shipped consumer manifest at packages/<id>/design-system.json (schemaVersion 4, contractVersion 4). It is produced deterministically by scripts/design-system-manifest.mjs from the package-owned design-system.source.json, tokens.source.json, package.json, and design-brief.json. It exposes the 29 required components and only the implemented optional components, the canonical capability-category inventory (`capabilities.categories`), flattened semantic token names (never token values), artifact paths, and package-relative docs paths. Do not edit it by hand: run `pnpm ds:manifest <id> --write` to regenerate. `package.json.version` is authoritative.",
   "type": "object",
   "required": [
     "$schema",
     "schemaVersion",
     "generated",
-    "contract",
+    "contractVersion",
     "id",
     "name",
     "package",
@@ -16,8 +16,11 @@
     "exports",
     "publicApi",
     "components",
+    "capabilities",
     "design",
-    "rules"
+    "rules",
+    "tokens",
+    "docs"
   ],
   "additionalProperties": false,
   "properties": {
@@ -26,16 +29,17 @@
       "description": "Reference to this schema."
     },
     "schemaVersion": {
-      "const": 1,
-      "description": "Generated-manifest schema version. Bump when the shape changes."
+      "const": 4,
+      "description": "Generated-manifest schema version. The package-owned source descriptor stays schemaVersion 3."
     },
     "generated": {
       "const": "prism-system/design-system-manifest",
       "description": "Generated marker identifying the emitting tool."
     },
-    "contract": {
-      "const": "v2",
-      "description": "The component contract the package implements. V2 is the only supported contract."
+    "contractVersion": {
+      "const": 4,
+      "type": "integer",
+      "description": "The numeric component contract version the package implements. Only version 4 is supported."
     },
     "id": {
       "type": "string",
@@ -73,7 +77,7 @@
     },
     "components": {
       "type": "object",
-      "description": "The fourteen required V2 components with their declared variants, sizes, and compound members.",
+      "description": "The 29 required components plus only the optional components the system implements. Absence means unavailable.",
       "required": [
         "Button",
         "Input",
@@ -88,7 +92,22 @@
         "Dialog",
         "DropdownMenu",
         "Tooltip",
-        "Separator"
+        "Separator",
+        "Heading",
+        "Text",
+        "Link",
+        "Container",
+        "Stack",
+        "FormField",
+        "Center",
+        "Cluster",
+        "Sidebar",
+        "AspectRatio",
+        "Combobox",
+        "DatePicker",
+        "NumberField",
+        "Slider",
+        "FileUpload"
       ],
       "additionalProperties": false,
       "properties": {
@@ -105,7 +124,119 @@
         "Dialog": { "$ref": "#/$defs/component" },
         "DropdownMenu": { "$ref": "#/$defs/component" },
         "Tooltip": { "$ref": "#/$defs/component" },
-        "Separator": { "$ref": "#/$defs/component" }
+        "Separator": { "$ref": "#/$defs/component" },
+        "Heading": { "$ref": "#/$defs/component" },
+        "Text": { "$ref": "#/$defs/component" },
+        "Link": { "$ref": "#/$defs/component" },
+        "Container": { "$ref": "#/$defs/component" },
+        "Stack": { "$ref": "#/$defs/component" },
+        "FormField": { "$ref": "#/$defs/component" },
+        "Center": { "$ref": "#/$defs/component" },
+        "Cluster": { "$ref": "#/$defs/component" },
+        "Sidebar": { "$ref": "#/$defs/component" },
+        "AspectRatio": { "$ref": "#/$defs/component" },
+        "Combobox": { "$ref": "#/$defs/component" },
+        "DatePicker": { "$ref": "#/$defs/component" },
+        "NumberField": { "$ref": "#/$defs/component" },
+        "Slider": { "$ref": "#/$defs/component" },
+        "FileUpload": { "$ref": "#/$defs/component" },
+        "Grid": { "$ref": "#/$defs/component" },
+        "Section": { "$ref": "#/$defs/component" },
+        "Fieldset": { "$ref": "#/$defs/component" },
+        "Alert": { "$ref": "#/$defs/component" },
+        "Progress": { "$ref": "#/$defs/component" },
+        "Skeleton": { "$ref": "#/$defs/component" },
+        "Toast": { "$ref": "#/$defs/component" },
+        "Accordion": { "$ref": "#/$defs/component" },
+        "Avatar": { "$ref": "#/$defs/component" },
+        "Breadcrumbs": { "$ref": "#/$defs/component" },
+        "Pagination": { "$ref": "#/$defs/component" },
+        "Table": { "$ref": "#/$defs/component" },
+        "Metric": { "$ref": "#/$defs/component" },
+        "DescriptionList": { "$ref": "#/$defs/component" },
+        "Timeline": { "$ref": "#/$defs/component" },
+        "Meter": { "$ref": "#/$defs/component" },
+        "EmptyState": { "$ref": "#/$defs/component" }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "description": "The canonical capability-category inventory generated into every manifest. It is a category-membership reference only, not a second availability declaration: whether a component is available is determined exclusively by the names present in `components`.",
+      "required": ["categories"],
+      "additionalProperties": false,
+      "properties": {
+        "categories": {
+          "type": "object",
+          "description": "Exactly the canonical categories, each with its fixed required/optional membership in canonical order. Values are generated from one canonical definition in scripts/design-system-manifest.mjs and are never declared in a package-owned source descriptor.",
+          "required": ["composition", "forms", "data-display"],
+          "additionalProperties": false,
+          "properties": {
+            "composition": {
+              "type": "object",
+              "description": "Layout and composition components.",
+              "required": ["required", "optional"],
+              "additionalProperties": false,
+              "properties": {
+                "required": {
+                  "const": ["Container", "Stack", "Center", "Cluster", "Sidebar", "AspectRatio"],
+                  "description": "The exact required composition components, in canonical order."
+                },
+                "optional": {
+                  "const": ["Grid", "Section"],
+                  "description": "The exact optional composition components, in canonical order. A system that does not implement one simply omits it from `components`."
+                }
+              }
+            },
+            "forms": {
+              "type": "object",
+              "description": "Form and input components.",
+              "required": ["required", "optional"],
+              "additionalProperties": false,
+              "properties": {
+                "required": {
+                  "const": [
+                    "FormField",
+                    "Combobox",
+                    "DatePicker",
+                    "NumberField",
+                    "Slider",
+                    "FileUpload"
+                  ],
+                  "description": "The exact required form components, in canonical order."
+                },
+                "optional": {
+                  "const": [],
+                  "description": "The exact optional form components, in canonical order; currently none."
+                }
+              }
+            },
+            "data-display": {
+              "type": "object",
+              "description": "Data display and feedback components.",
+              "required": ["required", "optional"],
+              "additionalProperties": false,
+              "properties": {
+                "required": {
+                  "const": [],
+                  "description": "The exact required data-display components, in canonical order; currently none."
+                },
+                "optional": {
+                  "const": [
+                    "Table",
+                    "Pagination",
+                    "Progress",
+                    "Metric",
+                    "DescriptionList",
+                    "Timeline",
+                    "Meter",
+                    "EmptyState"
+                  ],
+                  "description": "The exact optional data-display components, in canonical order. A system that does not implement one simply omits it from `components`."
+                }
+              }
+            }
+          }
+        }
       }
     },
     "design": {
@@ -140,6 +271,118 @@
         "allowArbitraryShadows": { "type": "boolean" },
         "allowPrimitiveDuplication": { "type": "boolean" }
       }
+    },
+    "tokens": {
+      "type": "object",
+      "description": "Flattened semantic token names (never values) grouped by token group, package-relative artifact paths, and the naming contract consumers read from the manifest only (`names.cssVariablePrefix` for CSS custom properties, `names.tailwindUtilityPrefix` for Tailwind utilities).",
+      "required": ["groups", "artifacts", "names"],
+      "additionalProperties": false,
+      "properties": {
+        "names": {
+          "type": "object",
+          "description": "The canonical token naming contract, derived by the generator from the same constants the CSS and Tailwind artifacts use. Readers must use these values from the manifest instead of guessing prefixes; both fields are safe lower-kebab namespaces.",
+          "required": ["cssVariablePrefix", "tailwindUtilityPrefix"],
+          "additionalProperties": false,
+          "properties": {
+            "cssVariablePrefix": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+              "description": "Prefix of every CSS custom property the package stylesheet defines, e.g. `maivand-a` for `--maivand-a-color-text-primary`."
+            },
+            "tailwindUtilityPrefix": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+              "description": "Namespace of every semantic Tailwind theme key the bridge aliases, e.g. `prism` for `--color-prism-text-primary`."
+            }
+          }
+        },
+        "groups": {
+          "type": "object",
+          "required": [
+            "themes",
+            "typography",
+            "spacing",
+            "containers",
+            "breakpoints",
+            "layers",
+            "radius",
+            "shadow",
+            "motion"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "themes": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "typography": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "spacing": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "containers": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "breakpoints": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "layers": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "radius": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "shadow": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "motion": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            }
+          }
+        },
+        "artifacts": {
+          "type": "object",
+          "required": ["typescript", "css", "tailwind"],
+          "additionalProperties": false,
+          "properties": {
+            "typescript": { "type": "string", "pattern": "^\\./.+" },
+            "css": { "type": "string", "pattern": "^\\./.+" },
+            "tailwind": { "type": "string", "pattern": "^\\./.+" }
+          }
+        }
+      }
+    },
+    "docs": {
+      "type": "object",
+      "description": "Package-relative documentation paths.",
+      "required": ["readme", "agents"],
+      "additionalProperties": false,
+      "properties": {
+        "readme": { "type": "string", "pattern": "^\\./.+" },
+        "agents": { "type": "string", "pattern": "^\\./.+" },
+        "brief": { "type": "string", "pattern": "^\\./.+" },
+        "foundations": { "type": "string", "pattern": "^\\./.+" },
+        "components": { "type": "string", "pattern": "^\\./.+" },
+        "usage": { "type": "string", "pattern": "^\\./.+" }
+      }
     }
   },
   "$defs": {
@@ -162,7 +405,10 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "uniqueItems": true
-        }
+        },
+        "description": { "type": "string", "minLength": 1 },
+        "docs": { "type": "string", "minLength": 1 },
+        "example": { "type": "string", "minLength": 1 }
       }
     }
   }

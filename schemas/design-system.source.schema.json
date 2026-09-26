@@ -2,9 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/maivand-rahmani/prism-system/schemas/design-system.source.schema.json",
   "title": "Design System Source Descriptor",
-  "description": "The explicit, package-owned API descriptor at packages/<id>/design-system.source.json. It declares each V2 component's variants, sizes, and compound members by hand so the generated manifest never infers them from CSS or fragile source regexes. It is a repository-only input and is not shipped in the tarball. scripts/design-system-manifest.mjs validates it and emits the shipped design-system.json.",
+  "description": "The explicit, package-owned API descriptor at packages/<id>/design-system.source.json (schemaVersion 3, contractVersion 4). It declares the 29 required components and only the optional components the system actually implements. Omitting an optional component means it is unavailable; there are no boolean false entries and no second capability list. Visual values are not stored here: semantic tokens live in the separate packages/<id>/tokens.source.json. It is a repository-only input and is not shipped in the tarball. scripts/design-system-manifest.mjs validates it and emits the shipped design-system.json.",
   "type": "object",
-  "required": ["schemaVersion", "contract", "name", "components", "design", "rules"],
+  "required": ["schemaVersion", "contractVersion", "name", "components", "design", "rules"],
   "additionalProperties": false,
   "properties": {
     "$schema": {
@@ -12,12 +12,13 @@
       "description": "Reference to this schema."
     },
     "schemaVersion": {
-      "const": 1,
-      "description": "Source-descriptor schema version. Bump when the shape changes."
+      "const": 3,
+      "description": "Source-descriptor schema version."
     },
-    "contract": {
-      "const": "v2",
-      "description": "The component contract the package implements. V2 is the only supported contract."
+    "contractVersion": {
+      "const": 4,
+      "type": "integer",
+      "description": "The numeric component contract version the package implements. Only version 4 is supported."
     },
     "name": {
       "type": "string",
@@ -26,7 +27,7 @@
     },
     "components": {
       "type": "object",
-      "description": "Exactly the fourteen required V2 components, each with declared variants, sizes, and compound members.",
+      "description": "The 29 required components plus only implemented optional components. Absence means the optional component is unavailable.",
       "required": [
         "Button",
         "Input",
@@ -41,7 +42,22 @@
         "Dialog",
         "DropdownMenu",
         "Tooltip",
-        "Separator"
+        "Separator",
+        "Heading",
+        "Text",
+        "Link",
+        "Container",
+        "Stack",
+        "FormField",
+        "Center",
+        "Cluster",
+        "Sidebar",
+        "AspectRatio",
+        "Combobox",
+        "DatePicker",
+        "NumberField",
+        "Slider",
+        "FileUpload"
       ],
       "additionalProperties": false,
       "properties": {
@@ -58,7 +74,39 @@
         "Dialog": { "$ref": "#/$defs/component" },
         "DropdownMenu": { "$ref": "#/$defs/component" },
         "Tooltip": { "$ref": "#/$defs/component" },
-        "Separator": { "$ref": "#/$defs/component" }
+        "Separator": { "$ref": "#/$defs/component" },
+        "Heading": { "$ref": "#/$defs/component" },
+        "Text": { "$ref": "#/$defs/component" },
+        "Link": { "$ref": "#/$defs/component" },
+        "Container": { "$ref": "#/$defs/component" },
+        "Stack": { "$ref": "#/$defs/component" },
+        "FormField": { "$ref": "#/$defs/component" },
+        "Center": { "$ref": "#/$defs/component" },
+        "Cluster": { "$ref": "#/$defs/component" },
+        "Sidebar": { "$ref": "#/$defs/component" },
+        "AspectRatio": { "$ref": "#/$defs/component" },
+        "Combobox": { "$ref": "#/$defs/component" },
+        "DatePicker": { "$ref": "#/$defs/component" },
+        "NumberField": { "$ref": "#/$defs/component" },
+        "Slider": { "$ref": "#/$defs/component" },
+        "FileUpload": { "$ref": "#/$defs/component" },
+        "Grid": { "$ref": "#/$defs/component" },
+        "Section": { "$ref": "#/$defs/component" },
+        "Fieldset": { "$ref": "#/$defs/component" },
+        "Alert": { "$ref": "#/$defs/component" },
+        "Progress": { "$ref": "#/$defs/component" },
+        "Skeleton": { "$ref": "#/$defs/component" },
+        "Toast": { "$ref": "#/$defs/component" },
+        "Accordion": { "$ref": "#/$defs/component" },
+        "Avatar": { "$ref": "#/$defs/component" },
+        "Breadcrumbs": { "$ref": "#/$defs/component" },
+        "Pagination": { "$ref": "#/$defs/component" },
+        "Table": { "$ref": "#/$defs/component" },
+        "Metric": { "$ref": "#/$defs/component" },
+        "DescriptionList": { "$ref": "#/$defs/component" },
+        "Timeline": { "$ref": "#/$defs/component" },
+        "Meter": { "$ref": "#/$defs/component" },
+        "EmptyState": { "$ref": "#/$defs/component" }
       }
     },
     "design": {
@@ -91,6 +139,20 @@
         "allowArbitraryShadows": { "type": "boolean" },
         "allowPrimitiveDuplication": { "type": "boolean" }
       }
+    },
+    "docs": {
+      "type": "object",
+      "description": "Optional package-relative documentation paths.",
+      "required": ["readme", "agents"],
+      "additionalProperties": false,
+      "properties": {
+        "readme": { "type": "string", "pattern": "^\\./.+" },
+        "agents": { "type": "string", "pattern": "^\\./.+" },
+        "brief": { "type": "string", "pattern": "^\\./.+" },
+        "foundations": { "type": "string", "pattern": "^\\./.+" },
+        "components": { "type": "string", "pattern": "^\\./.+" },
+        "usage": { "type": "string", "pattern": "^\\./.+" }
+      }
     }
   },
   "$defs": {
@@ -113,7 +175,10 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "uniqueItems": true
-        }
+        },
+        "description": { "type": "string", "minLength": 1 },
+        "docs": { "type": "string", "minLength": 1 },
+        "example": { "type": "string", "minLength": 1 }
       }
     }
   }

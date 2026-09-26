@@ -1,15 +1,18 @@
 /**
- * Compile-time contract fixture for the V2-only canonical component contract.
+ * Compile-time contract fixture for the shared component contract.
  *
  * This file is intentionally not executed by a test framework: it proves, at
  * typecheck time, that
- *  1. the canonical `DesignSystemComponents` map and `REQUIRED_COMPONENTS`
- *     tuple are the exact fourteen V2 components, in canonical order,
- *  2. the V2-named exports are exact aliases of the canonical contract,
- *  3. `defineDesignSystem` / `defineDesignSystemV2` accept the full fourteen-
- *     component shape and require the `"v2"` marker, and
- *  4. an eight-component V1-only object is rejected by both the definition
- *     helpers and the registry.
+ *  1. the `DesignSystemComponents` map and `REQUIRED_COMPONENTS` tuple are the
+ *     exact twenty-nine required components, in canonical order,
+ *  2. the `OPTIONAL_COMPONENTS` tuple is the exact seventeen optional
+ *     components, in canonical order,
+ *  3. `DesignSystemComponentName` covers exactly the required and optional
+ *     names, and optional omission stays optional,
+ *  4. `defineDesignSystem` accepts the full required shape (with any optional
+ *     subset) and requires the numeric `contractVersion: 4` marker, and
+ *  5. an incorrect shape or marker is rejected by both the definition helper and
+ *     the registry.
  *
  * The registry's runtime marker guard is implemented in `design-system.ts`;
  * this fixture covers its static typing, not execution.
@@ -25,6 +28,7 @@ import type {
   AlertDescriptionProps,
   AlertProps,
   AlertTitleProps,
+  AspectRatioProps,
   AvatarFallbackProps,
   AvatarImageProps,
   AvatarProps,
@@ -41,8 +45,19 @@ import type {
   CardHeaderProps,
   CardProps,
   CardTitleProps,
+  CenterProps,
   CheckboxProps,
+  ClusterProps,
+  ComboboxContentProps,
+  ComboboxInputProps,
+  ComboboxItemProps,
+  ComboboxProps,
   ContainerProps,
+  DatePickerProps,
+  DescriptionListDescriptionProps,
+  DescriptionListItemProps,
+  DescriptionListProps,
+  DescriptionListTermProps,
   DialogCloseProps,
   DialogContentProps,
   DialogDescriptionProps,
@@ -69,8 +84,13 @@ import type {
   DropdownMenuSubProps,
   DropdownMenuSubTriggerProps,
   DropdownMenuTriggerProps,
+  EmptyStateActionProps,
+  EmptyStateDescriptionProps,
+  EmptyStateProps,
+  EmptyStateTitleProps,
   FieldsetLegendProps,
   FieldsetProps,
+  FileUploadProps,
   FormFieldControlProps,
   FormFieldDescriptionProps,
   FormFieldErrorProps,
@@ -80,6 +100,12 @@ import type {
   HeadingProps,
   InputProps,
   LinkProps,
+  MeterProps,
+  MetricDescriptionProps,
+  MetricLabelProps,
+  MetricProps,
+  MetricValueProps,
+  NumberFieldProps,
   PaginationCurrentProps,
   PaginationEllipsisProps,
   PaginationItemProps,
@@ -107,7 +133,9 @@ import type {
   SelectTriggerProps,
   SelectValueProps,
   SeparatorProps,
+  SidebarProps,
   SkeletonProps,
+  SliderProps,
   StackProps,
   SwitchProps,
   SwitchThumbProps,
@@ -125,6 +153,11 @@ import type {
   TabsTriggerProps,
   TextProps,
   TextareaProps,
+  TimelineDescriptionProps,
+  TimelineItemProps,
+  TimelineProps,
+  TimelineTimeProps,
+  TimelineTitleProps,
   ToastActionProps,
   ToastCloseProps,
   ToastDescriptionProps,
@@ -140,29 +173,16 @@ import type {
   TooltipTriggerProps,
 } from "../contracts/index.js";
 import {
-  OPTIONAL_COMPONENTS_V4,
+  OPTIONAL_COMPONENTS,
   REQUIRED_COMPONENTS,
-  REQUIRED_COMPONENTS_V2,
-  REQUIRED_COMPONENTS_V4,
   type DesignSystemComponent,
   type DesignSystemComponentName,
-  type DesignSystemComponentNameV2,
-  type DesignSystemComponentNameV4,
-  type DesignSystemComponentV2,
-  type DesignSystemComponentV4,
   type DesignSystemComponents,
-  type DesignSystemComponentsV2,
-  type DesignSystemComponentsV4,
 } from "./components.js";
 import {
   createDesignSystemRegistry,
-  createDesignSystemRegistryV4,
   defineDesignSystem,
-  defineDesignSystemV2,
-  defineDesignSystemV4,
   type DesignSystem,
-  type DesignSystemV2,
-  type DesignSystemV4,
 } from "./design-system.js";
 
 /** A typed component stub that accepts exactly the contract props. */
@@ -176,6 +196,23 @@ const Textarea = component<TextareaProps>;
 const Badge = component<BadgeProps>;
 const Checkbox = component<CheckboxProps>;
 const Separator = component<SeparatorProps>;
+const Heading = component<HeadingProps>;
+const Text = component<TextProps>;
+const Link = component<LinkProps>;
+const Container = component<ContainerProps>;
+const Stack = component<StackProps>;
+const Grid = component<GridProps>;
+const Progress = component<ProgressProps>;
+const Skeleton = component<SkeletonProps>;
+const Meter = component<MeterProps>;
+const Center = component<CenterProps>;
+const Cluster = component<ClusterProps>;
+const Sidebar = component<SidebarProps>;
+const AspectRatio = component<AspectRatioProps>;
+const DatePicker = component<DatePickerProps>;
+const NumberField = component<NumberFieldProps>;
+const Slider = component<SliderProps>;
+const FileUpload = component<FileUploadProps>;
 
 const Card = Object.assign(component<CardProps>, {
   Header: component<CardHeaderProps>,
@@ -248,202 +285,6 @@ const Tooltip = Object.assign(component<TooltipProps>, {
   Arrow: component<TooltipArrowProps>,
 });
 
-/** A complete canonical (fourteen-component) map; assignability is the assertion. */
-export const COMPONENTS_FIXTURE: DesignSystemComponents = {
-  Button,
-  Input,
-  Textarea,
-  Card,
-  Badge,
-  Checkbox,
-  RadioGroup,
-  Switch,
-  Select,
-  Tabs,
-  Dialog,
-  DropdownMenu,
-  Tooltip,
-  Separator,
-};
-
-/** A canonical map also satisfies the V2-named alias, because they are identical. */
-export const COMPONENTS_V2_FIXTURE: DesignSystemComponentsV2 = COMPONENTS_FIXTURE;
-
-/* -------------------------------------------------------------------------- */
-/* Contract / tuple assertions                                                 */
-/* -------------------------------------------------------------------------- */
-
-type Equal<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
-
-/** The canonical tuple names exactly the canonical contract keys. */
-export const CANONICAL_TUPLE_IS_EXACT: Equal<
-  (typeof REQUIRED_COMPONENTS)[number],
-  DesignSystemComponentName
-> = true;
-
-/** The canonical tuple is exactly these names, in this order. */
-export const EXPECTED_CANONICAL_TUPLE: typeof REQUIRED_COMPONENTS = [
-  "Button",
-  "Input",
-  "Textarea",
-  "Card",
-  "Badge",
-  "Checkbox",
-  "RadioGroup",
-  "Switch",
-  "Select",
-  "Tabs",
-  "Dialog",
-  "DropdownMenu",
-  "Tooltip",
-  "Separator",
-];
-
-/** The canonical contract has exactly fourteen entries. */
-export const CANONICAL_REQUIRED_COUNT: 14 = REQUIRED_COMPONENTS.length;
-
-/** The canonical contract is not the historical eight-component V1 set. */
-export const CANONICAL_IS_NOT_V1: Equal<
-  DesignSystemComponentName,
-  "Button" | "Input" | "Card" | "Badge" | "Checkbox" | "Tabs" | "Dialog" | "Select"
-> = false;
-
-/** Every V2-named export is an exact alias of the canonical contract. */
-export const V2_COMPONENTS_IS_CANONICAL: Equal<DesignSystemComponentsV2, DesignSystemComponents> =
-  true;
-export const V2_NAME_IS_CANONICAL: Equal<DesignSystemComponentNameV2, DesignSystemComponentName> =
-  true;
-export const V2_COMPONENT_IS_CANONICAL: Equal<DesignSystemComponentV2, DesignSystemComponent> =
-  true;
-export const V2_TUPLE_IS_CANONICAL: Equal<
-  (typeof REQUIRED_COMPONENTS_V2)[number],
-  (typeof REQUIRED_COMPONENTS)[number]
-> = true;
-export const V2_TUPLE_IS_CANONICAL_VALUE: typeof REQUIRED_COMPONENTS = REQUIRED_COMPONENTS_V2;
-export const V2_REQUIRED_COUNT: 14 = REQUIRED_COMPONENTS_V2.length;
-
-/* -------------------------------------------------------------------------- */
-/* Design system definition assertions                                         */
-/* -------------------------------------------------------------------------- */
-
-/** `defineDesignSystem` accepts the full fourteen-component shape and marker. */
-export const DEFINITION_FIXTURE = defineDesignSystem({
-  id: "fixture-v2",
-  name: "Fixture V2",
-  packageName: "@prism-system/fixture-v2",
-  version: "0.0.0",
-  componentContract: "v2",
-  components: COMPONENTS_FIXTURE,
-});
-
-/** `defineDesignSystemV2` accepts the same full shape and marker. */
-export const V2_DEFINITION_FIXTURE = defineDesignSystemV2({
-  id: "fixture-v2-v2",
-  name: "Fixture V2 via defineDesignSystemV2",
-  packageName: "@prism-system/fixture-v2-v2",
-  version: "0.0.0",
-  componentContract: "v2",
-  components: COMPONENTS_FIXTURE,
-});
-
-/** The accepted definitions satisfy `DesignSystem` / `DesignSystemV2`. */
-export const DEFINITION_IS_DESIGN_SYSTEM: DesignSystem = DEFINITION_FIXTURE;
-export const V2_DEFINITION_IS_V2: DesignSystemV2 = V2_DEFINITION_FIXTURE;
-
-/** The definition helpers preserve the literal `id` and the `"v2"` marker. */
-export const DEFINITION_ID: "fixture-v2" = DEFINITION_FIXTURE.id;
-export const DEFINITION_MARKER: "v2" = DEFINITION_FIXTURE.componentContract;
-
-/* -------------------------------------------------------------------------- */
-/* Registry assertions                                                         */
-/* -------------------------------------------------------------------------- */
-
-/** The registry accepts a full V2 system and resolves it by id. */
-export const REGISTRY_FIXTURE = createDesignSystemRegistry([DEFINITION_FIXTURE]);
-export const REGISTERED_SYSTEM: DesignSystem | undefined = REGISTRY_FIXTURE.get("fixture-v2");
-
-/* -------------------------------------------------------------------------- */
-/* Negative fixtures (compile-time only)                                       */
-/* -------------------------------------------------------------------------- */
-
-/** The historical eight-component map, kept only to prove V1 is rejected. */
-const V1_ONLY_COMPONENTS = {
-  Button,
-  Input,
-  Card,
-  Badge,
-  Checkbox,
-  Tabs,
-  Dialog,
-  Select,
-};
-
-/** An eight-component map is no longer assignable to the canonical contract. */
-// @ts-expect-error - the canonical contract requires all fourteen components.
-const _V1_ONLY_MAP: DesignSystemComponents = V1_ONLY_COMPONENTS;
-
-/** An eight-component, unmarked design-system object. */
-const V1_ONLY_SYSTEM = {
-  id: "fixture-v1-only",
-  name: "Fixture V1 only",
-  packageName: "@prism-system/fixture-v1-only",
-  version: "0.0.0",
-  components: V1_ONLY_COMPONENTS,
-};
-
-// @ts-expect-error - defineDesignSystem rejects a system with only the eight historical components.
-export const V1_ONLY_DEFINITION = defineDesignSystem(V1_ONLY_SYSTEM);
-
-// @ts-expect-error - defineDesignSystemV2 rejects a system with only the eight historical components.
-export const V1_ONLY_DEFINITION_V2 = defineDesignSystemV2(V1_ONLY_SYSTEM);
-
-/** The V2 marker is required: an unmarked fourteen-component map is rejected. */
-export const UNMARKED_SYSTEM = {
-  id: "fixture-unmarked",
-  name: "Fixture unmarked",
-  packageName: "@prism-system/fixture-unmarked",
-  version: "0.0.0",
-  components: COMPONENTS_FIXTURE,
-};
-// @ts-expect-error - componentContract is required.
-export const UNMARKED_DEFINITION = defineDesignSystem(UNMARKED_SYSTEM);
-
-/** The historical `"v1"` marker is no longer accepted. */
-export const V1_MARKER_SYSTEM = {
-  id: "fixture-v1-marker",
-  name: "Fixture V1 marker",
-  packageName: "@prism-system/fixture-v1-marker",
-  version: "0.0.0",
-  componentContract: "v1",
-  components: COMPONENTS_FIXTURE,
-};
-// @ts-expect-error - componentContract must be "v2".
-export const V1_MARKER_DEFINITION = defineDesignSystem(V1_MARKER_SYSTEM);
-
-/** The registry rejects the eight-component, unmarked object. */
-// @ts-expect-error - the registry only accepts V2 design systems.
-export const REGISTRY_REJECTS_V1 = createDesignSystemRegistry([V1_ONLY_SYSTEM]);
-
-// Keep intentionally-unused negative fixtures type-checked without lint noise.
-export type _NegativeFixtures = [
-  typeof _V1_ONLY_MAP,
-  typeof V1_ONLY_DEFINITION,
-  typeof V1_ONLY_DEFINITION_V2,
-  typeof UNMARKED_DEFINITION,
-  typeof V1_MARKER_DEFINITION,
-  typeof REGISTRY_REJECTS_V1,
-];
-
-/* -------------------------------------------------------------------------- */
-/* V4 fixtures                                                                 */
-/* -------------------------------------------------------------------------- */
-
-const Heading = component<HeadingProps>;
-const Text = component<TextProps>;
-const Link = component<LinkProps>;
-const Container = component<ContainerProps>;
-const Stack = component<StackProps>;
-
 const FormField = Object.assign(component<FormFieldProps>, {
   Label: component<FormFieldLabelProps>,
   Control: component<FormFieldControlProps>,
@@ -451,9 +292,11 @@ const FormField = Object.assign(component<FormFieldProps>, {
   Error: component<FormFieldErrorProps>,
 });
 
-const Grid = component<GridProps>;
-const Progress = component<ProgressProps>;
-const Skeleton = component<SkeletonProps>;
+const Combobox = Object.assign(component<ComboboxProps>, {
+  Input: component<ComboboxInputProps>,
+  Content: component<ComboboxContentProps>,
+  Item: component<ComboboxItemProps>,
+});
 
 const Section = Object.assign(component<SectionProps>, {
   Header: component<SectionHeaderProps>,
@@ -521,8 +364,33 @@ const Table = Object.assign(component<TableProps>, {
   Cell: component<TableCellProps>,
 });
 
-/** A valid V4 map with the twenty required components and no optional members. */
-export const COMPONENTS_V4_FIXTURE: DesignSystemComponentsV4 = {
+const Metric = Object.assign(component<MetricProps>, {
+  Label: component<MetricLabelProps>,
+  Value: component<MetricValueProps>,
+  Description: component<MetricDescriptionProps>,
+});
+
+const DescriptionList = Object.assign(component<DescriptionListProps>, {
+  Item: component<DescriptionListItemProps>,
+  Term: component<DescriptionListTermProps>,
+  Description: component<DescriptionListDescriptionProps>,
+});
+
+const Timeline = Object.assign(component<TimelineProps>, {
+  Item: component<TimelineItemProps>,
+  Title: component<TimelineTitleProps>,
+  Time: component<TimelineTimeProps>,
+  Description: component<TimelineDescriptionProps>,
+});
+
+const EmptyState = Object.assign(component<EmptyStateProps>, {
+  Title: component<EmptyStateTitleProps>,
+  Description: component<EmptyStateDescriptionProps>,
+  Action: component<EmptyStateActionProps>,
+});
+
+/** A valid map with the twenty-nine required components and no optional members. */
+export const COMPONENTS_FIXTURE: DesignSystemComponents = {
   Button,
   Input,
   Textarea,
@@ -543,11 +411,20 @@ export const COMPONENTS_V4_FIXTURE: DesignSystemComponentsV4 = {
   Container,
   Stack,
   FormField,
+  Center,
+  Cluster,
+  Sidebar,
+  AspectRatio,
+  Combobox,
+  DatePicker,
+  NumberField,
+  Slider,
+  FileUpload,
 };
 
-/** A valid V4 map with every optional component declared. */
-export const COMPONENTS_V4_ALL_OPTIONALS_FIXTURE: DesignSystemComponentsV4 = {
-  ...COMPONENTS_V4_FIXTURE,
+/** A valid map with every optional component declared. */
+export const COMPONENTS_ALL_OPTIONALS_FIXTURE: DesignSystemComponents = {
+  ...COMPONENTS_FIXTURE,
   Grid,
   Section,
   Fieldset,
@@ -560,22 +437,85 @@ export const COMPONENTS_V4_ALL_OPTIONALS_FIXTURE: DesignSystemComponentsV4 = {
   Breadcrumbs,
   Pagination,
   Table,
+  Metric,
+  DescriptionList,
+  Timeline,
+  Meter,
+  EmptyState,
 };
 
-/** A valid V4 map with a different optional subset. */
-export const COMPONENTS_V4_SUBSET_FIXTURE: DesignSystemComponentsV4 = {
-  ...COMPONENTS_V4_FIXTURE,
+/** A valid map with a different optional subset. */
+export const COMPONENTS_SUBSET_FIXTURE: DesignSystemComponents = {
+  ...COMPONENTS_FIXTURE,
   Grid,
   Alert,
   Table,
 };
 
 /* -------------------------------------------------------------------------- */
-/* V4 tuple / name assertions                                                  */
+/* Contract / tuple assertions                                                 */
 /* -------------------------------------------------------------------------- */
 
-/** The V4 required tuple names exactly the required keys, in plan order. */
-export const EXPECTED_V4_REQUIRED_TUPLE: typeof REQUIRED_COMPONENTS_V4 = [
+type Equal<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+
+/** The required tuple names exactly the twenty-nine required keys, in order. */
+export const REQUIRED_TUPLE_IS_EXACT: Equal<
+  (typeof REQUIRED_COMPONENTS)[number],
+  | "Button"
+  | "Input"
+  | "Textarea"
+  | "Card"
+  | "Badge"
+  | "Checkbox"
+  | "RadioGroup"
+  | "Switch"
+  | "Select"
+  | "Tabs"
+  | "Dialog"
+  | "DropdownMenu"
+  | "Tooltip"
+  | "Separator"
+  | "Heading"
+  | "Text"
+  | "Link"
+  | "Container"
+  | "Stack"
+  | "FormField"
+  | "Center"
+  | "Cluster"
+  | "Sidebar"
+  | "AspectRatio"
+  | "Combobox"
+  | "DatePicker"
+  | "NumberField"
+  | "Slider"
+  | "FileUpload"
+> = true;
+
+/** The optional tuple names exactly the seventeen optional keys, in order. */
+export const OPTIONAL_TUPLE_IS_EXACT: Equal<
+  (typeof OPTIONAL_COMPONENTS)[number],
+  | "Grid"
+  | "Section"
+  | "Fieldset"
+  | "Alert"
+  | "Progress"
+  | "Skeleton"
+  | "Toast"
+  | "Accordion"
+  | "Avatar"
+  | "Breadcrumbs"
+  | "Pagination"
+  | "Table"
+  | "Metric"
+  | "DescriptionList"
+  | "Timeline"
+  | "Meter"
+  | "EmptyState"
+> = true;
+
+/** The explicit expected tuples double as literal-order assertions. */
+export const EXPECTED_REQUIRED_TUPLE: typeof REQUIRED_COMPONENTS = [
   "Button",
   "Input",
   "Textarea",
@@ -596,10 +536,18 @@ export const EXPECTED_V4_REQUIRED_TUPLE: typeof REQUIRED_COMPONENTS_V4 = [
   "Container",
   "Stack",
   "FormField",
+  "Center",
+  "Cluster",
+  "Sidebar",
+  "AspectRatio",
+  "Combobox",
+  "DatePicker",
+  "NumberField",
+  "Slider",
+  "FileUpload",
 ];
 
-/** The V4 optional tuple names exactly the optional keys, in plan order. */
-export const EXPECTED_V4_OPTIONAL_TUPLE: typeof OPTIONAL_COMPONENTS_V4 = [
+export const EXPECTED_OPTIONAL_TUPLE: typeof OPTIONAL_COMPONENTS = [
   "Grid",
   "Section",
   "Fieldset",
@@ -612,67 +560,86 @@ export const EXPECTED_V4_OPTIONAL_TUPLE: typeof OPTIONAL_COMPONENTS_V4 = [
   "Breadcrumbs",
   "Pagination",
   "Table",
+  "Metric",
+  "DescriptionList",
+  "Timeline",
+  "Meter",
+  "EmptyState",
 ];
 
-/** V4 requires exactly twenty components. */
-export const V4_REQUIRED_COUNT: 20 = REQUIRED_COMPONENTS_V4.length;
-/** V4 offers exactly twelve optional components. */
-export const V4_OPTIONAL_COUNT: 12 = OPTIONAL_COMPONENTS_V4.length;
+/** The contract requires exactly twenty-nine components and offers seventeen optional. */
+export const REQUIRED_COUNT: 29 = REQUIRED_COMPONENTS.length;
+export const OPTIONAL_COUNT: 17 = OPTIONAL_COMPONENTS.length;
 
-/** Every V4 map key is required or optional: no stray names exist. */
-export const V4_NAME_IS_REQUIRED_OR_OPTIONAL: Equal<
-  DesignSystemComponentNameV4,
-  (typeof REQUIRED_COMPONENTS_V4)[number] | (typeof OPTIONAL_COMPONENTS_V4)[number]
+/** Every map key is required or optional: no stray names exist. */
+export const NAME_IS_REQUIRED_OR_OPTIONAL: Equal<
+  DesignSystemComponentName,
+  (typeof REQUIRED_COMPONENTS)[number] | (typeof OPTIONAL_COMPONENTS)[number]
 > = true;
 
-/** The V2 map and the V4 map are distinct contracts. */
-export const V2_IS_NOT_V4: Equal<DesignSystemComponentsV2, DesignSystemComponentsV4> = false;
+/** A required component satisfies the component union. */
+export const REQUIRED_COMPONENT_SAMPLE: DesignSystemComponent = Button;
 
-/** A required V4 component satisfies the V4 component union. */
-export const V4_COMPONENT_SAMPLE: DesignSystemComponentV4 = Button;
+/** An optional component also satisfies the component union. */
+export const OPTIONAL_COMPONENT_SAMPLE: DesignSystemComponent = Grid;
 
 /* -------------------------------------------------------------------------- */
-/* V4 definition / registry assertions                                         */
+/* Design system definition assertions                                         */
 /* -------------------------------------------------------------------------- */
 
-export const V4_DEFINITION_FIXTURE = defineDesignSystemV4({
-  id: "fixture-v4",
-  name: "Fixture V4",
-  packageName: "@prism-system/fixture-v4",
+/** `defineDesignSystem` accepts the required shape and the numeric marker. */
+export const DEFINITION_FIXTURE = defineDesignSystem({
+  id: "fixture-current",
+  name: "Fixture Current",
+  packageName: "@prism-system/fixture-current",
   version: "0.0.0",
-  componentContract: "v4",
-  components: COMPONENTS_V4_FIXTURE,
+  contractVersion: 4,
+  components: COMPONENTS_FIXTURE,
 });
 
-export const V4_DEFINITION_WITH_OPTIONALS_FIXTURE = defineDesignSystemV4({
-  id: "fixture-v4-optionals",
-  name: "Fixture V4 with optionals",
-  packageName: "@prism-system/fixture-v4-optionals",
+/** The same, with every optional component declared. */
+export const DEFINITION_WITH_OPTIONALS_FIXTURE = defineDesignSystem({
+  id: "fixture-current-optionals",
+  name: "Fixture Current with optionals",
+  packageName: "@prism-system/fixture-current-optionals",
   version: "0.0.0",
-  componentContract: "v4",
-  components: COMPONENTS_V4_ALL_OPTIONALS_FIXTURE,
+  contractVersion: 4,
+  components: COMPONENTS_ALL_OPTIONALS_FIXTURE,
 });
 
-/** The accepted definitions satisfy `DesignSystemV4`. */
-export const V4_DEFINITION_IS_V4: DesignSystemV4 = V4_DEFINITION_FIXTURE;
-export const V4_DEFINITION_WITH_OPTIONALS_IS_V4: DesignSystemV4 =
-  V4_DEFINITION_WITH_OPTIONALS_FIXTURE;
+/** The same, with a different optional subset. */
+export const DEFINITION_WITH_SUBSET_FIXTURE = defineDesignSystem({
+  id: "fixture-current-subset",
+  name: "Fixture Current with a subset",
+  packageName: "@prism-system/fixture-current-subset",
+  version: "0.0.0",
+  contractVersion: 4,
+  components: COMPONENTS_SUBSET_FIXTURE,
+});
 
-/** `defineDesignSystemV4` preserves the literal `id` and the `"v4"` marker. */
-export const V4_DEFINITION_ID: "fixture-v4" = V4_DEFINITION_FIXTURE.id;
-export const V4_DEFINITION_MARKER: "v4" = V4_DEFINITION_FIXTURE.componentContract;
+/** The accepted definitions satisfy `DesignSystem`. */
+export const DEFINITION_IS_DESIGN_SYSTEM: DesignSystem = DEFINITION_FIXTURE;
+export const DEFINITION_WITH_OPTIONALS_IS_DESIGN_SYSTEM: DesignSystem =
+  DEFINITION_WITH_OPTIONALS_FIXTURE;
 
-/** The V4 registry accepts a V4 system and resolves it by id. */
-export const V4_REGISTRY_FIXTURE = createDesignSystemRegistryV4([V4_DEFINITION_FIXTURE]);
-export const V4_REGISTERED_SYSTEM: DesignSystemV4 | undefined =
-  V4_REGISTRY_FIXTURE.get("fixture-v4");
+/** The definition helper preserves the literal `id` and the numeric marker. */
+export const DEFINITION_ID: "fixture-current" = DEFINITION_FIXTURE.id;
+export const DEFINITION_CONTRACT_VERSION: 4 = DEFINITION_FIXTURE.contractVersion;
 
 /* -------------------------------------------------------------------------- */
-/* V4 negative fixtures (compile-time only)                                    */
+/* Registry assertions                                                         */
 /* -------------------------------------------------------------------------- */
 
-/** A V4 map missing the six added required components. */
-const V4_MISSING_REQUIRED_COMPONENTS = {
+/** The registry accepts a current system and resolves it by id. */
+export const REGISTRY_FIXTURE = createDesignSystemRegistry([DEFINITION_FIXTURE]);
+export const REGISTERED_SYSTEM: DesignSystem | undefined = REGISTRY_FIXTURE.get("fixture-current");
+
+/* -------------------------------------------------------------------------- */
+/* Negative fixtures (compile-time only)                                       */
+/* -------------------------------------------------------------------------- */
+
+/** A map missing every component added after the original fourteen. */
+const MISSING_REQUIRED_COMPONENTS = {
   Button,
   Input,
   Textarea,
@@ -689,42 +656,176 @@ const V4_MISSING_REQUIRED_COMPONENTS = {
   Separator,
 };
 
-// @ts-expect-error - the V4 contract requires all twenty components.
-const _V4_MISSING_REQUIRED_MAP: DesignSystemComponentsV4 = V4_MISSING_REQUIRED_COMPONENTS;
+/** The contract requires all twenty-nine components. */
+// @ts-expect-error - the contract requires all twenty-nine components.
+const _MISSING_REQUIRED_MAP: DesignSystemComponents = MISSING_REQUIRED_COMPONENTS;
 
-const _V4_UNKNOWN_KEY_MAP: DesignSystemComponentsV4 = {
-  ...COMPONENTS_V4_FIXTURE,
-  // @ts-expect-error - unknown component names are rejected by the V4 map.
+/** Unknown component names are rejected by the map. */
+const _UNKNOWN_KEY_MAP: DesignSystemComponents = {
+  ...COMPONENTS_FIXTURE,
+  // @ts-expect-error - unknown component names are rejected by the contract.
   NotAComponent: Button,
 };
 
-// @ts-expect-error - defineDesignSystemV4 rejects a V2-shaped system.
-export const V4_REJECTS_V2 = defineDesignSystemV4(DEFINITION_FIXTURE);
-
-// @ts-expect-error - the V4 registry does not accept V2 systems.
-export const V4_REGISTRY_REJECTS_V2 = createDesignSystemRegistryV4([DEFINITION_FIXTURE]);
-
-export const V4_DEFINITION_MISSING_REQUIRED = defineDesignSystemV4({
-  id: "fixture-v4-missing",
-  name: "Fixture V4 missing required",
-  packageName: "@prism-system/fixture-v4-missing",
-  version: "0.0.0",
-  componentContract: "v4",
-  // @ts-expect-error - defineDesignSystemV4 rejects a system missing required components.
-  components: V4_MISSING_REQUIRED_COMPONENTS,
-});
-
-/** A V4 map carrying the wrong contract marker. */
-export const V4_WRONG_MARKER_SYSTEM = {
-  id: "fixture-v4-wrong-marker",
-  name: "Fixture V4 wrong marker",
-  packageName: "@prism-system/fixture-v4-wrong-marker",
-  version: "0.0.0",
-  componentContract: "v2",
-  components: COMPONENTS_V4_FIXTURE,
+/** An explicitly declared `null` optional component is not a component. */
+const _NULL_OPTIONAL_MAP: DesignSystemComponents = {
+  ...COMPONENTS_FIXTURE,
+  // @ts-expect-error - a declared optional component must be a real component.
+  Grid: null,
 };
-// @ts-expect-error - componentContract must be "v4".
-export const V4_WRONG_MARKER_DEFINITION = defineDesignSystemV4(V4_WRONG_MARKER_SYSTEM);
+
+/** The numeric marker is required: an unversioned object is rejected. */
+export const UNVERSIONED_SYSTEM = {
+  id: "fixture-unversioned",
+  name: "Fixture unversioned",
+  packageName: "@prism-system/fixture-unversioned",
+  version: "0.0.0",
+  components: COMPONENTS_FIXTURE,
+};
+// @ts-expect-error - contractVersion is required.
+export const UNVERSIONED_DEFINITION = defineDesignSystem(UNVERSIONED_SYSTEM);
+
+/** The marker must be the number 4. */
+export const WRONG_VERSION_SYSTEM = {
+  id: "fixture-wrong-version",
+  name: "Fixture wrong version",
+  packageName: "@prism-system/fixture-wrong-version",
+  version: "0.0.0",
+  contractVersion: 3,
+  components: COMPONENTS_FIXTURE,
+};
+// @ts-expect-error - contractVersion must be 4.
+export const WRONG_VERSION_DEFINITION = defineDesignSystem(WRONG_VERSION_SYSTEM);
+
+/** A string marker is not accepted. */
+export const STRING_VERSION_SYSTEM = {
+  id: "fixture-string-version",
+  name: "Fixture string version",
+  packageName: "@prism-system/fixture-string-version",
+  version: "0.0.0",
+  contractVersion: "4",
+  components: COMPONENTS_FIXTURE,
+};
+// @ts-expect-error - contractVersion must be the number 4.
+export const STRING_VERSION_DEFINITION = defineDesignSystem(STRING_VERSION_SYSTEM);
+
+// Keep intentionally-unused negative fixtures type-checked without lint noise.
+export type _NegativeFixtures = [
+  typeof _MISSING_REQUIRED_MAP,
+  typeof _UNKNOWN_KEY_MAP,
+  typeof _NULL_OPTIONAL_MAP,
+  typeof UNVERSIONED_DEFINITION,
+  typeof WRONG_VERSION_DEFINITION,
+  typeof STRING_VERSION_DEFINITION,
+];
+
+/* -------------------------------------------------------------------------- */
+/* New contract shape assertions                                               */
+/* -------------------------------------------------------------------------- */
+
+/** `Combobox` accepts controlled and uncontrolled state and a required message. */
+export const COMBOBOX_PROPS_FIXTURE: ComboboxProps = {
+  value: "apple",
+  onValueChange: () => undefined,
+  inputValue: "App",
+  onInputValueChange: () => undefined,
+  open: true,
+  onOpenChange: () => undefined,
+  disabled: false,
+  required: true,
+  requiredMessage: "Pick a fruit",
+  invalid: false,
+  name: "fruit",
+};
+
+/** Options require a value; the optional text/value props are accepted. */
+export const COMBOBOX_ITEM_FIXTURE: ComboboxItemProps = {
+  value: "apple",
+  disabled: false,
+  textValue: "Apple",
+};
+
+/** The input is the focusable control and keeps native forwarding props. */
+export const COMBOBOX_INPUT_FIXTURE: ComboboxInputProps = {
+  id: "fruit",
+  required: true,
+  disabled: false,
+  invalid: true,
+  "aria-describedby": "fruit-help",
+};
+
+/** `Combobox.Item` requires `value`: an option without one must not compile. */
+// @ts-expect-error - `value` is required on Combobox.Item.
+const _COMBOBOX_ITEM_MISSING_VALUE: ComboboxItemProps = { disabled: true };
+
+/** The input fixes its own `type`; consumers cannot change it. */
+// @ts-expect-error - Combobox.Input owns its fixed `type`.
+const _COMBOBOX_INPUT_WITH_TYPE: ComboboxInputProps = { type: "text" };
+
+/** The input owns its name/query; the root renders the named hidden value. */
+// @ts-expect-error - Combobox.Input owns its `name`.
+const _COMBOBOX_INPUT_WITH_NAME: ComboboxInputProps = { name: "fruit" };
+// @ts-expect-error - Combobox.Input owns its controlled `value`.
+const _COMBOBOX_INPUT_WITH_VALUE: ComboboxInputProps = { value: "apple" };
+
+/** Date/number/range/file controls fix their native `type`. */
+export const DATE_PICKER_FIXTURE: DatePickerProps = { type: "date", invalid: true };
+export const NUMBER_FIELD_FIXTURE: NumberFieldProps = { type: "number" };
+export const SLIDER_FIXTURE: SliderProps = { type: "range", min: 0, max: 100 };
+export const FILE_UPLOAD_FIXTURE: FileUploadProps = { type: "file", multiple: true };
+// @ts-expect-error - DatePicker is fixed to `date`.
+const _DATE_PICKER_WRONG_TYPE: DatePickerProps = { type: "datetime-local" };
+
+/** The native input `type` is omitted from the prop base entirely. */
+// @ts-expect-error - `type` is removed from the NumberField prop base.
+const _NUMBER_FIELD_WITHOUT_LITERAL: NumberFieldProps = { type: "text" };
+
+/** `AspectRatio` adds only a structural ratio. */
+export const ASPECT_RATIO_FIXTURE: AspectRatioProps = { ratio: 16 / 9 };
+
+/** Center, Cluster, and Sidebar are plain layout divs. */
+export const CENTER_FIXTURE: CenterProps = { id: "center" };
+export const CLUSTER_FIXTURE: ClusterProps = { id: "cluster" };
+export const SIDEBAR_FIXTURE: SidebarProps = { id: "sidebar" };
+
+/** Optional display compounds keep native member elements. */
+export const METRIC_FIXTURE: MetricProps = { id: "metrics" };
+export const METRIC_MEMBERS_FIXTURE: [MetricLabelProps, MetricValueProps, MetricDescriptionProps] =
+  [{}, { children: 42 }, { children: "last month" }];
+export const DESCRIPTION_LIST_FIXTURE: DescriptionListProps = { id: "specs" };
+export const TIMELINE_FIXTURE: TimelineProps = { id: "history" };
+export const TIMELINE_TIME_FIXTURE: TimelineTimeProps = { dateTime: "2026-09-26T12:00:00Z" };
+export const EMPTY_STATE_FIXTURE: EmptyStateProps = { id: "empty" };
+export const EMPTY_STATE_MEMBERS_FIXTURE: [
+  EmptyStateTitleProps,
+  EmptyStateDescriptionProps,
+  EmptyStateActionProps,
+] = [{}, {}, {}];
+
+/* -------------------------------------------------------------------------- */
+/* Meter accessible name assertion                                             */
+/* -------------------------------------------------------------------------- */
+
+/** `Meter` accepts the required accessible name. */
+export const METER_WITH_LABEL: MeterProps = { value: 0.5, "aria-label": "Disk usage" };
+export const METER_WITH_LABELLEDBY: MeterProps = {
+  value: 0.5,
+  "aria-labelledby": "disk-usage-label",
+};
+
+/** `Meter` requires an accessible name; a bare meter must not compile. */
+// @ts-expect-error - `Meter` requires `aria-label` or `aria-labelledby`.
+const _METER_WITHOUT_NAME: MeterProps = { value: 0.5 };
+
+export type _NewContractNegativeFixtures = [
+  typeof _COMBOBOX_ITEM_MISSING_VALUE,
+  typeof _COMBOBOX_INPUT_WITH_TYPE,
+  typeof _COMBOBOX_INPUT_WITH_NAME,
+  typeof _COMBOBOX_INPUT_WITH_VALUE,
+  typeof _DATE_PICKER_WRONG_TYPE,
+  typeof _NUMBER_FIELD_WITHOUT_LITERAL,
+  typeof _METER_WITHOUT_NAME,
+];
 
 /* -------------------------------------------------------------------------- */
 /* Avatar.Image accessibility assertion                                        */
@@ -740,13 +841,4 @@ export const AVATAR_IMAGE_WITH_ALT: AvatarImageProps = { alt: "Ada Lovelace" };
 // @ts-expect-error - `alt` is required on Avatar.Image.
 const _AVATAR_IMAGE_MISSING_ALT: AvatarImageProps = {};
 
-// Keep intentionally-unused V4 negatives type-checked without lint noise.
-export type _V4NegativeFixtures = [
-  typeof _V4_MISSING_REQUIRED_MAP,
-  typeof _V4_UNKNOWN_KEY_MAP,
-  typeof V4_REJECTS_V2,
-  typeof V4_REGISTRY_REJECTS_V2,
-  typeof V4_DEFINITION_MISSING_REQUIRED,
-  typeof V4_WRONG_MARKER_DEFINITION,
-  typeof _AVATAR_IMAGE_MISSING_ALT,
-];
+export type _A11yNegativeFixtures = [typeof _AVATAR_IMAGE_MISSING_ALT];

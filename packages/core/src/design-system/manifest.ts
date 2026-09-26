@@ -2,8 +2,8 @@
  * Descriptive metadata a design system can expose for tooling and agents.
  *
  * These types carry semantic descriptors only; they never contain concrete
- * token values. This mirrors the structured `design-system.json` manifest
- * described in the V3 spec, but no manifest tooling is implemented in V1.
+ * token values. This mirrors the structured `design-system.json` manifest, but
+ * no manifest tooling is implemented in core.
  */
 
 /** Semantic density descriptor. */

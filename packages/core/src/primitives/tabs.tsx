@@ -14,7 +14,7 @@ export { TabsPrimitive };
  * Radix owns `role="tablist"`/`role="tab"`/`role="tabpanel"`, `aria-selected`,
  * roving tabindex, and arrow-key navigation. Core only merges `className` and
  * adds stable `data-slot` markers. The root is Radix's `Root`, whose props
- * already match the V1 `TabsProps` contract (`value`, `defaultValue`,
+ * already match the `TabsProps` contract (`value`, `defaultValue`,
  * `onValueChange`, `orientation`, `activationMode`, `dir`).
  */
 export const Tabs = TabsPrimitive.Root;

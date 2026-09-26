@@ -17,7 +17,7 @@ export { DialogPrimitive };
  * surface, and motion values to the design system.
  *
  * The root is Radix's `Root` and the portal is Radix's `Portal`; their props
- * already match the V1 `DialogProps`/`DialogPortalProps` contracts.
+ * already match the `DialogProps`/`DialogPortalProps` contracts.
  */
 export const Dialog = DialogPrimitive.Root;
 export const DialogPortal = DialogPrimitive.Portal;
