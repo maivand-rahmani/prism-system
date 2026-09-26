@@ -55,17 +55,18 @@ export const CardHeader = React.forwardRef<HTMLDivElement, CardHeaderProps>(func
   );
 });
 
-export const CardContent = React.forwardRef<HTMLDivElement, CardContentProps>(
-  function CardContent({ className, ...props }, ref) {
-    return (
-      <CardContentPrimitive
-        ref={ref}
-        className={cn("maivand-b-card-content", className)}
-        {...props}
-      />
-    );
-  },
-);
+export const CardContent = React.forwardRef<HTMLDivElement, CardContentProps>(function CardContent(
+  { className, ...props },
+  ref,
+) {
+  return (
+    <CardContentPrimitive
+      ref={ref}
+      className={cn("maivand-b-card-content", className)}
+      {...props}
+    />
+  );
+});
 
 export const CardFooter = React.forwardRef<HTMLDivElement, CardFooterProps>(function CardFooter(
   { className, ...props },
@@ -76,13 +77,14 @@ export const CardFooter = React.forwardRef<HTMLDivElement, CardFooterProps>(func
   );
 });
 
-export const CardTitle = React.forwardRef<HTMLHeadingElement, CardTitleProps>(
-  function CardTitle({ className, ...props }, ref) {
-    return (
-      <CardTitlePrimitive ref={ref} className={cn("maivand-b-card-title", className)} {...props} />
-    );
-  },
-);
+export const CardTitle = React.forwardRef<HTMLHeadingElement, CardTitleProps>(function CardTitle(
+  { className, ...props },
+  ref,
+) {
+  return (
+    <CardTitlePrimitive ref={ref} className={cn("maivand-b-card-title", className)} {...props} />
+  );
+});
 
 export const CardDescription = React.forwardRef<HTMLParagraphElement, CardDescriptionProps>(
   function CardDescription({ className, ...props }, ref) {

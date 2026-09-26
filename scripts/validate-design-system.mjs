@@ -1743,9 +1743,12 @@ function reexportsRuntimeDesignSystem(indexPath, source) {
   const namedReexport = /export\s*\{([^}]*)\}\s*from\s*["']([^"']+)["']/g;
   let match = namedReexport.exec(source);
   while (match !== null) {
-    const exported = match[1]
-      .split(",")
-      .map((entry) => entry.trim().split(/\s+as\s+/)[0].trim());
+    const exported = match[1].split(",").map((entry) =>
+      entry
+        .trim()
+        .split(/\s+as\s+/)[0]
+        .trim(),
+    );
     if (exported.includes(V4_RUNTIME_EXPORT) && resolvesToRuntime(match[2])) return true;
     match = namedReexport.exec(source);
   }

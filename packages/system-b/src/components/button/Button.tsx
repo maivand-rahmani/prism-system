@@ -1,7 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Button as ButtonPrimitive, cn, type ButtonProps as CoreButtonProps } from "@prism-system/ui-core";
+import {
+  Button as ButtonPrimitive,
+  cn,
+  type ButtonProps as CoreButtonProps,
+} from "@prism-system/ui-core";
 
 export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "destructive" | "link";
 export type ButtonSize = "sm" | "md" | "lg" | "icon";

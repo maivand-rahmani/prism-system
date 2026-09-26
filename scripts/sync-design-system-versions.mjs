@@ -92,9 +92,7 @@ function resolvePackageDir(root, id) {
 export function runtimeTargetForContract(contract) {
   if (contract === "v2") return "src/index.ts";
   if (contract === "v4") return "src/design-system.ts";
-  throw new Error(
-    `Unsupported contract ${JSON.stringify(contract)}; expected "v2" or "v4".`,
-  );
+  throw new Error(`Unsupported contract ${JSON.stringify(contract)}; expected "v2" or "v4".`);
 }
 
 /**
@@ -164,9 +162,7 @@ export async function syncDesignSystemVersions(options = {}) {
       continue;
     }
 
-    const entry = registry
-      ? registry.designSystems.find((system) => system.id === id)
-      : undefined;
+    const entry = registry ? registry.designSystems.find((system) => system.id === id) : undefined;
 
     // The contract is read from the registry entry, falling back to the
     // package's own source descriptor. A V4 package is never synchronized

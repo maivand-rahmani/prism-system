@@ -2,11 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@prism-system/ui-core";
-import type {
-  AvatarFallbackProps,
-  AvatarImageProps,
-  AvatarProps,
-} from "@prism-system/ui-core";
+import type { AvatarFallbackProps, AvatarImageProps, AvatarProps } from "@prism-system/ui-core";
 
 type AvatarStatus = "idle" | "loading" | "loaded" | "error";
 

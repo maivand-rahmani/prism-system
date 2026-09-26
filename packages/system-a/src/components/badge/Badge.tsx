@@ -1,5 +1,9 @@
 import * as React from "react";
-import { Badge as BadgePrimitive, cn, type BadgeProps as CoreBadgeProps } from "@prism-system/ui-core";
+import {
+  Badge as BadgePrimitive,
+  cn,
+  type BadgeProps as CoreBadgeProps,
+} from "@prism-system/ui-core";
 
 export type BadgeProps = CoreBadgeProps;
 export const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(function Badge(

@@ -72,7 +72,10 @@ const SelectRoot = function Select({
 SelectRoot.displayName = "Select";
 
 export const SelectTrigger = React.forwardRef<HTMLButtonElement, CoreSelectTriggerProps>(
-  function SelectTrigger({ className, size = "md", invalid = false, id: providedId, ...props }, ref) {
+  function SelectTrigger(
+    { className, size = "md", invalid = false, id: providedId, ...props },
+    ref,
+  ) {
     const fieldId = React.useContext(SelectFieldContext);
     return (
       <SelectTriggerPrimitive

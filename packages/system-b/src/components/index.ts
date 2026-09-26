@@ -7,7 +7,14 @@ export type { InputProps } from "./input/index.js";
 export { Textarea } from "./textarea/index.js";
 export type { TextareaProps } from "./textarea/index.js";
 
-export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "./card/index.js";
+export {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "./card/index.js";
 export type {
   CardProps,
   CardHeaderProps,

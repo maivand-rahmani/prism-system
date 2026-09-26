@@ -34,9 +34,7 @@ TableRoot.displayName = "Table";
 
 export const TableCaption = React.forwardRef<HTMLTableCaptionElement, TableCaptionProps>(
   function TableCaption({ className, ...props }, ref) {
-    return (
-      <caption ref={ref} className={cn("maivand-a-table-caption", className)} {...props} />
-    );
+    return <caption ref={ref} className={cn("maivand-a-table-caption", className)} {...props} />;
   },
 );
 TableCaption.displayName = "TableCaption";

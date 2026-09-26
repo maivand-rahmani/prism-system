@@ -64,7 +64,9 @@
   color: var(--maivand-a-color-action-primary-text);
 }
 :where(.maivand-a-ui) .maivand-a-checkbox-input[data-state="checked"] .maivand-a-checkbox-box,
-:where(.maivand-a-ui) .maivand-a-checkbox-input[data-state="indeterminate"] .maivand-a-checkbox-box {
+:where(.maivand-a-ui)
+  .maivand-a-checkbox-input[data-state="indeterminate"]
+  .maivand-a-checkbox-box {
   background: var(--maivand-a-color-action-primary);
   border-color: var(--maivand-a-color-action-primary);
   color: var(--maivand-a-color-action-primary-text);

@@ -11,8 +11,6 @@ export const Text = React.forwardRef<HTMLElement, TextProps>(function Text(
   ref,
 ) {
   const Comp = (asProp ?? "p") as React.ElementType;
-  return (
-    <Comp ref={ref} className={cn("maivand-b-ui", "maivand-b-text", className)} {...props} />
-  );
+  return <Comp ref={ref} className={cn("maivand-b-ui", "maivand-b-text", className)} {...props} />;
 });
 Text.displayName = "Text";

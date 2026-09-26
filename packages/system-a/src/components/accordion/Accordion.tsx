@@ -46,90 +46,86 @@ function useAccordionItem(): AccordionItemContextValue {
   return value;
 }
 
-function toOpenValues(
-  value: string | string[] | undefined,
-  multiple: boolean,
-): string[] {
+function toOpenValues(value: string | string[] | undefined, multiple: boolean): string[] {
   if (Array.isArray(value)) return [...value];
   if (typeof value === "string" && value.length > 0) return [value];
   return multiple ? [] : [];
 }
 
-const AccordionRoot = React.forwardRef<HTMLDivElement, AccordionProps>(function Accordion(
-  rawProps,
-  ref,
-) {
-  const {
-    type,
-    value,
-    defaultValue,
-    onValueChange,
-    collapsible,
-    className,
-    children,
-    ...divProps
-  } = rawProps as unknown as AccordionRootInput;
+const AccordionRoot = React.forwardRef<HTMLDivElement, AccordionProps>(
+  function Accordion(rawProps, ref) {
+    const {
+      type,
+      value,
+      defaultValue,
+      onValueChange,
+      collapsible,
+      className,
+      children,
+      ...divProps
+    } = rawProps as unknown as AccordionRootInput;
 
-  const multiple = type === "multiple";
-  const isControlled = value !== undefined;
-  const [uncontrolled, setUncontrolled] = React.useState<string[]>(() =>
-    toOpenValues(defaultValue, multiple),
-  );
-  const openValues = isControlled ? toOpenValues(value, multiple) : uncontrolled;
+    const multiple = type === "multiple";
+    const isControlled = value !== undefined;
+    const [uncontrolled, setUncontrolled] = React.useState<string[]>(() =>
+      toOpenValues(defaultValue, multiple),
+    );
+    const openValues = isControlled ? toOpenValues(value, multiple) : uncontrolled;
 
-  const toggle = React.useCallback(
-    (itemValue: string, disabled?: boolean) => {
-      if (disabled) return;
-      const isOpen = openValues.includes(itemValue);
-      if (multiple) {
-        const next = isOpen
-          ? openValues.filter((entry) => entry !== itemValue)
-          : [...openValues, itemValue];
-        if (!isControlled) setUncontrolled(next);
-        (onValueChange as ((next: string[]) => void) | undefined)?.(next);
-        return;
-      }
-      if (isOpen) {
-        if (!collapsible) return;
-        if (!isControlled) setUncontrolled([]);
-        (onValueChange as ((next: string) => void) | undefined)?.("");
-        return;
-      }
-      if (!isControlled) setUncontrolled([itemValue]);
-      (onValueChange as ((next: string) => void) | undefined)?.(itemValue);
-    },
-    [multiple, openValues, isControlled, collapsible, onValueChange],
-  );
+    const toggle = React.useCallback(
+      (itemValue: string, disabled?: boolean) => {
+        if (disabled) return;
+        const isOpen = openValues.includes(itemValue);
+        if (multiple) {
+          const next = isOpen
+            ? openValues.filter((entry) => entry !== itemValue)
+            : [...openValues, itemValue];
+          if (!isControlled) setUncontrolled(next);
+          (onValueChange as ((next: string[]) => void) | undefined)?.(next);
+          return;
+        }
+        if (isOpen) {
+          if (!collapsible) return;
+          if (!isControlled) setUncontrolled([]);
+          (onValueChange as ((next: string) => void) | undefined)?.("");
+          return;
+        }
+        if (!isControlled) setUncontrolled([itemValue]);
+        (onValueChange as ((next: string) => void) | undefined)?.(itemValue);
+      },
+      [multiple, openValues, isControlled, collapsible, onValueChange],
+    );
 
-  const rootRef = React.useRef<HTMLDivElement | null>(null);
-  const setRootRef = React.useCallback(
-    (node: HTMLDivElement | null) => {
-      rootRef.current = node;
-      if (typeof ref === "function") ref(node);
-      else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
-    },
-    [ref],
-  );
+    const rootRef = React.useRef<HTMLDivElement | null>(null);
+    const setRootRef = React.useCallback(
+      (node: HTMLDivElement | null) => {
+        rootRef.current = node;
+        if (typeof ref === "function") ref(node);
+        else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
+      },
+      [ref],
+    );
 
-  const context = React.useMemo<AccordionContextValue>(
-    () => ({ isOpen: (entry) => openValues.includes(entry), toggle, rootRef }),
-    [openValues, toggle],
-  );
+    const context = React.useMemo<AccordionContextValue>(
+      () => ({ isOpen: (entry) => openValues.includes(entry), toggle, rootRef }),
+      [openValues, toggle],
+    );
 
-  return (
-    <AccordionContext.Provider value={context}>
-      <div
-        ref={setRootRef}
-        data-type={type}
-        data-maivand-accordion=""
-        className={cn("maivand-a-ui", "maivand-a-accordion", className)}
-        {...divProps}
-      >
-        {children}
-      </div>
-    </AccordionContext.Provider>
-  );
-});
+    return (
+      <AccordionContext.Provider value={context}>
+        <div
+          ref={setRootRef}
+          data-type={type}
+          data-maivand-accordion=""
+          className={cn("maivand-a-ui", "maivand-a-accordion", className)}
+          {...divProps}
+        >
+          {children}
+        </div>
+      </AccordionContext.Provider>
+    );
+  },
+);
 AccordionRoot.displayName = "Accordion";
 
 export const AccordionItem = React.forwardRef<HTMLDivElement, AccordionItemProps>(
@@ -165,9 +161,7 @@ AccordionItem.displayName = "AccordionItem";
 
 export const AccordionHeader = React.forwardRef<HTMLHeadingElement, AccordionHeaderProps>(
   function AccordionHeader({ className, ...props }, ref) {
-    return (
-      <h3 ref={ref} className={cn("maivand-a-accordion-header", className)} {...props} />
-    );
+    return <h3 ref={ref} className={cn("maivand-a-accordion-header", className)} {...props} />;
   },
 );
 AccordionHeader.displayName = "AccordionHeader";
@@ -195,9 +189,7 @@ export const AccordionTrigger = React.forwardRef<HTMLButtonElement, AccordionTri
       // inside a nested accordion has a different closest `[data-maivand-accordion]`
       // root, so Arrow/Home/End never escape into child accordions.
       const triggers = Array.from(
-        root.querySelectorAll<HTMLButtonElement>(
-          "[data-maivand-accordion-trigger]:not(:disabled)",
-        ),
+        root.querySelectorAll<HTMLButtonElement>("[data-maivand-accordion-trigger]:not(:disabled)"),
       ).filter((trigger) => trigger.closest("[data-maivand-accordion]") === root);
       if (triggers.length === 0) return;
       const currentIndex = triggers.indexOf(event.currentTarget);
@@ -206,7 +198,9 @@ export const AccordionTrigger = React.forwardRef<HTMLButtonElement, AccordionTri
         nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % triggers.length;
       } else if (event.key === "ArrowUp") {
         nextIndex =
-          currentIndex < 0 ? triggers.length - 1 : (currentIndex - 1 + triggers.length) % triggers.length;
+          currentIndex < 0
+            ? triggers.length - 1
+            : (currentIndex - 1 + triggers.length) % triggers.length;
       } else if (event.key === "Home") {
         nextIndex = 0;
       } else {

@@ -17,9 +17,7 @@ const ToastDurationContext = React.createContext<number | null | undefined>(unde
 const DEFAULT_TOAST_DURATION = 5000;
 
 export function ToastProvider({ children, duration }: ToastProviderProps) {
-  return (
-    <ToastDurationContext.Provider value={duration}>{children}</ToastDurationContext.Provider>
-  );
+  return <ToastDurationContext.Provider value={duration}>{children}</ToastDurationContext.Provider>;
 }
 
 const ToastRoot = React.forwardRef<HTMLLIElement, ToastProps>(function ToastRoot(
@@ -101,11 +99,12 @@ export const ToastViewport = React.forwardRef<HTMLOListElement, ToastViewportPro
   },
 );
 
-export const ToastTitle = React.forwardRef<HTMLHeadingElement, ToastTitleProps>(
-  function ToastTitle({ className, ...props }, ref) {
-    return <h5 ref={ref} className={cn("maivand-b-toast-title", className)} {...props} />;
-  },
-);
+export const ToastTitle = React.forwardRef<HTMLHeadingElement, ToastTitleProps>(function ToastTitle(
+  { className, ...props },
+  ref,
+) {
+  return <h5 ref={ref} className={cn("maivand-b-toast-title", className)} {...props} />;
+});
 
 export const ToastDescription = React.forwardRef<HTMLParagraphElement, ToastDescriptionProps>(
   function ToastDescription({ className, ...props }, ref) {
@@ -129,20 +128,17 @@ export const ToastAction = React.forwardRef<HTMLButtonElement, ToastActionProps>
   },
 );
 
-export const ToastClose = React.forwardRef<HTMLButtonElement, ToastCloseProps>(
-  function ToastClose({ className, asChild = false, children, ...props }, ref) {
-    const Comp = (asChild ? Slot : "button") as React.ElementType;
-    return (
-      <Comp
-        ref={ref}
-        className={cn("maivand-b-toast-close", className)}
-        {...props}
-      >
-        {children}
-      </Comp>
-    );
-  },
-);
+export const ToastClose = React.forwardRef<HTMLButtonElement, ToastCloseProps>(function ToastClose(
+  { className, asChild = false, children, ...props },
+  ref,
+) {
+  const Comp = (asChild ? Slot : "button") as React.ElementType;
+  return (
+    <Comp ref={ref} className={cn("maivand-b-toast-close", className)} {...props}>
+      {children}
+    </Comp>
+  );
+});
 
 export const Toast = Object.assign(ToastRoot, {
   Provider: ToastProvider,

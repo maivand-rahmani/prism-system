@@ -10,12 +10,7 @@ export const Heading = React.forwardRef<HTMLHeadingElement, HeadingProps>(functi
   return (
     <Tag
       ref={ref}
-      className={cn(
-        "maivand-a-ui",
-        "maivand-a-heading",
-        `maivand-a-heading-${level}`,
-        className,
-      )}
+      className={cn("maivand-a-ui", "maivand-a-heading", `maivand-a-heading-${level}`, className)}
       {...props}
     />
   );

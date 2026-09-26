@@ -18,23 +18,19 @@ const AlertRoot = React.forwardRef<HTMLDivElement, AlertProps>(function Alert(
     <div
       ref={ref}
       role={role}
-      className={cn(
-        "maivand-b-ui",
-        "maivand-b-alert",
-        `maivand-b-alert-${variant}`,
-        className,
-      )}
+      className={cn("maivand-b-ui", "maivand-b-alert", `maivand-b-alert-${variant}`, className)}
       {...props}
     />
   );
 });
 AlertRoot.displayName = "Alert";
 
-export const AlertTitle = React.forwardRef<HTMLHeadingElement, React.ComponentPropsWithoutRef<"h5">>(
-  function AlertTitle({ className, ...props }, ref) {
-    return <h5 ref={ref} className={cn("maivand-b-alert-title", className)} {...props} />;
-  },
-);
+export const AlertTitle = React.forwardRef<
+  HTMLHeadingElement,
+  React.ComponentPropsWithoutRef<"h5">
+>(function AlertTitle({ className, ...props }, ref) {
+  return <h5 ref={ref} className={cn("maivand-b-alert-title", className)} {...props} />;
+});
 
 export const AlertDescription = React.forwardRef<
   HTMLParagraphElement,

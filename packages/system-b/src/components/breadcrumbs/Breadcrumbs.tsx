@@ -10,19 +10,14 @@ import type {
   BreadcrumbsProps,
 } from "@prism-system/ui-core";
 
-const BreadcrumbsRoot = React.forwardRef<HTMLElement, BreadcrumbsProps>(function Breadcrumbs(
-  props,
-  ref,
-) {
-  const { className, ...rest } = props;
-  return (
-    <nav
-      ref={ref}
-      className={cn("maivand-b-ui", "maivand-b-breadcrumbs", className)}
-      {...rest}
-    />
-  );
-});
+const BreadcrumbsRoot = React.forwardRef<HTMLElement, BreadcrumbsProps>(
+  function Breadcrumbs(props, ref) {
+    const { className, ...rest } = props;
+    return (
+      <nav ref={ref} className={cn("maivand-b-ui", "maivand-b-breadcrumbs", className)} {...rest} />
+    );
+  },
+);
 BreadcrumbsRoot.displayName = "Breadcrumbs";
 
 export const BreadcrumbsList = React.forwardRef<HTMLOListElement, BreadcrumbsListProps>(
@@ -40,12 +35,7 @@ export const BreadcrumbsItem = React.forwardRef<HTMLLIElement, BreadcrumbsItemPr
 export const BreadcrumbsLink = React.forwardRef<HTMLAnchorElement, BreadcrumbsLinkProps>(
   function BreadcrumbsLink({ className, href, ...props }, ref) {
     return (
-      <a
-        ref={ref}
-        href={href}
-        className={cn("maivand-b-breadcrumbs-link", className)}
-        {...props}
-      />
+      <a ref={ref} href={href} className={cn("maivand-b-breadcrumbs-link", className)} {...props} />
     );
   },
 );

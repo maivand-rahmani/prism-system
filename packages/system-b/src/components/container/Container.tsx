@@ -12,11 +12,7 @@ export const Container = React.forwardRef<HTMLDivElement, ContainerProps>(functi
 ) {
   const Comp = (asProp ?? "div") as React.ElementType;
   return (
-    <Comp
-      ref={ref}
-      className={cn("maivand-b-ui", "maivand-b-container", className)}
-      {...props}
-    />
+    <Comp ref={ref} className={cn("maivand-b-ui", "maivand-b-container", className)} {...props} />
   );
 });
 Container.displayName = "Container";

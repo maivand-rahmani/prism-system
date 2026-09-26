@@ -1,7 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Separator as SeparatorPrimitive, cn, type SeparatorProps as CoreSeparatorProps } from "@prism-system/ui-core";
+import {
+  Separator as SeparatorPrimitive,
+  cn,
+  type SeparatorProps as CoreSeparatorProps,
+} from "@prism-system/ui-core";
 
 export type SeparatorProps = CoreSeparatorProps;
 

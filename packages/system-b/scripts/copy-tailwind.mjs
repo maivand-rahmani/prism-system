@@ -13,9 +13,7 @@ const source = join(packageDir, "src", "styles", "tailwind.css");
 const target = join(packageDir, "dist", "tailwind.css");
 
 if (!existsSync(source)) {
-  throw new Error(
-    `Missing ${source}. Regenerate it with "pnpm ds:manifest system-b --write".`,
-  );
+  throw new Error(`Missing ${source}. Regenerate it with "pnpm ds:manifest system-b --write".`);
 }
 
 mkdirSync(dirname(target), { recursive: true });

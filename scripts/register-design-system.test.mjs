@@ -53,10 +53,7 @@ test("the registry schema accepts exactly v2 and v4", () => {
   assert.deepEqual([...CONTRACTS], ["v2", "v4"]);
   assert.equal(buildEntry({ ...ENTRY_BASE, contract: "v2" }).contract, "v2");
   assert.equal(buildEntry({ ...ENTRY_BASE, contract: "v4" }).contract, "v4");
-  assert.throws(
-    () => buildEntry({ ...ENTRY_BASE, contract: "v1" }),
-    /Unsupported contract "v1"/,
-  );
+  assert.throws(() => buildEntry({ ...ENTRY_BASE, contract: "v1" }), /Unsupported contract "v1"/);
   assert.throws(() => buildEntry({ ...ENTRY_BASE }), /Missing required "contract"/);
 });
 
@@ -173,9 +170,7 @@ test("registration records the source contract and never relabels V4 as V2", asy
     makePackage(root, { id: "pulse", contract: "v4" });
     const result = await registerDesignSystem({ id: "pulse", root });
     assert.equal(result.entry.contract, "v4");
-    const written = JSON.parse(
-      readFileSync(join(root, "config", "design-systems.json"), "utf8"),
-    );
+    const written = JSON.parse(readFileSync(join(root, "config", "design-systems.json"), "utf8"));
     assert.equal(written.designSystems[0].contract, "v4");
   } finally {
     rmSync(root, { recursive: true, force: true });

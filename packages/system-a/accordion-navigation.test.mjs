@@ -20,10 +20,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const source = readFileSync(
-  join(here, "src", "components", "accordion", "Accordion.tsx"),
-  "utf8",
-);
+const source = readFileSync(join(here, "src", "components", "accordion", "Accordion.tsx"), "utf8");
 
 test("accordion root is marked for level scoping", () => {
   assert.match(source, /data-maivand-accordion=""/);

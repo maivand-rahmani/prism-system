@@ -34,27 +34,21 @@ PaginationRoot.displayName = "Pagination";
 
 export const PaginationList = React.forwardRef<HTMLUListElement, PaginationListProps>(
   function PaginationList({ className, ...props }, ref) {
-    return (
-      <ul ref={ref} className={cn("maivand-a-pagination-list", className)} {...props} />
-    );
+    return <ul ref={ref} className={cn("maivand-a-pagination-list", className)} {...props} />;
   },
 );
 PaginationList.displayName = "PaginationList";
 
 export const PaginationItem = React.forwardRef<HTMLLIElement, PaginationItemProps>(
   function PaginationItem({ className, ...props }, ref) {
-    return (
-      <li ref={ref} className={cn("maivand-a-pagination-item", className)} {...props} />
-    );
+    return <li ref={ref} className={cn("maivand-a-pagination-item", className)} {...props} />;
   },
 );
 PaginationItem.displayName = "PaginationItem";
 
 export const PaginationLink = React.forwardRef<HTMLAnchorElement, PaginationLinkProps>(
   function PaginationLink({ className, ...props }, ref) {
-    return (
-      <a ref={ref} className={cn("maivand-a-pagination-link", className)} {...props} />
-    );
+    return <a ref={ref} className={cn("maivand-a-pagination-link", className)} {...props} />;
   },
 );
 PaginationLink.displayName = "PaginationLink";

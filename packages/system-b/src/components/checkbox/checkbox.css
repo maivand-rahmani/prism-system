@@ -89,7 +89,9 @@
 }
 /* Radix state hooks used by the core adapter. */
 :where(.maivand-b-ui) .maivand-b-checkbox-input[data-state="checked"] .maivand-b-checkbox-box,
-:where(.maivand-b-ui) .maivand-b-checkbox-input[data-state="indeterminate"] .maivand-b-checkbox-box {
+:where(.maivand-b-ui)
+  .maivand-b-checkbox-input[data-state="indeterminate"]
+  .maivand-b-checkbox-box {
   background: var(--maivand-b-color-action-primary);
   border-color: var(--maivand-b-color-action-primary);
   color: #fff;

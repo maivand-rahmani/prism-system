@@ -12,8 +12,7 @@
   border-radius: var(--maivand-a-radius-full);
   display: block;
   height: 100%;
-  transition: width var(--maivand-a-motion-duration-normal)
-    var(--maivand-a-motion-easing-standard);
+  transition: width var(--maivand-a-motion-duration-normal) var(--maivand-a-motion-easing-standard);
 }
 :where(.maivand-a-ui).maivand-a-progress-indeterminate .maivand-a-progress-indicator {
   animation: maivand-a-progress-indeterminate var(--maivand-a-motion-duration-slow)
