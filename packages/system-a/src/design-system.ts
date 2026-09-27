@@ -55,7 +55,7 @@ export const DesignSystem = defineDesignSystem({
   id: "system-a",
   name: "System A",
   packageName: "@prism-system/ui-system-a",
-  version: "3.1.0",
+  version: "3.1.1",
   contractVersion: 4,
   components: {
     Button,
