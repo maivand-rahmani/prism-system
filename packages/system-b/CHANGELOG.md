@@ -1,5 +1,11 @@
 # Changelog — @prism-system/ui-system-b
 
+## 3.1.0
+
+### Minor Changes
+
+- 63c74ec: Publish the package root as a client entry: both the ESM and CJS bundles now open with a top-level `"use client"` directive, so a Next.js App Router Server Component can import and render the components as client references. The `./tokens` subpath stays server-safe in both formats.
+
 ## 3.0.0
 
 ### Major Changes
