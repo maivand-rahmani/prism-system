@@ -344,19 +344,26 @@ Tailwind по-прежнему работает. Повторный `prism-ds se
 Хорошо — используем готовый API:
 
 ```tsx
-import { Button, Card, Input } from "@prism-system/ui-system-a";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Input,
+} from "@prism-system/ui-system-a";
 import "@prism-system/ui-system-a/styles.css";
 
 export function SaveCard() {
   return (
     <Card>
-      <Card.Header>
-        <Card.Title>Сохранить изменения</Card.Title>
-      </Card.Header>
-      <Card.Content>
+      <CardHeader>
+        <CardTitle>Сохранить изменения</CardTitle>
+      </CardHeader>
+      <CardContent>
         <Input label="Название" />
         <Button variant="primary">Сохранить</Button>
-      </Card.Content>
+      </CardContent>
     </Card>
   );
 }
@@ -370,6 +377,12 @@ export function SaveCard() {
 
 Раскладка в продукте разрешена: `grid`, `flex`, `gap`, отступы, размеры,
 позиционирование, адаптивность. Запрещено менять визуальный язык.
+
+Пример выше — Server Component, поэтому `Card` собран из плоских экспортов
+(`CardHeader`, `CardTitle`, `CardContent`): клиентская ссылка не раскрывает
+статические члены, и `Card.Header` в Server Component недоступен. Составная форма
+работает в клиентских компонентах; если она нужна серверной странице, вынесите
+композицию в небольшой модуль с `"use client"`.
 
 ## 10. Новый переиспользуемый компонент
 

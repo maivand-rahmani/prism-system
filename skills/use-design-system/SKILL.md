@@ -83,6 +83,14 @@ Compose the product interface using real HTML semantics and the installed contra
   validation or product-timed validation deliberately; with custom submit handling,
   `noValidate` prevents the browser from intercepting submission before the product
   displays its error.
+- Respect the Next.js App Router client boundary. The published root is a client entry, and
+  a Server Component receives each import as an opaque client reference that exposes the
+  export but not static compound members. A Server Component may still import and render
+  the named client components themselves, but it renders Card parts through the flat
+  exports `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, and `CardFooter`,
+  never `Card.Header`. Compound statics work inside client components; when a Server
+  Component wants compound syntax, extract a small `"use client"` wrapper that composes
+  the parts and render that wrapper from the server tree.
 - Use optional components only when the installed manifest declares them: support is the
   presence of the component name as a key in `manifest.components`. The manifest's
   `capabilities.categories` inventory maps names to composition/forms/data-display

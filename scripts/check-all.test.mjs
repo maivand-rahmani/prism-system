@@ -18,6 +18,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 
 import {
+  FLAT_CARD_PARTS,
   OPTIONAL_SETS,
   REQUIRED_COMPONENT_NAMES,
   assertCapabilityInventory,
@@ -312,6 +313,45 @@ test("buildTypecheckSource requires at least one system and a tokens export", ()
       ]),
     /tokensExport/,
   );
+});
+
+test("buildTypecheckSource references the flat Card parts for every system", () => {
+  const source = buildTypecheckSource(FIXTURE_SYSTEMS);
+  assert.match(
+    source,
+    /const flatCardParts = \["CardHeader","CardTitle","CardDescription","CardContent","CardFooter"\] as const;/,
+  );
+  for (const system of FIXTURE_SYSTEMS) {
+    assert.match(
+      source,
+      new RegExp(
+        `const ${system.namespace}FlatCardParts: Record<\\(typeof flatCardParts\\)\\[number\\], unknown> = \\{`,
+      ),
+      `${system.namespace}FlatCardParts record`,
+    );
+    for (const name of FLAT_CARD_PARTS) {
+      assert.match(
+        source,
+        new RegExp(`${system.namespace}\\.${name},`),
+        `${system.namespace}.${name} reference`,
+      );
+      assert.match(
+        source,
+        new RegExp(`<${system.namespace}\\.${name}>`),
+        `${system.namespace}.${name} JSX usage`,
+      );
+      assert.match(
+        source,
+        new RegExp(`</${system.namespace}\\.${name}>`),
+        `${system.namespace}.${name} JSX close tag`,
+      );
+    }
+  }
+  assert.match(source, /cardParts: \[SystemAFlatCardParts, SystemBFlatCardParts\]/);
+  assert.match(source, /cardProbes: \[cardProbe0, cardProbe1\]/);
+  // The flat parts are named imports; the compound static root stays in the
+  // required record and must not be used for parts anywhere.
+  assert.doesNotMatch(source, /Card\.Header|Card\.Title|Card\.Content/);
 });
 
 test("buildRuntimeProbeSource embeds the packages and the consumer node_modules guard", () => {

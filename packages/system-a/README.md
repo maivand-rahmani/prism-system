@@ -25,9 +25,15 @@ The package is built for React 18+ and depends on `@prism-system/ui-core`.
 
 Both published formats of the package root are client entries: the ESM and CJS
 bundles open with a top-level `"use client"` directive. In Next.js App Router a
-Server Component may import and render the components — they arrive as client
-references. Keep server-side utilities out of the root entry; the
-`@prism-system/ui-system-a/tokens` subpath is plain data and stays server-safe.
+Server Component may import and render the components — they arrive as named
+client references. A client reference exposes only the imported export, not
+static properties attached to it: a Server Component renders Card parts through
+the flat exports `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`,
+and `CardFooter`, never `Card.Header`. The compound statics stay available
+inside client components, including a small `"use client"` wrapper that composes
+the parts (see [USAGE.md](./USAGE.md)). Keep server-side utilities out of the
+root entry; the `@prism-system/ui-system-a/tokens` subpath is plain data and
+stays server-safe.
 
 ## Quickstart
 
@@ -80,6 +86,12 @@ export function Example() {
 }
 ```
 
+This composition uses compound members (`Card.Header`, `FormField.Label`), which are
+available inside client components. In a Next.js App Router Server Component, import
+the flat Card exports (`CardHeader`, `CardTitle`, `CardContent`) from the package root
+instead, or move the composition into a small `"use client"` wrapper. See
+[Client boundary](#client-boundary).
+
 See [USAGE.md](./USAGE.md) for a complete content page and interactive form,
 including validation, focus refs, and Select trigger composition. The examples
 ship with this package and use only required components.
@@ -118,7 +130,10 @@ contract (version 4), in canonical order:
 The public API of these required components is stable: they are never renamed,
 removed, or altered to make room for something else. Compound components expose
 their documented static members (`Card.Header`, `Tabs.List`, `Dialog.Content`,
-`DropdownMenu.Item`, `FormField.Control`, and so on).
+`DropdownMenu.Item`, `FormField.Control`, and so on) inside client components.
+Card additionally publishes flat root exports for its parts (`CardHeader`,
+`CardTitle`, `CardDescription`, `CardContent`, `CardFooter`) so a Server
+Component can render them; see [Client boundary](#client-boundary).
 
 System A also implements these eleven optional capabilities: `Grid`, `Fieldset`,
 `Alert`, `Progress`, `Accordion`, `Pagination`, `Table`, `Metric`,

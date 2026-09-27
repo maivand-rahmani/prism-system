@@ -92,8 +92,12 @@ it. An external coding agent consuming this package must:
    import package internals or paths that are not part of the `exports` map.
    The published root is a client entry (both formats open with `"use client"`): a
    Next.js App Router Server Component may import and render its components as
-   client references. Do not use root exports as server-side utilities; the
-   `./tokens` subpath stays server-safe.
+   client references. A client reference exposes only the imported export, not
+   static properties, so a Server Component imports the flat Card parts
+   (`CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`)
+   instead of `Card.Header`; compound statics work inside client components or a
+   small `"use client"` wrapper. Do not use root exports as server-side utilities;
+   the `./tokens` subpath stays server-safe.
 3. **Keep the visual language here.** Colors, typography, spacing, radius,
    borders, shadows, surfaces, states, variants, and motion belong to this
    package. Consumers compose with props; they must not restyle components or

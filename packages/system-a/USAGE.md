@@ -10,8 +10,12 @@ names to categories rather than declaring availability.
 Import `@prism-system/ui-system-a/styles.css` once in the application entry point.
 For Tailwind v4, use the import order shown in [README.md](./README.md). The
 package root is a client entry: in Next.js App Router a Server Component may
-import and render the components as client references, while
-`@prism-system/ui-system-a/tokens` stays server-safe for server code.
+import and render the components as named client references, while
+`@prism-system/ui-system-a/tokens` stays server-safe for server code. A client
+reference does not expose static compound members, so a Server Component renders
+Card through the flat exports `CardHeader`, `CardTitle`, `CardDescription`,
+`CardContent`, and `CardFooter`; `Card.Header` and the other compound statics
+work inside client components (see the wrapper note after the content page).
 
 ## A content page
 
@@ -19,7 +23,19 @@ The product owns content, routes, actions, and page composition. The package
 owns typography, surfaces, component spacing, variants, and interaction states.
 
 ```tsx
-import { Button, Card, Container, Heading, Link, Stack, Text } from "@prism-system/ui-system-a";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Container,
+  Heading,
+  Link,
+  Stack,
+  Text,
+} from "@prism-system/ui-system-a";
 
 export function Overview({ onCreate }: { onCreate: () => void }) {
   return (
@@ -28,16 +44,16 @@ export function Overview({ onCreate }: { onCreate: () => void }) {
         <Heading level={1}>Your workspace</Heading>
         <Text>Keep the next step visible to everyone on the team.</Text>
         <Card>
-          <Card.Header>
-            <Card.Title>Start a project</Card.Title>
-            <Card.Description>Give your work a shared home.</Card.Description>
-          </Card.Header>
-          <Card.Content>
+          <CardHeader>
+            <CardTitle>Start a project</CardTitle>
+            <CardDescription>Give your work a shared home.</CardDescription>
+          </CardHeader>
+          <CardContent>
             <Stack direction="horizontal" wrap>
               <Button onClick={onCreate}>Create project</Button>
               <Link href="/projects">Browse projects</Link>
             </Stack>
-          </Card.Content>
+          </CardContent>
         </Card>
       </Stack>
     </Container>
@@ -49,6 +65,32 @@ export function Overview({ onCreate }: { onCreate: () => void }) {
 HTML for product regions and layout utilities for product placement. Choose
 token names from `prism-ds tokens`, rather than inventing utilities or applying
 visual classes to package components.
+
+The content page is a Server Component, so it imports the flat Card parts: a
+client reference exposes the export itself, not static members like
+`Card.Header`. When compound syntax is preferred, move the Card composition into
+a small client module and render that module from the server page:
+
+```tsx
+"use client";
+
+import type { ReactNode } from "react";
+import { Card } from "@prism-system/ui-system-a";
+
+export function ProjectCard({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <Card>
+      <Card.Header>
+        <Card.Title>{title}</Card.Title>
+      </Card.Header>
+      <Card.Content>{children}</Card.Content>
+    </Card>
+  );
+}
+```
+
+The server page then renders `<ProjectCard title="Start a project">...</ProjectCard>`,
+and the compound statics run inside the client bundle.
 
 ## An interactive form
 

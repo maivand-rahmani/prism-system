@@ -19,8 +19,9 @@
  *      never carry it);
  *   7. hydrate isolated TEMP consumers from the packed artifacts only and
  *      typecheck every public import: the 29 required exports, each
- *      system's declared optional set, the `@prism-system/ui-core` contract
- *      names, `./manifest`, `./tokens`, `./styles.css`, and `./tailwind.css`;
+ *      system's declared optional set, the flat Card parts Server Components
+ *      import by name, the `@prism-system/ui-core` contract names, `./manifest`,
+ *      `./tokens`, `./styles.css`, and `./tailwind.css`;
  *   8. resolve and load the packed public exports at runtime from a consumer;
  *   9. install the exact `tailwindcss@4.3.3` + `@tailwindcss/cli@4.3.3`
  *      toolchain into this run's TEMP directory (`npm install --ignore-scripts
@@ -109,6 +110,20 @@ const SYSTEM_IDS = ["system-a", "system-b"];
 
 /** The canonical 29 required component names, in contract order. */
 export const REQUIRED_COMPONENT_NAMES = Object.freeze([...REQUIRED_COMPONENTS]);
+
+/**
+ * The flat Card part exports every system must publish from the package root so
+ * a Next.js App Router Server Component can render them. A `"use client"` client
+ * reference exposes the imported export but not static compound members, so
+ * `Card.Header` is only usable inside client components.
+ */
+export const FLAT_CARD_PARTS = Object.freeze([
+  "CardHeader",
+  "CardTitle",
+  "CardDescription",
+  "CardContent",
+  "CardFooter",
+]);
 
 /** The optional capability set each test system declares. */
 export const OPTIONAL_SETS = Object.freeze({
@@ -383,9 +398,9 @@ export function collectRepoVersionState(root) {
 
 /**
  * The consumer TypeScript source that typechecks every public import of the
- * packed packages: all 29 required exports, the declared optionals, the
- * ui-core contract names, `./manifest`, `./tokens`, `./styles.css`, and
- * `./tailwind.css`.
+ * packed packages: all 29 required exports, the declared optionals, the flat
+ * Card parts a Server Component must import by name, the ui-core contract
+ * names, `./manifest`, `./tokens`, `./styles.css`, and `./tailwind.css`.
  *
  * @param {{namespace: string, id: string, packageName: string, optional: string[]}[]} systems
  */
@@ -422,6 +437,7 @@ export function buildTypecheckSource(systems) {
     `import ${JSON.stringify(`${systems[0].packageName}/tailwind.css`)};`,
     "",
     "type RequiredName = (typeof REQUIRED_COMPONENTS)[number];",
+    `const flatCardParts = ${JSON.stringify([...FLAT_CARD_PARTS])} as const;`,
     "",
   ];
 
@@ -443,6 +459,34 @@ export function buildTypecheckSource(systems) {
       }
       lines.push("};", "");
     }
+    // The flat Card parts must be named exports of the packed root: a Server
+    // Component cannot reach `Card.Header` through its client reference.
+    lines.push(
+      `const ${system.namespace}FlatCardParts: Record<(typeof flatCardParts)[number], unknown> = {`,
+    );
+    for (const name of FLAT_CARD_PARTS) {
+      lines.push(`  ${name}: ${system.namespace}.${name},`);
+    }
+    lines.push("};", "");
+  }
+
+  const cardProbes = [];
+  for (const [index, system] of systems.entries()) {
+    const ns = system.namespace;
+    lines.push(
+      `const cardProbe${index} = (`,
+      `  <${ns}.Card>`,
+      `    <${ns}.CardHeader>`,
+      `      <${ns}.CardTitle>Card title</${ns}.CardTitle>`,
+      `      <${ns}.CardDescription>Card description</${ns}.CardDescription>`,
+      `    </${ns}.CardHeader>`,
+      `    <${ns}.CardContent>Card content</${ns}.CardContent>`,
+      `    <${ns}.CardFooter>Card footer</${ns}.CardFooter>`,
+      `  </${ns}.Card>`,
+      ");",
+      "",
+    );
+    cardProbes.push(`cardProbe${index}`);
   }
 
   lines.push(
@@ -472,6 +516,8 @@ export function buildTypecheckSource(systems) {
     "  factory,",
     "  type: null as ComponentMap | null,",
     `  required: [${namespaces.map((namespace) => `${namespace}Required`).join(", ")}],`,
+    `  cardParts: [${systems.map((system) => `${system.namespace}FlatCardParts`).join(", ")}],`,
+    `  cardProbes: [${cardProbes.join(", ")}],`,
     `  optional: [${systems
       .filter((system) => system.optional.length > 0)
       .map((system) => `${system.namespace}Optional`)

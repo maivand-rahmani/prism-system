@@ -62,8 +62,14 @@ Tailwind v4 подключается мостом пакета; порядок �
 `"use client"` в начале файла для собственного состояния продукта. Корневой
 импорт пакета уже является клиентским entry (собранный бандл открывается
 директивой `"use client"`), поэтому Server Component может импортировать и
-рендерить компоненты как клиентские ссылки. Не используйте экспорты корня как
-серверные утилиты. Подпуть `@prism-system/ui-system-a/tokens` остаётся server-safe.
+рендерить компоненты как клиентские ссылки. Клиентская ссылка раскрывает только
+сам экспорт, но не его статические члены: поэтому контентная страница (пример 1,
+Server Component) собирает `Card` из плоских экспортов `CardHeader`,
+`CardTitle`, `CardDescription`, `CardContent`, `CardFooter`. Составная форма
+`Card.Header` работает внутри клиентских компонентов — примеры 2 и 3. Если
+составной синтаксис нужен серверной странице, карточка выносится в небольшой
+модуль с `"use client"`. Не используйте экспорты корня как серверные утилиты.
+Подпуть `@prism-system/ui-system-a/tokens` остаётся server-safe.
 
 ## 1. Контентная (редакционная) страница
 
@@ -76,6 +82,11 @@ import {
   Badge,
   Button,
   Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
   Container,
   Heading,
   Link,
@@ -118,18 +129,18 @@ export function ArticlePage({ article }: { article: Article }) {
         ))}
 
         <Card variant="muted">
-          <Card.Header>
-            <Card.Title>Дайджест раз в месяц</Card.Title>
-            <Card.Description>
+          <CardHeader>
+            <CardTitle>Дайджест раз в месяц</CardTitle>
+            <CardDescription>
               Одно письмо с новыми материалами. Отписаться можно в любой момент.
-            </Card.Description>
-          </Card.Header>
-          <Card.Content>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
             <Button variant="primary">Подписаться</Button>
-          </Card.Content>
-          <Card.Footer>
+          </CardContent>
+          <CardFooter>
             <Link href="/archive">Все материалы</Link>
-          </Card.Footer>
+          </CardFooter>
         </Card>
       </Stack>
     </Container>
@@ -144,6 +155,9 @@ export function ArticlePage({ article }: { article: Article }) {
 - `Heading level` — семантика заголовка; как уровень выглядит, решает система.
 - `Badge`, `Card`, `Separator` оформляют повторяемые части; значения вариантов
   объявлены манифестом системы.
+- `Card` собран из плоских экспортов (`CardHeader`, `CardTitle`, `CardDescription`,
+  `CardContent`, `CardFooter`), потому что это Server Component: статические члены
+  вроде `Card.Header` через клиентскую ссылку недоступны.
 - `/archive` и подписка — маршрут и действие продукта.
 
 ## 2. Форма с подсказкой и ошибкой
