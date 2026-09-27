@@ -47,7 +47,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsup src/index.ts src/tokens/index.ts --format esm,cjs --dts --clean && node scripts/copy-tailwind.mjs",
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsup && node scripts/copy-tailwind.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint src"
   },

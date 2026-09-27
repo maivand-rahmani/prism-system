@@ -95,6 +95,10 @@ it. An external coding agent consuming this package must:
    ordinary CSS from `@prism-system/ui-system-b/styles.css`; Tailwind v4 products
    may additionally load `@prism-system/ui-system-b/tailwind.css`. Never import
    package internals or paths that are not part of the `exports` map.
+   The published root is a client entry (both formats open with `"use client"`): a
+   Next.js App Router Server Component may import and render its components as
+   client references. Do not use root exports as server-side utilities; the
+   `./tokens` subpath stays server-safe.
 3. **Keep the visual language here.** Colors, typography, spacing, radius,
    borders, shadows, surfaces, states, variants, and motion belong to this
    package. Consumers compose with props; they must not restyle components or

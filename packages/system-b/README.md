@@ -22,6 +22,14 @@ pnpm add @prism-system/ui-system-b
 
 The package targets React 18+ and depends on `@prism-system/ui-core`.
 
+### Client boundary
+
+Both published formats of the package root are client entries: the ESM and CJS
+bundles open with a top-level `"use client"` directive. In Next.js App Router a
+Server Component may import and render the components — they arrive as client
+references. Keep server-side utilities out of the root entry; the
+`@prism-system/ui-system-b/tokens` subpath is plain data and stays server-safe.
+
 ## Quickstart
 
 ### Ordinary CSS

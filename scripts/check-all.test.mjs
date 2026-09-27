@@ -21,6 +21,7 @@ import {
   OPTIONAL_SETS,
   REQUIRED_COMPONENT_NAMES,
   assertCapabilityInventory,
+  assertClientEntryBoundary,
   buildRuntimeProbeSource,
   buildTailwindProbeCss,
   buildTailwindProbeSource,
@@ -30,6 +31,7 @@ import {
   cssVariableValue,
   semanticUtilityClass,
   semanticUtilityRule,
+  startsWithClientDirective,
 } from "./check-all.mjs";
 import { CAPABILITY_CATEGORIES } from "./design-system-manifest.mjs";
 
@@ -208,6 +210,63 @@ test("semanticUtilityRule returns the compiled rule body, or null when absent", 
   assert.equal(
     semanticUtilityRule(".text-prism-text-primary { color: red; }", "xtext-prism"),
     null,
+  );
+});
+
+/* -------------------------------------------------------------------------- */
+/* Packed client boundary                                                     */
+/* -------------------------------------------------------------------------- */
+
+test("startsWithClientDirective accepts a leading directive in either quote style", () => {
+  assert.equal(startsWithClientDirective('"use client";\nimport x from "y";\n'), true);
+  assert.equal(startsWithClientDirective("'use client'\nexport {};\n"), true);
+  assert.equal(
+    startsWithClientDirective('\uFEFF\r\n"use client";\r\nmodule.exports = {};\n'),
+    true,
+  );
+  assert.equal(startsWithClientDirective('"use client";\n"use client";\n'), true);
+});
+
+test("startsWithClientDirective rejects missing, trailing, and unrelated directives", () => {
+  assert.equal(startsWithClientDirective(""), false);
+  assert.equal(startsWithClientDirective("import x from 'y';\n"), false);
+  assert.equal(startsWithClientDirective('"use strict";\n"use client";\n'), false);
+  assert.equal(startsWithClientDirective('"use server";\n'), false);
+  assert.equal(startsWithClientDirective('// comment\n"use client";\n'), false);
+});
+
+test("assertClientEntryBoundary requires root directives and server-safe tokens", () => {
+  const good = {
+    rootEsm: '"use client";\nexport const Button = 1;\n',
+    rootCjs: '"use client";\n"use strict";\nmodule.exports = {};\n',
+    tokensEsm: "export const tokens = {};\n",
+    tokensCjs: '"use strict";\nmodule.exports = {};\n',
+  };
+  assert.doesNotThrow(() => assertClientEntryBoundary(good, "fixture"));
+
+  assert.throws(
+    () => assertClientEntryBoundary({ ...good, rootEsm: "export const Button = 1;\n" }, "fixture"),
+    /fixture: root ESM must open with a top-level "use client" directive/,
+  );
+  assert.throws(
+    () =>
+      assertClientEntryBoundary(
+        { ...good, rootCjs: '"use strict";\n"use client";\nmodule.exports = {};\n' },
+        "fixture",
+      ),
+    /fixture: root CJS must open/,
+  );
+  assert.throws(
+    () =>
+      assertClientEntryBoundary(
+        { ...good, tokensEsm: '"use client";\nexport const tokens = {};\n' },
+        "fixture",
+      ),
+    /fixture: tokens ESM must not be a client entry/,
+  );
+  assert.throws(
+    () => assertClientEntryBoundary({ ...good, tokensCjs: undefined }, "fixture"),
+    /fixture: tokens CJS entry is missing/,
   );
 });
 

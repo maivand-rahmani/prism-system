@@ -14,7 +14,9 @@
  *   5. generate a fresh package from the canonical template into TEMP only
  *      (`ds:create --output <temp> --no-register`), build it, and pack it;
  *   6. pack and inspect ui-core, System A, System B, the fresh generated
- *      package, and `@prism-system/tools`;
+ *      package, and `@prism-system/tools`; verify the packed client boundary
+ *      (root ESM/CJS entries open with `"use client"`, `./tokens` entries
+ *      never carry it);
  *   7. hydrate isolated TEMP consumers from the packed artifacts only and
  *      typecheck every public import: the 29 required exports, each
  *      system's declared optional set, the `@prism-system/ui-core` contract
@@ -277,6 +279,45 @@ export function assertCapabilityInventory(manifest, label) {
         )}`,
       );
     }
+  }
+}
+
+/**
+ * True when a bundle opens with a `"use client"` directive: the first
+ * non-empty line (after an optional BOM) is exactly the directive.
+ */
+export function startsWithClientDirective(text) {
+  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed === "") continue;
+    return /^["']use client["'];?$/.test(trimmed);
+  }
+  return false;
+}
+
+/**
+ * Assert the packed client boundary: both package-root entries open with a
+ * `"use client"` directive, and neither `./tokens` entry carries one — the
+ * tokens subpath must stay server-safe.
+ */
+export function assertClientEntryBoundary(contents, label) {
+  for (const [name, text] of [
+    ["root ESM", contents.rootEsm],
+    ["root CJS", contents.rootCjs],
+  ]) {
+    assert(typeof text === "string", `${label}: ${name} entry is missing`);
+    assert(
+      startsWithClientDirective(text),
+      `${label}: ${name} must open with a top-level "use client" directive`,
+    );
+  }
+  for (const [name, text] of [
+    ["tokens ESM", contents.tokensEsm],
+    ["tokens CJS", contents.tokensCjs],
+  ]) {
+    assert(typeof text === "string", `${label}: ${name} entry is missing`);
+    assert(!/["']use client["']/.test(text), `${label}: ${name} must not be a client entry`);
   }
 }
 
@@ -985,6 +1026,18 @@ async function main() {
         );
         target.manifest = manifest;
         target.version = pkg.version;
+
+        // The packed root entries are client bundles; `./tokens` stays
+        // server-safe in both formats.
+        assertClientEntryBoundary(
+          {
+            rootEsm: readFileSync(join(extracted, "dist", "index.mjs"), "utf8"),
+            rootCjs: readFileSync(join(extracted, "dist", "index.js"), "utf8"),
+            tokensEsm: readFileSync(join(extracted, "dist", "tokens", "index.mjs"), "utf8"),
+            tokensCjs: readFileSync(join(extracted, "dist", "tokens", "index.js"), "utf8"),
+          },
+          `${target.id} packed client boundary`,
+        );
 
         // The packed bridge and stylesheet are real artifacts with the
         // declared prefixes, and the bridge aliases the semantic color token.

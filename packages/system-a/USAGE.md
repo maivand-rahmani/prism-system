@@ -8,7 +8,10 @@ Optional capabilities must be checked in the installed `./manifest` first: a com
 is available only as a key in `manifest.components`, and `capabilities.categories` maps
 names to categories rather than declaring availability.
 Import `@prism-system/ui-system-a/styles.css` once in the application entry point.
-For Tailwind v4, use the import order shown in [README.md](./README.md).
+For Tailwind v4, use the import order shown in [README.md](./README.md). The
+package root is a client entry: in Next.js App Router a Server Component may
+import and render the components as client references, while
+`@prism-system/ui-system-a/tokens` stays server-safe for server code.
 
 ## A content page
 
@@ -49,8 +52,10 @@ visual classes to package components.
 
 ## An interactive form
 
-In Next.js App Router this module needs `"use client"`. Supply the real product
-action through `onSave`; validation and request state remain in the product.
+In Next.js App Router this module needs `"use client"` for its own state and
+handlers; the package root is already a client entry, so importing its components
+does not require the directive by itself. Supply the real product action through
+`onSave`; validation and request state remain in the product.
 
 ```tsx
 "use client";

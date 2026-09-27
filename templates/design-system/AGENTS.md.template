@@ -87,7 +87,11 @@ external coding agent consuming this package must:
    root and design tokens from `{{PACKAGE_NAME}}/tokens`. Import ordinary CSS from
    `{{PACKAGE_NAME}}/styles.css`; Tailwind v4 products additionally load
    `{{PACKAGE_NAME}}/tailwind.css` after `tailwindcss` and before `styles.css`. Never
-   import package internals or paths that are not part of the `exports` map.
+   import package internals or paths that are not part of the `exports` map. The
+   published root is a client entry (both formats open with `"use client"`): a Next.js
+   App Router Server Component may import and render its components as client
+   references. Do not use root exports as server-side utilities; the `./tokens`
+   subpath stays server-safe.
 3. **Keep the visual language here.** Colors, typography, spacing, radius,
    borders, shadows, surfaces, states, variants, and motion belong to this
    package. Consumers compose with props; they must not restyle components or
