@@ -65,9 +65,20 @@ and accessibility while composing from installed primitives and product layout.
 
 ## Brief example
 
-New briefs can keep the existing required shape and add these optional, explicitly
-classified notes. `requestedCapabilities` is not the actual package catalog; actual
-capabilities are later read from runtime/descriptor/manifest agreement.
+New briefs keep the existing required shape and add optional, explicitly classified notes.
+The schema is the authoring contract: `pnpm ds:create --brief` normalizes only the fields it
+uses, preserves unknown extra fields, and performs no full schema validation. The written
+`design-brief.json` ships in the package tarball, so it must contain only sanitized product
+and visual intent — no secrets, customer-sensitive data, private reference URLs, personal
+details, or interview transcripts. `requestedCapabilities` is not the actual package
+catalog; actual capabilities are later read from runtime/descriptor/manifest agreement.
+
+`decisionNotes` records significant choices only: `confirmed` (the user provided or approved
+the decision), `delegated` (the user explicitly let the agent decide), `proposed` (awaiting
+the user). A generator-ready brief has no material `proposed` decision. `referenceNotes`
+captures which traits to take from a named reference and which to avoid; `openQuestions`
+holds remaining questions — only nonblocking follow-ups once the brief is generator-ready.
+The example below is an approved, generator-ready brief with aligned decision notes.
 
 ```json
 {
@@ -110,13 +121,32 @@ capabilities are later read from runtime/descriptor/manifest agreement.
     "Activity request failed with retry",
     "Invalid invite email"
   ],
+  "referenceNotes": [
+    "Linear - take: compact density and restrained accent; avoid: copying its exact palette"
+  ],
+  "decisionNotes": [
+    {
+      "topic": "visual direction",
+      "status": "confirmed",
+      "note": "The user chose calm, precise, and compact over a more expressive direction."
+    },
+    {
+      "topic": "foundation bundle",
+      "status": "delegated",
+      "note": "The user delegated the foundations; the agent chose a cool blue accent, restrained surface contrast, minimal elevation, and reduced-motion-aware motion to fit the confirmed direction."
+    }
+  ],
+  "openQuestions": [
+    "Illustration style for a future marketing surface; nonblocking and does not change the approved console direction."
+  ],
   "avoid": ["heavy shadows", "decorative gradients"]
 }
 ```
 
 `pnpm ds:check <id>` is the package's full check and already runs package build,
-typecheck, and lint unless called with `--no-commands`. Run it once after the final
-relevant edits; repeat only if later edits invalidate the result. Release, versioning,
-and publishing are separate explicit actions. A package modification does require a
-user-visible Changeset; that records release intent but is not authorization to version
-or publish.
+typecheck, and lint plus the app integration commands unless called with `--no-commands`.
+Run it once after the final relevant edits; repeat only if later edits invalidate the
+result. A passing check is not evidence that the visual result suits the product; that
+judgment stays with the reviewed screens. Release, versioning, and publishing are separate
+explicit actions. A package modification does require a user-visible Changeset; that records
+release intent but is not authorization to version or publish.

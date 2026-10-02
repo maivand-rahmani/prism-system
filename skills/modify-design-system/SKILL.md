@@ -1,23 +1,33 @@
 ---
 name: modify-design-system
-description: Evolve a Prism design-system package while preserving its published contract and visual language.
+description: Modify an existing Prism design-system package in its source repository: tokens, variants, states, optional capabilities, public API, styles, or package docs, preserving contract version 4 and the system's visual language.
 ---
 
 # Modify a Design System
 
-Use this skill to change an existing Prism design system in its source repository.
-Product UI work belongs to the consuming product and follows
-[`use-design-system`](../use-design-system/SKILL.md). For contract rules, see
-[lifecycle guidance](../references/lifecycle.md); rely on core types and schemas
-for component catalogs rather than maintaining a duplicate list here.
+Use this skill when the task is to change an existing Prism design-system package in its
+source repository: tokens or appearance, variants and states, component styles or
+behavior, optional capability additions/removals, the public API, or the package's
+shipped documentation and examples. This is package-source work, not product UI work.
+Product UI belongs to the consuming product and follows
+[`use-design-system`](../use-design-system/SKILL.md). For contract rules, read
+[lifecycle guidance](../references/lifecycle.md); rely on core types and schemas for
+component catalogs rather than maintaining a duplicate catalog here.
 
-## Inspect and classify
+## Orient before editing
 
-Identify the system's exact contract from `package.json` and its descriptor/generated
-manifest. Read its brief, package instructions, `tokens.source.json`, styles,
-implementations, public exports, and shipped documentation.
+Read the actual system and the user's intent before deciding anything: `package.json` for
+the exact contract version, the design brief, package instructions, `tokens.source.json`,
+component styles and implementations, public exports and entrypoints, the source
+descriptor, the generated manifest, tests, and shipped documentation. Learn the system's
+established token semantics, variant conventions, and visual language, and restate the
+request in your own words. The shipped package is the current truth; when the brief,
+docs, or examples disagree with the implementation, report the mismatch and confirm
+scope before widening the change.
 
-Classify the requested change before editing:
+## Classify the request
+
+Classify what is actually being asked before touching files:
 
 - token or appearance change;
 - variant, state, or compound-member change;
@@ -28,8 +38,49 @@ Classify the requested change before editing:
 Check whether the request is a reusable visual pattern or a product-specific feature.
 Keep domain data, routing, business behavior, and one-off page composition in the
 product. An optional contract is available only if the system actually implements and
-exports it and declares it in its descriptor/manifest. Do not infer a capability from
-the core catalog, a brief request, or a local example.
+exports it and declares it in its descriptor/manifest. Do not infer a capability from the
+core catalog, a brief request, or a local example.
+
+## Clarify proportionally
+
+A clear, small, low-risk fix (an obvious focus, state, or contrast bug; a direct token
+adjustment) should be implemented without an interview. Ask a short question only when a
+genuine choice changes the outcome:
+
+- which package or screen is in scope;
+- whether a requested pattern is reusable system language or one product's composition;
+- whether a visual change is a system-wide redesign or a targeted component fix;
+- whether an optional capability belongs in the package or should be composed by the app.
+
+Examples: "make the primary button darker on hover" is routine — implement it through the
+established variant/state pattern. "Add alerts and make the system denser" is ambiguous
+and needs one or two targeted questions about whether density changes system-wide or one
+screen, and whether `Alert` becomes an optional capability or the product composes a
+feedback region. Do not guess on cross-cutting scope, and do not interrogate on routine
+fixes.
+
+Communicate in the user's language. When the environment exposes a structured question
+tool, use it for genuine blocking choices; otherwise present concise options and allow the
+user's own answer. Recommend a default only when a defensible technical choice exists. For subjective visual or product
+preferences, lay out the options and let the user decide. Never ask for information
+already visible in the repository or in the user's message.
+
+## Impact assessment before cross-cutting changes
+
+Before changing shared tokens, component styling, variants, or public exports, write a
+short assessment:
+
+- what stays invariant: the canonical core contract (version 4), required component APIs,
+  this system's established visual language, and unaffected consumer call sites;
+- what is affected: tokens, public exports, descriptor/manifest entries, component styles,
+  docs and examples, rendered screens (Showcase, Reference App, and consumer surfaces),
+  and any config or custom manifest readers;
+- whether the change is additive or breaking for this system's own shipped API, including
+  consumer and migration implications. A package major version may change this system's
+  API, but it never authorizes breaking the canonical required contract;
+- the evidence: files and generated artifacts read, and checks run or still needed.
+
+Keep it short and proportional. A local fix needs no impact essay.
 
 ## Preserve compatibility
 
@@ -41,38 +92,60 @@ the core catalog, a brief request, or a local example.
   changes; propose an additive compatible design. Preserve public exports and compound
   members unless an explicitly supported deprecation path exists.
 - Keep `@prism-system/ui-core` unstyled and avoid cross-system imports.
+- Reuse the system's established visual language for ordinary change; only an explicitly
+  requested redesign justifies new foundations. Do not perform universal cosmetic
+  cleanup, restyle unrelated components, or reformat existing code as a side effect.
+- Respect the user's existing work: preserve uncommitted diffs in the files you touch,
+  never revert unrelated changes, and edit the files as they actually are rather than
+  from a remembered baseline.
 
 ## Implement and regenerate
 
-Make changes in the target package and only the related app composition/documentation
-needed to demonstrate them. Keep product layouts in apps and visual decisions in the
-system. Edit `tokens.source.json` as the one token source and edit the source
-descriptor for actual variants, examples, compound members, and documentation paths.
-Public artifact and CSS paths belong to `package.json` exports and entrypoints.
-Regenerate TypeScript/CSS/Tailwind bridge/manifest through the repository's
+Make changes in the target package, plus only the app composition or documentation needed
+to demonstrate them. Keep product layouts in apps and visual decisions in the system.
+Edit `tokens.source.json` as the one token source and the source descriptor for real
+variants, examples, compound members, and documentation paths. Public artifact and CSS
+paths belong to `package.json` exports and entrypoints.
+
+For an optional capability addition or removal, make the whole chain agree:
+implementation, runtime component map, public export, styles import/CSS entry, source
+descriptor, and generated manifest. Concretely, every declared component has a folder
+trio under `src/components/<kebab>/` (`<Name>.tsx` referencing the system's class prefix,
+`<kebab>.css` scoped under the system root class, and `index.ts`); the public barrel
+(`src/components/index.ts`) exports exactly the declared set; the runtime map in
+`src/design-system.ts` matches the descriptor; and `src/styles/index.css` imports the
+generated `tokens.css` plus exactly the declared component stylesheets in canonical
+descriptor order. Removing a capability removes all of those entries. Never add empty
+stubs; an omitted optional entry means unavailable from that system.
+
+Regenerate the TypeScript/CSS/Tailwind bridge/manifest through the repository's
 `pnpm ds:manifest <id> --write` command. Never hand-edit generated token artifacts or
 `design-system.json`, and never add a `capabilities` block to the source descriptor
 (it stays `schemaVersion: 3`). Regenerated manifests are `schemaVersion: 4`; any custom
 manifest reader built for schema 3 must be updated in lockstep, because current tooling
 rejects schema 3 and older readers cannot parse schema 4.
 
-Use package-local patterns already established by the target system. If a user requests
-a reusable new pattern, first look for an existing core contract; when none fits, do
-not invent a new core capability route as part of ordinary package work. Keep a
-product-specific scenario in the app or document the contract gap for a separate
-explicit core design decision.
+Use package-local patterns already established by the target system. If a user requests a
+reusable new pattern, first look for an existing core contract; when none fits, do not
+invent a new core capability as part of ordinary package work. Keep a product-specific
+scenario in the app or document the contract gap for a separate explicit core design
+decision.
 
 ## Validate and hand back
 
-Run `pnpm ds:check <id>` once after the final package edits. This is the required full
-check and includes package build, typecheck, and lint unless invoked with
-`--no-commands`; do not rerun those checks redundantly. Run `pnpm ds:sync-versions <id>
---check` only when version alignment/release metadata is affected. Run consumer usage or
-visual checks when the change affects a consumer or rendered behavior. Report what ran
-and what remains unverified.
+Run `pnpm ds:check <id>` once after the final package edits. Unless invoked with
+`--no-commands`, it runs the package's own typecheck/lint/build scripts, the Showcase and
+Reference App integration scripts, and the structural contract checks (component folders,
+barrel, runtime map, stylesheet order, manifest, version consistency). Do not rerun those
+package or app commands redundantly. Extend or adjust tests to match
+the change's effects when relevant, covering keyboard and focus behavior, reduced-motion
+and responsive behavior, component states, and old or locked consumer versions; report
+what could not be exercised. Run `pnpm ds:sync-versions <id> --check` only when version
+alignment or release metadata is affected. Run consumer usage or visual checks when the
+change affects a consumer or rendered behavior.
 
 Add a user-visible Changeset for every package change by running `pnpm changeset` and
-recording the package and appropriate bump/reason. A Changeset records release intent;
-it does not version or publish. Versioning, release preparation, and publishing remain
+recording the package and appropriate bump/reason. A Changeset records release intent; it
+does not version or publish. Versioning, release preparation, and publishing remain
 separate explicit actions; never infer approval for them from a request to modify a
 package.

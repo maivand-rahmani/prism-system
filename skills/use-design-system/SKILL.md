@@ -1,80 +1,90 @@
 ---
 name: use-design-system
-description: Build product interfaces with an installed Prism design system and its published API.
+description: Select, connect, and build product screens with a released Prism design-system package, composing from the selected exact version's public API and CSS with product-owned layout and behavior.
 ---
 
 # Use a Design System
 
-Use this skill when writing product UI with an installed `@prism-system` package. The
-product owns data, behavior, routes, and page composition; the package owns component
-appearance and reusable visual patterns. This works from the installed package alone:
-the consumer does not need the design-system monorepo, package source, or
-`tokens.source.json`.
+Use this skill for product UI work in a consumer repository with a released
+`@prism-system` package: select or connect it when needed, then build screens, forms,
+flows, and fixes from its public API. The package owns accessible component primitives
+and their built-in behavior, component appearance, and reusable visual patterns; the
+product owns semantic composition, labels, validation, data, routes, behavior, and
+accessible use of those primitives. Work from the installed package alone — no
+design-system monorepo, package source, or `tokens.source.json` is required. To change
+the package itself, use [`modify-design-system`](../modify-design-system/SKILL.md). For
+contract rules, read [lifecycle guidance](../references/lifecycle.md).
 
-For contract rules, read [lifecycle guidance](../references/lifecycle.md). To create or
-evolve a package, use [`create-design-system`](../create-design-system/SKILL.md) or
-[`modify-design-system`](../modify-design-system/SKILL.md).
+## Start from the task and the installed system
 
-## Discover the exact installed system
+Identify the user's intended screen, task, or fix before choosing components. Then branch
+on the consumer state:
 
-Use config-first discovery:
+1. **Selected package with current config** — read `.design-system/config.json` and the
+   generated `.design-system/AGENTS.md` (plus the managed design-system block in the
+   consumer root `AGENTS.md` when present), the installed public manifest
+   (`<package>/manifest`), the package's shipped `AGENTS.md` and README, its public
+   TypeScript exports/declarations, and the shipped usage document when the manifest
+   declares `docs.usage`. These describe the exact installed release. The `.design-system`
+   files are generated: read them, never hand-edit them, and re-run `connect` when the
+   selected package or version changes.
+2. **Package installed but unconnected or stale** — establish the selected package and
+   exact version, then verify before coding. With the CLI, configure or update the
+   connection explicitly. Without it, use the verified installed manifest, declarations,
+   and docs; do not fabricate config or silently install tooling.
+3. **No selected package** — resolve the choice with the user first. `search` and `info`
+   are explicit network reads; installing or switching is a dependency mutation that
+   requires the user's explicit intent.
 
-1. Read `.design-system/config.json` for the selected package and exact version.
-2. Read the installed package's public manifest subpath, normally
-   `<package>/manifest` (for example `@prism-system/ui-system-a/manifest`).
-3. Read the package's shipped `AGENTS.md` and README, then inspect its public TypeScript
-   exports and declarations. Use documented exports only.
+Ask only unresolved choices that change the work: the target package/version, the
+screen's data and behavior, and which CSS entry the product builds. Do not interview the
+user about the whole system's appearance, and do not ask for monorepo sources. Ground
+options in the actual installed capability, declarations, and docs. When config, manifest,
+runtime exports, and docs conflict, fail closed: report the inconsistency and do not use
+a conflicting capability.
 
-For whole-page or form composition, read the shipped usage document when the installed
-manifest declares `docs.usage`. Its examples must match that installed version; do not
-substitute examples from a newer source checkout.
+Communicate in the user's language. When the environment exposes a structured question
+tool, use it for genuine blocking choices; otherwise present concise options and allow the
+user's own answer. Recommend a default only when a defensible technical choice exists. For subjective visual or product
+preferences, offer the options and let the user choose rather than pushing a
+recommendation.
 
-The manifest is the authority for the shipped component catalog, variants, sizes,
+The manifest is the authority for the installed component catalog, variants, sizes,
 compound members, usage rules, token names, and CSS/documentation paths. Check that the
-installed package, config, and manifest versions match exactly. Do not infer installed
-features from repository sources, another system, or a newer manifest. Current shipped
-manifests are `schemaVersion: 4`: tools that only understand schema 3 (an older
-`prism-ds` or a custom reader) cannot read them and must be upgraded in lockstep with
-the package. When config is absent or stale, configure/update explicitly with
-`prism-ds use` or `prism-ds connect` and validate before coding.
+installed package, manifest, and config (when present) versions match exactly. Use documented exports
+only. For whole-page or form composition, read the shipped usage document when the
+installed manifest declares `docs.usage`; its examples must match that installed version.
+Do not infer installed features or substitute examples from repository sources, another
+system, or a newer manifest. Current shipped manifests are `schemaVersion: 4`
+(`contractVersion: 4`); tools that only understand schema 3 cannot read them and must be
+upgraded in lockstep with the package.
 
-Use the offline component and token catalogs as needed:
+The commands below assume `prism-ds` is already available in the consumer (installed as
+a dev dependency or on `node_modules/.bin`). `@prism-system/tools` is optional tooling,
+not a requirement to consume a released package: when it is absent, ground the work in
+the installed public manifest, declarations, and shipped docs, and use the consumer's
+existing build/tests. Do not trigger a silent tooling download. If a CLI setup or
+diagnostic is genuinely necessary — for example connecting or changing the selected
+dependency — ask the user first; otherwise report the Prism CLI check as skipped instead
+of blocking UI work on it.
 
 ```bash
 npx prism-ds components --cwd <consumer-root>
 npx prism-ds tokens --cwd <consumer-root>
-```
-
-For diagnostics, choose the package/config check (which also runs strict usage
-validation) or the standalone usage check when that is all that is needed:
-
-```bash
 npx prism-ds check --cwd <consumer-root> [--css <explicit-file>]
 npx prism-ds check-usage --cwd <consumer-root>
 ```
 
-To discover published choices, `search` and `info` are explicit network reads. Install
-or switch only through an explicit `install` or `use` command. Preview an exact target
-with `prism-ds upgrade <package> <exact-version> --cwd <consumer-root> --dry-run`; review
-the reported component, public export, metadata, and token-name changes. Token values
-are not in the manifest, so this diff cannot reveal actual visual-value changes. Only
-after the user has explicitly selected the upgrade, run the command without
-`--dry-run`, then refresh config and re-read the installed manifest, types, and docs.
-Upgrade never publishes packages.
-
-Treat the preview as an API/capability migration diagnostic: compare required and
-optional component availability, changed variants/sizes/compound members, public exports,
-metadata, and removed/added token names against the product's actual imports and usage.
-The manifest does not contain token values, so review package documentation and rendered
-screens for visual changes as well. After upgrading, rediscover the selected version and
-manifest; repair call sites using only the new public API, then run `check` once (with an
-explicit `--css` path for Tailwind import-order validation).
+`check` is the primary offline health report and also runs strict usage validation; add
+`--css <explicit-file>` in a Tailwind project to check import order, because the tool
+never guesses which CSS file the product builds. Run standalone `check-usage` only when
+usage validation is all you need — do not duplicate a completed `check`.
 
 ## Compose semantically
 
 Import UI and CSS only through the package's public exports. Never copy components,
-source, generated tokens, or CSS into the consumer; never import package internals.
-Compose the product interface using real HTML semantics and the installed contract:
+source, generated tokens, or CSS into the consumer; never import package internals; never
+patch `node_modules`.
 
 - Use `Heading` levels to reflect the page's heading hierarchy and `FormField` where its
   contract fits to associate labels, descriptions, and errors. Preserve accessible names
@@ -83,57 +93,53 @@ Compose the product interface using real HTML semantics and the installed contra
   validation or product-timed validation deliberately; with custom submit handling,
   `noValidate` prevents the browser from intercepting submission before the product
   displays its error.
-- Respect the Next.js App Router client boundary. The published root is a client entry, and
-  a Server Component receives each import as an opaque client reference that exposes the
-  export but not static compound members. A Server Component may still import and render
-  the named client components themselves, but it renders Card parts through the flat
-  exports `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, and `CardFooter`,
-  never `Card.Header`. Compound statics work inside client components; when a Server
-  Component wants compound syntax, extract a small `"use client"` wrapper that composes
-  the parts and render that wrapper from the server tree.
 - Use optional components only when the installed manifest declares them: support is the
   presence of the component name as a key in `manifest.components`. The manifest's
   `capabilities.categories` inventory maps names to composition/forms/data-display
   membership; it is not availability, and components outside those categories are still
   available by key. If a needed optional capability is absent, compose the same semantic
-  result from available system primitives and layout utilities. For example, render a labeled feedback region without
-  `Alert`, a list of links without `Breadcrumbs`, or a data table with native table
-  semantics when `Table` is absent. Do not create a visually restyled local primitive.
+  result from available system primitives and layout utilities. For example, render a
+  labeled feedback region without `Alert`, a list of links without `Breadcrumbs`, or a
+  data table with native table semantics when `Table` is absent. Do not create a visually
+  restyled local primitive, do not vendor a clone, and do not patch the installed
+  package: report the missing capability as a package-evolution request instead.
 - Use the design system for reusable appearance and states; use Tailwind/layout utilities
   for product-owned placement and responsive composition. Avoid arbitrary product colors,
-  radii, shadows, or overrides of system components.
+  radii, shadows, or overrides of system components. Business logic, data fetching, and
+  state ownership stay in the product.
 
-With ordinary CSS, import `<package>/styles.css`. The Tailwind bridge workflow applies
-when the installed system ships a bridge. With Tailwind v4, run setup against the
-explicitly chosen CSS file:
+## Framework and setup paths
 
-```bash
-npx prism-ds setup-tailwind --cwd <consumer-root> --css <file>
-```
+Keep to the installed system's public imports and CSS. These specialist paths are
+expanded in [`consumer-workflows.md`](../references/consumer-workflows.md) — read the
+matching section before acting:
 
-The required Tailwind order is Tailwind, the selected package bridge, then its ordinary
-styles:
-
-```css
-@import "tailwindcss";
-@import "@prism-system/ui-system-a/tailwind.css";
-@import "@prism-system/ui-system-a/styles.css";
-```
-
-Use one selected system bridge per build. The setup command checks/maintains these
-imports in the explicitly named file; it does not install Tailwind or edit other files.
-Tailwind can still handle product layout independently; a Prism bridge is only needed
-when the installed system provides one.
+- **Next.js App Router:** if a Server Component renders Card parts, use the flat exports
+  `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, and `CardFooter`, never
+  `Card.Header`; the client-boundary rules are in
+  [consumer-workflows.md § Next.js App Router](../references/consumer-workflows.md#nextjs-app-router-client-boundaries).
+- **Tailwind v4:** only when the installed system ships a bridge, run setup against the
+  explicitly chosen CSS file; the required order is Tailwind, the selected package
+  bridge, then its ordinary styles. Command and checks:
+  [consumer-workflows.md § Tailwind v4 setup](../references/consumer-workflows.md#tailwind-v4-setup).
+  With ordinary CSS, import `<package>/styles.css` and skip Tailwind.
+- **Install, connect, switch, or upgrade:** only on explicit user intent. Before an
+  upgrade, preview the exact target with `--dry-run` and review its component, export,
+  metadata, and token-name changes; the manifest has no token values, so it cannot reveal
+  visual value changes. Details and post-upgrade rediscovery:
+  [consumer-workflows.md § Install, connect, and upgrade](../references/consumer-workflows.md#install-connect-and-upgrade).
 
 ## Check and report
 
-Run `npx prism-ds check --cwd <consumer-root>` for package/config diagnostics; it also
-runs strict usage validation. For a Tailwind project, run
-`npx prism-ds check --cwd <consumer-root> --css <explicit-file>` when checking import
-order, because the tool does not guess which CSS file the product builds. `--css`
-requires an explicit CSS file path.
-Do not run a duplicate `check-usage` after a completed `check`. Neither command proves
-semantic component identity or scans arbitrary CSS outside its documented TS/TSX AST
-scope. Do not claim a command passed unless it ran. Review responsive, loading, error,
-and empty states where the change touches them. Keep a missing reusable capability as a
-design-system request rather than pretending it is present in the installed package.
+When `prism-ds` is available, run `prism-ds check --cwd <consumer-root>` once (with
+`--css <explicit-file>` in a Tailwind project) and do not run a duplicate `check-usage`
+after a completed `check`. If the CLI is absent and installing tooling for a diagnostic
+is not agreed, report the Prism CLI check as skipped — never as passed.
+
+Finish with a short summary: what was built or changed, the exact installed package and
+version, the public imports used, each command actually run and its result, and what
+remains unverified. `check`/`check-usage` are offline config/manifest/AST checks: they do
+not prove runtime appearance, accessibility, responsive behavior, or semantic component
+identity, and they do not scan arbitrary CSS outside their documented scope. Review
+responsive, loading, error, empty, keyboard, focus, and reduced-motion states where the
+change touches them, and never claim a command passed unless it ran.

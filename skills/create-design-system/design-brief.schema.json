@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/maivand-rahmani/prism-system/skills/create-design-system/design-brief.schema.json",
   "title": "Design Brief",
-  "description": "Structured outcome of the create-design-system Design Interview. It is the visual contract for a generated design-system package. `pnpm ds:create --brief <path>` reads this file, preserves its fields, and writes a normalized copy to the generated package as design-brief.json. Unknown extra fields are allowed so the interview can record decisions this schema does not yet enumerate.",
+  "description": "Structured outcome of the create-design-system Design Interview. It is the visual contract for a generated design-system package. `pnpm ds:create --brief <path>` reads this file, normalizes only the fields it uses, preserves unknown extra fields, and writes a copy to the generated package as design-brief.json; the generator does not perform full schema validation. Unknown extra fields are allowed so the interview can record decisions this schema does not yet enumerate. The written design-brief.json ships in the package tarball: keep only sanitized product and visual intent, with no secrets, customer-sensitive data, private reference URLs, personal details, or interview transcripts.",
   "type": "object",
   "required": [
     "project",
@@ -182,6 +182,44 @@
         ["Loading project activity", "Empty search results", "Inline invalid invite email"]
       ]
     },
+    "referenceNotes": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Optional notes about specific references, naming the traits to take and the traits not to copy, for example \"Linear - take: compact density and restrained accent; avoid: copying its exact palette\". Do not repeat a value already listed in references; the two fields together record the reference name and what it means.",
+      "examples": [
+        [
+          "Linear - take: compact density and restrained accent; avoid: copying its exact palette",
+          "Raycast - take: command-palette hierarchy; avoid: dark-only assumption"
+        ]
+      ]
+    },
+    "decisionNotes": {
+      "type": "array",
+      "description": "Optional significant decisions and choices from the interview. Record only decisions that matter to the visual system, not every microdecision, and do not repeat values another field already owns: a note carries the decision and its rationale. Status meanings: confirmed = the user provided or approved the decision; delegated = the user explicitly let the agent decide; proposed = the agent proposed it and the user has not decided yet. A generator-ready brief contains no material proposed decision.",
+      "items": {
+        "$ref": "#/$defs/decisionNote"
+      },
+      "examples": [
+        [
+          {
+            "topic": "accent color",
+            "status": "confirmed",
+            "note": "The user chose a cool blue accent used only for primary actions."
+          },
+          {
+            "topic": "foundation bundle",
+            "status": "delegated",
+            "note": "The user delegated the foundations; the agent chose restrained contrast and minimal elevation to fit the confirmed direction."
+          }
+        ]
+      ]
+    },
+    "openQuestions": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Optional open questions from the interview. In a draft brief, a pending material question is a reason the brief is not generator-ready. In an approved generator-ready brief, only nonblocking follow-ups that do not change approved decisions may remain.",
+      "examples": [
+        ["Illustration style for a future marketing surface, outside the approved console scope"]
+      ]
+    },
     "avoid": {
       "$ref": "#/$defs/stringArray",
       "description": "Visual decisions that must be avoided. The generator joins these into the package avoid list in README.md and AGENTS.md.",
@@ -205,6 +243,28 @@
         "minLength": 1
       },
       "uniqueItems": true
+    },
+    "decisionNote": {
+      "type": "object",
+      "description": "One significant design decision. `status` distinguishes an answer the user gave or approved (confirmed), explicit permission for the agent to decide (delegated), and a choice still awaiting the user (proposed).",
+      "additionalProperties": false,
+      "required": ["topic", "status", "note"],
+      "properties": {
+        "topic": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Short name of the decision area, for example \"accent color\" or \"density\"."
+        },
+        "status": {
+          "enum": ["confirmed", "delegated", "proposed"],
+          "description": "confirmed = the user provided or approved the decision; delegated = the user explicitly let the agent decide; proposed = the agent proposed it and the user has not decided yet. A generator-ready brief must contain no material proposed decision."
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The decision and its reason, in one sentence. Do not repeat a value owned by another field; record the choice and rationale instead."
+        }
+      }
     }
   }
 }

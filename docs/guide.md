@@ -167,8 +167,11 @@ ls packages/system-a/src
    foundations (акцент, температура цвета, контраст, типографика, радиус,
    поверхности, границы, тени, анимация), компоненты.
 2. **Design Brief** — человек подтверждает решения. Бриф сохраняется в
-   `design-briefs/<id>.json` и проверяется по схеме
-   `skills/create-design-system/design-brief.schema.json`.
+   `design-briefs/<id>.json`; составить его помогают схема
+   `skills/create-design-system/design-brief.schema.json` и скилл. Генератор
+   нормализует только используемые поля (`project`, `product`, `direction`,
+   `references`, `foundations`, `components`, `avoid`), сохраняет неизвестные
+   дополнительные поля и не выполняет полную проверку по схеме.
 3. **Генерация пакета** из шаблона:
 
    ```bash
