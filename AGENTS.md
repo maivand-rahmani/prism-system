@@ -181,8 +181,14 @@ Wrong:
   packed tooling and manifests, `pnpm ds:check-docs` for the active documentation, and
   `pnpm ds:check-all` for the full gate over packed artifacts. All of them are read-only
   or confined to temporary output; none publishes a package.
-- Versioning and publishing remain explicit Changesets and human steps;
-  `pnpm ds:release <id> --approved` only prepares a release.
+- Public package releases use the GitHub Changesets pipeline: commit a pending
+  `.changeset/*.md` file to `main` and let `.github/workflows/release.yml` create,
+  verify, and merge the version PR, then dispatch `.github/workflows/publish.yml`.
+  Do not run `pnpm version-packages` locally before pushing; it consumes the changeset,
+  so the Release workflow sees no pending release and does not publish. A direct version
+  bump with no pending changeset does not publish, even if the Release run succeeds.
+  `pnpm ds:release <id> --approved` only prepares a design-system release; it never
+  versions or publishes it.
 - Development-stage history lives in `docs/archive/`; it is historical, not current
   guidance.
 - Do not scaffold retired contracts or harnesses unless explicitly asked.
