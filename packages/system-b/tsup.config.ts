@@ -28,4 +28,15 @@ export default defineConfig([
     dts: true,
     clean: false,
   },
+  {
+    entry: {
+      "custom/keyboard-scene/index": "src/custom/keyboard-scene/index.ts",
+      "custom/interactive-workflow-map/index": "src/custom/interactive-workflow-map/index.ts",
+    },
+    format: ["esm", "cjs"],
+    dts: true,
+    clean: false,
+    external: ["three", "@react-three/fiber"],
+    banner: { js: '"use client";' },
+  },
 ]);

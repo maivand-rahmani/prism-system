@@ -1,0 +1,156 @@
+:where(.maivand-b-ui).maivand-b-keyboard-scene {
+  display: grid;
+  gap: var(--maivand-b-spacing-scale-4);
+  color: var(--maivand-b-color-text-primary);
+}
+
+:where(.maivand-b-ui) .maivand-b-keyboard-heading,
+:where(.maivand-b-ui) .maivand-b-keyboard-control-header {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--maivand-b-spacing-scale-3);
+  justify-content: space-between;
+}
+
+:where(.maivand-b-ui) .maivand-b-keyboard-heading h3 {
+  font-size: var(--maivand-b-typography-size-xl);
+  letter-spacing: var(--maivand-b-typography-letter-spacing-tight);
+  line-height: var(--maivand-b-typography-line-height-tight);
+  margin: 0;
+}
+
+:where(.maivand-b-ui) .maivand-b-keyboard-heading > p,
+:where(.maivand-b-ui) .maivand-b-keyboard-selection {
+  color: var(--maivand-b-color-text-secondary);
+  font-size: var(--maivand-b-typography-size-sm);
+  line-height: var(--maivand-b-typography-line-height-normal);
+  margin: 0;
+}
+
+:where(.maivand-b-ui) .maivand-b-keyboard-kicker {
+  color: var(--maivand-b-color-action-primary-hover);
+  font-family: var(--maivand-b-typography-family-mono);
+  font-size: var(--maivand-b-typography-size-xs);
+  letter-spacing: var(--maivand-b-typography-letter-spacing-wide);
+  margin: 0 0 var(--maivand-b-spacing-scale-1);
+}
+
+:where(.maivand-b-ui) .maivand-b-keyboard-stage {
+  background: var(--maivand-b-color-surface-canvas);
+  border: 1px solid var(--maivand-b-color-border-default);
+  border-radius: var(--maivand-b-radius-md);
+  box-shadow: var(--maivand-b-shadow-md);
+  height: clamp(220px, 34vw, 360px);
+  min-width: 0;
+  overflow: hidden;
+}
+
+:where(.maivand-b-ui) .maivand-b-keyboard-stage canvas {
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+:where(.maivand-b-ui) .maivand-b-keyboard-fallback {
+  align-content: center;
+  color: var(--maivand-b-color-text-secondary);
+  display: grid;
+  gap: var(--maivand-b-spacing-scale-2);
+  height: 100%;
+  justify-items: center;
+  padding: var(--maivand-b-spacing-scale-4);
+  text-align: center;
+}
+
+:where(.maivand-b-ui) .maivand-b-keyboard-fallback p {
+  margin: 0;
+}
+
+:where(.maivand-b-ui) .maivand-b-keyboard-fallback-mark {
+  align-items: center;
+  border: 1px solid var(--maivand-b-color-action-primary);
+  color: var(--maivand-b-color-action-primary-hover);
+  display: flex;
+  font-family: var(--maivand-b-typography-family-mono);
+  font-size: var(--maivand-b-typography-size-lg);
+  font-weight: var(--maivand-b-typography-weight-bold);
+  height: 44px;
+  justify-content: center;
+  width: 62px;
+}
+
+:where(.maivand-b-ui) .maivand-b-keyboard-selection {
+  font-family: var(--maivand-b-typography-family-mono);
+}
+
+:where(.maivand-b-ui) .maivand-b-keyboard-clear,
+:where(.maivand-b-ui) .maivand-b-keyboard-key {
+  background: var(--maivand-b-color-surface-raised);
+  border: 1px solid var(--maivand-b-color-border-default);
+  border-radius: var(--maivand-b-radius-sm);
+  color: var(--maivand-b-color-text-primary);
+  cursor: pointer;
+  font: inherit;
+  transition:
+    background var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard),
+    border-color var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard),
+    color var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard),
+    transform var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard);
+}
+
+:where(.maivand-b-ui) .maivand-b-keyboard-clear {
+  min-height: 44px;
+  padding: 0 var(--maivand-b-spacing-scale-3);
+}
+
+:where(.maivand-b-ui) .maivand-b-keyboard-key {
+  min-height: 44px;
+  overflow: hidden;
+  padding: 0 var(--maivand-b-spacing-scale-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:where(.maivand-b-ui) .maivand-b-keyboard-clear:hover:not(:disabled),
+:where(.maivand-b-ui) .maivand-b-keyboard-key:hover {
+  border-color: var(--maivand-b-color-border-strong);
+  transform: translateY(-1px);
+}
+
+:where(.maivand-b-ui) .maivand-b-keyboard-key[aria-pressed="true"] {
+  background: var(--maivand-b-color-action-primary);
+  border-color: var(--maivand-b-color-action-primary-hover);
+  color: var(--maivand-b-color-action-primary-text);
+  transform: translateY(-2px);
+}
+
+:where(.maivand-b-ui) .maivand-b-keyboard-clear:focus-visible,
+:where(.maivand-b-ui) .maivand-b-keyboard-key:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--maivand-b-color-border-focus) 55%, transparent);
+  outline-offset: 2px;
+}
+
+:where(.maivand-b-ui) .maivand-b-keyboard-clear:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+:where(.maivand-b-ui) .maivand-b-keyboard-controls {
+  display: grid;
+  gap: var(--maivand-b-spacing-scale-2);
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+}
+
+@media (max-width: 640px) {
+  :where(.maivand-b-ui) .maivand-b-keyboard-controls {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-b-ui) .maivand-b-keyboard-clear,
+  :where(.maivand-b-ui) .maivand-b-keyboard-key {
+    transition: none;
+  }
+}

@@ -114,7 +114,11 @@ export const ToastDescription = React.forwardRef<HTMLParagraphElement, ToastDesc
 
 export const ToastAction = React.forwardRef<HTMLButtonElement, ToastActionProps>(
   function ToastAction({ className, asChild = false, altText, children, ...props }, ref) {
-    const Comp = (asChild ? Slot : "button") as React.ElementType;
+    // `asChild` swaps in Slot; type the local render element from this
+    // component's own props/ref instead of the Fiber-widened `React.ElementType`.
+    const Comp = (asChild ? Slot : "button") as React.ElementType as React.ComponentType<
+      React.ComponentPropsWithoutRef<"button"> & React.RefAttributes<HTMLButtonElement>
+    >;
     return (
       <Comp
         ref={ref}
@@ -132,7 +136,11 @@ export const ToastClose = React.forwardRef<HTMLButtonElement, ToastCloseProps>(f
   { className, asChild = false, children, ...props },
   ref,
 ) {
-  const Comp = (asChild ? Slot : "button") as React.ElementType;
+  // `asChild` swaps in Slot; type the local render element from this
+  // component's own props/ref instead of the Fiber-widened `React.ElementType`.
+  const Comp = (asChild ? Slot : "button") as React.ElementType as React.ComponentType<
+    React.ComponentPropsWithoutRef<"button"> & React.RefAttributes<HTMLButtonElement>
+  >;
   return (
     <Comp ref={ref} className={cn("maivand-b-toast-close", className)} {...props}>
       {children}

@@ -1,6 +1,6 @@
 {
   "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system.schema.json",
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "generated": "prism-system/design-system-manifest",
   "contractVersion": 4,
   "id": "system-b",
@@ -19,6 +19,16 @@
       "types": "./dist/tokens/index.d.ts",
       "import": "./dist/tokens/index.mjs",
       "require": "./dist/tokens/index.js"
+    },
+    "./custom/keyboard-scene": {
+      "types": "./dist/custom/keyboard-scene/index.d.ts",
+      "import": "./dist/custom/keyboard-scene/index.mjs",
+      "require": "./dist/custom/keyboard-scene/index.js"
+    },
+    "./custom/interactive-workflow-map": {
+      "types": "./dist/custom/interactive-workflow-map/index.d.ts",
+      "import": "./dist/custom/interactive-workflow-map/index.mjs",
+      "require": "./dist/custom/interactive-workflow-map/index.js"
     },
     "./manifest": "./design-system.json"
   },
@@ -65,13 +75,47 @@
       "DesignSystem",
       "systemBTokens"
     ],
-    "./tokens": ["systemBTokens"]
+    "./tokens": ["systemBTokens"],
+    "./custom/keyboard-scene": ["KeyboardScene"],
+    "./custom/interactive-workflow-map": ["InteractiveWorkflowMap"]
+  },
+  "entrypoints": {
+    ".": {
+      "requirements": []
+    },
+    "./tokens": {
+      "requirements": []
+    },
+    "./custom/keyboard-scene": {
+      "requirements": [
+        {
+          "name": "three",
+          "kind": "peer",
+          "range": "^0.186.1",
+          "optional": true
+        },
+        {
+          "name": "@react-three/fiber",
+          "kind": "peer",
+          "range": "^8.18.0 || ^9.8.1",
+          "optional": true
+        }
+      ]
+    },
+    "./custom/interactive-workflow-map": {
+      "requirements": []
+    }
   },
   "components": {
     "Button": {
       "variants": ["primary", "secondary", "outline", "ghost", "destructive", "link"],
       "sizes": ["sm", "md", "lg", "icon"],
-      "members": []
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      }
     },
     "Input": {
       "variants": [],
@@ -443,5 +487,32 @@
     "readme": "./README.md",
     "agents": "./AGENTS.md",
     "usage": "./USAGE.md"
+  },
+  "extensions": {
+    "KeyboardScene": {
+      "apiVersion": 1,
+      "entrypoint": "./custom/keyboard-scene",
+      "description": "A selectable procedural keyboard scene with persistent DOM controls and a static fallback.",
+      "docs": "./docs/extensions/keyboard-scene.md",
+      "example": "./examples/keyboard-scene.md",
+      "effects": {
+        "features": ["3d", "motion"],
+        "rendering": "webgl",
+        "reducedMotion": true,
+        "fallback": "static"
+      }
+    },
+    "InteractiveWorkflowMap": {
+      "apiVersion": 1,
+      "entrypoint": "./custom/interactive-workflow-map",
+      "description": "A controlled, keyboard-accessible workflow path with responsive DOM layout.",
+      "docs": "./docs/extensions/interactive-workflow-map.md",
+      "example": "./examples/interactive-workflow-map.md",
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      }
+    }
   }
 }

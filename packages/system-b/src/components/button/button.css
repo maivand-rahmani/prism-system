@@ -16,26 +16,28 @@
   text-transform: uppercase;
   letter-spacing: var(--maivand-b-typography-letter-spacing-wide);
   font-weight: var(--maivand-b-typography-weight-bold);
+  box-shadow: var(--maivand-b-shadow-sm);
 }
 :where(.maivand-b-ui).maivand-b-button:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--maivand-b-color-border-focus) 45%, transparent);
   outline-offset: 2px;
 }
 :where(.maivand-b-ui).maivand-b-button:hover:not(:disabled) {
-  box-shadow: var(--maivand-b-shadow-sm);
+  box-shadow: var(--maivand-b-shadow-md);
   transform: translate(-2px, -2px);
 }
 :where(.maivand-b-ui).maivand-b-button:active:not(:disabled) {
-  transform: translateY(0);
+  box-shadow: 0 0 0 transparent;
+  transform: translate(3px, 3px);
 }
 :where(.maivand-b-ui).maivand-b-button:disabled {
   cursor: not-allowed;
   opacity: 0.48;
+  transform: none;
 }
 :where(.maivand-b-ui).maivand-b-button-primary {
   background: var(--maivand-b-color-action-primary);
   color: var(--maivand-b-color-action-primary-text);
-  box-shadow: 3px 3px 0 #ffb39e;
 }
 :where(.maivand-b-ui).maivand-b-button-primary:hover:not(:disabled) {
   background: var(--maivand-b-color-action-primary-hover);
@@ -63,6 +65,7 @@
 }
 :where(.maivand-b-ui).maivand-b-button-link {
   background: transparent;
+  box-shadow: none;
   color: var(--maivand-b-color-action-primary-hover);
   padding-left: 0;
   padding-right: 0;
@@ -102,5 +105,11 @@
 @keyframes maivand-b-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-b-ui).maivand-b-button {
+    transition: none;
   }
 }

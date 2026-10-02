@@ -10,7 +10,11 @@ export const Stack = React.forwardRef<HTMLDivElement, StackProps>(function Stack
   { className, as: asProp, direction = "vertical", wrap = false, ...props },
   ref,
 ) {
-  const Comp = (asProp ?? "div") as React.ElementType;
+  // `as` is an intrinsic tag here; type the local render element from this
+  // component's own props/ref instead of the Fiber-widened `React.ElementType`.
+  const Comp = (asProp ?? "div") as React.ElementType as React.ComponentType<
+    React.ComponentPropsWithoutRef<"div"> & React.RefAttributes<HTMLDivElement>
+  >;
   return (
     <Comp
       ref={ref}

@@ -1,13 +1,18 @@
 {
   "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system.source.schema.json",
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "contractVersion": 4,
   "name": "System B",
   "components": {
     "Button": {
       "variants": ["primary", "secondary", "outline", "ghost", "destructive", "link"],
       "sizes": ["sm", "md", "lg", "icon"],
-      "members": []
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      }
     },
     "Input": {
       "variants": [],
@@ -244,5 +249,42 @@
     "readme": "./README.md",
     "agents": "./AGENTS.md",
     "usage": "./USAGE.md"
+  },
+  "entrypoints": {
+    "./custom/keyboard-scene": {
+      "source": "./src/custom/keyboard-scene/index.ts",
+      "requires": ["three", "@react-three/fiber"]
+    },
+    "./custom/interactive-workflow-map": {
+      "source": "./src/custom/interactive-workflow-map/index.ts",
+      "requires": []
+    }
+  },
+  "extensions": {
+    "KeyboardScene": {
+      "apiVersion": 1,
+      "entrypoint": "./custom/keyboard-scene",
+      "description": "A selectable procedural keyboard scene with persistent DOM controls and a static fallback.",
+      "docs": "./docs/extensions/keyboard-scene.md",
+      "example": "./examples/keyboard-scene.md",
+      "effects": {
+        "features": ["3d", "motion"],
+        "rendering": "webgl",
+        "reducedMotion": true,
+        "fallback": "static"
+      }
+    },
+    "InteractiveWorkflowMap": {
+      "apiVersion": 1,
+      "entrypoint": "./custom/interactive-workflow-map",
+      "description": "A controlled, keyboard-accessible workflow path with responsive DOM layout.",
+      "docs": "./docs/extensions/interactive-workflow-map.md",
+      "example": "./examples/interactive-workflow-map.md",
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      }
+    }
   }
 }

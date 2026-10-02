@@ -13,7 +13,11 @@ export const Heading = React.forwardRef<HTMLHeadingElement, HeadingProps>(functi
   { className, level, ...props },
   ref,
 ) {
-  const Tag = `h${level}` as React.ElementType;
+  // `level` selects a native heading; type the local render element from this
+  // component's own props/ref instead of the Fiber-widened `React.ElementType`.
+  const Tag = `h${level}` as React.ElementType as React.ComponentType<
+    React.ComponentPropsWithoutRef<"h1"> & React.RefAttributes<HTMLHeadingElement>
+  >;
   return (
     <Tag
       ref={ref}

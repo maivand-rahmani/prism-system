@@ -10,7 +10,11 @@ export const Container = React.forwardRef<HTMLDivElement, ContainerProps>(functi
   { className, as: asProp, ...props },
   ref,
 ) {
-  const Comp = (asProp ?? "div") as React.ElementType;
+  // `as` is an intrinsic tag here; type the local render element from this
+  // component's own props/ref instead of the Fiber-widened `React.ElementType`.
+  const Comp = (asProp ?? "div") as React.ElementType as React.ComponentType<
+    React.ComponentPropsWithoutRef<"div"> & React.RefAttributes<HTMLDivElement>
+  >;
   return (
     <Comp ref={ref} className={cn("maivand-b-ui", "maivand-b-container", className)} {...props} />
   );

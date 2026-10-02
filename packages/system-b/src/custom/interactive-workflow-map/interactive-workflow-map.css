@@ -1,0 +1,137 @@
+:where(.maivand-b-ui).maivand-b-workflow-map {
+  color: var(--maivand-b-color-text-primary);
+  display: grid;
+  gap: var(--maivand-b-spacing-scale-4);
+}
+
+:where(.maivand-b-ui) .maivand-b-workflow-list {
+  counter-reset: workflow-step;
+  display: grid;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+:where(.maivand-b-ui) .maivand-b-workflow-item {
+  min-width: 0;
+  padding: 0 0 var(--maivand-b-spacing-scale-4) var(--maivand-b-spacing-scale-8);
+  position: relative;
+}
+
+:where(.maivand-b-ui) .maivand-b-workflow-item::before {
+  background: var(--maivand-b-color-border-default);
+  bottom: 0;
+  content: "";
+  left: 13px;
+  position: absolute;
+  top: 25px;
+  width: 1px;
+}
+
+:where(.maivand-b-ui) .maivand-b-workflow-item:last-child {
+  padding-bottom: 0;
+}
+
+:where(.maivand-b-ui) .maivand-b-workflow-item:last-child::before {
+  display: none;
+}
+
+:where(.maivand-b-ui) .maivand-b-workflow-node {
+  align-items: start;
+  background: var(--maivand-b-color-surface-raised);
+  border: 1px solid var(--maivand-b-color-border-default);
+  border-radius: var(--maivand-b-radius-md);
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  gap: var(--maivand-b-spacing-scale-3);
+  grid-template-columns: 1fr auto;
+  padding: var(--maivand-b-spacing-scale-4);
+  text-align: left;
+  transition:
+    background var(--maivand-b-motion-duration-normal) var(--maivand-b-motion-easing-standard),
+    border-color var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard),
+    box-shadow var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard),
+    transform var(--maivand-b-motion-duration-fast) var(--maivand-b-motion-easing-standard);
+  width: 100%;
+}
+
+:where(.maivand-b-ui) .maivand-b-workflow-index {
+  align-items: center;
+  background: var(--maivand-b-color-surface-sunken);
+  border: 1px solid var(--maivand-b-color-border-strong);
+  border-radius: var(--maivand-b-radius-sm);
+  color: var(--maivand-b-color-text-secondary);
+  display: flex;
+  font-family: var(--maivand-b-typography-family-mono);
+  font-size: var(--maivand-b-typography-size-xs);
+  height: 28px;
+  justify-content: center;
+  width: 36px;
+}
+
+:where(.maivand-b-ui) .maivand-b-workflow-copy {
+  display: grid;
+  gap: var(--maivand-b-spacing-scale-1);
+  min-width: 0;
+}
+
+:where(.maivand-b-ui) .maivand-b-workflow-title {
+  font-size: var(--maivand-b-typography-size-md);
+  font-weight: var(--maivand-b-typography-weight-bold);
+  line-height: var(--maivand-b-typography-line-height-tight);
+}
+
+:where(.maivand-b-ui) .maivand-b-workflow-description {
+  color: var(--maivand-b-color-text-secondary);
+  font-size: var(--maivand-b-typography-size-sm);
+  line-height: var(--maivand-b-typography-line-height-normal);
+}
+
+:where(.maivand-b-ui) .maivand-b-workflow-state {
+  color: var(--maivand-b-color-text-muted);
+  font-family: var(--maivand-b-typography-family-mono);
+  font-size: var(--maivand-b-typography-size-xs);
+  letter-spacing: var(--maivand-b-typography-letter-spacing-wide);
+}
+
+:where(.maivand-b-ui) .maivand-b-workflow-node:hover {
+  border-color: var(--maivand-b-color-border-strong);
+  transform: translateX(2px);
+}
+
+:where(.maivand-b-ui) .maivand-b-workflow-node[aria-pressed="true"] {
+  background: var(--maivand-b-color-action-secondary);
+  border-color: var(--maivand-b-color-action-primary);
+  box-shadow: var(--maivand-b-shadow-sm);
+  transform: translateX(4px);
+}
+
+:where(.maivand-b-ui) .maivand-b-workflow-node[aria-pressed="true"] .maivand-b-workflow-index {
+  background: var(--maivand-b-color-action-primary);
+  border-color: var(--maivand-b-color-action-primary);
+  color: var(--maivand-b-color-action-primary-text);
+}
+
+:where(.maivand-b-ui) .maivand-b-workflow-node[aria-pressed="true"] .maivand-b-workflow-state {
+  color: var(--maivand-b-color-action-primary-hover);
+}
+
+:where(.maivand-b-ui) .maivand-b-workflow-node:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--maivand-b-color-border-focus) 55%, transparent);
+  outline-offset: 2px;
+}
+
+:where(.maivand-b-ui) .maivand-b-workflow-status {
+  color: var(--maivand-b-color-text-muted);
+  font-family: var(--maivand-b-typography-family-mono);
+  font-size: var(--maivand-b-typography-size-sm);
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-b-ui) .maivand-b-workflow-node {
+    transition: none;
+  }
+}

@@ -37,6 +37,8 @@
 @import "../components/metric/metric.css";
 @import "../components/timeline/timeline.css";
 @import "../components/empty-state/empty-state.css";
+@import "../custom/keyboard-scene/keyboard-scene.css";
+@import "../custom/interactive-workflow-map/interactive-workflow-map.css";
 
 /*
  * Package root scope. Every System B component root carries `maivand-b-ui`;

@@ -10,7 +10,11 @@ export const Text = React.forwardRef<HTMLElement, TextProps>(function Text(
   { className, as: asProp, ...props },
   ref,
 ) {
-  const Comp = (asProp ?? "p") as React.ElementType;
+  // `as` is an intrinsic tag here; type the local render element from this
+  // component's own props/ref instead of the Fiber-widened `React.ElementType`.
+  const Comp = (asProp ?? "p") as React.ElementType as React.ComponentType<
+    React.ComponentPropsWithoutRef<"p"> & React.RefAttributes<HTMLElement>
+  >;
   return <Comp ref={ref} className={cn("maivand-b-ui", "maivand-b-text", className)} {...props} />;
 });
 Text.displayName = "Text";

@@ -35,6 +35,16 @@
       "import": "./dist/tokens/index.mjs",
       "require": "./dist/tokens/index.js"
     },
+    "./custom/keyboard-scene": {
+      "types": "./dist/custom/keyboard-scene/index.d.ts",
+      "import": "./dist/custom/keyboard-scene/index.mjs",
+      "require": "./dist/custom/keyboard-scene/index.js"
+    },
+    "./custom/interactive-workflow-map": {
+      "types": "./dist/custom/interactive-workflow-map/index.d.ts",
+      "import": "./dist/custom/interactive-workflow-map/index.mjs",
+      "require": "./dist/custom/interactive-workflow-map/index.js"
+    },
     "./manifest": "./design-system.json"
   },
   "files": [
@@ -42,6 +52,8 @@
     "README.md",
     "USAGE.md",
     "AGENTS.md",
+    "docs/extensions",
+    "examples",
     "design-system.json",
     "design-brief.json",
     "LICENSE"
@@ -53,7 +65,17 @@
   },
   "peerDependencies": {
     "react": ">=18",
-    "react-dom": ">=18"
+    "react-dom": ">=18",
+    "three": "^0.186.1",
+    "@react-three/fiber": "^8.18.0 || ^9.8.1"
+  },
+  "peerDependenciesMeta": {
+    "three": {
+      "optional": true
+    },
+    "@react-three/fiber": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@prism-system/ui-core": "workspace:*"
@@ -61,7 +83,11 @@
   "devDependencies": {
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
-    "react": "^18.3.0",
+    "@types/three": "0.186.0",
+    "@react-three/fiber": "9.8.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "three": "0.186.1",
     "tsup": "^8.3.0",
     "typescript": "^5.6.0"
   }

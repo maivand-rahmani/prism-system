@@ -171,11 +171,69 @@ and public exports:
 - `EmptyState` — a neutral "nothing here yet" placeholder with `Title`, `Description`, and `Action`.
 
 Optional components that are not listed here are simply unavailable; this package
-never ships empty stubs. Variants, sizes, compound members, and usage rules for every
+never ships empty stubs. The `Button` keeps its existing name, import, variants, and
+sizes; its declared `depth`/`motion` treatment (offset shadow, hover lift, press-in,
+reduced-motion aware) lives in the package's button stylesheet. Variants, sizes,
+compound members, and usage rules for every
 component are published in the generated manifest at
 `@prism-system/ui-system-b/manifest` — that is the single source of truth, not this
 list. See the states, variants, and examples in the live catalog at
 **`/showcase/system-b`**, or read them offline with `prism-ds components <name>`.
+
+## System extensions
+
+System B ships two purpose-built public exports outside the shared contract. They are
+declared in `manifest.extensions` with an API version and effects; the standard package
+root and `./tokens` never import them. Availability is only the presence of the
+extension in the installed manifest.
+
+### KeyboardScene (`./custom/keyboard-scene`)
+
+A controlled, procedurally drawn 3D keyboard explorer (`apiVersion: 1`, effects `3d` and
+`motion`, rendering `webgl`, static fallback, reduced-motion aware). Import it from its
+declared entry:
+
+```tsx
+import { KeyboardScene } from "@prism-system/ui-system-b/custom/keyboard-scene";
+import "@prism-system/ui-system-b/styles.css";
+```
+
+This entry needs optional graphics peers that the package root does not require:
+
+```bash
+# React 18 consumer
+npm install three@^0.186.1 @react-three/fiber@^8.18.0
+
+# React 19 consumer
+npm install three@^0.186.1 @react-three/fiber@^9.8.1
+```
+
+Fiber 8 pairs with React 18, Fiber 9 with React 19; both peer ranges are declared
+optional, and the ordinary interface works without them. The component keeps persistent
+DOM key controls and a clear action, and falls back to a static pose when WebGL is
+missing, initialization fails, the context is lost, or the page is hidden. Its props
+stay independent of Three.js and Fiber: `selectedKey`, `onSelectedKeyChange`,
+`reducedMotion?`. See
+[docs/extensions/keyboard-scene.md](./docs/extensions/keyboard-scene.md) and the
+[runnable example](./examples/keyboard-scene.md).
+
+### InteractiveWorkflowMap (`./custom/interactive-workflow-map`)
+
+A controlled DOM pattern with no additional runtime requirements (`apiVersion: 1`,
+effects `motion`, rendering `dom`, reduced-motion aware). It renders an ordered path of
+native buttons, reports selection through `onSelectedNodeChange`, and wraps to a narrow
+layout.
+
+```tsx
+import { InteractiveWorkflowMap } from "@prism-system/ui-system-b/custom/interactive-workflow-map";
+import "@prism-system/ui-system-b/styles.css";
+```
+
+See
+[docs/extensions/interactive-workflow-map.md](./docs/extensions/interactive-workflow-map.md)
+and the [runnable example](./examples/interactive-workflow-map.md). `prism-ds components`
+lists both extensions with their import paths and requirements, and
+`prism-ds check --entry KeyboardScene` validates the selected entry's peers offline.
 
 ## Usage rules
 
@@ -193,6 +251,9 @@ list. See the states, variants, and examples in the live catalog at
   already exist here.
 - **Extension:** reusable visual patterns belong in the design system; product and
   feature components stay in the product and are composed from these primitives.
+- **System extensions:** `KeyboardScene` and `InteractiveWorkflowMap` are imported from
+  their own declared entrypoints and are not part of the shared contract; install their
+  optional peers only when the selected entry needs them.
 - **Versioning:** `package.json.version` is authoritative; the manifest, the registry
   entry, and the runtime `DesignSystem.version` must match it.
 
@@ -221,20 +282,25 @@ generated CSS variables.
 ## Manifest and version
 
 Every installed System B package ships a generated `design-system.json` manifest,
-available at `@prism-system/ui-system-b/manifest`. It is `schemaVersion: 4` and
+available at `@prism-system/ui-system-b/manifest`. It is `schemaVersion: 5` and
 records the current contract (`contractVersion: 4`), the exact package version, the
-component catalog, variants, sizes, compound members, token names, and the strict
-usage rules for this system. The manifest also carries the canonical
+component catalog, variants, sizes, compound members, declared effects, token names, and
+the strict usage rules for this system. It also carries the required `entrypoints` map
+with package.json-derived dependency/peer requirements (including the optional peers of
+`./custom/keyboard-scene`) and the `extensions` records for `KeyboardScene` and
+`InteractiveWorkflowMap`. The manifest also carries the canonical
 `capabilities.categories` inventory (`composition`, `forms`, `data-display`)
 shared by every system: it maps component names to categories, not to availability.
-A component is available only when its name is a key in `manifest.components`;
-derive category availability by intersecting the two, and remember that categories
-do not cover every component. The package-owned `design-system.source.json` stays
-`schemaVersion: 3` and must never declare a `capabilities` block. Regenerate the
+A contract component is available only when its name is a key in
+`manifest.components`; a custom extension is available only when declared in
+`manifest.extensions`. Derive category availability by intersecting the two, and
+remember that categories do not cover every component. The package-owned
+`design-system.source.json` is `schemaVersion: 4` and must never declare a `capabilities`
+block. Regenerate the
 manifest with `pnpm ds:manifest system-b --write` after changing the package-owned
-`design-system.source.json`. Readers built for `schemaVersion: 3` must be upgraded
-in lockstep: current `prism-ds` requires schema 4 and rejects schema 3, and an older
-`prism-ds` cannot read a schema-4 manifest. After `changeset version` changes
+`design-system.source.json`. Readers built for `schemaVersion: 4` must be upgraded
+in lockstep: current `prism-ds` requires schema 5 and rejects schema 4, and an older
+`prism-ds` cannot read a schema-5 manifest. After `changeset version` changes
 `package.json.version`, run `pnpm ds:sync-versions` from the monorepo root to
 align the runtime version, the generated manifest, and the registry entry;
 `pnpm ds:sync-versions --check` fails without writing when they drift.
