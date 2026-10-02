@@ -26,7 +26,7 @@
  * equality among the consumer config version (when present), the installed
  * `package.json` version, the shipped `design-system.json` version, and the
  * package identity. The shipped manifest must declare the current metadata —
- * `schemaVersion: 4` and `contractVersion: 4`; any other shape fails closed.
+ * `schemaVersion: 5` and `contractVersion: 4`; any other shape fails closed.
  *
  * This module is both a library and the implementation behind the `prism-ds`
  * CLI. It never falls back to a repository root: every entry point requires an
@@ -408,7 +408,7 @@ export function resolveInstalledDesignSystem({ consumerRoot, packageName }) {
 
 /**
  * Require exact version/identity equality and the current contract metadata
- * (`schemaVersion: 4`, numeric `contractVersion: 4`). Any other shape fails
+ * (`schemaVersion: 5`, numeric `contractVersion: 4`). Any other shape fails
  * closed. Throws with every failure aggregated.
  *
  * @returns {{ version: string, contractVersion: 4 }}
@@ -433,7 +433,7 @@ export function verifyConsumerDesignSystem({ packageName, expectedVersion, insta
       )} does not match installed version ${JSON.stringify(installedVersion ?? null)}.`,
     );
   }
-  // The manifest must declare exactly the current metadata: schemaVersion 4 and
+  // The manifest must declare exactly the current metadata: schemaVersion 5 and
   // the numeric contractVersion 4. Any other shape fails closed here; for a
   // recognized manifest the full shape validation below reports the specific
   // invalid fields.

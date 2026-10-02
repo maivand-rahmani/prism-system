@@ -23,7 +23,7 @@
  * It then verifies, without running anything:
  *
  *   1. the installed design system manifest is current (`contractVersion: 4`,
- *      `schemaVersion: 4`) with exact identity/version equality;
+ *      `schemaVersion: 5`) with exact identity/version equality;
  *   2. the installed `tailwindcss` is major v4 (read from its `package.json`);
  *   3. the package's `./tailwind.css` and `./styles.css` public export targets
  *      are plain relative strings that exist on disk and stay inside the

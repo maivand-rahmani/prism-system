@@ -104,15 +104,16 @@ test("missing, unknown, or malformed token names fail closed", () => {
 });
 
 test("only the current schema/contract metadata is recognized", () => {
-  assert.equal(detectManifestContract({ schemaVersion: 4, contractVersion: 4 }), CONTRACT_VERSION);
+  assert.equal(detectManifestContract({ schemaVersion: 5, contractVersion: 4 }), CONTRACT_VERSION);
+  assert.equal(detectManifestContract({ schemaVersion: 4, contractVersion: 4 }), null);
   assert.equal(detectManifestContract({ schemaVersion: 3, contractVersion: 4 }), null);
-  assert.equal(detectManifestContract({ schemaVersion: 4, contractVersion: "4" }), null);
-  assert.equal(detectManifestContract({ schemaVersion: 4, contract: "v4" }), null);
-  assert.equal(detectManifestContract({ schemaVersion: 4 }), null);
-  const failures = collectManifestFailures({ schemaVersion: 3, contractVersion: 4 });
+  assert.equal(detectManifestContract({ schemaVersion: 5, contractVersion: "4" }), null);
+  assert.equal(detectManifestContract({ schemaVersion: 5, contract: "v4" }), null);
+  assert.equal(detectManifestContract({ schemaVersion: 5 }), null);
+  const failures = collectManifestFailures({ schemaVersion: 4, contractVersion: 4 });
   assert.equal(failures.length, 1);
   assert.match(
     failures[0],
-    /^Unsupported manifest metadata \(schemaVersion 3, contractVersion 4\)/,
+    /^Unsupported manifest metadata \(schemaVersion 4, contractVersion 4\)/,
   );
 });

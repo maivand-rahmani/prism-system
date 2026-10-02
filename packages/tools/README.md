@@ -12,10 +12,12 @@ usage, sets up the Tailwind v4 bridge, and diagnoses the result.
   Argument commands and `--help` remain plain CLI invocations.
 - **Not a UI package:** it depends on no design system and on no `@prism-system/ui-*`
   package. TypeScript and the Runeframe/Ink TUI runtime are its only runtime dependencies.
-- **One current contract:** it reads the current manifest shape (`schemaVersion: 4`,
+- **One current contract:** it reads the current manifest shape (`schemaVersion: 5`,
   numeric `contractVersion: 4`) and rejects any other shape. The package-owned
-  `design-system.source.json` descriptor stays `schemaVersion: 3` and is never shipped;
-  this tooling never sees it.
+  `design-system.source.json` descriptor is `schemaVersion: 4` and is never shipped;
+  this tooling never sees it. The manifest's `entrypoints`, `extensions`, and `effects`
+  metadata is the only source for the custom-extension catalog and selected-entry
+  requirements; nothing is inferred from a name.
 - **Explicit boundaries:** `search`/`info` are network read-only; `install`/`use`/
   `upgrade` are the only commands that mutate consumer dependencies; `setup-tailwind`
   mutates only the explicitly named consumer CSS file; `connect` writes only the consumer
@@ -71,7 +73,8 @@ exact `dist-tags.latest`, validates the numeric `contractVersion: 4` and
 `exports["./manifest"] === "./design-system.json"`, downloads the tarball **in memory**
 with SRI verification, and validates the shipped `design-system.json` identity, version,
 schema, contract, and required shape. Output includes the visual direction, the available
-required and optional components, token groups and artifacts, docs, and the Showcase
+required and optional components, declared custom extensions with their entrypoint
+requirements and effects, token groups and artifacts, docs, and the Showcase
 route. `--json` emits a stable allowlisted object that includes the validated full
 manifest.
 
@@ -91,6 +94,14 @@ with one save mode (`--save-dev`/`--save-prod`, default prod), optional `--save-
 constrained `cmd.exe /d /s /c` adapter on Windows. After a zero exit it verifies the
 installed package through the public `./manifest` export and exact identity/version checks.
 
+With `--with-entry <extension|entrypoint|consumer-file>` it additionally selects one or
+more entries and plans their declared requirements: an installed peer that satisfies the
+range is retained, a missing peer with an exact declared range is installed at that exact
+version, and a missing peer with a non-exact range requires an explicit
+`--peer name@exact-version` (repeatable) that satisfies the declared range. Selected
+peers are verified after install. Without `--with-entry`, no entry requirements are
+planned and the ordinary package install is unchanged.
+
 ### `prism-ds use <package-or-id> [version] --cwd <root>`
 
 The explicit one-step workflow: resolve registry → install → verify → `connect` with the
@@ -98,8 +109,11 @@ exact package. `--check-usage` runs the strict checker afterwards (`--ignore <gl
 requires it). `--tailwind --css <file>` additionally performs the Tailwind v4 setup after a
 successful install and connect: it requires an installed Tailwind v4 target and preflights
 the named CSS file before any dependency mutation, then edits only that file.
+`--with-entry <extension|entrypoint|consumer-file>` and `--peer name@exact-version` plan
+and verify the selected entry's declared requirements during the same install step.
 `--dry-run` resolves the exact target and the exact manager command (and, with `--tailwind`,
-the planned CSS import diff) without spawning or writing. The target is always explicit;
+the planned CSS import diff; with `--with-entry`, the entry selection and normalized peer
+plan) without spawning or writing. The target is always explicit;
 the package is never discovered. A completed package-manager mutation is not rolled back
 automatically — failures report the boundary (registry, package-manager, command,
 preflight, spawn, manager, verify, connect, check-usage, setup-tailwind).
@@ -109,16 +123,19 @@ preflight, spawn, manager, verify, connect, check-usage, setup-tailwind).
 Explicitly upgrade an installed design system to an exact registry version. The exact
 version is required. Before any dependency mutation it validates the registry target and
 compares its valid manifest against the installed one, reporting deterministic component
-and token name additions/removals, changes to existing component variants/sizes/members,
-schema/contract metadata, and public export targets. JSON output keeps the existing
-`components.added/removed` and `tokens.added/removed` fields and adds `components.changed`,
-`metadata`, and `exports`. Component and token names are compared as sets, so reordering
-does not report a change. The manifest contains token names rather than token values, so
-the diff cannot report value changes. On a real run it uses the same fixed npm/pnpm path as `use`,
-verifies the exact installed identity/version, then reconnects. `--dry-run` resolves the
-target and manager and returns the exact command plus the planned consumer file effects
-without spawning or writing. It only mutates consumer dependencies and never the
-design-systems source repository; a manager mutation is never rolled back.
+and token name additions/removals, changes to existing component variants/sizes/members
+and effects, custom-extension additions/removals and `apiVersion`/`entrypoint`/effects
+changes, entrypoint requirement additions/removals/changes, schema/contract metadata, and
+public export targets. JSON output keeps the existing `components.added/removed` and
+`tokens.added/removed` fields and adds `components.changed`, `extensions`, `entrypoints`,
+`metadata`, and `exports`. Component, token, and extension names are compared as sets, so
+reordering does not report a change. The manifest contains token names rather than token
+values, so the diff cannot report value changes. On a real run it uses the same fixed
+npm/pnpm path as `use`, verifies the exact installed identity/version, then reconnects;
+`--with-entry`/`--peer` plan and verify the selected entry's declared requirements.
+`--dry-run` resolves the target and manager and returns the exact command plus the planned
+consumer file effects without spawning or writing. It only mutates consumer dependencies
+and never the design-systems source repository; a manager mutation is never rolled back.
 
 ## Offline commands
 
@@ -139,9 +156,13 @@ is reported unavailable with no fabricated metadata. Availability is decided onl
 presence of the component key in `manifest.components`; the generated
 `capabilities.categories` inventory (composition, forms, data-display) is canonical
 category membership, not a second availability list, and category availability is derived
-by intersecting its names with those keys. `[name]` selects one known component,
-including an unavailable optional; an unknown name is rejected. The example route is
-derived from the validated manifest `id` as `/showcase/<id>`.
+by intersecting its names with those keys. Declared `manifest.extensions` are listed as a
+separate group with their `apiVersion`, import path, description, docs/example, declared
+effects, and entrypoint requirements; an undeclared extension does not exist. `[name]`
+selects one known component or declared extension, including an unavailable optional; an
+unknown name is rejected. The example route is
+derived from the validated manifest `id` as `/showcase/<id>`. The TUI Components view reads
+the same catalog and shows its extension section only for a system that declares one.
 
 ### `prism-ds tokens [group] --cwd <consumer-root>`
 
@@ -151,7 +172,7 @@ Tailwind bridge names the installed system actually generates. Prefixes come onl
 never published, and generated CSS/TypeScript artifacts are never read or executed.
 `[group]` selects one of the nine token groups.
 
-### `prism-ds check --cwd <consumer-root> [--css <file>]`
+### `prism-ds check --cwd <consumer-root> [--css <file>] [--entry <path-or-extension>]`
 
 Offline, read-only health report for a connected consumer. It aggregates, with each check
 captured independently and a stable status (`passed`, `failed`, `not_checked`,
@@ -162,6 +183,13 @@ import order is checked **only** when an explicit `--css <file>` is given; with 
 the report never scans for or guesses a CSS file and marks the imports `not_checked`. The
 named `--css` check is read-only. It never writes, installs, executes package code, or runs
 project scripts, and exits non-zero only when a required check fails.
+
+With `--entry <extension|entrypoint|consumer-file>` it additionally resolves the selected
+entry, scans it literally (string `import`/`import()`/`require()` specifiers only), and
+validates every declared requirement against the installed version and the declared range.
+Without `--entry` the prerequisite scan is reported as skipped; the command never scans the
+repository to guess entries. Only peer failures are consumer-actionable; dependency-kind
+requirements are informational.
 
 ### `prism-ds setup-tailwind --cwd <consumer-root> --css <file>`
 
@@ -189,12 +217,14 @@ inline-style overrides and unverifiable styles, and obvious local primitive repl
 Strict findings exit non-zero; non-strict findings are warnings. `--ignore <glob>` adds a
 root-relative ignore (repeatable). TypeScript is lazy-loaded only for this command.
 
-### `prism-ds doctor [package] --cwd <consumer-root>`
+### `prism-ds doctor [package] --cwd <consumer-root> [--entry <path-or-extension>]`
 
 Offline read-only diagnostics: realpath containment, package discovery, the installed
 version resolved through Node package resolution, the public `./manifest` and its version,
 exact identity/version invariants, the Tailwind bridge advertisement/export/file, and
-the consumer config state. It writes nothing and exits non-zero when any check fails.
+the consumer config state. With `--entry` it adds the same selected-entry prerequisite
+validation as `check`; without it no entry is scanned. It writes nothing and exits non-zero
+when any check fails.
 
 ## Consumer contract
 
@@ -209,14 +239,17 @@ For a product repository, the public contract is:
 
 The exact installed version, the manifest version, and any configured version must match.
 Unknown manifest or config schema versions fail closed; only the current shape
-(`schemaVersion: 4`, numeric `contractVersion: 4`) is accepted. There is one shipped
-manifest shape, so readers of `schemaVersion: 3` must be upgraded in lockstep: an older
-`prism-ds` cannot read a schema-4 manifest, and this tooling rejects schema 3. The
-manifest's top-level `capabilities.categories` inventory (composition, forms,
+(`schemaVersion: 5`, numeric `contractVersion: 4`) is accepted. There is one shipped
+manifest shape, so readers of `schemaVersion: 4` and older must be upgraded in lockstep:
+an older `prism-ds` cannot read a schema-5 manifest, and this tooling rejects schema 4 and
+older. The manifest's top-level `capabilities.categories` inventory (composition, forms,
 data-display) is canonical category membership, not availability: per-system support is
 only the presence of a key in `manifest.components`, and category availability is derived
-by intersecting the two. Never edit or repeat `capabilities` in the package-owned
-`design-system.source.json`, which stays `schemaVersion: 3`. The generated manifest
+by intersecting the two. Custom extensions are available only as declared in
+`manifest.extensions`, and their entrypoint `requirements` are the only source for the
+selected-entry peer checks; nothing is inferred from a name. Never edit or repeat
+`capabilities` in the package-owned `design-system.source.json`, which is
+`schemaVersion: 4`. The generated manifest
 remains the authoritative design metadata; nothing duplicates it into `package.json`.
 
 ## Requirements

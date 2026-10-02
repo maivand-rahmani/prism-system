@@ -112,6 +112,10 @@ export function detectPackageManager({ consumerRoot } = {}) {
  * Build the fixed install command. The returned `command`/`args` are the only
  * thing ever executed; there are no user-supplied extra arguments.
  *
+ * `extraPackages` are already-validated `name@exact-version` peer specs derived
+ * from the selected entry's declared requirement ranges; each is passed through
+ * the same safe-argument check and appended to the same fixed command.
+ *
  * @returns {{ manager: string, verb: string, args: string[] }}
  */
 export function buildInstallCommand({
@@ -121,11 +125,20 @@ export function buildInstallCommand({
   saveDev = false,
   exact = false,
   registry,
+  extraPackages = [],
 } = {}) {
   if (!SUPPORTED_MANAGERS.includes(manager)) {
     throw new Error(`Unsupported package manager ${JSON.stringify(manager)}.`);
   }
+  if (!Array.isArray(extraPackages)) {
+    throw new Error("extraPackages must be an array of name@version strings.");
+  }
   const verb = manager === "npm" ? "install" : "add";
+  const extras = [];
+  for (const extra of extraPackages) {
+    const spec = assertSafeArgument(extra, "peer install target");
+    if (!extras.includes(spec)) extras.push(spec);
+  }
   const args = [
     verb,
     saveDev ? "--save-dev" : "--save-prod",
@@ -133,6 +146,7 @@ export function buildInstallCommand({
     "--ignore-scripts",
     `--registry=${assertSafeArgument(registry, "registry URL")}`,
     assertSafeArgument(`${packageName}@${version}`, "install target"),
+    ...extras,
   ];
   return { manager, verb, args };
 }

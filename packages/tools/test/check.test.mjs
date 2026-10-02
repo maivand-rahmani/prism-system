@@ -77,6 +77,7 @@ function createConsumer(t, options = {}) {
     tailwind = null,
     tailwindDeclared = tailwind !== null,
     mutateManifest = null,
+    packageExports = {},
     files = {},
   } = options;
 
@@ -121,6 +122,7 @@ function createConsumer(t, options = {}) {
   const exportsMap = { "./manifest": "./design-system.json" };
   if (includePackageStyles) exportsMap["./styles.css"] = packageStylesTarget;
   if (includePackageTailwind) exportsMap["./tailwind.css"] = packageTailwindTarget;
+  Object.assign(exportsMap, packageExports);
 
   const systemDir = join(root, "node_modules", ...packageName.split("/"));
   writeJson(join(systemDir, "package.json"), {
@@ -487,4 +489,52 @@ test("an explicit cssPath outside the consumer root fails and is never touched",
   assert.match(css.detail, /escapes/);
   assert.deepEqual(snapshot(root), before);
   assert.equal(readFileSync(outsideFile, "utf8"), outsideBefore);
+});
+
+/* -------------------------------------------------------------------------- */
+/* entry prerequisites                                                        */
+/* -------------------------------------------------------------------------- */
+
+test("check --entry reports satisfied and missing extension prerequisites", (t) => {
+  const { root } = createConsumer(t, {
+    mutateManifest: (manifest) => {
+      manifest.entrypoints["./keyboard-scene"] = {
+        requirements: [{ name: "three", kind: "peer", range: "^0.186.0", optional: true }],
+      };
+      manifest.exports["./keyboard-scene"] = "./dist/keyboard-scene.mjs";
+      manifest.publicApi["./keyboard-scene"] = ["KeyboardScene"];
+      manifest.extensions = {
+        KeyboardScene: {
+          apiVersion: 1,
+          entrypoint: "./keyboard-scene",
+          description: "Scene",
+          docs: "./docs/scene.md",
+          example: "<KeyboardScene />",
+        },
+      };
+    },
+    packageExports: { "./keyboard-scene": "./dist/keyboard-scene.mjs" },
+    files: { "node_modules/@prism-system/ui-check/dist/keyboard-scene.mjs": 'import "three";\n' },
+  });
+
+  const missing = checkDesignSystem({ cwd: root, entry: "KeyboardScene" });
+  const missingEntry = checkById(missing, "entry");
+  assert.equal(missingEntry.status, CHECK_STATUS.FAILED);
+  assert.match(missingEntry.detail, /"three".*not installed/);
+  assert.equal(missingEntry.report.requirements[0].imported, true);
+  assert.equal(missingEntry.report.requirements[0].used, true);
+
+  writeJson(join(root, "node_modules", "three", "package.json"), {
+    name: "three",
+    version: "0.186.1",
+  });
+  const satisfied = checkDesignSystem({ cwd: root, entry: "KeyboardScene" });
+  const satisfiedEntry = checkById(satisfied, "entry");
+  assert.equal(satisfiedEntry.status, CHECK_STATUS.PASSED);
+  assert.equal(satisfiedEntry.report.requirements[0].status, "satisfied");
+  assert.equal(satisfiedEntry.report.requirements[0].used, true);
+  assert.ok(satisfiedEntry.report.file.endsWith("keyboard-scene.mjs"));
+
+  const noEntry = checkDesignSystem({ cwd: root });
+  assert.equal(checkById(noEntry, "entry").status, CHECK_STATUS.NOT_CHECKED);
 });

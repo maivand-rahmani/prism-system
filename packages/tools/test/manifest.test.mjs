@@ -55,24 +55,26 @@ function withoutOptionalComponents(manifest) {
 /* Strict contract metadata dispatch                                          */
 /* -------------------------------------------------------------------------- */
 
-test("detectManifestContract accepts only (schemaVersion 4, contractVersion 4)", () => {
+test("detectManifestContract accepts only (schemaVersion 5, contractVersion 4)", () => {
   for (const manifest of [systemAManifest, systemBManifest]) {
     assert.equal(detectManifestContract(manifest), CONTRACT_VERSION);
   }
+  assert.equal(detectManifestContract({ schemaVersion: 4, contractVersion: 4 }), null);
   assert.equal(detectManifestContract({ schemaVersion: 3, contractVersion: 4 }), null);
-  assert.equal(detectManifestContract({ schemaVersion: 4, contractVersion: "4" }), null);
+  assert.equal(detectManifestContract({ schemaVersion: 5, contractVersion: "4" }), null);
   assert.equal(detectManifestContract({ schemaVersion: 3, contractVersion: "4" }), null);
-  assert.equal(detectManifestContract({ schemaVersion: 4 }), null);
+  assert.equal(detectManifestContract({ schemaVersion: 5 }), null);
   assert.equal(detectManifestContract(null), null);
 });
 
 test("unknown metadata fails closed with a single dispatch failure", () => {
   const pairs = [
     { schemaVersion: 3, contractVersion: 4 },
+    { schemaVersion: 4, contractVersion: 4 },
     { schemaVersion: 2, contractVersion: 4 },
-    { schemaVersion: 4, contractVersion: "4" },
-    { schemaVersion: 4, contractVersion: null },
-    { schemaVersion: 4 },
+    { schemaVersion: 5, contractVersion: "4" },
+    { schemaVersion: 5, contractVersion: null },
+    { schemaVersion: 5 },
     { contractVersion: 4 },
   ];
   for (const manifest of pairs) {
@@ -84,7 +86,7 @@ test("unknown metadata fails closed with a single dispatch failure", () => {
     );
     assert.match(
       failures[0],
-      /^Unsupported manifest metadata \(schemaVersion .*, contractVersion .*\); expected \(schemaVersion 4, contractVersion 4\)\.$/,
+      /^Unsupported manifest metadata \(schemaVersion .*, contractVersion .*\); expected \(schemaVersion 5, contractVersion 4\)\.$/,
     );
   }
 });
@@ -142,14 +144,14 @@ test("the A/B manifests carry exactly the approved category inventory", () => {
   }
 });
 
-test("the checked-in manifests are already schema 4 with the exact inventory", () => {
+test("the checked-in manifests are already schema 5 with the exact inventory", () => {
   for (const id of ["system-a", "system-b"]) {
     const path = join(repoRoot, "packages", id, "design-system.json");
     const raw = readJson(path);
     assert.equal(
       raw.schemaVersion,
       MANIFEST_SCHEMA_VERSION,
-      `${id} must already be schema 4, not stale`,
+      `${id} must already be schema 5, not stale`,
     );
     assert.deepEqual(raw.capabilities, canonicalCapabilities(), id);
     assert.deepEqual(collectManifestFailures(raw), [], id);
@@ -162,7 +164,7 @@ test("fixture loading rejects a stale raw manifest instead of projecting it", ()
   staleSchema.schemaVersion = MANIFEST_SCHEMA_VERSION - 1;
   assert.throws(
     () => currentManifest(staleSchema),
-    /Stale checked-in manifest: schemaVersion 3 is not the current 4\./,
+    /Stale checked-in manifest: schemaVersion 4 is not the current 5\./,
   );
 
   const missingCapabilities = structuredClone(systemAManifest);
@@ -192,7 +194,7 @@ test("fixture loading rejects a stale raw manifest instead of projecting it", ()
     writeFileSync(stalePath, JSON.stringify(staleSchema), "utf8");
     assert.throws(
       () => readCurrentManifest(stalePath),
-      /Stale checked-in manifest \(.*design-system\.json\): schemaVersion 3 is not the current 4\./,
+      /Stale checked-in manifest \(.*design-system\.json\): schemaVersion 4 is not the current 5\./,
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });

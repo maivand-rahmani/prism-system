@@ -12,6 +12,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, isAbsolute, join, resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 import {
   connectDesignSystem,
@@ -28,6 +29,10 @@ import {
   assertWithin,
   readJsonFile,
 } from "./constants.mjs";
+import {
+  planEntryAndPeers,
+  verifyPeerInstallations,
+} from "./entry-scan.mjs";
 import { buildInstallCommand, detectPackageManager, spawnInstall } from "./package-manager.mjs";
 import { fetchDesignSystemInfo, searchRegistry } from "./registry.mjs";
 import { assertExactSemver } from "./semver.mjs";
@@ -244,6 +249,39 @@ function diffStringSets(beforeValue, afterValue) {
   };
 }
 
+/** A `{ from, to }` change pair, or null when the deep values are equal. */
+function deepChange(before, after) {
+  const from = before === undefined ? null : before;
+  const to = after === undefined ? null : after;
+  return isDeepStrictEqual(from, to) ? null : { from, to };
+}
+
+/** Added/removed/changed requirement entries for one entrypoint key. */
+function diffRequirements(beforeValue, afterValue) {
+  const before = Array.isArray(beforeValue) ? beforeValue : [];
+  const after = Array.isArray(afterValue) ? afterValue : [];
+  const beforeByName = new Map(before.map((requirement) => [requirement.name, requirement]));
+  const afterByName = new Map(after.map((requirement) => [requirement.name, requirement]));
+  const result = { added: [], removed: [], changed: [] };
+  for (const name of afterByName.keys()) {
+    if (!beforeByName.has(name)) result.added.push(name);
+  }
+  for (const name of beforeByName.keys()) {
+    if (!afterByName.has(name)) result.removed.push(name);
+  }
+  for (const [name, from] of beforeByName) {
+    const to = afterByName.get(name);
+    if (to === undefined) continue;
+    if (!isDeepStrictEqual(from, to)) result.changed.push({ name, from, to });
+  }
+  return result;
+}
+
+/** True when a requirement diff has any change. */
+function requirementsDiffer(diff) {
+  return diff.added.length > 0 || diff.removed.length > 0 || diff.changed.length > 0;
+}
+
 function manifestExportTargets(exportsMap) {
   const targets = {};
   if (!isPlainObject(exportsMap)) return targets;
@@ -287,7 +325,67 @@ function computeManifestDiff(fromManifest, toManifest) {
       const change = diffStringSets(before?.[field], after?.[field]);
       if (change.added.length || change.removed.length) fields[field] = change;
     }
-    if (Object.keys(fields).length) components.changed.push({ name, fields });
+    const entry = { name };
+    if (Object.keys(fields).length) entry.fields = fields;
+    const effects = deepChange(before?.effects, after?.effects);
+    if (effects !== null) entry.effects = effects;
+    if (entry.fields !== undefined || entry.effects !== undefined) components.changed.push(entry);
+  }
+
+  // Custom extensions: added/removed names plus apiVersion/entrypoint/effects
+  // changes. Requirements are never repeated on the extension; their changes
+  // live on the entrypoint diff below.
+  const fromExtensions = isPlainObject(fromManifest?.extensions) ? fromManifest.extensions : {};
+  const toExtensions = isPlainObject(toManifest?.extensions) ? toManifest.extensions : {};
+  const extensionOrder = [
+    ...Object.keys(toExtensions),
+    ...Object.keys(fromExtensions).filter((name) => !Object.prototype.hasOwnProperty.call(toExtensions, name)),
+  ];
+  const extensions = { added: [], removed: [], changed: [] };
+  for (const name of extensionOrder) {
+    const before = fromExtensions[name];
+    const after = toExtensions[name];
+    if (before === undefined) {
+      extensions.added.push(name);
+      continue;
+    }
+    if (after === undefined) {
+      extensions.removed.push(name);
+      continue;
+    }
+    const entry = { name };
+    const fields = {};
+    for (const field of ["apiVersion", "entrypoint"]) {
+      const change = deepChange(before?.[field], after?.[field]);
+      if (change !== null) fields[field] = change;
+    }
+    if (Object.keys(fields).length) entry.fields = fields;
+    const effects = deepChange(before?.effects, after?.effects);
+    if (effects !== null) entry.effects = effects;
+    if (entry.fields !== undefined || entry.effects !== undefined) extensions.changed.push(entry);
+  }
+
+  // Entrypoint requirement changes (the declared prerequisite contract).
+  const fromEntrypoints = isPlainObject(fromManifest?.entrypoints) ? fromManifest.entrypoints : {};
+  const toEntrypoints = isPlainObject(toManifest?.entrypoints) ? toManifest.entrypoints : {};
+  const entrypointOrder = [
+    ...Object.keys(toEntrypoints),
+    ...Object.keys(fromEntrypoints).filter((key) => !Object.prototype.hasOwnProperty.call(toEntrypoints, key)),
+  ];
+  const entrypoints = { added: [], removed: [], changed: [] };
+  for (const key of entrypointOrder) {
+    const before = fromEntrypoints[key];
+    const after = toEntrypoints[key];
+    if (before === undefined) {
+      entrypoints.added.push(key);
+      continue;
+    }
+    if (after === undefined) {
+      entrypoints.removed.push(key);
+      continue;
+    }
+    const requirements = diffRequirements(before?.requirements, after?.requirements);
+    if (requirementsDiffer(requirements)) entrypoints.changed.push({ entrypoint: key, requirements });
   }
 
   const metadata = {};
@@ -331,7 +429,14 @@ function computeManifestDiff(fromManifest, toManifest) {
     if (groupRemoved.length > 0) removed[group] = groupRemoved;
   }
 
-  return { components, tokens: { added, removed }, metadata, exports };
+  return {
+    components,
+    extensions,
+    entrypoints,
+    tokens: { added, removed },
+    metadata,
+    exports,
+  };
 }
 
 /** Deterministic, human-readable preview of an upgrade comparison. */
@@ -345,7 +450,7 @@ function buildUpgradePreview({ packageName, fromVersion, toVersion, command, dif
     lines.push(`components added: ${diff.components.added.join(", ")}`);
   }
   for (const component of diff.components.changed) {
-    for (const [field, change] of Object.entries(component.fields)) {
+    for (const [field, change] of Object.entries(component.fields ?? {})) {
       if (change.removed.length)
         lines.push(
           `components changed (${component.name} ${field} removed): ${change.removed.join(", ")}`,
@@ -355,12 +460,51 @@ function buildUpgradePreview({ packageName, fromVersion, toVersion, command, dif
           `components changed (${component.name} ${field} added): ${change.added.join(", ")}`,
         );
     }
+    if (component.effects !== undefined) {
+      lines.push(
+        `components changed (${component.name} effects): ` +
+          `${JSON.stringify(component.effects.from)} -> ${JSON.stringify(component.effects.to)}`,
+      );
+    }
   }
   for (const [group, names] of Object.entries(diff.tokens.removed)) {
     lines.push(`tokens removed (${group}): ${names.join(", ")}`);
   }
   for (const [group, names] of Object.entries(diff.tokens.added)) {
     lines.push(`tokens added (${group}): ${names.join(", ")}`);
+  }
+  for (const name of diff.extensions.removed) lines.push(`extensions removed: ${name}`);
+  for (const name of diff.extensions.added) lines.push(`extensions added: ${name}`);
+  for (const extension of diff.extensions.changed) {
+    for (const [field, change] of Object.entries(extension.fields ?? {})) {
+      lines.push(
+        `extension changed (${extension.name} ${field}): ` +
+          `${JSON.stringify(change.from)} -> ${JSON.stringify(change.to)}`,
+      );
+    }
+    if (extension.effects !== undefined) {
+      lines.push(
+        `extension changed (${extension.name} effects): ` +
+          `${JSON.stringify(extension.effects.from)} -> ${JSON.stringify(extension.effects.to)}`,
+      );
+    }
+  }
+  for (const key of diff.entrypoints.removed) lines.push(`entrypoint removed: ${key}`);
+  for (const key of diff.entrypoints.added) lines.push(`entrypoint added: ${key}`);
+  for (const entrypoint of diff.entrypoints.changed) {
+    const label = `entrypoint changed (${entrypoint.entrypoint})`;
+    if (entrypoint.requirements.added.length) {
+      lines.push(`${label}: requirements added: ${entrypoint.requirements.added.join(", ")}`);
+    }
+    if (entrypoint.requirements.removed.length) {
+      lines.push(`${label}: requirements removed: ${entrypoint.requirements.removed.join(", ")}`);
+    }
+    for (const requirement of entrypoint.requirements.changed) {
+      lines.push(
+        `${label}: requirement changed (${requirement.name}): ` +
+          `${JSON.stringify(requirement.from)} -> ${JSON.stringify(requirement.to)}`,
+      );
+    }
   }
   for (const [field, change] of Object.entries(diff.metadata)) {
     lines.push(
@@ -422,6 +566,13 @@ function buildUsePlannedChanges({ install, tailwindPlan, connectPlan }) {
  * With `dryRun` it resolves and validates the exact remote info and the exact
  * manager command, then returns without spawning anything.
  *
+ * `withEntry`/`peers` select the target entry's declared requirements and plan
+ * explicit peer installs: an installed satisfying version is retained, a
+ * satisfying exact `--peer` override is installed when missing, a missing peer
+ * with an exact declared range installs that version, and a missing peer with a
+ * non-exact range fails closed until an exact override is given. The planned
+ * peer specs become part of the same fixed manager command.
+ *
  * `preflight` is an internal hook run after command construction and before any
  * spawn (including on a dry run); it may return a value that is surfaced on the
  * dry-run result, and throwing turns into a `preflight` boundary failure.
@@ -438,6 +589,8 @@ export async function installDesignSystem({
   stdio = "inherit",
   dryRun = false,
   preflight,
+  withEntry = [],
+  peers: peerSpecs = [],
 } = {}) {
   let consumerRoot;
   try {
@@ -453,11 +606,33 @@ export async function installDesignSystem({
     return { ok: false, boundary: "registry", failures: [error.message] };
   }
 
+  let entryPlan;
+  try {
+    entryPlan = planEntryAndPeers({
+      consumerRoot,
+      packageName: info.package,
+      manifest: info.manifest,
+      entries: withEntry,
+      peerSpecs,
+    });
+  } catch (error) {
+    return { ok: false, boundary: "entry", failures: [error.message], info };
+  }
+  const entrySelection = entryPlan.selection;
+  const peers = entryPlan.peers;
+
   let detection;
   try {
     detection = detectPackageManager({ consumerRoot });
   } catch (error) {
-    return { ok: false, boundary: "package-manager", failures: [error.message], info };
+    return {
+      ok: false,
+      boundary: "package-manager",
+      failures: [error.message],
+      info,
+      entrySelection,
+      peers,
+    };
   }
 
   let command;
@@ -469,6 +644,9 @@ export async function installDesignSystem({
       saveDev,
       exact,
       registry: info.registry,
+      extraPackages: peers
+        .filter((peer) => peer.action === "install")
+        .map((peer) => `${peer.name}@${peer.version}`),
     });
   } catch (error) {
     return {
@@ -477,6 +655,8 @@ export async function installDesignSystem({
       failures: [error.message],
       info,
       manager: detection.manager,
+      entrySelection,
+      peers,
     };
   }
 
@@ -493,6 +673,8 @@ export async function installDesignSystem({
         manager: detection.manager,
         managerSource: detection.source,
         command,
+        entrySelection,
+        peers,
       };
     }
   }
@@ -510,6 +692,8 @@ export async function installDesignSystem({
       version: info.version,
       registry: info.registry,
       command,
+      entrySelection,
+      peers,
       plannedChanges: [{ kind: "dependency", manager: detection.manager, command }],
       ...(preflightResult !== undefined ? { preflight: preflightResult } : {}),
     };
@@ -532,6 +716,8 @@ export async function installDesignSystem({
       info,
       manager: detection.manager,
       command,
+      entrySelection,
+      peers,
     };
   }
   if (result.status !== 0) {
@@ -542,6 +728,8 @@ export async function installDesignSystem({
       info,
       manager: detection.manager,
       command,
+      entrySelection,
+      peers,
     };
   }
 
@@ -561,6 +749,22 @@ export async function installDesignSystem({
       info,
       manager: detection.manager,
       command,
+      entrySelection,
+      peers,
+    };
+  }
+
+  const peerFailures = verifyPeerInstallations({ consumerRoot, peers });
+  if (peerFailures.length > 0) {
+    return {
+      ok: false,
+      boundary: "verify-peer",
+      failures: peerFailures,
+      info,
+      manager: detection.manager,
+      command,
+      entrySelection,
+      peers,
     };
   }
 
@@ -574,6 +778,8 @@ export async function installDesignSystem({
     version: info.version,
     registry: info.registry,
     command,
+    entrySelection,
+    peers,
     installedDir: installed.packageDir,
   };
 }
@@ -613,6 +819,8 @@ export async function runUseDesignSystem({
   tailwind = false,
   cssPath,
   expectedConnectPlan,
+  withEntry = [],
+  peers: peerSpecs = [],
 } = {}) {
   if (Array.isArray(ignore) && ignore.length > 0 && runUsage !== true) {
     return { ok: false, boundary: "arguments", failures: ["--ignore requires --check-usage."] };
@@ -660,6 +868,8 @@ export async function runUseDesignSystem({
     stdio,
     dryRun,
     preflight,
+    withEntry,
+    peers: peerSpecs,
   });
   if (!install.ok) {
     return {
@@ -809,6 +1019,8 @@ export async function upgradeDesignSystem({
   stdio = "inherit",
   dryRun = false,
   expectedConnectPlan,
+  withEntry = [],
+  peers: peerSpecs = [],
 } = {}) {
   let requestedVersion;
   try {
@@ -854,6 +1066,28 @@ export async function upgradeDesignSystem({
   }
   const fromVersion = installed.packageJson.version;
 
+  let entryPlan;
+  try {
+    entryPlan = planEntryAndPeers({
+      consumerRoot,
+      packageName: info.package,
+      manifest: info.manifest,
+      entries: withEntry,
+      peerSpecs,
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      boundary: "entry",
+      failures: [error.message],
+      info,
+      fromVersion,
+      toVersion: info.version,
+    };
+  }
+  const entrySelection = entryPlan.selection;
+  const peers = entryPlan.peers;
+
   // Compared against the validated target before any manager mutation.
   const diff = computeManifestDiff(installed.manifest, info.manifest);
 
@@ -869,6 +1103,8 @@ export async function upgradeDesignSystem({
       diff,
       fromVersion,
       toVersion: info.version,
+      entrySelection,
+      peers,
     };
   }
 
@@ -881,6 +1117,9 @@ export async function upgradeDesignSystem({
       saveDev: false,
       exact: false,
       registry: info.registry,
+      extraPackages: peers
+        .filter((peer) => peer.action === "install")
+        .map((peer) => `${peer.name}@${peer.version}`),
     });
   } catch (error) {
     return {
@@ -893,6 +1132,8 @@ export async function upgradeDesignSystem({
       diff,
       fromVersion,
       toVersion: info.version,
+      entrySelection,
+      peers,
     };
   }
 
@@ -931,6 +1172,8 @@ export async function upgradeDesignSystem({
       preview,
       fromVersion,
       toVersion: info.version,
+      entrySelection,
+      peers,
     };
   }
 
@@ -947,6 +1190,8 @@ export async function upgradeDesignSystem({
     preview,
     connectPlan,
     plannedChanges,
+    entrySelection,
+    peers,
   };
 
   if (dryRun) {
@@ -989,6 +1234,11 @@ export async function upgradeDesignSystem({
       failures: [`Installed package verification failed: ${error.message}`],
       ...base,
     };
+  }
+
+  const peerFailures = verifyPeerInstallations({ consumerRoot, peers });
+  if (peerFailures.length > 0) {
+    return { ok: false, boundary: "verify-peer", failures: peerFailures, ...base };
   }
 
   const connect = connectDesignSystem({

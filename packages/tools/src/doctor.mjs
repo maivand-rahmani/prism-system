@@ -20,6 +20,7 @@ import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import { CONTRACT_VERSION, assertWithin } from "./constants.mjs";
+import { collectEntryPrerequisites } from "./entry-scan.mjs";
 import { detectManifestContract } from "./manifest.mjs";
 import {
   CONSUMER_CONFIG_FILENAME,
@@ -112,7 +113,7 @@ function verifyTailwindBridge({ installed, packageName }) {
  *
  * @returns {{ ok: boolean, consumerRoot: string | null, checks: { label: string, ok: boolean, detail: string, informational?: boolean }[] }}
  */
-export function collectDoctorReport({ cwd, package: explicitPackage } = {}) {
+export function collectDoctorReport({ cwd, package: explicitPackage, entry } = {}) {
   const checks = [];
   let consumerRoot;
   try {
@@ -226,23 +227,50 @@ export function collectDoctorReport({ cwd, package: explicitPackage } = {}) {
     }
   }
 
+  // Optional explicit entry prerequisites: an installed extension, a declared
+  // entrypoint, or a contained consumer source file. Read-only literal scan.
+  if (typeof entry === "string" && entry.trim() !== "") {
+    const result = collectEntryPrerequisites({
+      consumerRoot,
+      packageName: discovered.packageName,
+      manifest: installed.manifest,
+      installed,
+      entry,
+    });
+    const requirements = result.report?.requirements ?? [];
+    const satisfied = requirements.filter((requirement) => requirement.status === "satisfied").length;
+    checks.push(
+      result.ok
+        ? info(
+            "entry prerequisites",
+            `${JSON.stringify(entry.trim())}: ${satisfied}/${requirements.length} selected ` +
+              "requirement(s) satisfied (literal import scan; computed expressions ignored)",
+          )
+        : failure("entry prerequisites", result.failures.join(" ")),
+    );
+  }
+
   const failures = checks.filter((check) => !check.ok);
   return { ok: failures.length === 0, consumerRoot, checks };
 }
 
 export function doctorHelpText() {
   return [
-    "Usage: prism-ds doctor [package] --cwd <consumer-root>",
+    "Usage: prism-ds doctor [package] --cwd <consumer-root> [--entry <path-or-extension>]",
     "",
     "Read-only diagnostics for a consumer repository: target containment, discovered",
     "package and identity, installed package version (through Node package resolution),",
-    "public ./manifest availability and version, exact invariants, and config state.",
+    "public ./manifest availability and version, exact invariants, config state, and",
+    "optional entry prerequisites for a named extension, declared entrypoint, or",
+    "contained consumer source file (literal import scan; nothing is executed).",
     "",
     "Arguments:",
     "  [package]             Optional package name or system id to check explicitly.",
     "",
     "Options:",
     "  --cwd <path>          Consumer root (required; never defaults to a repo root).",
+    "  --entry <path-or-extension>  Optional extension name, declared entrypoint, or",
+    "                        consumer-relative source file to scan for prerequisites.",
     "  -h, --help            Show this help.",
     "",
     "Doctor writes nothing, installs nothing, and exits non-zero when any check fails.",

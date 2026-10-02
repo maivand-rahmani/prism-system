@@ -41,7 +41,12 @@ import {
   resolveInstalledDesignSystem,
   verifyConsumerDesignSystem,
 } from "./consumer.mjs";
-import { collectCapabilitiesFailures, detectManifestContract } from "./manifest.mjs";
+import {
+  collectCapabilitiesFailures,
+  collectEntrypointsFailures,
+  collectExtensionsFailures,
+  detectManifestContract,
+} from "./manifest.mjs";
 
 /** Optional per-component metadata fields passed through when declared. */
 const OPTIONAL_METADATA_FIELDS = Object.freeze(["description", "docs", "example"]);
@@ -61,7 +66,7 @@ function requireNonEmptyString(value, label) {
   return value.trim();
 }
 
-/** The known component names, in canonical order. */
+/** The known canonical component names, in contract order. */
 function knownComponentNames() {
   return COMPONENT_NAMES;
 }
@@ -76,18 +81,74 @@ function optionalComponentNames() {
   return OPTIONAL_COMPONENTS;
 }
 
-/** Resolve a requested component name against the known contract names. */
-function selectRequestedComponent({ requested, names, catalog }) {
-  const componentName = requireNonEmptyString(requested, "component name");
-  if (!names.includes(componentName)) {
-    throw new Error(
-      `Unknown component ${JSON.stringify(componentName)}; known components are: ` +
-        `${names.join(", ")}.`,
-    );
-  }
-  const entry = catalog.find((component) => component.name === componentName);
-  // The name was found in `names`, so the canonical catalog always contains it.
-  return entry;
+/**
+ * Pass through a declared effects block as a fresh object, or `null` when the
+ * manifest does not declare effects. Effects are never inferred.
+ */
+export function normalizeCatalogEffects(value) {
+  if (!isPlainObject(value)) return null;
+  const effects = {
+    features: Array.isArray(value.features) ? [...value.features] : [],
+    rendering: value.rendering,
+    reducedMotion: value.reducedMotion,
+  };
+  if (value.fallback !== undefined) effects.fallback = value.fallback;
+  return effects;
+}
+
+/** The public import path an entrypoint maps to, e.g. `pkg/subpath`. */
+export function entrypointImportPath(packageName, entrypoint) {
+  if (entrypoint === ".") return packageName;
+  return `${packageName}${entrypoint.replace(/^\./, "")}`;
+}
+
+/**
+ * Build the extension catalog entries from a validated manifest: every custom
+ * runtime export with its `apiVersion`, declared `entrypoint`, resolved
+ * `importPath`, optional effects, and the entrypoint's requirements. This is
+ * the single unified shape reused by `components`, `info`, and the CLI.
+ */
+export function buildExtensionCatalogEntries(manifest) {
+  const extensions = isPlainObject(manifest?.extensions) ? manifest.extensions : {};
+  const entrypoints = isPlainObject(manifest?.entrypoints) ? manifest.entrypoints : {};
+  return Object.keys(extensions).map((name) => {
+    const extension = extensions[name];
+    const entrypoint = extension.entrypoint;
+    const requirements = Array.isArray(entrypoints[entrypoint]?.requirements)
+      ? entrypoints[entrypoint].requirements.map((requirement) => ({
+          name: requirement.name,
+          kind: requirement.kind,
+          range: requirement.range,
+          optional: requirement.optional,
+        }))
+      : [];
+    return {
+      kind: "extension",
+      name,
+      apiVersion: extension.apiVersion,
+      entrypoint,
+      importPath: entrypointImportPath(manifest.package, entrypoint),
+      available: true,
+      description: extension.description,
+      docs: extension.docs,
+      example: extension.example,
+      effects: normalizeCatalogEffects(extension.effects),
+      requirements,
+    };
+  });
+}
+
+/** Resolve a requested name against canonical components, then extensions. */
+function selectRequestedEntry({ requested, names, catalog, extensions }) {
+  const entryName = requireNonEmptyString(requested, "component name");
+  const component = catalog.find((entry) => entry.name === entryName);
+  if (component !== undefined) return component;
+  const extension = extensions.find((entry) => entry.name === entryName);
+  if (extension !== undefined) return extension;
+  const known = [...names, ...extensions.map((entry) => entry.name)];
+  throw new Error(
+    `Unknown component ${JSON.stringify(entryName)}; known components are: ${known.join(", ")}.`,
+  );
 }
 
 /**
@@ -130,6 +191,21 @@ export function buildComponentCatalog({ manifest, name } = {}) {
   if (capabilityFailures.length > 0) {
     throw new Error(`Invalid design-system manifest capabilities: ${capabilityFailures.join(" ")}`);
   }
+  const entrypointFailures = collectEntrypointsFailures(manifest.entrypoints);
+  if (entrypointFailures.length > 0) {
+    throw new Error(`Invalid design-system manifest entrypoints: ${entrypointFailures.join(" ")}`);
+  }
+  if (hasOwn(manifest, "extensions")) {
+    const extensionFailures = collectExtensionsFailures(manifest.extensions, {
+      entrypoints: manifest.entrypoints,
+      publicApi: manifest.publicApi,
+    });
+    if (extensionFailures.length > 0) {
+      throw new Error(
+        `Invalid design-system manifest extensions: ${extensionFailures.join(" ")}`,
+      );
+    }
+  }
 
   const components = isPlainObject(manifest.components) ? manifest.components : {};
   const names = knownComponentNames();
@@ -142,6 +218,9 @@ export function buildComponentCatalog({ manifest, name } = {}) {
     }
   }
 
+  const rootRequirements = Array.isArray(manifest.entrypoints["."]?.requirements)
+    ? manifest.entrypoints["."].requirements.map((requirement) => ({ ...requirement }))
+    : [];
   const catalog = names.map((componentName) => {
     const isRequired = required.includes(componentName);
     const declared = hasOwn(components, componentName);
@@ -150,9 +229,13 @@ export function buildComponentCatalog({ manifest, name } = {}) {
       required: isRequired,
       optional: !isRequired,
       available: declared,
+      entrypoint: ".",
+      importPath: manifest.package,
+      requirements: rootRequirements.map((requirement) => ({ ...requirement })),
       variants: null,
       sizes: null,
       members: null,
+      effects: null,
     };
     if (!declared) return entry;
     const api = components[componentName];
@@ -165,9 +248,11 @@ export function buildComponentCatalog({ manifest, name } = {}) {
     for (const field of OPTIONAL_METADATA_FIELDS) {
       if (typeof api[field] === "string") entry[field] = api[field];
     }
+    entry.effects = normalizeCatalogEffects(api.effects);
     return entry;
   });
 
+  const extensions = buildExtensionCatalogEntries(manifest);
   const available = catalog.filter((entry) => entry.available).map((entry) => entry.name);
   const unavailable = catalog.filter((entry) => !entry.available).map((entry) => entry.name);
 
@@ -187,7 +272,9 @@ export function buildComponentCatalog({ manifest, name } = {}) {
   }
 
   const requested =
-    name === undefined ? null : selectRequestedComponent({ requested: name, names, catalog });
+    name === undefined
+      ? null
+      : selectRequestedEntry({ requested: name, names, catalog, extensions });
 
   return {
     contractVersion: CONTRACT_VERSION,
@@ -199,8 +286,10 @@ export function buildComponentCatalog({ manifest, name } = {}) {
       optional: optional.length,
       available: available.length,
       unavailable: unavailable.length,
+      extensions: extensions.length,
     },
     components: catalog,
+    extensions,
     available,
     unavailable,
     capabilities: { categories },
@@ -259,6 +348,7 @@ export function listDesignSystemComponents({ cwd, name } = {}) {
     showcase: catalog.showcase,
     counts: catalog.counts,
     components: catalog.components,
+    extensions: catalog.extensions,
     available: catalog.available,
     unavailable: catalog.unavailable,
     capabilities: catalog.capabilities,

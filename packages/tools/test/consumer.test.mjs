@@ -317,13 +317,13 @@ test("obsolete manifest metadata fails connect, verify, and doctor", (t) => {
     const installed = resolveInstalledDesignSystem({ consumerRoot: root, packageName });
     assert.throws(
       () => verifyConsumerDesignSystem({ packageName, expectedVersion: null, installed }),
-      /must be the numeric 4|must be 4/,
+      /must be the numeric 4|must be 5/,
       `verify must reject ${JSON.stringify(pair)}`,
     );
 
     const result = connectDesignSystem({ cwd: root });
     assert.equal(result.ok, false);
-    assert.match(result.failures.join(" "), /must be the numeric 4|must be 4/);
+    assert.match(result.failures.join(" "), /must be the numeric 4|must be 5/);
 
     const doctor = collectDoctorReport({ cwd: root });
     assert.equal(doctor.ok, false);
@@ -332,7 +332,7 @@ test("obsolete manifest metadata fails connect, verify, and doctor", (t) => {
         .filter((check) => !check.ok)
         .map((check) => check.detail)
         .join(" "),
-      /must be the numeric 4|must be 4/,
+      /must be the numeric 4|must be 5/,
     );
   }
 });

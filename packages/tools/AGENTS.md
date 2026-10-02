@@ -22,9 +22,11 @@ check-usage    deterministic strict usage validation (offline; TypeScript AST + 
 doctor         read-only consumer diagnostics (offline)
 ```
 
-It reads the current manifest shape (`schemaVersion: 4`, numeric `contractVersion: 4`)
+It reads the current manifest shape (`schemaVersion: 5`, numeric `contractVersion: 4`)
 and rejects anything else. The package-owned source descriptor `design-system.source.json`
-stays `schemaVersion: 3`, is repository-only, and is never read from a consumer. It is
+is `schemaVersion: 4`, is repository-only, and is never read from a consumer. The
+manifest's `entrypoints`/`extensions`/`effects` metadata drives the extension catalog
+and selected-entry peer planning; custom exports are never inferred from a name. It is
 not a UI package, not `@prism-system/ui-core`, and not a
 design system. It ships no colors, tokens, styling, or components of its own — the catalog
 commands only read an installed package's public `./manifest`.
@@ -37,6 +39,8 @@ This package owns:
 - the strict usage checker (`check-usage`) and its rule catalog;
 - read-only diagnostics (`doctor`) and the aggregated offline health report (`check`);
 - the offline component catalog (`components`) and the token catalog (`tokens`);
+- the extension catalog and the selected-entry prerequisite scan/peer planning
+  (`--with-entry`, `--peer`, `--entry`);
 - the Tailwind v4 setup planner/writer (`setup-tailwind`);
 - the npm Registry client, catalog orchestration, and in-memory tarball/manifest
   validation (`search`, `info`);
@@ -77,7 +81,10 @@ consumer root and read only through its public `exports` (notably `./manifest`).
   never writes.
 - `components`/`tokens`/`check`/`check-usage`/`doctor` stay offline and never edit
   dependencies. `check` never scans for or guesses a CSS file: its import-order check runs
-  only with an explicit, read-only `--css`.
+  only with an explicit, read-only `--css`, and its entry prerequisite scan runs only with
+  an explicit `--entry`; no command scans a repository to guess entries. Selected-entry
+  peers are planned or installed only for an explicitly selected entry (`--with-entry` or
+  a scanned consumer file) and are verified afterward against the declared ranges.
 - Registry URLs are http(s), credential-free, redirect-rejected, timeout- and size-limited.
   Tarballs are read and parsed in memory only; SRI `dist.integrity` is verified when
   present, and manifest identity/version/contract/schema/shape fail closed.
@@ -85,7 +92,8 @@ consumer root and read only through its public `exports` (notably `./manifest`).
 ## Runtime dependencies
 
 - TypeScript is declared as a runtime dependency and is lazy-loaded only for the strict
-  usage checker (`check-usage`, and the usage step of `check`/`use --check-usage`);
+  usage checker (`check-usage`, and the usage step of `check`/`use --check-usage`) and the
+  explicit selected-entry scan (`--entry`, `--with-entry`);
   `connect`, `doctor`, `components`, `tokens`, `check`, `setup-tailwind`, `search`, `info`,
   `install`, `use`, and `upgrade` must not require it eagerly.
 - No other runtime dependency may be added without updating the published package. The
@@ -96,13 +104,15 @@ consumer root and read only through its public `exports` (notably `./manifest`).
 - `.design-system/config.json` schema version is authoritative (`CONSUMER_SCHEMA_VERSION`).
 - The shipped manifest export subpath and target (`./manifest` →
   `./design-system.json`) are the public contract. Never import package internals.
-- The current schema/contract shape (`schemaVersion: 4`, numeric `contractVersion: 4`)
+- The current schema/contract shape (`schemaVersion: 5`, numeric `contractVersion: 4`)
   is supported; every other shape fails closed. There is one shipped manifest shape, so
-  schema-3 readers must be upgraded in lockstep: an older `prism-ds` cannot read a
-  schema-4 manifest, and this tooling rejects schema 3. Availability is only the presence
-  of a key in `manifest.components`; the generated `capabilities.categories` inventory
-  (composition, forms, data-display) is canonical category membership, not a second
-  availability list, and category availability is derived by intersecting the two.
+  schema-4 readers must be upgraded in lockstep: an older `prism-ds` cannot read a
+  schema-5 manifest, and this tooling rejects schema 4 and older. Availability is only
+  the presence of a key in `manifest.components`; the generated `capabilities.categories`
+  inventory (composition, forms, data-display) is canonical category membership, not a
+  second availability list, and category availability is derived by intersecting the two.
+  Custom extensions are available only as declared in `manifest.extensions`; their
+  entrypoint `requirements` are the only source for selected-entry peer checks.
   `tokens` reads the token catalog of the installed current-contract system.
 - Exact version/identity equality fails closed; unknown schema versions fail closed.
 - Writes are contained to the real `--cwd` root, atomic, and idempotent. Malformed managed

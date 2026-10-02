@@ -17,6 +17,7 @@ import {
   PACKAGE_SCOPE,
   REQUIRED_COMPONENTS,
 } from "./constants.mjs";
+import { buildExtensionCatalogEntries } from "./components.mjs";
 import { isSupportedPackageName, normalizeRequestedPackage } from "./consumer.mjs";
 import { validateDesignSystemManifest } from "./manifest.mjs";
 import { assertExactSemver, compareSemverDesc, isExactSemver } from "./semver.mjs";
@@ -448,6 +449,8 @@ export function buildInfoResult(info) {
   const design = isPlainObject(manifest.design) ? manifest.design : {};
   const components = isPlainObject(manifest.components) ? manifest.components : {};
   const tokens = isPlainObject(manifest.tokens) ? manifest.tokens : {};
+  const entrypoints = isPlainObject(manifest.entrypoints) ? manifest.entrypoints : {};
+  const extensions = buildExtensionCatalogEntries(manifest);
   return {
     package: info.package,
     version: info.version,
@@ -462,6 +465,9 @@ export function buildInfoResult(info) {
         : [],
     },
     components: manifest.components,
+    entrypoints,
+    extensions,
+    availableExtensions: extensions.map((extension) => extension.name),
     rules: manifest.rules,
     availableComponents: COMPONENT_NAMES.filter((name) => name in components),
     capabilities: {

@@ -87,6 +87,7 @@ import {
   OPTIONAL_COMPONENTS,
   REQUIRED_COMPONENTS,
 } from "./design-system-manifest.mjs";
+import { collectPackedCustomFailures } from "./check-custom-components.mjs";
 
 const ROOT = repoRoot();
 const TEMP_ROOT = join(ROOT, "TEMP", "lifecycle");
@@ -567,8 +568,8 @@ for (const entry of packages) {
     if (manifest.contractVersion !== 4) {
       fail(entry.packageName + " manifest contractVersion is not 4");
     }
-    if (manifest.schemaVersion !== 4) {
-      fail(entry.packageName + " manifest schemaVersion is not 4");
+    if (manifest.schemaVersion !== ${DESIGN_SYSTEM_MANIFEST_SCHEMA_VERSION}) {
+      fail(entry.packageName + " manifest schemaVersion is not ${DESIGN_SYSTEM_MANIFEST_SCHEMA_VERSION}");
     }
     const expectedCategories = ${JSON.stringify(CAPABILITY_CATEGORIES)};
     const actualCategories = manifest.capabilities?.categories ?? {};
@@ -961,7 +962,7 @@ async function main() {
       );
       assert(
         manifest.schemaVersion === DESIGN_SYSTEM_MANIFEST_SCHEMA_VERSION,
-        "fresh template manifest must be schemaVersion 4",
+        `fresh template manifest must be schemaVersion ${DESIGN_SYSTEM_MANIFEST_SCHEMA_VERSION}`,
       );
       assertCapabilityInventory(manifest, "fresh template manifest");
       assert(
@@ -1052,7 +1053,7 @@ async function main() {
         );
         assert(
           manifest.schemaVersion === DESIGN_SYSTEM_MANIFEST_SCHEMA_VERSION,
-          `${target.id} manifest must be schemaVersion 4`,
+          `${target.id} manifest must be schemaVersion ${DESIGN_SYSTEM_MANIFEST_SCHEMA_VERSION}`,
         );
         assertCapabilityInventory(manifest, `${target.id} manifest`);
         assert(
@@ -1072,6 +1073,29 @@ async function main() {
         );
         target.manifest = manifest;
         target.version = pkg.version;
+
+        // Declared extra entrypoints and extensions must be real packed
+        // artifacts. This shares the exact static checker the standalone
+        // custom-components harness uses, so evidence cannot drift between the
+        // two paths. Nothing is executed to inspect extensions.
+        const customFailures = collectPackedCustomFailures({
+          label: target.id,
+          extractedDir: extracted,
+          pkg,
+          manifest,
+        });
+        assert(customFailures.length === 0, customFailures.join("; "));
+
+        // The consumer matrix is intentionally NOT part of ds:check-all: it
+        // requires network installs of the two approved React rows. Say so
+        // explicitly instead of silently narrowing the check.
+        if (manifest.extensions && Object.keys(manifest.extensions).length > 0) {
+          log(
+            `NOTE ${target.id} ships custom extensions; run ` +
+              '"node scripts/check-custom-components.mjs" for the packed extension/' +
+              "consumer matrix (network; parent-run, not part of ds:check-all)",
+          );
+        }
 
         // The packed root entries are client bundles; `./tokens` stays
         // server-safe in both formats.

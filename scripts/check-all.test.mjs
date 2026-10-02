@@ -14,8 +14,9 @@
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   FLAT_CARD_PARTS,
@@ -365,7 +366,7 @@ test("buildRuntimeProbeSource embeds the packages and the consumer node_modules 
   assert.match(source, /REQUIRED_COMPONENTS/);
   assert.match(source, /OPTIONAL_COMPONENTS/);
   // The runtime probe verifies the shipped manifest metadata and inventory.
-  assert.match(source, /manifest\.schemaVersion !== 4/);
+  assert.match(source, /manifest\.schemaVersion !== 5/);
   assert.match(source, /manifest capabilities categories mismatch/);
   assert.match(source, /"data-display":/);
 });
@@ -376,14 +377,14 @@ test("buildRuntimeProbeSource embeds the packages and the consumer node_modules 
 
 test("assertCapabilityInventory requires the exact canonical inventory", () => {
   const manifest = () => ({
-    schemaVersion: 4,
+    schemaVersion: 5,
     capabilities: { categories: structuredClone(CAPABILITY_CATEGORIES) },
   });
 
   assert.doesNotThrow(() => assertCapabilityInventory(manifest(), "fixture"));
 
   assert.throws(
-    () => assertCapabilityInventory({ schemaVersion: 4 }, "fixture"),
+    () => assertCapabilityInventory({ schemaVersion: 5 }, "fixture"),
     /fixture must declare capabilities\.categories/,
   );
 
@@ -533,4 +534,18 @@ test("collectRepoVersionState hashes version/config files and detects changes", 
     before.get("config/design-systems.json"),
   );
   assert.equal(after.get("package.json"), before.get("package.json"));
+});
+
+test("ds:check-all shares the custom static checker and names the explicit matrix command", () => {
+  const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  const source = readFileSync(join(repoRoot, "scripts", "check-all.mjs"), "utf8");
+  assert.match(
+    source,
+    /import \{ collectPackedCustomFailures \} from "\.\/check-custom-components\.mjs";/,
+  );
+  assert.match(source, /const customFailures = collectPackedCustomFailures\(/);
+  // The packed consumer matrix stays explicit and parent-run; check-all must
+  // say so instead of silently narrowing the custom coverage.
+  assert.match(source, /node scripts\/check-custom-components\.mjs/);
+  assert.match(source, /not part of ds:check-all/);
 });

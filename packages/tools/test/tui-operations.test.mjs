@@ -111,7 +111,7 @@ function installedFixture(version = "1.2.3") {
   return {
     packageDir: `${CONSUMER_ROOT}/node_modules/${TARGET}`,
     packageJson: { name: TARGET, version },
-    manifest: { package: TARGET, version, schemaVersion: 4, contractVersion: 4 },
+    manifest: { package: TARGET, version, schemaVersion: 5, contractVersion: 4 },
     manifestPath: `${CONSUMER_ROOT}/node_modules/${TARGET}/design-system.json`,
   };
 }
@@ -588,7 +588,15 @@ test("catalog and check methods route to the offline operations with exact argum
 
   const doctor = tui.runDoctor();
   assert.equal(doctor.ok, true);
-  assert.deepEqual(calls.doctor, [[{ cwd: RESOLVED_CWD }]]);
+  assert.deepEqual(calls.doctor, [[{ cwd: RESOLVED_CWD, entry: undefined }]]);
+
+  const doctorWithEntry = tui.runDoctor({ entry: "KeyboardScene" });
+  assert.equal(doctorWithEntry.ok, true);
+  assert.equal(calls.doctor[1][0].entry, "KeyboardScene");
+
+  const checkWithEntry = tui.runCheck({ cssPath: "app/globals.css", entry: "KeyboardScene" });
+  assert.equal(checkWithEntry.ok, true);
+  assert.equal(calls.check[2][0].entry, "KeyboardScene");
 
   const usage = tui.runUsageCheck();
   assert.equal(usage.ok, true);
@@ -1208,4 +1216,177 @@ test("unsupported or incomplete actions fail before any operation runs", async (
   for (const name of OPERATION_NAMES) {
     assert.equal(calls[name].length, 0, `${name} must not run for invalid actions`);
   }
+});
+
+/* -------------------------------------------------------------------------- */
+/* Selected entries and peer plans                                            */
+/* -------------------------------------------------------------------------- */
+
+function installDryRunWithPlan() {
+  const base = installDryRun();
+  const requirements = [
+    { name: "three", kind: "peer", range: "^0.186.0", optional: true },
+    { name: "@react-three/fiber", kind: "peer", range: "8.18.0", optional: true },
+  ];
+  return {
+    ...base,
+    command: {
+      manager: "pnpm",
+      verb: "add",
+      args: [...base.command.args, "three@0.186.1", "@react-three/fiber@8.18.0"],
+    },
+    entrySelection: {
+      requested: ["KeyboardScene"],
+      entries: [
+        {
+          requested: "KeyboardScene",
+          kind: "extension",
+          extension: "KeyboardScene",
+          entrypoint: "./keyboard-scene",
+          file: null,
+          requirements,
+        },
+      ],
+      requirements,
+    },
+    peers: [
+      {
+        name: "three",
+        kind: "peer",
+        range: "^0.186.0",
+        optional: true,
+        action: "install",
+        version: "0.186.1",
+        installed: null,
+        source: "override",
+      },
+      {
+        name: "@react-three/fiber",
+        kind: "peer",
+        range: "8.18.0",
+        optional: true,
+        action: "install",
+        version: "8.18.0",
+        installed: null,
+        source: "exact-range",
+      },
+    ],
+  };
+}
+
+test("previewMutation forwards selected entries/peers and exposes the normalized peer plan", async () => {
+  const { tui, calls } = createHarness({
+    install: () => installDryRunWithPlan(),
+  });
+
+  const preview = await tui.previewMutation({
+    kind: "install",
+    packageName: TARGET,
+    version: "1.2.3",
+    withEntry: "KeyboardScene",
+    peers: ["three@0.186.1"],
+  });
+
+  const options = calls.install[0][0];
+  assert.deepEqual(options.withEntry, ["KeyboardScene"]);
+  assert.deepEqual(options.peers, ["three@0.186.1"]);
+  assert.deepEqual(preview.material.requested.withEntry, ["KeyboardScene"]);
+  assert.deepEqual(preview.material.requested.peers, ["three@0.186.1"]);
+  assert.equal(preview.material.entrySelection.entries[0].extension, "KeyboardScene");
+  assert.equal(preview.material.entrySelection.requirements.length, 2);
+  assert.deepEqual(preview.material.peers[0], {
+    name: "three",
+    kind: "peer",
+    range: "^0.186.0",
+    optional: true,
+    action: "install",
+    version: "0.186.1",
+    installed: null,
+    source: "override",
+  });
+  assert.match(preview.material.command.args.at(-2), /^three@0\.186\.1$/);
+});
+
+test("executeMutation fails closed when the selected peer plan drifts", async () => {
+  let dryRuns = 0;
+  const { tui, calls } = createHarness({
+    install: (options) => {
+      if (options.dryRun !== true) {
+        throw new Error("The real install must never run after peer-plan drift.");
+      }
+      dryRuns += 1;
+      const result = installDryRunWithPlan();
+      if (dryRuns === 2) {
+        result.peers[0] = {
+          ...result.peers[0],
+          action: "retain",
+          version: "0.185.0",
+          source: "installed",
+          installed: "0.185.0",
+        };
+      }
+      return result;
+    },
+  });
+
+  const action = {
+    kind: "install",
+    packageName: TARGET,
+    withEntry: "KeyboardScene",
+    peers: ["three@0.186.1"],
+  };
+  const preview = await tui.previewMutation(action);
+  assert.equal(preview.material.peers[0].action, "install");
+
+  const outcome = await tui.executeMutation(action, preview);
+
+  assert.equal(outcome.ok, false);
+  assert.equal(outcome.boundary, "preview-drift");
+  assert.equal(outcome.applied, false);
+  assert.equal(outcome.result, null);
+  assert.deepEqual(dryRunFlags(calls, "install"), [true, true]);
+  assert.equal(outcome.preview.material.peers[0].action, "retain");
+  assert.equal(outcome.preview.material.peers[0].version, "0.185.0");
+});
+
+test("large numeric versions stay JSON-safe in the TUI model", async () => {
+  const HUGE = "9007199254740993.0.0";
+  const base = installDryRunWithPlan();
+  const result = {
+    ...base,
+    version: HUGE,
+    command: {
+      manager: "pnpm",
+      verb: "add",
+      args: [
+        ...base.command.args.slice(0, -2),
+        `three@${HUGE}`,
+        "@react-three/fiber@8.18.0",
+      ],
+    },
+    peers: [
+      {
+        ...base.peers[0],
+        range: ">=9007199254740992.0.0 <9007199254740994.0.0",
+        version: HUGE,
+      },
+      base.peers[1],
+    ],
+  };
+  const { tui, calls } = createHarness({ install: () => result });
+
+  const preview = await tui.previewMutation({
+    kind: "install",
+    packageName: TARGET,
+    version: HUGE,
+    withEntry: "KeyboardScene",
+    peers: [`three@${HUGE}`],
+  });
+
+  assert.equal(preview.ok, true);
+  assert.equal(preview.material.version, HUGE);
+  assert.equal(preview.material.peers[0].version, HUGE);
+  assert.doesNotThrow(() => JSON.stringify(preview));
+  assert.equal(JSON.stringify(preview).includes("BigInt"), false);
+  assert.equal(calls.install[0][0].peers[0], `three@${HUGE}`);
 });

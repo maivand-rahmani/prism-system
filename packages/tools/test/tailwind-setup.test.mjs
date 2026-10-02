@@ -53,7 +53,7 @@ function createConsumer(t, options = {}) {
     systemVersion = "1.0.0",
     configVersion = "1.0.0",
     contractVersion = 4,
-    schemaVersion = 4,
+    schemaVersion = 5,
     tailwind = "4.1.0",
     tailwindWithExports = true,
     omitTailwindExport = false,
@@ -312,7 +312,7 @@ test("an obsolete manifest metadata fails closed without writing", (t) => {
   const schemaResult = setupTailwind({ cwd: obsoleteSchema.root, cssPath: "src/app.css" });
 
   assert.equal(schemaResult.ok, false);
-  assert.match(schemaResult.failures.join(" "), /schemaVersion 3 must be 4/);
+  assert.match(schemaResult.failures.join(" "), /schemaVersion 3 must be 5/);
   assert.deepEqual(readFileSync(schemaCssPath), schemaBefore);
 });
 

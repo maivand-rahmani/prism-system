@@ -50,7 +50,12 @@
  * Breakpoints are reported as variants, not utility classes.
  */
 
-import { CONTRACT_VERSION, TOKEN_NAMESPACE_PATTERN, TOKEN_GROUP_KEYS } from "./constants.mjs";
+import {
+  CONTRACT_VERSION,
+  MANIFEST_SCHEMA_VERSION,
+  TOKEN_NAMESPACE_PATTERN,
+  TOKEN_GROUP_KEYS,
+} from "./constants.mjs";
 import {
   discoverConsumerPackage,
   resolveConsumerRoot,
@@ -354,7 +359,8 @@ export function buildTokenCatalog({ manifest, group } = {}) {
   }
   if (detectManifestContract(manifest) === null) {
     throw new Error(
-      "Unsupported design-system manifest; expected schemaVersion 4 and contractVersion 4.",
+      `Unsupported design-system manifest; expected schemaVersion ${MANIFEST_SCHEMA_VERSION} ` +
+        `and contractVersion ${CONTRACT_VERSION}.`,
     );
   }
 

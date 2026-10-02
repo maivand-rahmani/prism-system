@@ -418,6 +418,17 @@ test("upgrade help no longer advertises --save-dev, --save-prod, or --exact", as
   }
 });
 
+test("mutation help documents --with-entry/--peer and check/doctor document --entry", async () => {
+  for (const help of [installHelpText(), helpTextForUse(), upgradeHelpText()]) {
+    assert.match(help, /--with-entry/);
+    assert.match(help, /--peer <name@version>/);
+  }
+  assert.match(checkHelpText(), /--entry <path-or-extension>/);
+  const doctorHelp = await runBin(["doctor", "--help"]);
+  assert.equal(doctorHelp.exitCode, 0);
+  assert.match(doctorHelp.stdout, /--entry <path-or-extension>/);
+});
+
 test("every new command serves its own --help", async () => {
   const cases = [
     ["components", componentsHelpText],

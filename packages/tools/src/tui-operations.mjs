@@ -25,15 +25,20 @@
  *                           when called).
  *   inspectSystem()         explicit read-only registry inspection (network
  *                           only when called).
- *   listComponents()        offline public-manifest catalog.
+ *   listComponents()        offline public-manifest catalog, including
+ *                           extensions and their entrypoint requirements.
  *   listTokens()            offline public-manifest token catalog.
- *   runCheck()              offline read-only consumer health report.
- *   runDoctor()             offline read-only diagnostics.
+ *   runCheck()              offline read-only consumer health report; an
+ *                           explicit `entry` selects entry prerequisites.
+ *   runDoctor()             offline read-only diagnostics; an explicit
+ *                           `entry` adds the same prerequisite scan.
  *   runUsageCheck()         offline strict usage validation.
  *   runTailwindCheck()      offline read-only Tailwind planning for an
  *                           explicitly supplied CSS path; never writes.
  *   previewMutation()       runs the selected mutation operation with
- *                           `dryRun: true` and returns its structured plan.
+ *                           `dryRun: true` and returns its structured plan,
+ *                           including the selected entries and the peer plan
+ *                           (`entrySelection` and `peers`).
  *   executeMutation()       re-runs the dry run immediately before the change,
  *                           compares the material plan (target, version,
  *                           package manager, command, planned file effects
@@ -260,6 +265,21 @@ function requestFromAction(action) {
     };
   }
 
+  const entries = (
+    Array.isArray(action.withEntry)
+      ? action.withEntry
+      : typeof action.withEntry === "string"
+        ? [action.withEntry]
+        : []
+  )
+    .filter((entry) => typeof entry === "string" && entry.trim() !== "")
+    .map((entry) => entry.trim());
+  const peerSpecs = (
+    Array.isArray(action.peers) ? action.peers : typeof action.peers === "string" ? [action.peers] : []
+  )
+    .filter((peer) => typeof peer === "string" && peer.trim() !== "")
+    .map((peer) => peer.trim());
+
   return {
     ok: true,
     kind,
@@ -272,6 +292,8 @@ function requestFromAction(action) {
     checkUsage,
     tailwind,
     cssPath,
+    entries,
+    peers: peerSpecs,
     registry:
       typeof action.registry === "string" && action.registry.trim() !== ""
         ? action.registry.trim()
@@ -336,6 +358,63 @@ function normalizePlannedFile(file) {
   };
 }
 
+/** Normalize a requirement list to a stable, JSON-safe comparison shape. */
+function normalizeRequirements(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((requirement) => isPlainObject(requirement) && typeof requirement.name === "string")
+    .map((requirement) => ({
+      name: requirement.name,
+      kind: typeof requirement.kind === "string" ? requirement.kind : null,
+      range: typeof requirement.range === "string" ? requirement.range : null,
+      optional: requirement.optional === true,
+    }));
+}
+
+/** Normalize the selected-entry material (extensions, entrypoints, paths). */
+function normalizeEntrySelection(value) {
+  if (!isPlainObject(value)) return null;
+  return {
+    requested: Array.isArray(value.requested)
+      ? value.requested.filter((entry) => typeof entry === "string")
+      : [],
+    entries: (Array.isArray(value.entries) ? value.entries : [])
+      .filter((entry) => isPlainObject(entry))
+      .map((entry) => ({
+        requested: typeof entry.requested === "string" ? entry.requested : null,
+        kind: typeof entry.kind === "string" ? entry.kind : null,
+        extension: typeof entry.extension === "string" ? entry.extension : null,
+        entrypoint: typeof entry.entrypoint === "string" ? entry.entrypoint : null,
+        selectedEntrypoints: Array.isArray(entry.selectedEntrypoints)
+          ? entry.selectedEntrypoints.filter((value) => typeof value === "string")
+          : [],
+        selectedExtensions: Array.isArray(entry.selectedExtensions)
+          ? entry.selectedExtensions.filter((value) => typeof value === "string")
+          : [],
+        file: typeof entry.file === "string" ? entry.file : null,
+        requirements: normalizeRequirements(entry.requirements),
+      })),
+    requirements: normalizeRequirements(value.requirements),
+  };
+}
+
+/** Normalize the selected peer plan so preview drift comparison cannot bypass it. */
+function normalizePeerPlan(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((peer) => isPlainObject(peer))
+    .map((peer) => ({
+      name: typeof peer.name === "string" ? peer.name : null,
+      kind: typeof peer.kind === "string" ? peer.kind : null,
+      range: typeof peer.range === "string" ? peer.range : null,
+      optional: peer.optional === true,
+      action: typeof peer.action === "string" ? peer.action : null,
+      version: typeof peer.version === "string" ? peer.version : null,
+      installed: typeof peer.installed === "string" ? peer.installed : null,
+      source: typeof peer.source === "string" ? peer.source : null,
+    }));
+}
+
 /**
  * Extract the material plan of a successful dry run in a deterministic,
  * JSON-safe shape. Only successful runs are ever accepted by
@@ -356,6 +435,8 @@ function buildPlanMaterial(request, result) {
       checkUsage: request.checkUsage,
       tailwind: request.tailwind,
       cssPath: request.cssPath,
+      withEntry: [...request.entries],
+      peers: [...request.peers],
       registry: request.registry,
     },
     consumerRoot:
@@ -367,6 +448,8 @@ function buildPlanMaterial(request, result) {
     manager: null,
     command: null,
     effects: [],
+    entrySelection: null,
+    peers: [],
     diff: null,
     tailwind: null,
   };
@@ -390,6 +473,8 @@ function buildPlanMaterial(request, result) {
     material.version = typeof install.version === "string" ? install.version : null;
     material.manager = typeof install.manager === "string" ? install.manager : null;
     material.command = normalizeCommand(install.command);
+    material.entrySelection = normalizeEntrySelection(install.entrySelection);
+    material.peers = normalizePeerPlan(install.peers);
     material.effects = (Array.isArray(result?.plannedChanges) ? result.plannedChanges : [])
       .map(normalizePlannedChange)
       .filter((effect) => effect !== null);
@@ -410,6 +495,8 @@ function buildPlanMaterial(request, result) {
   material.package = typeof result?.package === "string" ? result.package : null;
   material.manager = typeof result?.manager === "string" ? result.manager : null;
   material.command = normalizeCommand(result?.command);
+  material.entrySelection = normalizeEntrySelection(result?.entrySelection);
+  material.peers = normalizePeerPlan(result?.peers);
   material.effects = (Array.isArray(result?.plannedChanges) ? result.plannedChanges : [])
     .map(normalizePlannedChange)
     .filter((effect) => effect !== null);
@@ -622,17 +709,17 @@ export function createTuiOperations({
     }
   }
 
-  function runCheck({ cssPath } = {}) {
+  function runCheck({ cssPath, entry } = {}) {
     try {
-      return ops.check({ cwd: resolvedCwd, cssPath });
+      return ops.check({ cwd: resolvedCwd, cssPath, entry });
     } catch (error) {
       return { ...failure("check", error), checks: [] };
     }
   }
 
-  function runDoctor() {
+  function runDoctor({ entry } = {}) {
     try {
-      return ops.doctor({ cwd: resolvedCwd });
+      return ops.doctor({ cwd: resolvedCwd, entry });
     } catch (error) {
       return { ...failure("doctor", error), checks: [] };
     }
@@ -675,6 +762,8 @@ export function createTuiOperations({
         saveDev: request.saveDev,
         exact: request.exact,
         registry: request.registry,
+        withEntry: [...request.entries],
+        peers: [...request.peers],
         fetchImpl,
         spawnImpl,
         dryRun,
@@ -693,6 +782,8 @@ export function createTuiOperations({
         tailwind: request.tailwind,
         cssPath: request.cssPath,
         registry: request.registry,
+        withEntry: [...request.entries],
+        peers: [...request.peers],
         fetchImpl,
         spawnImpl,
         ...(precondition !== null ? { expectedConnectPlan: precondition } : {}),
@@ -714,6 +805,8 @@ export function createTuiOperations({
       version: request.version,
       strict: request.strict,
       registry: request.registry,
+      withEntry: [...request.entries],
+      peers: [...request.peers],
       fetchImpl,
       spawnImpl,
       ...(precondition !== null ? { expectedConnectPlan: precondition } : {}),

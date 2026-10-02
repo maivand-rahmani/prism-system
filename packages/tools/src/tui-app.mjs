@@ -114,6 +114,18 @@ function displayValue(value) {
   return String(value);
 }
 
+function effectMetadataText(effects) {
+  if (!isRecord(effects)) return "Not declared";
+  const features = Array.isArray(effects.features) ? effects.features.join(", ") : "not declared";
+  const parts = [
+    `features: ${features}`,
+    `rendering: ${displayValue(effects.rendering)}`,
+    `reduced motion: ${effects.reducedMotion === true ? "yes" : "no"}`,
+  ];
+  if (typeof effects.fallback === "string") parts.push(`fallback: ${effects.fallback}`);
+  return parts.join(" · ");
+}
+
 function keyValue(label, value, { compact = false, key } = {}) {
   return paragraph(
     compact
@@ -126,6 +138,16 @@ function keyValue(label, value, { compact = false, key } = {}) {
           h(Text, { key: "value", wrap: "wrap" }, displayValue(value)),
         ],
     { key },
+  );
+}
+
+function catalogDetail(label, value, key) {
+  return line(
+    [
+      h(Text, { key: "label", color: "cyan", bold: true }, `${label}  `),
+      h(Text, { key: "value", wrap: "wrap" }, displayValue(value)),
+    ],
+    { key, flexWrap: "wrap" },
   );
 }
 
@@ -143,7 +165,35 @@ function componentMetadata(component) {
   if (typeof component.description === "string" && component.description !== "") {
     details.push(component.description);
   }
+  details.push(
+    component.effects === null || component.effects === undefined
+      ? "effects not declared"
+      : `effects: ${effectMetadataText(component.effects)}`,
+  );
+  if (typeof component.importPath === "string") details.push(`import: ${component.importPath}`);
+  if (typeof component.apiVersion === "number") details.push(`API v${component.apiVersion}`);
+  if (typeof component.docs === "string" && component.docs !== "")
+    details.push(`docs: ${component.docs}`);
+  if (typeof component.example === "string" && component.example !== "") {
+    details.push(`example: ${component.example}`);
+  }
   return details.join(" · ");
+}
+
+function extensionRequirementsText(extension) {
+  if (!Array.isArray(extension?.requirements))
+    return "Requirements are not included in this catalog response.";
+  if (extension.requirements.length === 0)
+    return "No additional requirements declared for this entrypoint.";
+  return extension.requirements
+    .map((requirement) => {
+      if (!isRecord(requirement)) return String(requirement);
+      const qualifier = [requirement.kind, requirement.optional === true ? "optional" : null]
+        .filter(Boolean)
+        .join(" · ");
+      return `${displayValue(requirement.name)}@${displayValue(requirement.range)}${qualifier ? ` (${qualifier})` : ""}`;
+    })
+    .join(", ");
 }
 
 function getUpgradeDiffLines(diff) {
@@ -435,6 +485,7 @@ function TuiApp({ services }) {
   const [componentSection, setComponentSection] = useState("required");
   const [componentCatalog, setComponentCatalog] = useState(null);
   const [componentError, setComponentError] = useState(null);
+  const [selectedExtensionName, setSelectedExtensionName] = useState(null);
   const [tokenCatalog, setTokenCatalog] = useState(null);
   const [tokenError, setTokenError] = useState(null);
   const [tokenGroup, setTokenGroup] = useState(null);
@@ -1007,6 +1058,11 @@ function TuiApp({ services }) {
             setComponentSection("categories");
             return true;
           }
+          if (event.key === "x" && (componentCatalog?.extensions?.length ?? 0) > 0) {
+            setComponentSection("extensions");
+            setSelectedExtensionName(componentCatalog.extensions[0].name ?? null);
+            return true;
+          }
           if (event.key === "l") {
             setComponentCatalog(null);
             setComponentError(null);
@@ -1317,27 +1373,46 @@ function TuiApp({ services }) {
     const categories = isRecord(componentCatalog.capabilities?.categories)
       ? componentCatalog.capabilities.categories
       : {};
+    const extensions = Array.isArray(componentCatalog.extensions)
+      ? componentCatalog.extensions
+      : [];
     const optionalOnly = componentSection === "optional";
     const entries = allComponents.filter((component) =>
       optionalOnly ? component.optional === true : component.required === true,
     );
-    const componentItems = entries.map((component, index) => {
+    const selectedExtension =
+      extensions.find((extension) => extension.name === selectedExtensionName) ??
+      extensions[0] ??
+      null;
+    const visibleEntries = componentSection === "extensions" ? extensions : entries;
+    const componentItems = visibleEntries.map((component, index) => {
       const available = availableNames.has(component.name) && !unavailableNames.has(component.name);
       const metadata = componentMetadata(component);
       return {
         id: `component-${component.name}-${index}`,
-        label: `${available ? "AVAILABLE" : "UNAVAILABLE"}  ${component.name}`,
+        label:
+          componentSection === "extensions"
+            ? `EXTENSION  ${component.name}`
+            : `${available ? "AVAILABLE" : "UNAVAILABLE"}  ${component.name}`,
         description:
           metadata || (component.required ? "Required contract component." : "Optional component."),
       };
     });
 
     return paragraph([
-      h(Heading, { key: "title" }, "Manifest component catalog"),
+      h(
+        Heading,
+        { key: "title" },
+        componentSection === "extensions"
+          ? "Declared system extensions"
+          : "Manifest component catalog",
+      ),
       h(
         Text,
         { key: "counts", dimColor: true },
-        `${availableNames.size} available · ${unavailableNames.size} unavailable`,
+        componentSection === "extensions"
+          ? `${extensions.length} declared extension${extensions.length === 1 ? "" : "s"}`
+          : `${availableNames.size} available · ${unavailableNames.size} unavailable`,
       ),
       componentSection === "categories"
         ? Object.keys(categories).filter((name) => CATEGORY_NAMES.has(name)).length === 0
@@ -1378,17 +1453,63 @@ function TuiApp({ services }) {
           ? h(List, {
               key: `component-list-${componentSection}`,
               items: componentItems,
+              selectedId:
+                componentSection === "extensions" && selectedExtension
+                  ? `component-${selectedExtension.name}-${extensions.indexOf(selectedExtension)}`
+                  : undefined,
+              onSelect:
+                componentSection === "extensions"
+                  ? (id) => {
+                      const index = componentItems.findIndex((item) => item.id === id);
+                      setSelectedExtensionName(extensions[index]?.name ?? null);
+                    }
+                  : undefined,
               maxVisible: Math.max(2, Math.min(12, componentItems.length, rows - 11)),
             })
           : h(
               Text,
               { key: "empty", dimColor: true },
-              `No ${optionalOnly ? "optional" : "required"} catalog entries were returned.`,
+              componentSection === "extensions"
+                ? "This system does not publish any custom extensions."
+                : `No ${optionalOnly ? "optional" : "required"} catalog entries were returned.`,
             ),
+      componentSection === "extensions" &&
+        selectedExtension &&
+        paragraph(
+          [
+            rule("SELECTED EXTENSION", "extension-detail-rule"),
+            h(Heading, { key: "extension-name", compact: true }, selectedExtension.name),
+            catalogDetail("DESCRIPTION", selectedExtension.description, "description"),
+            catalogDetail(
+              "IMPORT",
+              `import { ${selectedExtension.name} } from "${displayValue(selectedExtension.importPath)}"`,
+              "import",
+            ),
+            catalogDetail(
+              "API / ENTRYPOINT",
+              `v${displayValue(selectedExtension.apiVersion)} · ${displayValue(selectedExtension.entrypoint)}`,
+              "api-entrypoint",
+            ),
+            catalogDetail("EFFECTS", effectMetadataText(selectedExtension.effects), "effects"),
+            catalogDetail(
+              "REQUIREMENTS",
+              extensionRequirementsText(selectedExtension),
+              "requirements",
+            ),
+            catalogDetail(
+              "DOCS / EXAMPLE",
+              `${displayValue(selectedExtension.docs)} · ${displayValue(selectedExtension.example)}`,
+              "docs-example",
+            ),
+          ],
+          { key: "extension-details", marginTop: 1 },
+        ),
       h(
         Text,
         { key: "manifest-note", dimColor: true },
-        "Availability and capability details reflect the installed public manifest.",
+        componentSection === "extensions"
+          ? "Only declared extensions are shown. Details reflect this installed public manifest."
+          : "Availability and capability details reflect the installed public manifest.",
       ),
     ]);
   };
@@ -2015,6 +2136,20 @@ function TuiApp({ services }) {
               active: componentSection === "categories",
             },
           );
+          if ((componentCatalog?.extensions?.length ?? 0) > 0) {
+            addFooterAction(
+              "extensions",
+              "x",
+              "Extensions",
+              () => {
+                setComponentSection("extensions");
+                setSelectedExtensionName(componentCatalog.extensions[0].name ?? null);
+              },
+              {
+                active: componentSection === "extensions",
+              },
+            );
+          }
           addFooterAction("reload-components", "l", "Reload", () => {
             setComponentError(null);
             setComponentCatalog(null);

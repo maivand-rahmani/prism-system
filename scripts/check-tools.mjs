@@ -394,7 +394,7 @@ runCheck("extract and inspect the packed system artifacts", () => {
       typeof pkg.exports?.[STYLES_EXPORT_SUBPATH] === "string",
       `${target.id} must publish ${STYLES_EXPORT_SUBPATH}`,
     );
-    assert(manifest.schemaVersion === 4, `${target.id} manifest must be schemaVersion 4`);
+    assert(manifest.schemaVersion === 5, `${target.id} manifest must be schemaVersion 5`);
     assert(manifest.contractVersion === 4, `${target.id} manifest must declare contractVersion 4`);
     assert(manifest.package === target.packageName, `${target.id} manifest identity mismatch`);
     assert(manifest.version === pkg.version, `${target.id} manifest/package version mismatch`);
@@ -688,8 +688,8 @@ function verifyConsumer(target) {
     `${target.id} installed manifest must declare contractVersion 4`,
   );
   assert(
-    manifest.schemaVersion === 4,
-    `${target.id} installed manifest must declare schemaVersion 4`,
+    manifest.schemaVersion === 5,
+    `${target.id} installed manifest must declare schemaVersion 5`,
   );
   const installedCategories = manifest.capabilities?.categories;
   assert(
@@ -918,12 +918,12 @@ runCheck("packed tools fail closed on unsupported metadata and exports", () => {
     "design-system.json",
   );
   const pairManifest = readJsonFile(pairManifestPath);
-  pairManifest.contractVersion = 2; // schemaVersion stays 4 -> unsupported metadata.
+  pairManifest.contractVersion = 2; // schemaVersion stays 5 -> unsupported metadata.
   writeJson(pairManifestPath, pairManifest);
   const pairConnect = runPackedTools(["connect", "--cwd", pairDir]);
   assert(pairConnect.status !== 0, "connect must reject unsupported contract metadata");
   assert(
-    /Unsupported manifest metadata \(schemaVersion 4, contractVersion 2\)/.test(
+    /Unsupported manifest metadata \(schemaVersion 5, contractVersion 2\)/.test(
       output(pairConnect),
     ),
     "unsupported metadata diagnostic",

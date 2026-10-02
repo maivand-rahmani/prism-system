@@ -419,7 +419,7 @@ test("missing or invalid tokens.names prefixes fail closed", () => {
 test("an unsupported metadata pair fails closed", () => {
   assert.throws(
     () => buildTokenCatalog({ manifest: { schemaVersion: 3, contractVersion: 4 } }),
-    /expected schemaVersion 4 and contractVersion 4/,
+    /expected schemaVersion 5 and contractVersion 4/,
   );
   assert.throws(() => buildTokenCatalog({ manifest: null }), /manifest object is required/);
 });

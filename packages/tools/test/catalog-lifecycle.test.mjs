@@ -34,11 +34,14 @@ import { gzipSync } from "node:zlib";
 
 import { installDesignSystem, runUseDesignSystem, upgradeDesignSystem } from "../src/catalog.mjs";
 import { mergeBridgeImports } from "../src/tailwind-setup.mjs";
-import { currentManifest, readJson, repoRoot } from "./manifest-fixture.mjs";
+import { addSyntheticExtension, readJson, syntheticManifest } from "./manifest-fixture.mjs";
 
-const systemAManifest = currentManifest(
-  readJson(join(repoRoot, "packages", "system-a", "design-system.json")),
-);
+// A complete current (schema 5) synthetic manifest. The lifecycle tests add the
+// few realistic optional/token values they exercise; no checked-in generated
+// artifact is required, so these tests stay independent of the generator lane.
+const systemAManifest = syntheticManifest();
+systemAManifest.components.Grid = { variants: [], sizes: [], members: [] };
+systemAManifest.tokens.groups.spacing = ["scale.24"];
 /** The live V4 System A version; the fixture manifest version is authoritative. */
 const V4_VERSION = systemAManifest.version;
 
@@ -167,6 +170,7 @@ function createConsumer(
     tailwind = null,
     bridge = true,
     css = null,
+    packageManager = "npm@10.0.0",
   } = {},
 ) {
   const root = mkdtempSync(join(tmpdir(), "prism-catalog-"));
@@ -178,7 +182,7 @@ function createConsumer(
     name: "consumer-app",
     version: "0.0.0",
     private: true,
-    packageManager: "npm@10.0.0",
+    packageManager,
     dependencies,
   });
 
@@ -711,9 +715,14 @@ test("upgrade diff reports component assortment, contract metadata, and public e
   to.components.Stack.variants = ["horizontal", "vertical"];
   from.components.Stack.sizes = ["sm"];
   to.components.Stack.sizes = ["sm", "lg"];
-  from.exports = { ".": "./dist/index.js", "./manifest": "./design-system.json" };
+  from.exports = {
+    ".": "./dist/index.js",
+    "./tokens": "./dist/tokens/index.js",
+    "./manifest": "./design-system.json",
+  };
   to.exports = {
     ".": "./dist/new-index.js",
+    "./tokens": "./dist/tokens/index.js",
     "./manifest": "./design-system.json",
     "./styles.css": "./dist/index.css",
   };
@@ -1149,4 +1158,252 @@ test("upgrade fails closed without overwriting a managed file changed during the
     JSON.parse(readFileSync(join(consumer.root, ".design-system", "config.json"), "utf8")).version,
     "1.1.0",
   );
+});
+
+/* -------------------------------------------------------------------------- */
+/* Entry/peer selection in mutations                                          */
+/* -------------------------------------------------------------------------- */
+
+function sceneTarget({ version = "2.0.0" } = {}) {
+  const manifest = addSyntheticExtension(structuredClone(systemAManifest), {
+    requirements: [
+      { name: "three", kind: "peer", range: "^0.186.0", optional: true },
+      { name: "@react-three/fiber", kind: "peer", range: "8.18.0", optional: true },
+    ],
+    effects: { features: ["depth", "3d"], rendering: "webgl", reducedMotion: true, fallback: "static" },
+  });
+  manifest.version = version;
+  return manifest;
+}
+
+test("install --with-entry --peer plans the full fixed command without spawning or writing", async (t) => {
+  const target = sceneTarget();
+  const registry = createRegistry({
+    packageName: target.package,
+    versions: { "2.0.0": target },
+  });
+  const consumer = createConsumer(t, { packageName: target.package });
+  const manager = makeManager();
+  const before = snapshot(consumer.root);
+
+  const result = await installDesignSystem({
+    cwd: consumer.root,
+    package: target.package,
+    version: "2.0.0",
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: manager.spawnImpl,
+    dryRun: true,
+    withEntry: ["KeyboardScene"],
+    peers: ["three@0.186.1"],
+  });
+
+  assert.equal(result.ok, true, result.failures?.join(" "));
+  assert.equal(result.entrySelection.entries[0].extension, "KeyboardScene");
+  assert.equal(result.entrySelection.entries[0].entrypoint, "./keyboard-scene");
+  assert.deepEqual(
+    result.peers.map((peer) => [peer.name, peer.action, peer.version, peer.source]),
+    [
+      ["three", "install", "0.186.1", "override"],
+      ["@react-three/fiber", "install", "8.18.0", "exact-range"],
+    ],
+  );
+  assert.deepEqual(
+    result.command.args,
+    INSTALL_ARGS(target.package, "2.0.0", registry.registry).concat([
+      "three@0.186.1",
+      "@react-three/fiber@8.18.0",
+    ]),
+  );
+  assert.deepEqual(result.plannedChanges[0].command.args, result.command.args);
+  assert.equal(manager.calls.length, 0);
+  assertUnchanged(consumer.root, before);
+});
+
+test("a missing non-exact selected peer fails closed before any spawn", async (t) => {
+  const target = sceneTarget();
+  const registry = createRegistry({
+    packageName: target.package,
+    versions: { "2.0.0": target },
+  });
+  const consumer = createConsumer(t, { packageName: target.package });
+  const manager = makeManager();
+  const before = snapshot(consumer.root);
+
+  const result = await installDesignSystem({
+    cwd: consumer.root,
+    package: target.package,
+    version: "2.0.0",
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: manager.spawnImpl,
+    dryRun: true,
+    withEntry: ["KeyboardScene"],
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.boundary, "entry");
+  assert.match(result.failures.join(" "), /pass --peer three@<exact-version>/);
+  assert.equal(manager.calls.length, 0);
+  assertUnchanged(consumer.root, before);
+});
+
+test("upgrade carries extension and entry requirement changes with selected peers", async (t) => {
+  const from = structuredClone(systemAManifest);
+  from.version = "1.1.0";
+  addSyntheticExtension(from, {
+    requirements: [{ name: "three", kind: "peer", range: "^0.180.0", optional: true }],
+    effects: { features: ["3d"], rendering: "webgl", reducedMotion: true },
+  });
+  const to = structuredClone(from);
+  to.version = "2.0.0";
+  to.extensions.KeyboardScene.apiVersion = 2;
+  to.extensions.KeyboardScene.effects = {
+    features: ["3d", "motion"],
+    rendering: "mixed",
+    reducedMotion: true,
+    fallback: "static",
+  };
+  to.entrypoints["./keyboard-scene"].requirements = [
+    { name: "three", kind: "peer", range: "^0.186.0", optional: true },
+    { name: "@react-three/fiber", kind: "peer", range: "8.18.0", optional: true },
+  ];
+  addSyntheticExtension(to, {
+    name: "InteractiveWorkflowMap",
+    entrypoint: "./workflow-map",
+    requirements: [],
+  });
+
+  const registry = createRegistry({ packageName: from.package, versions: { "2.0.0": to } });
+  const consumer = createConsumer(t, {
+    packageName: from.package,
+    manifest: from,
+    connected: true,
+  });
+  const manager = makeManager();
+
+  const result = await upgradeDesignSystem({
+    cwd: consumer.root,
+    package: from.package,
+    version: "2.0.0",
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: manager.spawnImpl,
+    dryRun: true,
+    withEntry: ["KeyboardScene"],
+    peers: ["three@0.186.1"],
+  });
+
+  assert.equal(result.ok, true, result.failures?.join(" "));
+  assert.deepEqual(result.diff.extensions.added, ["InteractiveWorkflowMap"]);
+  const extensionChange = result.diff.extensions.changed.find(
+    (entry) => entry.name === "KeyboardScene",
+  );
+  assert.deepEqual(extensionChange.fields.apiVersion, { from: 1, to: 2 });
+  assert.deepEqual(extensionChange.effects, {
+    from: { features: ["3d"], rendering: "webgl", reducedMotion: true },
+    to: { features: ["3d", "motion"], rendering: "mixed", reducedMotion: true, fallback: "static" },
+  });
+  assert.ok(result.diff.entrypoints.added.includes("./workflow-map"));
+  const requirementChange = result.diff.entrypoints.changed.find(
+    (entry) => entry.entrypoint === "./keyboard-scene",
+  );
+  assert.deepEqual(requirementChange.requirements.added, ["@react-three/fiber"]);
+  assert.deepEqual(requirementChange.requirements.changed[0].name, "three");
+  assert.ok(result.preview.some((line) => line === "extensions added: InteractiveWorkflowMap"));
+  assert.ok(
+    result.preview.some((line) => line === "entrypoint added: ./workflow-map"),
+    result.preview.join("\n"),
+  );
+  assert.deepEqual(
+    result.peers.map((peer) => [peer.name, peer.action, peer.version]),
+    [
+      ["three", "install", "0.186.1"],
+      ["@react-three/fiber", "install", "8.18.0"],
+    ],
+  );
+  assert.equal(result.entrySelection.entries[0].extension, "KeyboardScene");
+  assert.equal(manager.calls.length, 0);
+});
+
+test("pnpm --with-entry dry-run appends peer specs to the fixed add command", async (t) => {
+  const target = sceneTarget();
+  const registry = createRegistry({
+    packageName: target.package,
+    versions: { "2.0.0": target },
+  });
+  const consumer = createConsumer(t, {
+    packageName: target.package,
+    packageManager: "pnpm@10.34.5",
+  });
+  const manager = makeManager();
+  const before = snapshot(consumer.root);
+
+  const result = await installDesignSystem({
+    cwd: consumer.root,
+    package: target.package,
+    version: "2.0.0",
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: manager.spawnImpl,
+    dryRun: true,
+    withEntry: ["KeyboardScene"],
+    peers: ["three@0.186.1"],
+  });
+
+  assert.equal(result.ok, true, result.failures?.join(" "));
+  assert.equal(result.manager, "pnpm");
+  assert.deepEqual(result.command.args, [
+    "add",
+    "--save-prod",
+    "--ignore-scripts",
+    `--registry=${registry.registry}`,
+    `${target.package}@2.0.0`,
+    "three@0.186.1",
+    "@react-three/fiber@8.18.0",
+  ]);
+  assert.equal(manager.calls.length, 0);
+  assertUnchanged(consumer.root, before);
+});
+
+test("--with-entry accepts a contained consumer file and selects the referenced extension", async (t) => {
+  const target = sceneTarget();
+  const registry = createRegistry({
+    packageName: target.package,
+    versions: { "2.0.0": target },
+  });
+  const consumer = createConsumer(t, { packageName: target.package });
+  mkdirSync(join(consumer.root, "src"), { recursive: true });
+  writeFileSync(
+    join(consumer.root, "src", "scene.tsx"),
+    `import { KeyboardScene } from "${target.package}/keyboard-scene";\n`,
+    "utf8",
+  );
+  const manager = makeManager();
+  const before = snapshot(consumer.root);
+
+  const result = await installDesignSystem({
+    cwd: consumer.root,
+    package: target.package,
+    version: "2.0.0",
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: manager.spawnImpl,
+    dryRun: true,
+    withEntry: ["src/scene.tsx"],
+    peers: ["three@0.186.1"],
+  });
+
+  assert.equal(result.ok, true, result.failures?.join(" "));
+  assert.equal(result.entrySelection.entries[0].kind, "path");
+  assert.equal(result.entrySelection.entries[0].extension, "KeyboardScene");
+  assert.deepEqual(
+    result.peers.map((peer) => [peer.name, peer.action, peer.version]),
+    [
+      ["three", "install", "0.186.1"],
+      ["@react-three/fiber", "install", "8.18.0"],
+    ],
+  );
+  assert.equal(manager.calls.length, 0);
+  assertUnchanged(consumer.root, before);
 });

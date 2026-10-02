@@ -755,6 +755,64 @@ test("connected tabs use only returned manifest component keys and declared cate
   app.unmount();
 });
 
+test("declared extensions are a separate TUI catalog view with their import and entry requirements", async () => {
+  const extension = {
+    kind: "extension",
+    name: "KeyboardScene",
+    apiVersion: 2,
+    entrypoint: "./custom/keyboard-scene",
+    importPath: "@prism-system/ui-b/custom/keyboard-scene",
+    available: true,
+    description: "An interactive keyboard preview.",
+    docs: "docs/keyboard-scene.md",
+    example: "examples/keyboard-scene.tsx",
+    effects: {
+      features: ["3d", "motion"],
+      rendering: "webgl",
+      reducedMotion: true,
+      fallback: "static",
+    },
+    requirements: [
+      { name: "three", kind: "peer", range: "^0.186.0", optional: true },
+      { name: "@react-three/fiber", kind: "peer", range: "^8.18.0", optional: true },
+    ],
+  };
+  const app = start(
+    makeServices({
+      getProjectState: connectedState,
+      listComponents: () => ({ ...componentCatalog(), extensions: [extension] }),
+    }),
+  );
+  await settle(app);
+  await press(app, "2");
+  await settle(app);
+  assert.match(app.lastFrame(), /AVAILABLE\s+Button/);
+  assert.match(footerFrame(app.lastFrame()), /Extensions\s+\(x\)/i);
+  assert.match(footerFrame(app.lastFrame()), /Required\s+\(r\)/i);
+
+  await press(app, "x");
+  await settle(app);
+  assert.match(app.lastFrame(), /EXTENSION\s+KeyboardScene/);
+  assert.match(app.lastFrame(), /SELECTED EXTENSION/);
+  assert.match(app.lastFrame(), /An interactive keyboard preview/);
+  assert.match(
+    app.lastFrame(),
+    /import\s*\{\s*KeyboardScene\s*\}\s*from\s+"@prism-system\/ui-b\/custom\/keyboard-scene"/,
+  );
+  assert.match(app.lastFrame(), /API \/ ENTRYPOINT\s+v2.*\.\/custom\/keyboard-scene/);
+  assert.match(
+    app.lastFrame(),
+    /3d, motion.*rendering: webgl.*reduced motion: yes.*fallback: static/,
+  );
+  assert.match(app.lastFrame(), /three@\^0\.186\.0.*peer.*optional/);
+  assert.match(app.lastFrame(), /@react-three\/fiber@\^8\.18\.0/);
+  assert.match(
+    app.lastFrame(),
+    /DOCS \/ EXAMPLE\s+docs\/keyboard-scene\.md.*examples\/keyboard-scene\.tsx/,
+  );
+  app.unmount();
+});
+
 test("normalized mouse clicks activate a measured catalog action", async () => {
   const mouse = createMouseEventSource();
   const diagnostics = [];

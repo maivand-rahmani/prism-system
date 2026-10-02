@@ -191,6 +191,11 @@ export function installHelpText() {
     "  --save-prod           Add as a dependency (default).",
     "  --exact               Save the exact resolved version (--save-exact).",
     "  --registry <url>      Registry base URL used for resolution and install.",
+    "  --with-entry <value>  Select a target extension name, declared entrypoint, or",
+    "                        consumer-relative source file (repeatable). The selected",
+    "                        entry's declared peer requirements are planned too.",
+    "  --peer <name@version> Exact version for a missing selected peer (repeatable;",
+    "                        must satisfy the declared requirement range).",
     "  --dry-run             Resolve the exact target/command without spawning or writing.",
     "  --json                Emit the stable structured result.",
     "  -h, --help            Show this help.",
@@ -225,6 +230,11 @@ export function helpTextForUse() {
     "  --check-usage         Run the strict usage check after a successful connect.",
     "  --tailwind --css <file>  Require Tailwind v4 and preflight one contained CSS file",
     "                        before install; configure the bridge after connect.",
+    "  --with-entry <value>  Select a target extension name, declared entrypoint, or",
+    "                        consumer-relative source file (repeatable). The selected",
+    "                        entry's declared peer requirements are planned too.",
+    "  --peer <name@version> Exact version for a missing selected peer (repeatable;",
+    "                        must satisfy the declared requirement range).",
     "  --dry-run             Resolve and plan without spawning or writing.",
     "  --json                Emit the stable structured result.",
     "  -h, --help            Show this help.",
@@ -278,7 +288,7 @@ export function tokensHelpText() {
 
 export function checkHelpText() {
   return [
-    `Usage: ${CLI_NAME} check --cwd <consumer-root> [--css <file>] [--json]`,
+    `Usage: ${CLI_NAME} check --cwd <consumer-root> [--css <file>] [--entry <path-or-extension>] [--json]`,
     "",
     "One offline, read-only health report for a connected consumer: config, doctor",
     "diagnostics, public stylesheet/bridge exports, strict usage, and component",
@@ -289,9 +299,15 @@ export function checkHelpText() {
     "report passes only when no import change would be written, and fails when imports",
     "need adding or reordering.",
     "",
+    "With --entry the named installed extension, declared entrypoint, or contained",
+    "consumer file is scanned for literal import/require specifiers and every declared",
+    "requirement is validated against the installed version and its semver range.",
+    "",
     "Options:",
     "  --cwd <path>          Consumer root (required; never defaults to a repo root).",
     "  --css <file>          Optional explicit CSS file to check import order on.",
+    "  --entry <path-or-extension>  Optional extension name, declared entrypoint, or",
+    "                        consumer-relative source file to scan for prerequisites.",
     "  --json                Emit stable JSON.",
     "  -h, --help            Show this help.",
     "",
@@ -352,6 +368,11 @@ export function upgradeHelpText() {
     "  --registry <url>      Registry base URL used for resolution and install.",
     "  --strict              Enable strict mode for the reconnect.",
     "  --no-strict           Disable strict mode.",
+    "  --with-entry <value>  Select a target extension name, declared entrypoint, or",
+    "                        consumer-relative source file (repeatable). The selected",
+    "                        entry's declared peer requirements are planned too.",
+    "  --peer <name@version> Exact version for a missing selected peer (repeatable;",
+    "                        must satisfy the declared requirement range).",
     "  -h, --help            Show this help.",
     "",
     "Both positionals are required; tags, ranges, aliases, and git/file/workspace",
@@ -388,6 +409,9 @@ function parseOptions(
     checkUsage: false,
     tailwind: false,
     css: undefined,
+    entry: undefined,
+    withEntry: [],
+    peer: [],
   };
   const booleanSet = new Set(booleans);
   const valueSet = new Set(values);
@@ -593,7 +617,7 @@ export function runDoctorCommand(argv) {
     parsed = parseOptions(argv, {
       maxPositionals: 1,
       booleans: ["check", "dry-run"],
-      values: ["cwd"],
+      values: ["cwd", "entry"],
     });
   } catch (error) {
     process.stderr.write(`${error.message}\n`);
@@ -612,6 +636,7 @@ export function runDoctorCommand(argv) {
   const report = collectDoctorReport({
     cwd: parsed.options.cwd,
     package: parsed.positionals[0],
+    entry: parsed.options.entry,
   });
   process.stdout.write(`${CLI_NAME} doctor\n`);
   if (report.consumerRoot) process.stdout.write(`Consumer root: ${report.consumerRoot}\n`);
@@ -736,6 +761,14 @@ export async function runInfoCommand(argv) {
       process.stdout.write(`  keywords:  ${result.design.keywords.join(", ")}\n`);
     }
     process.stdout.write(`  components: ${componentNames.join(", ")}\n`);
+    if (result.availableExtensions.length > 0) {
+      process.stdout.write(`  extensions: ${result.availableExtensions.join(", ")}\n`);
+      for (const extension of result.extensions) {
+        process.stdout.write(
+          `    ${extension.name} -> ${extension.importPath} (api v${extension.apiVersion})\n`,
+        );
+      }
+    }
   } catch (error) {
     reportCommandFailure("Info failed", error);
   }
@@ -752,6 +785,19 @@ function reportInstallFailure(result) {
   process.exitCode = 1;
 }
 
+/** Write the selected entry's peer plan as human-readable lines. */
+function writePeerPlan(peers) {
+  if (!Array.isArray(peers) || peers.length === 0) return;
+  process.stdout.write("  peer plan:\n");
+  for (const peer of peers) {
+    process.stdout.write(
+      `    ${peer.name} [${peer.kind}] ${peer.range}${peer.optional ? " optional" : ""} -> ` +
+        `${peer.action}${peer.version ? ` ${peer.version}` : ""}` +
+        `${peer.installed ? ` (installed ${peer.installed})` : ""}\n`,
+    );
+  }
+}
+
 function reportInstallDryRun(result) {
   process.stdout.write(
     `Install dry run for ${result.package}@${result.version} (${result.manager}) in ` +
@@ -762,6 +808,7 @@ function reportInstallDryRun(result) {
       `  command: ${[result.command.manager, ...result.command.args].join(" ")}\n`,
     );
   }
+  writePeerPlan(result.peers);
   process.stdout.write("\nDry run: nothing was installed.\n");
 }
 
@@ -772,6 +819,7 @@ export async function runInstallCommand(argv) {
       maxPositionals: 2,
       booleans: ["save-dev", "save-prod", "exact", "dry-run", "json"],
       values: ["cwd", "registry"],
+      repeatable: ["with-entry", "peer"],
     });
   } catch (error) {
     process.stderr.write(`${error.message}\n`);
@@ -802,6 +850,8 @@ export async function runInstallCommand(argv) {
     exact: parsed.options.exact,
     registry: parsed.options.registry,
     dryRun: parsed.options.dryRun,
+    withEntry: parsed.options.withEntry,
+    peers: parsed.options.peer,
   });
   if (parsed.options.json) {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
@@ -856,6 +906,7 @@ function reportUseDryRun(result) {
       process.stdout.write(`  connect: ${change.path}\n`);
     }
   }
+  writePeerPlan(install.peers);
   process.stdout.write("\nDry run: nothing was installed, connected, or written.\n");
 }
 
@@ -875,7 +926,7 @@ export async function runUseCommand(argv) {
         "json",
       ],
       values: ["cwd", "registry", "css"],
-      repeatable: ["ignore"],
+      repeatable: ["ignore", "with-entry", "peer"],
     });
   } catch (error) {
     process.stderr.write(`${error.message}\n`);
@@ -911,6 +962,8 @@ export async function runUseCommand(argv) {
     dryRun: parsed.options.dryRun,
     tailwind: parsed.options.tailwind,
     cssPath: parsed.options.css,
+    withEntry: parsed.options.withEntry,
+    peers: parsed.options.peer,
   });
   if (parsed.options.json) {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
@@ -971,9 +1024,35 @@ function reportComponentCatalog(result) {
     const state = component.available ? "available" : "unavailable";
     lines.push(`  ${component.name}  [${kind}] ${state}`);
   }
+  if (result.extensions.length > 0) {
+    lines.push("");
+    lines.push(`  custom extensions (${result.extensions.length}):`);
+    for (const extension of result.extensions) {
+      const effect = extension.effects
+        ? ` effects: ${extension.effects.features.join("+")}/${extension.effects.rendering}`
+        : " effects: undeclared";
+      lines.push(`    ${extension.name}  api v${extension.apiVersion}  ${extension.importPath}`);
+      lines.push(
+        `      ${extension.requirements.length} requirement(s)${effect}`,
+      );
+    }
+  }
   if (result.requested) {
     const requested = result.requested;
     lines.push("");
+    if (requested.kind === "extension") {
+      lines.push(
+        `Requested ${requested.name}: extension → ${requested.importPath} (api v${requested.apiVersion})`,
+      );
+      for (const requirement of requested.requirements) {
+        lines.push(
+          `  ${requirement.name}  [${requirement.kind}] ${requirement.range}` +
+            `${requirement.optional ? " optional" : ""}`,
+        );
+      }
+      lines.push("");
+      return lines.join("\n");
+    }
     lines.push(
       `Requested ${requested.name}: ${requested.required ? "required" : "optional"}, ` +
         `${requested.available ? "available" : "unavailable"}`,
@@ -1108,7 +1187,7 @@ export async function runCheckCommand(argv) {
     parsed = parseOptions(argv, {
       maxPositionals: 0,
       booleans: ["json"],
-      values: ["cwd", "css"],
+      values: ["cwd", "css", "entry"],
     });
   } catch (error) {
     process.stderr.write(`${error.message}\n`);
@@ -1122,7 +1201,11 @@ export async function runCheckCommand(argv) {
   let result;
   try {
     const { checkDesignSystem } = await import("./check.mjs");
-    result = checkDesignSystem({ cwd: parsed.options.cwd, cssPath: parsed.options.css });
+    result = checkDesignSystem({
+      cwd: parsed.options.cwd,
+      cssPath: parsed.options.css,
+      entry: parsed.options.entry,
+    });
   } catch (error) {
     reportCommandFailure("Check failed", error);
     return;
@@ -1255,6 +1338,7 @@ function reportUpgradeDryRun(result) {
       process.stdout.write(`    ${change.kind}: ${change.path}\n`);
     }
   }
+  writePeerPlan(result.peers);
   process.stdout.write("\nDry run: nothing was installed or written.\n");
 }
 
@@ -1265,6 +1349,7 @@ export async function runUpgradeCommand(argv) {
       maxPositionals: 2,
       booleans: ["strict", "dry-run", "json"],
       values: ["cwd", "registry"],
+      repeatable: ["with-entry", "peer"],
     });
   } catch (error) {
     process.stderr.write(`${error.message}\n`);
@@ -1295,6 +1380,8 @@ export async function runUpgradeCommand(argv) {
     strict: parsed.options.strict,
     registry: parsed.options.registry,
     dryRun: parsed.options.dryRun,
+    withEntry: parsed.options.withEntry,
+    peers: parsed.options.peer,
   });
   if (parsed.options.json) {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

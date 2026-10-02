@@ -49,6 +49,7 @@ import {
   resolveInstalledDesignSystem,
 } from "./consumer.mjs";
 import { collectDoctorReport } from "./doctor.mjs";
+import { collectEntryPrerequisites } from "./entry-scan.mjs";
 import { checkUsage } from "./usage.mjs";
 import { buildComponentCatalog } from "./components.mjs";
 import { TAILWIND_PACKAGE, setupTailwind } from "./tailwind-setup.mjs";
@@ -73,6 +74,7 @@ export const CHECK_IDS = Object.freeze({
   cssImports: "css-imports",
   usage: "usage",
   components: "components",
+  entry: "entry",
 });
 
 /** Public subpath every design system exposes its ordinary stylesheet on. */
@@ -612,6 +614,57 @@ function checkComponents(state) {
   }
 }
 
+function checkEntryPrerequisites(state, entry) {
+  if (typeof entry !== "string" || entry.trim() === "") {
+    return notChecked({
+      id: CHECK_IDS.entry,
+      label: "entry prerequisites",
+      detail:
+        "No --entry supplied; entry prerequisites were skipped (this command never " +
+        "scans a whole repository to guess entries).",
+    });
+  }
+  if (state.consumerRoot === null) {
+    return failed({
+      id: CHECK_IDS.entry,
+      label: "entry prerequisites",
+      required: true,
+      detail: "Consumer root could not be resolved.",
+    });
+  }
+  if (state.installed === null) {
+    return failed({
+      id: CHECK_IDS.entry,
+      label: "entry prerequisites",
+      required: true,
+      detail: state.resolveError ?? "The installed design system could not be resolved.",
+    });
+  }
+  const result = collectEntryPrerequisites({
+    consumerRoot: state.consumerRoot,
+    packageName: state.packageName,
+    manifest: state.installed.manifest,
+    installed: state.installed,
+    entry,
+  });
+  const report = result.report;
+  const requirements = report?.requirements ?? [];
+  const satisfied = requirements.filter((requirement) => requirement.status === "satisfied").length;
+  const detail = result.ok
+    ? `entry ${JSON.stringify(entry.trim())}: ${satisfied}/${requirements.length} ` +
+      "selected requirement(s) satisfied; no missing or out-of-range prerequisite " +
+      "(literal import scan only; computed expressions ignored)"
+    : result.failures.join(" ");
+  return makeCheck({
+    id: CHECK_IDS.entry,
+    label: "entry prerequisites",
+    status: result.ok ? CHECK_STATUS.PASSED : CHECK_STATUS.FAILED,
+    required: true,
+    detail,
+    report,
+  });
+}
+
 /* -------------------------------------------------------------------------- */
 /* Report                                                                     */
 /* -------------------------------------------------------------------------- */
@@ -619,10 +672,12 @@ function checkComponents(state) {
 /**
  * Collect the offline `check` report for a connected consumer.
  *
- * @param {{ cwd?: string, cssPath?: string }} [options] `cwd` is the required
- *   consumer root (never falls back to a repository root). `cssPath` is the
- *   optional explicit CSS file to check import order on; when omitted the report
- *   never scans for a CSS file and marks the imports `not_checked`.
+ * @param {{ cwd?: string, cssPath?: string, entry?: string }} [options] `cwd` is
+ *   the required consumer root (never falls back to a repository root). `cssPath`
+ *   is the optional explicit CSS file to check import order on; when omitted the
+ *   report never scans for a CSS file and marks the imports `not_checked`.
+ *   `entry` is the optional extension name, declared entrypoint, or contained
+ *   consumer file whose declared prerequisites are scanned read-only.
  * @returns {{
  *   ok: boolean,
  *   cwd: string | null,
@@ -635,7 +690,7 @@ function checkComponents(state) {
  *   summary: string,
  * }}
  */
-export function checkDesignSystem({ cwd, cssPath } = {}) {
+export function checkDesignSystem({ cwd, cssPath, entry } = {}) {
   const state = {
     consumerRoot: null,
     packageName: null,
@@ -665,6 +720,7 @@ export function checkDesignSystem({ cwd, cssPath } = {}) {
   checks.push(checkCssImports(state, cssPath));
   checks.push(checkUsageCheck(state));
   checks.push(checkComponents(state));
+  checks.push(checkEntryPrerequisites(state, entry));
 
   const counts = {
     passed: 0,
@@ -700,16 +756,23 @@ export function checkDesignSystem({ cwd, cssPath } = {}) {
 /** Human-readable help for the future `prism-ds check` CLI command. */
 export function checkHelpText() {
   return [
-    "Usage: prism-ds check --cwd <consumer-root> [--css <file>]",
+    "Usage: prism-ds check --cwd <consumer-root> [--css <file>] [--entry <path-or-extension>]",
     "",
     "One offline, read-only health report for a connected consumer: config, doctor",
     "diagnostics, public stylesheet/bridge exports, strict usage, and component",
     "availability. The CSS import order is checked only when --css <file> is given;",
     "otherwise the report does not scan for or guess a CSS file. Nothing is written.",
     "",
+    "With --entry the named installed extension, declared entrypoint, or contained",
+    "consumer file is scanned for literal import/require specifiers and every declared",
+    "requirement is validated against the installed version and its semver range.",
+    "",
     "Arguments:",
     "  --cwd <path>          Consumer root (required; never defaults to a repo root).",
     "  --css <file>          Optional explicit CSS file to check import order on.",
+    "  --entry <path-or-extension>  Optional extension name (e.g. KeyboardScene),",
+    "                        declared entrypoint (e.g. ./keyboard-scene), or",
+    "                        consumer-relative source file to scan.",
     "  -h, --help            Show this help.",
     "",
   ].join("\n");

@@ -52,6 +52,15 @@ function undeclaredOptionals(manifest) {
   return OPTIONAL_COMPONENTS.filter((name) => !(name in manifest.components));
 }
 
+/**
+ * Extension names a manifest actually declares, in declaration order. Derived
+ * only from the manifest's own `extensions` block: extensions are never
+ * inferred from entrypoints, exports, or publicApi.
+ */
+function declaredExtensions(manifest) {
+  return Object.keys(manifest.extensions ?? {});
+}
+
 /* -------------------------------------------------------------------------- */
 /* Temp consumer fixtures                                                     */
 /* -------------------------------------------------------------------------- */
@@ -129,12 +138,58 @@ test("catalog reports the 29 required plus 17 optional in canonical order", () =
       `${manifest.id} preserves canonical order`,
     );
     assert.equal(catalog.components.length, 46);
+    const extensions = declaredExtensions(manifest);
     assert.deepEqual(catalog.counts, {
       required: 29,
       optional: 17,
       available: 29 + declaredOptionals(manifest).length,
       unavailable: undeclaredOptionals(manifest).length,
+      extensions: extensions.length,
     });
+    assert.deepEqual(
+      catalog.extensions.map((entry) => entry.name),
+      extensions,
+      `${manifest.id} exposes only its declared extensions`,
+    );
+  }
+
+  // Explicit per-system expectations: A stays neutral, B publishes exactly
+  // its two declared customs. Both counts are derived from the manifest, so
+  // this pins the current reality without hardcoding counts in the loop above.
+  const a = buildComponentCatalog({ manifest: systemAManifest });
+  const b = buildComponentCatalog({ manifest: systemBManifest });
+
+  assert.equal(systemAManifest.id, "system-a");
+  assert.deepEqual(declaredExtensions(systemAManifest), []);
+  assert.equal(a.counts.extensions, 0);
+  assert.deepEqual(a.extensions, []);
+
+  assert.equal(systemBManifest.id, "system-b");
+  assert.deepEqual(declaredExtensions(systemBManifest), [
+    "KeyboardScene",
+    "InteractiveWorkflowMap",
+  ]);
+  assert.equal(b.counts.extensions, 2);
+  for (const name of declaredExtensions(systemBManifest)) {
+    const extension = b.extensions.find((entry) => entry.name === name);
+    const { entrypoint } = systemBManifest.extensions[name];
+    assert.equal(extension.entrypoint, entrypoint, `${name} entrypoint`);
+    assert.equal(
+      extension.importPath,
+      `${systemBManifest.package}${entrypoint.replace(/^\./, "")}`,
+      `${name} import path`,
+    );
+  }
+
+  // Custom extensions never join component availability or change canonical
+  // component counts: B is still 29 required + 17 optional + its optionals.
+  assert.equal(b.components.length, 46);
+  assert.equal(b.counts.required, 29);
+  assert.equal(b.counts.optional, 17);
+  assert.equal(b.available.length, 29 + declaredOptionals(systemBManifest).length);
+  for (const name of declaredExtensions(systemBManifest)) {
+    assert.ok(!b.available.includes(name), `${name} is not a component`);
+    assert.ok(!b.unavailable.includes(name), `${name} is not a component`);
   }
 });
 
@@ -380,11 +435,11 @@ test("requested unknown component name is rejected with the known set", () => {
 test("an unsupported manifest metadata pair is rejected", () => {
   assert.throws(
     () => buildComponentCatalog({ manifest: { schemaVersion: 3, contractVersion: 4 } }),
-    /expected schemaVersion 4 and contractVersion 4/,
+    /expected schemaVersion 5 and contractVersion 4/,
   );
   assert.throws(
     () => buildComponentCatalog({ manifest: { schemaVersion: 4, contract: "v4" } }),
-    /expected schemaVersion 4 and contractVersion 4/,
+    /expected schemaVersion 5 and contractVersion 4/,
   );
 });
 

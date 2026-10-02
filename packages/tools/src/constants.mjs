@@ -21,7 +21,7 @@ export const MANIFEST_EXPORT_SUBPATH = "./manifest";
 /** Exact manifest filename a design system exposes at {@link MANIFEST_EXPORT_SUBPATH}. */
 export const MANIFEST_EXPORT_TARGET = "./design-system.json";
 /** The current generated-manifest schema version. Unknown versions fail closed. */
-export const MANIFEST_SCHEMA_VERSION = 4;
+export const MANIFEST_SCHEMA_VERSION = 5;
 /** The single current numeric component contract version. */
 export const CONTRACT_VERSION = 4;
 
@@ -141,11 +141,78 @@ export const CAPABILITY_CATEGORIES = Object.freeze({
 export const COMPONENT_REQUIRED_FIELDS = Object.freeze(["variants", "sizes", "members"]);
 /** The optional per-component metadata fields. */
 export const COMPONENT_OPTIONAL_FIELDS = Object.freeze(["description", "docs", "example"]);
+/** The optional per-component effect declaration field. */
+export const COMPONENT_EFFECTS_FIELD = "effects";
 /** Exactly the allowed per-component keys. */
 export const COMPONENT_FIELDS = Object.freeze([
   ...COMPONENT_REQUIRED_FIELDS,
   ...COMPONENT_OPTIONAL_FIELDS,
+  COMPONENT_EFFECTS_FIELD,
 ]);
+
+/* -------------------------------------------------------------------------- */
+/* Entrypoints, requirements, extensions, and effects                         */
+/* -------------------------------------------------------------------------- */
+
+/** The root code entrypoint key. */
+export const ROOT_ENTRYPOINT = ".";
+/** The default tokens code entrypoint key. */
+export const TOKENS_ENTRYPOINT = "./tokens";
+/** Entrypoint keys every current manifest must declare. */
+export const DEFAULT_ENTRYPOINT_KEYS = Object.freeze([ROOT_ENTRYPOINT, TOKENS_ENTRYPOINT]);
+/** `entrypoints` contains exactly one required field: the requirement list. */
+export const ENTRYPOINT_FIELDS = Object.freeze(["requirements"]);
+/** A requirement is exactly these four fields. */
+export const REQUIREMENT_FIELDS = Object.freeze(["name", "kind", "range", "optional"]);
+/** Allowed requirement kinds. */
+export const REQUIREMENT_KINDS = Object.freeze(["dependency", "peer"]);
+
+/**
+ * Entry keys are `.` or a concrete lower-kebab `./segment/...` subpath, matching
+ * the shipped schema and the generator: nested code entrypoints such as
+ * `./custom/reveal` are valid, while asset exports (`./styles.css`, `./manifest`,
+ * any `.css`/`.json` target) never match.
+ */
+export const ENTRYPOINT_KEY_PATTERN =
+  /^(?:\.|\.\/(?:[a-z0-9][a-z0-9-]*)(?:\/[a-z0-9][a-z0-9-]*)*)$/;
+/** Export keys that are not code entrypoints. */
+export const NON_CODE_EXPORT_KEYS = Object.freeze([
+  "./styles.css",
+  "./tailwind.css",
+  "./manifest",
+  "./package.json",
+]);
+
+/** Allowed effect feature values; the list is closed. */
+export const EFFECT_FEATURES = Object.freeze(["depth", "motion", "3d"]);
+/** Allowed effect rendering modes. */
+export const EFFECT_RENDERING = Object.freeze(["dom", "webgl", "mixed"]);
+/** Allowed explicit fallbacks; only valid for webgl/mixed. */
+export const EFFECT_FALLBACKS = Object.freeze(["static", "none"]);
+/** Required effect fields. */
+export const EFFECT_REQUIRED_FIELDS = Object.freeze(["features", "rendering", "reducedMotion"]);
+/** Exactly the allowed effect keys. */
+export const EFFECT_FIELDS = Object.freeze([...EFFECT_REQUIRED_FIELDS, "fallback"]);
+
+/** Extension names are PascalCase runtime named exports. */
+export const EXTENSION_NAME_PATTERN = /^[A-Z][A-Za-z0-9]*$/;
+/** Required extension fields. */
+export const EXTENSION_REQUIRED_FIELDS = Object.freeze([
+  "apiVersion",
+  "entrypoint",
+  "description",
+  "docs",
+  "example",
+]);
+/** Exactly the allowed extension keys. */
+export const EXTENSION_FIELDS = Object.freeze([...EXTENSION_REQUIRED_FIELDS, "effects"]);
+
+/**
+ * Safe npm package name for a requirement or an explicitly selected peer:
+ * an optional `@scope/` followed by a lowercase-safe segment. Rejects
+ * whitespace, shell metacharacters, empty segments, and injection attempts.
+ */
+export const PACKAGE_NAME_PATTERN = /^(?:@[A-Za-z0-9][A-Za-z0-9._-]*\/)?[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 /** The nine token groups exposed as flattened semantic token names. */
 export const TOKEN_GROUP_KEYS = Object.freeze([
