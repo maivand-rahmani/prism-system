@@ -2,11 +2,11 @@
   "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system.source.schema.json",
   "schemaVersion": 4,
   "contractVersion": 4,
-  "name": "System A",
+  "name": "V4 Valid",
   "components": {
     "Button": {
-      "variants": ["primary", "secondary", "outline", "ghost", "destructive", "link"],
-      "sizes": ["sm", "md", "lg", "icon"],
+      "variants": ["primary", "secondary", "ghost"],
+      "sizes": ["sm", "md", "lg"],
       "members": []
     },
     "Input": {
@@ -20,34 +20,34 @@
       "members": []
     },
     "Card": {
-      "variants": ["default", "muted", "outline", "elevated", "interactive"],
+      "variants": ["default", "outline"],
       "sizes": [],
-      "members": ["Header", "Title", "Description", "Content", "Footer"]
+      "members": ["Header", "Title", "Content", "Footer"]
     },
     "Badge": {
-      "variants": ["default", "secondary", "success", "warning", "danger", "info", "outline"],
+      "variants": ["default", "success", "danger"],
       "sizes": ["sm", "md"],
       "members": []
     },
     "Checkbox": {
       "variants": [],
-      "sizes": ["sm", "md", "lg"],
+      "sizes": ["sm", "md"],
       "members": []
     },
     "RadioGroup": {
       "variants": [],
       "sizes": [],
-      "members": ["Item", "Indicator"]
+      "members": ["Item"]
     },
     "Switch": {
       "variants": [],
-      "sizes": ["sm", "md", "lg"],
+      "sizes": ["sm", "md"],
       "members": ["Thumb"]
     },
     "Select": {
       "variants": [],
-      "sizes": ["sm", "md", "lg"],
-      "members": ["Trigger", "Value", "Content", "Group", "Label", "Item", "Separator"]
+      "sizes": ["sm", "md"],
+      "members": ["Trigger", "Content", "Item"]
     },
     "Tabs": {
       "variants": [],
@@ -57,43 +57,17 @@
     "Dialog": {
       "variants": [],
       "sizes": [],
-      "members": [
-        "Trigger",
-        "Portal",
-        "Overlay",
-        "Content",
-        "Header",
-        "Footer",
-        "Title",
-        "Description",
-        "Close"
-      ]
+      "members": ["Trigger", "Content", "Title"]
     },
     "DropdownMenu": {
       "variants": [],
       "sizes": [],
-      "members": [
-        "Trigger",
-        "Portal",
-        "Content",
-        "Group",
-        "Label",
-        "Item",
-        "CheckboxItem",
-        "RadioGroup",
-        "RadioItem",
-        "ItemIndicator",
-        "Separator",
-        "Arrow",
-        "Sub",
-        "SubTrigger",
-        "SubContent"
-      ]
+      "members": ["Trigger", "Content", "Item"]
     },
     "Tooltip": {
       "variants": [],
       "sizes": [],
-      "members": ["Provider", "Trigger", "Portal", "Content", "Arrow"]
+      "members": ["Provider", "Trigger", "Content"]
     },
     "Separator": {
       "variants": [],
@@ -102,22 +76,22 @@
     },
     "Heading": {
       "variants": [],
-      "sizes": [],
+      "sizes": ["sm", "md", "lg"],
       "members": []
     },
     "Text": {
-      "variants": [],
+      "variants": ["body", "muted"],
       "sizes": [],
       "members": []
     },
     "Link": {
-      "variants": [],
+      "variants": ["default", "subtle"],
       "sizes": [],
       "members": []
     },
     "Container": {
       "variants": [],
-      "sizes": [],
+      "sizes": ["narrow", "content", "wide", "full"],
       "members": []
     },
     "Stack": {
@@ -128,7 +102,7 @@
     "FormField": {
       "variants": [],
       "sizes": [],
-      "members": ["Label", "Control", "Description", "Error"]
+      "members": ["Label", "Control", "Help", "Error"]
     },
     "Center": {
       "variants": [],
@@ -180,71 +154,23 @@
       "sizes": [],
       "members": []
     },
-    "Fieldset": {
-      "variants": [],
-      "sizes": [],
-      "members": ["Legend"]
-    },
     "Alert": {
       "variants": ["info", "success", "warning", "danger"],
       "sizes": [],
-      "members": ["Title", "Description"]
-    },
-    "Progress": {
-      "variants": [],
-      "sizes": [],
-      "members": []
-    },
-    "Accordion": {
-      "variants": [],
-      "sizes": [],
-      "members": ["Item", "Header", "Trigger", "Content"]
-    },
-    "Pagination": {
-      "variants": [],
-      "sizes": [],
-      "members": ["List", "Item", "Link", "Previous", "Next", "Current", "Ellipsis"]
-    },
-    "Table": {
-      "variants": [],
-      "sizes": [],
-      "members": ["Caption", "Header", "Body", "Footer", "Row", "Head", "Cell"]
-    },
-    "Metric": {
-      "variants": [],
-      "sizes": [],
-      "members": ["Label", "Value", "Description"]
-    },
-    "DescriptionList": {
-      "variants": [],
-      "sizes": [],
-      "members": ["Item", "Term", "Description"]
-    },
-    "Meter": {
-      "variants": [],
-      "sizes": [],
-      "members": []
-    },
-    "Timeline": {
-      "variants": [],
-      "sizes": [],
-      "members": ["Item", "Title", "Time", "Description"]
+      "members": ["Title", "Description"],
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true,
+        "fallback": "static"
+      }
     }
   },
   "design": {
     "density": "comfortable",
-    "theme": "light-first",
-    "radius": "small",
-    "keywords": [
-      "calm",
-      "minimal",
-      "editorial",
-      "warm light surfaces",
-      "ink-led hierarchy",
-      "quiet borders",
-      "restrained motion",
-      "low visual noise"
-    ]
+    "theme": "dual",
+    "radius": "medium",
+    "keywords": ["calm", "editorial"]
   },
   "rules": {
     "allowArbitraryColors": false,
@@ -255,6 +181,6 @@
   "docs": {
     "readme": "./README.md",
     "agents": "./AGENTS.md",
-    "usage": "./USAGE.md"
+    "foundations": "./docs/foundations.md"
   }
 }

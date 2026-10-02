@@ -158,7 +158,7 @@ function makeRepo({ optional = ["Grid", "Alert"], mutate } = {}) {
   writeJson(root, join("packages", ID, "design-system.source.json"), {
     $schema:
       "https://github.com/maivand-rahmani/prism-system/schemas/design-system.source.schema.json",
-    schemaVersion: 3,
+    schemaVersion: 4,
     contractVersion: 4,
     name: NAME,
     components,
@@ -305,6 +305,7 @@ test("a valid package passes all checks", () => {
     "package files field",
     "contract metadata",
     "generated manifest",
+    "entrypoint artifacts",
     "version consistency",
     "component folders",
     "component barrel exports",
@@ -829,7 +830,7 @@ test("a descriptor missing a required component fails the manifest check", () =>
         writeJson(pkgDir, "design-system.source.json", {
           $schema:
             "https://github.com/maivand-rahmani/prism-system/schemas/design-system.source.schema.json",
-          schemaVersion: 3,
+          schemaVersion: 4,
           contractVersion: 4,
           name: NAME,
           components,
@@ -880,4 +881,152 @@ test("optional components are never required when the descriptor omits them", ()
     ["Grid", "Alert"],
   );
   assert.equal(existsSync(TOKENS_FIXTURE), true);
+});
+
+/* -------------------------------------------------------------------------- */
+/* Declared entrypoints: source and built-artifact verification               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Add a declared `./custom/reveal` entrypoint + `Reveal` extension to a
+ * generated fixture repo, regenerate its manifest, and optionally write the
+ * matching built artifacts. Returns the pkgDir for further mutation.
+ */
+function addRevealEntrypoint({ pkgDir }) {
+  const pkgPath = join(pkgDir, "package.json");
+  const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+  pkg.exports["./custom/reveal"] = {
+    types: "./dist/custom/reveal/index.d.ts",
+    import: "./dist/custom/reveal/index.mjs",
+    require: "./dist/custom/reveal/index.js",
+  };
+  pkg.files.push("docs", "examples");
+  writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+
+  const sourcePath = join(pkgDir, "design-system.source.json");
+  const source = JSON.parse(readFileSync(sourcePath, "utf8"));
+  source.entrypoints = {
+    "./custom/reveal": { source: "./src/custom/reveal/index.ts", requires: [] },
+  };
+  source.extensions = {
+    Reveal: {
+      apiVersion: 1,
+      entrypoint: "./custom/reveal",
+      description: "Animated entrance wrapper.",
+      docs: "./docs/reveal.md",
+      example: "./examples/reveal.tsx",
+      effects: { features: ["motion"], rendering: "dom", reducedMotion: true },
+    },
+  };
+  writeFileSync(sourcePath, `${JSON.stringify(source, null, 2)}\n`, "utf8");
+
+  writeFile(pkgDir, "src/custom/reveal/index.ts", 'export { Reveal } from "./Reveal.js";\n');
+  writeFile(pkgDir, "src/custom/reveal/Reveal.tsx", "export function Reveal() { return null; }\n");
+  writeFile(pkgDir, "docs/reveal.md", "# Reveal\n\nRunnable example.\n");
+  writeFile(pkgDir, "examples/reveal.tsx", "export const example = null;\n");
+
+  const manifest = buildManifest({ id: ID, packageDir: pkgDir });
+  writeFileSync(join(pkgDir, "design-system.json"), serializeManifest(manifest));
+  return pkgDir;
+}
+
+/** Write the three matching built artifacts for the declared entrypoint. */
+function writeRevealArtifacts(pkgDir) {
+  writeFile(
+    pkgDir,
+    "dist/custom/reveal/index.d.ts",
+    "declare function Reveal(): null;\nexport { Reveal };\n",
+  );
+  writeFile(
+    pkgDir,
+    "dist/custom/reveal/index.mjs",
+    "function Reveal() {\n  return null;\n}\nexport { Reveal };\n",
+  );
+  writeFile(
+    pkgDir,
+    "dist/custom/reveal/index.js",
+    '"use strict";\nfunction Reveal() {\n  return null;\n}\n0 && (module.exports = { Reveal });\n',
+  );
+}
+
+test("a declared entrypoint with matching built JS and DTS passes", () => {
+  const root = makeRepo({ mutate: (context) => addRevealEntrypoint(context) });
+  writeRevealArtifacts(join(root, "packages", ID));
+  const result = run(root);
+  assert.equal(result.ok, true, failureText(result));
+});
+
+test("a declared entrypoint without a build passes on source checks alone", () => {
+  const result = run(makeRepo({ mutate: (context) => addRevealEntrypoint(context) }));
+  assert.equal(result.ok, true, failureText(result));
+});
+
+test("built artifacts missing a declared export fail closed", () => {
+  const root = makeRepo({
+    mutate: ({ pkgDir }) => {
+      addRevealEntrypoint({ pkgDir });
+      writeRevealArtifacts(pkgDir);
+      writeFile(pkgDir, "dist/custom/reveal/index.mjs", "function Reveal() {\n  return null;\n}\n");
+    },
+  });
+  const result = run(root);
+  assert.equal(result.ok, false);
+  assert.match(
+    failureText(result),
+    /Entrypoint "\.\/custom\/reveal" artifact \.\/dist\/custom\/reveal\/index\.mjs does not match the declared source exports\. Missing: Reveal\./,
+  );
+});
+
+test("built artifacts with an undeclared export fail closed", () => {
+  const root = makeRepo({
+    mutate: ({ pkgDir }) => {
+      addRevealEntrypoint({ pkgDir });
+      writeRevealArtifacts(pkgDir);
+      writeFile(
+        pkgDir,
+        "dist/custom/reveal/index.d.ts",
+        "declare function Reveal(): null;\ndeclare function RevealExtra(): null;\nexport { Reveal, RevealExtra };\n",
+      );
+    },
+  });
+  const result = run(root);
+  assert.equal(result.ok, false);
+  assert.match(
+    failureText(result),
+    /Entrypoint "\.\/custom\/reveal" artifact \.\/dist\/custom\/reveal\/index\.d\.ts does not match the declared source exports\. Extra: RevealExtra\./,
+  );
+});
+
+test("partially built artifacts are incomplete and fail closed", () => {
+  const root = makeRepo({
+    mutate: ({ pkgDir }) => {
+      addRevealEntrypoint({ pkgDir });
+      writeFile(pkgDir, "dist/custom/reveal/index.d.ts", "declare function Reveal(): null;\n");
+    },
+  });
+  const result = run(root);
+  assert.equal(result.ok, false);
+  assert.match(
+    failureText(result),
+    /Entrypoint "\.\/custom\/reveal" artifacts are incomplete; missing: \.\/dist\/custom\/reveal\/index\.mjs, \.\/dist\/custom\/reveal\/index\.js\./,
+  );
+});
+
+test("extension docs and examples must exist before validation passes", () => {
+  const root = makeRepo({
+    mutate: ({ pkgDir }) => {
+      addRevealEntrypoint({ pkgDir });
+      rmSync(join(pkgDir, "docs", "reveal.md"));
+      const sourcePath = join(pkgDir, "design-system.source.json");
+      const source = JSON.parse(readFileSync(sourcePath, "utf8"));
+      source.extensions.Reveal.docs = "./docs/other.md";
+      writeFileSync(sourcePath, `${JSON.stringify(source, null, 2)}\n`, "utf8");
+    },
+  });
+  const result = run(root);
+  assert.equal(result.ok, false);
+  assert.match(
+    failureText(result),
+    /Extension "Reveal" docs does not exist: \.\/docs\/other\.md\./,
+  );
 });

@@ -1,6 +1,6 @@
 {
   "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system.schema.json",
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "generated": "prism-system/design-system-manifest",
   "contractVersion": 4,
   "id": "system-a",
@@ -68,6 +68,14 @@
       "systemATokens"
     ],
     "./tokens": ["systemATokens"]
+  },
+  "entrypoints": {
+    ".": {
+      "requirements": []
+    },
+    "./tokens": {
+      "requirements": []
+    }
   },
   "components": {
     "Button": {

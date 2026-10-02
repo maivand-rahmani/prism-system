@@ -5,17 +5,22 @@
  * Every design-system package ships a generated `design-system.json` manifest
  * so an external coding agent can understand the installed system without
  * reading package internals. The manifest is derived deterministically from
- * three package-owned inputs:
+ * package-owned inputs:
  *
- *   package.json                 identity, exact version, exports map
+ *   package.json                 identity, exact version, exports, requirements
  *   design-system.source.json    explicit component/compound/variant descriptor
- *   design-brief.json            the human Design Brief (shipped unchanged)
+ *                                plus optional entrypoints/extensions/effects
+ *   tokens.source.json           semantic token source
  *
  * The descriptor is the creative contract: it declares, by hand, each
- * component's variants, sizes, and compound members. Variants are never
- * inferred from CSS or fragile source regexes. The generator only copies those
- * declarations, stamps the authoritative `package.json.version`, and records
- * the package's real public export subpaths.
+ * component's variants, sizes, compound members, and optional effects. Variants
+ * are never inferred from CSS or fragile source regexes. Declared additional
+ * entrypoints and extensions are verified statically against the contained
+ * source modules and package.json metadata with the TypeScript AST — the
+ * package is never built or executed for generation or registration. The
+ * generator copies the declarations, stamps the authoritative
+ * `package.json.version`, and records the package's real public export
+ * subpaths, entrypoint requirements, and extension catalog.
  *
  * `package.json.version` is authoritative. Drift between it, the generated
  * manifest, the registry entry, and the runtime `DesignSystem.version` is a
@@ -26,13 +31,24 @@
  * a CLI (`pnpm ds:manifest <id> [--write]`).
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, extname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import ts from "typescript";
 
 import {
   PACKAGE_DIRECTORY,
   assertSystemId,
+  assertWithin,
   readJsonFile,
   repoRoot,
   toPackageName,
@@ -69,15 +85,15 @@ export const REQUIRED_PACKAGE_FILES = Object.freeze([
 ]);
 
 /**
- * Version of the package-owned source descriptor schema
- * (`design-system.source.json`). The source descriptor stays schemaVersion 3;
+ * Version of the package-owned source descriptor
+ * (`design-system.source.json`). The source descriptor is schemaVersion 4;
  * the generated, shipped manifest is versioned independently below.
  */
-export const DESIGN_SYSTEM_SCHEMA_VERSION = 3;
+export const DESIGN_SYSTEM_SCHEMA_VERSION = 4;
 /** The single current numeric component contract version. */
 export const CONTRACT_VERSION = 4;
 /** Version of the generated, shipped manifest schema (`design-system.json`). */
-export const DESIGN_SYSTEM_MANIFEST_SCHEMA_VERSION = 4;
+export const DESIGN_SYSTEM_MANIFEST_SCHEMA_VERSION = 5;
 
 /** `$schema` references and the generated marker written into every manifest. */
 export const MANIFEST_SCHEMA_URL =
@@ -221,6 +237,8 @@ const SOURCE_ROOT_FIELDS = Object.freeze([
   "components",
   "design",
   "rules",
+  "entrypoints",
+  "extensions",
   "docs",
 ]);
 const MANIFEST_ROOT_FIELDS = Object.freeze([
@@ -234,17 +252,20 @@ const MANIFEST_ROOT_FIELDS = Object.freeze([
   "version",
   "exports",
   "publicApi",
+  "entrypoints",
   "components",
   "capabilities",
   "design",
   "rules",
   "tokens",
+  "extensions",
   "docs",
 ]);
 const COMPONENT_FIELDS = Object.freeze([
   "variants",
   "sizes",
   "members",
+  "effects",
   "description",
   "docs",
   "example",
@@ -271,6 +292,29 @@ const RULE_KEYS = Object.freeze([
   "allowArbitraryShadows",
   "allowPrimitiveDuplication",
 ]);
+
+/** Closed effect-feature set. Missing effects means undeclared, never inferred. */
+export const EFFECT_FEATURES = Object.freeze(["depth", "motion", "3d"]);
+/** Closed rendering set: CSS/DOM, real WebGL, or a mix. */
+export const EFFECT_RENDERING = Object.freeze(["dom", "webgl", "mixed"]);
+/** Closed fallback set; only meaningful for webgl/mixed rendering. */
+export const EFFECT_FALLBACK = Object.freeze(["static", "none"]);
+
+/**
+ * A public code entrypoint subpath: exactly "." or a concrete lower-kebab
+ * "./segment/..." subpath. Asset exports (`./styles.css`, `./manifest`, any
+ * `.css`/`.json` target) never match this shape and are never declared here.
+ */
+export const ENTRYPOINT_KEY_PATTERN =
+  /^(?:\.|\.\/(?:[a-z0-9][a-z0-9-]*)(?:\/[a-z0-9][a-z0-9-]*)*)$/;
+/** A package-contained TypeScript source path for an entrypoint. */
+const ENTRYPOINT_SOURCE_PATTERN = /^\.\/[A-Za-z0-9._/-]+\.tsx?$/;
+/** PascalCase extension named export. */
+const EXTENSION_NAME_PATTERN = /^[A-Z][A-Za-z0-9]*$/;
+/** A safe npm package name (scoped or unscoped). */
+const PACKAGE_NAME_PATTERN = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
+/** Extension names that would collide with the runtime identity/token contract. */
+const RESERVED_EXTENSION_NAMES = Object.freeze(["default", "DesignSystem"]);
 
 function isPlainObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -375,10 +419,11 @@ function assertKnownFields(raw, allowed, label) {
 /**
  * Enforce the single current contract metadata: the expected numeric
  * `schemaVersion` and `contractVersion: 4`. The package-owned source descriptor
- * defaults to schemaVersion 3; the generated shipped manifest passes its own
- * schemaVersion 4. Every other combination — including a missing field, a
+ * defaults to schemaVersion 4; the generated shipped manifest passes its own
+ * schemaVersion 5. Every other combination — including a missing field, a
  * historical `contract` string, or a fabricated pair — is rejected so no
- * obsolete contract shape is ever silently accepted.
+ * obsolete contract shape is ever silently accepted, and a historical manifest
+ * fails closed with an actionable reader-upgrade error.
  */
 export function assertContractMetadata(
   raw,
@@ -418,9 +463,210 @@ function requireComponentField(raw, key, name) {
 }
 
 /**
+ * Validate an optional `effects` declaration. Missing effects means undeclared
+ * and is never inferred. When present, `features` must be a nonempty unique
+ * subset of the closed feature set, `rendering` one of dom/webgl/mixed, and
+ * `reducedMotion` an explicit boolean. `fallback` is only meaningful for
+ * webgl/mixed rendering, and a `3d` feature can never be DOM-only.
+ */
+function normalizeEffects(raw, label) {
+  if (!isPlainObject(raw)) {
+    throw new Error(`Expected "${label}" to be an object.`);
+  }
+  assertKnownFields(raw, ["features", "rendering", "reducedMotion", "fallback"], label);
+  if (!("features" in raw)) throw new Error(`${label} is missing required field "features".`);
+  const features = requireStringArray(raw.features, `${label}.features`);
+  if (features.length === 0) {
+    throw new Error(
+      `${label}.features must be a nonempty subset of: ${EFFECT_FEATURES.join(", ")}.`,
+    );
+  }
+  const unknownFeatures = features.filter((feature) => !EFFECT_FEATURES.includes(feature));
+  if (unknownFeatures.length > 0) {
+    throw new Error(
+      `${label}.features must be a nonempty subset of: ${EFFECT_FEATURES.join(", ")} ` +
+        `(unknown: ${unknownFeatures.join(", ")}).`,
+    );
+  }
+  if (!("rendering" in raw)) throw new Error(`${label} is missing required field "rendering".`);
+  const rendering = requireNonEmptyString(raw.rendering, `${label}.rendering`);
+  if (!EFFECT_RENDERING.includes(rendering)) {
+    throw new Error(
+      `${label}.rendering must be one of: ${EFFECT_RENDERING.join(", ")} ` +
+        `(received ${JSON.stringify(rendering)}).`,
+    );
+  }
+  if (typeof raw.reducedMotion !== "boolean") {
+    throw new Error(`${label}.reducedMotion must be a boolean.`);
+  }
+  const effects = { features, rendering, reducedMotion: raw.reducedMotion };
+  if (raw.fallback !== undefined) {
+    const fallback = requireNonEmptyString(raw.fallback, `${label}.fallback`);
+    if (!EFFECT_FALLBACK.includes(fallback)) {
+      throw new Error(
+        `${label}.fallback must be one of: ${EFFECT_FALLBACK.join(", ")} ` +
+          `(received ${JSON.stringify(fallback)}).`,
+      );
+    }
+    if (rendering === "dom") {
+      throw new Error(
+        `${label}.fallback is only meaningful for "webgl" or "mixed" rendering; ` +
+          `"dom" rendering has no graphics fallback.`,
+      );
+    }
+    effects.fallback = fallback;
+  }
+  if (features.includes("3d") && rendering === "dom") {
+    throw new Error(
+      `${label} declares the "3d" feature with "dom" rendering; a real 3D scene must ` +
+        `declare "webgl" or "mixed" rendering (CSS depth is not WebGL).`,
+    );
+  }
+  return effects;
+}
+
+/**
+ * Validate the optional source `entrypoints` map: keyed "." or a concrete
+ * lower-kebab "./subpath" and declaring each code entry's contained source
+ * module plus the explicit package names it requires. Ranges are never
+ * duplicated here; they are resolved from package.json at generation time.
+ * Omitting the section is the neutral default (root/tokens only).
+ */
+function normalizeEntrypoints(raw, label) {
+  if (!isPlainObject(raw)) {
+    throw new Error(`${label} must be an object.`);
+  }
+  const keys = Object.keys(raw);
+  if (keys.length === 0) {
+    throw new Error(
+      `${label} must not be empty; omit the section on a neutral system instead of ` +
+        `declaring an empty entrypoint map.`,
+    );
+  }
+  const entrypoints = {};
+  for (const key of keys) {
+    if (!ENTRYPOINT_KEY_PATTERN.test(key)) {
+      throw new Error(
+        `${label} key ${JSON.stringify(key)} must be "." or a concrete lower-kebab ` +
+          `"./subpath"; CSS, manifest, and package.json asset exports are never declared here.`,
+      );
+    }
+    const value = raw[key];
+    const entryLabel = `${label}["${key}"]`;
+    if (!isPlainObject(value)) {
+      throw new Error(`${entryLabel} must be an object.`);
+    }
+    assertKnownFields(value, ["source", "requires"], entryLabel);
+    if (!("source" in value)) throw new Error(`${entryLabel} is missing required field "source".`);
+    if (!("requires" in value)) {
+      throw new Error(`${entryLabel} is missing required field "requires".`);
+    }
+    const source = value.source;
+    if (typeof source !== "string" || !ENTRYPOINT_SOURCE_PATTERN.test(source)) {
+      throw new Error(
+        `${entryLabel}.source must be a package-relative "./...".ts or "./...".tsx path ` +
+          `(received ${JSON.stringify(source ?? null)}).`,
+      );
+    }
+    const requires = requireStringArray(value.requires, `${entryLabel}.requires`);
+    for (const name of requires) {
+      if (!PACKAGE_NAME_PATTERN.test(name)) {
+        throw new Error(
+          `${entryLabel}.requires contains an invalid package name ${JSON.stringify(name)}.`,
+        );
+      }
+    }
+    entrypoints[key] = { source, requires };
+  }
+  return entrypoints;
+}
+
+/**
+ * Validate the optional nonempty `extensions` map: PascalCase named exports
+ * that are never canonical component names, each pointing at one declared code
+ * entrypoint and at real contained docs/example files. Requirements are never
+ * repeated here; they belong to the entrypoint declaration.
+ */
+function normalizeExtensions(raw, label) {
+  if (!isPlainObject(raw)) {
+    throw new Error(`${label} must be an object.`);
+  }
+  const names = Object.keys(raw);
+  if (names.length === 0) {
+    throw new Error(
+      `${label} must not be empty; omit the section on a neutral system instead of ` +
+        `declaring an empty extension map.`,
+    );
+  }
+  const extensions = {};
+  for (const name of names) {
+    const extensionLabel = `${label}["${name}"]`;
+    if (!EXTENSION_NAME_PATTERN.test(name)) {
+      throw new Error(
+        `${extensionLabel} must be keyed by a PascalCase named export ` +
+          `(received ${JSON.stringify(name)}).`,
+      );
+    }
+    if (COMPONENT_NAMES.includes(name)) {
+      throw new Error(
+        `${extensionLabel} collides with the canonical component name "${name}"; ` +
+          `extensions are never canonical component names.`,
+      );
+    }
+    const value = raw[name];
+    if (!isPlainObject(value)) {
+      throw new Error(`${extensionLabel} must be an object.`);
+    }
+    assertKnownFields(
+      value,
+      ["apiVersion", "entrypoint", "description", "docs", "example", "effects"],
+      extensionLabel,
+    );
+    for (const field of ["apiVersion", "entrypoint", "description", "docs", "example"]) {
+      if (!(field in value)) {
+        throw new Error(`${extensionLabel} is missing required field "${field}".`);
+      }
+    }
+    if (!Number.isInteger(value.apiVersion) || value.apiVersion < 1) {
+      throw new Error(
+        `${extensionLabel}.apiVersion must be a positive integer ` +
+          `(received ${JSON.stringify(value.apiVersion ?? null)}).`,
+      );
+    }
+    const entrypoint = requireNonEmptyString(value.entrypoint, `${extensionLabel}.entrypoint`);
+    if (!ENTRYPOINT_KEY_PATTERN.test(entrypoint)) {
+      throw new Error(
+        `${extensionLabel}.entrypoint must be "." or a concrete lower-kebab "./subpath" ` +
+          `(received ${JSON.stringify(entrypoint)}).`,
+      );
+    }
+    const extension = {
+      apiVersion: value.apiVersion,
+      entrypoint,
+      description: requireNonEmptyString(value.description, `${extensionLabel}.description`),
+      docs: requireNonEmptyString(value.docs, `${extensionLabel}.docs`),
+      example: requireNonEmptyString(value.example, `${extensionLabel}.example`),
+    };
+    for (const field of ["docs", "example"]) {
+      if (!extension[field].startsWith("./") || extension[field].length <= 2) {
+        throw new Error(
+          `${extensionLabel}.${field} must be a package-relative path starting with "./" ` +
+            `(received ${JSON.stringify(extension[field])}).`,
+        );
+      }
+    }
+    if (value.effects !== undefined) {
+      extension.effects = normalizeEffects(value.effects, `${extensionLabel}.effects`);
+    }
+    extensions[name] = extension;
+  }
+  return extensions;
+}
+
+/**
  * Validate one component entry for a descriptor or manifest. `variants`,
  * `sizes`, and `members` are required unique string arrays (empty allowed);
- * `description`, `docs`, and `example` are optional metadata.
+ * `effects` and `description`/`docs`/`example` are optional metadata.
  */
 function normalizeComponent(raw, name) {
   if (!isPlainObject(raw)) {
@@ -440,6 +686,9 @@ function normalizeComponent(raw, name) {
     sizes: requireStringArray(requireComponentField(raw, "sizes", name), `${name}.sizes`),
     members: requireStringArray(requireComponentField(raw, "members", name), `${name}.members`),
   };
+  if (raw.effects !== undefined) {
+    component.effects = normalizeEffects(raw.effects, `${name}.effects`);
+  }
   for (const key of COMPONENT_META_FIELDS) {
     if (raw[key] !== undefined) {
       component[key] = requireNonEmptyString(raw[key], `${name}.${key}`);
@@ -669,6 +918,118 @@ function normalizePublicApi(raw, label) {
   return publicApi;
 }
 
+/**
+ * Validate the manifest's required `entrypoints` map: "." and "./tokens" are
+ * always present, declared code entries are additional lower-kebab subpaths,
+ * and every entry carries an explicit requirements list whose records use the
+ * exact `dependency`/`peer` kinds and package.json-derived ranges.
+ */
+function normalizeManifestEntrypoints(raw, label) {
+  if (!isPlainObject(raw)) {
+    throw new Error(`${label} must be an object.`);
+  }
+  const keys = Object.keys(raw);
+  for (const required of [".", "./tokens"]) {
+    if (!(required in raw))
+      throw new Error(`${label} is missing required entrypoint "${required}".`);
+  }
+  const entrypoints = {};
+  for (const key of keys) {
+    const entryLabel = `${label}["${key}"]`;
+    if (!ENTRYPOINT_KEY_PATTERN.test(key)) {
+      throw new Error(
+        `${entryLabel} must be "." or a concrete lower-kebab "./subpath" ` +
+          `(received ${JSON.stringify(key)}).`,
+      );
+    }
+    const value = raw[key];
+    if (!isPlainObject(value)) {
+      throw new Error(`${entryLabel} must be an object.`);
+    }
+    assertKnownFields(value, ["requirements"], entryLabel);
+    if (!("requirements" in value)) {
+      throw new Error(`${entryLabel} is missing required field "requirements".`);
+    }
+    if (!Array.isArray(value.requirements)) {
+      throw new Error(`${entryLabel}.requirements must be an array.`);
+    }
+    const seen = new Set();
+    entrypoints[key] = {
+      requirements: value.requirements.map((record, index) => {
+        const recordLabel = `${entryLabel}.requirements[${index}]`;
+        if (!isPlainObject(record)) throw new Error(`${recordLabel} must be an object.`);
+        assertKnownFields(record, ["name", "kind", "range", "optional"], recordLabel);
+        for (const field of ["name", "kind", "range", "optional"]) {
+          if (!(field in record)) {
+            throw new Error(`${recordLabel} is missing required field "${field}".`);
+          }
+        }
+        const name = requireNonEmptyString(record.name, `${recordLabel}.name`);
+        if (seen.has(name)) {
+          throw new Error(`${entryLabel}.requirements contains duplicate name "${name}".`);
+        }
+        seen.add(name);
+        if (record.kind !== "dependency" && record.kind !== "peer") {
+          throw new Error(
+            `${recordLabel}.kind must be exactly "dependency" or "peer" ` +
+              `(received ${JSON.stringify(record.kind ?? null)}).`,
+          );
+        }
+        if (typeof record.range !== "string" || record.range.trim().length === 0) {
+          throw new Error(`${recordLabel}.range must be a non-empty string.`);
+        }
+        if (typeof record.optional !== "boolean") {
+          throw new Error(`${recordLabel}.optional must be a boolean.`);
+        }
+        return { name, kind: record.kind, range: record.range, optional: record.optional };
+      }),
+    };
+  }
+  return entrypoints;
+}
+
+/**
+ * Validate the relationship between `entrypoints`, `publicApi`, and the
+ * optional `extensions` map: every entrypoint has exactly one publicApi member
+ * list, every extension names a declared entrypoint that publicly exports it,
+ * and extension names are never canonical component names.
+ */
+function validateManifestCatalog({ entrypoints, publicApi, extensions }) {
+  const entrypointKeys = Object.keys(entrypoints);
+  const publicApiKeys = Object.keys(publicApi);
+  const missing = entrypointKeys.filter((key) => !publicApiKeys.includes(key));
+  const unknown = publicApiKeys.filter((key) => !entrypointKeys.includes(key));
+  if (missing.length > 0 || unknown.length > 0) {
+    throw new Error(
+      `${DESIGN_SYSTEM_MANIFEST_FILENAME} "publicApi" must declare exactly the entrypoints.` +
+        `${missing.length > 0 ? ` Missing: ${missing.join(", ")}.` : ""}${
+          unknown.length > 0 ? ` Unknown: ${unknown.join(", ")}.` : ""
+        }`,
+    );
+  }
+  if (extensions === undefined) return;
+  for (const [name, extension] of Object.entries(extensions)) {
+    if (extension.entrypoint === "./tokens") {
+      throw new Error(
+        `${DESIGN_SYSTEM_MANIFEST_FILENAME} extension "${name}" must not use the ` +
+          `server-only token entrypoint.`,
+      );
+    }
+    if (!(extension.entrypoint in entrypoints)) {
+      throw new Error(
+        `${DESIGN_SYSTEM_MANIFEST_FILENAME} extension "${name}" entrypoint ` +
+          `${JSON.stringify(extension.entrypoint)} is not declared in "entrypoints".`,
+      );
+    }
+    if (!publicApi[extension.entrypoint]?.includes(name)) {
+      throw new Error(
+        `${DESIGN_SYSTEM_MANIFEST_FILENAME} extension "${name}" is not listed in ` +
+          `"publicApi" for ${JSON.stringify(extension.entrypoint)}.`,
+      );
+    }
+  }
+}
+
 /** Read and validate a package-owned `design-system.source.json`. */
 export function parseSourceDescriptor(raw) {
   if (!isPlainObject(raw)) {
@@ -687,6 +1048,18 @@ export function parseSourceDescriptor(raw) {
     design: normalizeDesign(raw.design, "design"),
     rules: normalizeRules(raw.rules, "rules"),
   };
+  if (raw.entrypoints !== undefined) {
+    descriptor.entrypoints = normalizeEntrypoints(
+      raw.entrypoints,
+      `${DESIGN_SYSTEM_SOURCE_FILENAME} "entrypoints"`,
+    );
+  }
+  if (raw.extensions !== undefined) {
+    descriptor.extensions = normalizeExtensions(
+      raw.extensions,
+      `${DESIGN_SYSTEM_SOURCE_FILENAME} "extensions"`,
+    );
+  }
   if (raw.docs !== undefined) {
     descriptor.docs = normalizeDocs(raw.docs, `${DESIGN_SYSTEM_SOURCE_FILENAME} "docs"`, true);
   }
@@ -1201,7 +1574,20 @@ export function parseManifest(raw) {
   if (!isPlainObject(raw.exports) || Object.keys(raw.exports).length === 0) {
     throw new Error(`${DESIGN_SYSTEM_MANIFEST_FILENAME} "exports" must be a non-empty object.`);
   }
-  return {
+  const entrypoints = normalizeManifestEntrypoints(
+    raw.entrypoints,
+    `${DESIGN_SYSTEM_MANIFEST_FILENAME} "entrypoints"`,
+  );
+  const publicApi = normalizePublicApi(
+    raw.publicApi,
+    `${DESIGN_SYSTEM_MANIFEST_FILENAME} "publicApi"`,
+  );
+  const extensions =
+    raw.extensions === undefined
+      ? undefined
+      : normalizeExtensions(raw.extensions, `${DESIGN_SYSTEM_MANIFEST_FILENAME} "extensions"`);
+  validateManifestCatalog({ entrypoints, publicApi, extensions });
+  const manifest = {
     $schema: raw.$schema,
     schemaVersion: DESIGN_SYSTEM_MANIFEST_SCHEMA_VERSION,
     generated: GENERATED_MARKER,
@@ -1211,7 +1597,8 @@ export function parseManifest(raw) {
     package: raw.package,
     version,
     exports: raw.exports,
-    publicApi: normalizePublicApi(raw.publicApi, `${DESIGN_SYSTEM_MANIFEST_FILENAME} "publicApi"`),
+    publicApi,
+    entrypoints,
     components: normalizeComponents(
       raw.components,
       `${DESIGN_SYSTEM_MANIFEST_FILENAME} "components"`,
@@ -1222,6 +1609,442 @@ export function parseManifest(raw) {
     tokens: normalizeTokenManifest(raw.tokens),
     docs: normalizeDocs(raw.docs, `${DESIGN_SYSTEM_MANIFEST_FILENAME} "docs"`, true),
   };
+  if (extensions !== undefined) manifest.extensions = extensions;
+  return manifest;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Static export graph                                                        */
+/* -------------------------------------------------------------------------- */
+
+const MODULE_EXTENSION_PATTERN = /\.(?:d\.)?(?:mjs|cjs|jsx|tsx|js|ts)$/;
+
+function hasExportModifier(node) {
+  return (ts.getCombinedModifierFlags(node) & ts.ModifierFlags.Export) !== 0;
+}
+
+function createAstSourceFile(filePath) {
+  const text = readFileSync(filePath, "utf8");
+  const extension = extname(filePath).toLowerCase();
+  const scriptKind =
+    extension === ".tsx" || extension === ".jsx"
+      ? extension === ".tsx"
+        ? ts.ScriptKind.TSX
+        : ts.ScriptKind.JSX
+      : extension === ".js" || extension === ".mjs" || extension === ".cjs"
+        ? ts.ScriptKind.JS
+        : ts.ScriptKind.TS;
+  return ts.createSourceFile(filePath, text, ts.ScriptTarget.Latest, true, scriptKind);
+}
+
+/**
+ * Resolve a package-contained relative module specifier to an existing source
+ * or built file. Bare specifiers are rejected: a declared entrypoint must be
+ * fully statically inspectable inside the package, and generation never
+ * resolves external packages or evaluates their code.
+ */
+function resolveModuleFile(fromFile, specifier, packageDir) {
+  if (!specifier.startsWith(".")) {
+    throw new Error(
+      `Cannot statically inspect re-export "${specifier}" from ${relative(
+        packageDir,
+        fromFile,
+      )}; only package-contained relative re-exports are supported for declared entrypoints.`,
+    );
+  }
+  const base = resolve(dirname(fromFile), specifier.replace(MODULE_EXTENSION_PATTERN, ""));
+  const isDts = fromFile.endsWith(".d.ts");
+  const isJs = !isDts && /\.(?:mjs|cjs|js|jsx)$/.test(fromFile);
+  const extensions = isDts ? [".d.ts"] : isJs ? [".js", ".mjs", ".cjs", ".jsx"] : [".ts", ".tsx"];
+  const candidates = [
+    ...extensions.map((extension) => `${base}${extension}`),
+    ...extensions.map((extension) => join(base, `index${extension}`)),
+    base,
+  ];
+  for (const candidate of candidates) {
+    const contained = assertWithin(packageDir, candidate, "Entrypoint module");
+    if (existsSync(contained) && statSync(contained).isFile()) return contained;
+  }
+  throw new Error(
+    `Cannot resolve module "${specifier}" from ${relative(packageDir, fromFile)}; expected ` +
+      `one of: ${candidates.map((candidate) => relative(packageDir, candidate)).join(", ")}.`,
+  );
+}
+
+/** Resolve a package-relative path and require an existing contained file. */
+function resolveContainedFile(packageDir, relativePath, label) {
+  if (typeof relativePath !== "string" || !relativePath.startsWith("./")) {
+    throw new Error(`${label} must be a package-relative path starting with "./".`);
+  }
+  const contained = assertWithin(packageDir, resolve(packageDir, relativePath), label);
+  if (!existsSync(contained)) {
+    throw new Error(`${label} does not exist: ${relativePath}.`);
+  }
+  if (!statSync(contained).isFile()) {
+    throw new Error(`${label} is not a file: ${relativePath}.`);
+  }
+  return contained;
+}
+
+/**
+ * Collect the static `module.exports = { ... }` annotation tsup/esbuild emits
+ * for a CommonJS bundle (`0 && (module.exports = { Name, ... })`). This is the
+ * only CJS fallback used when a built artifact has no ESM export statements;
+ * the package is never executed or required.
+ */
+function collectCommonJsModuleExports(sourceFile, names) {
+  const visit = (node) => {
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isPropertyAccessExpression(node.left) &&
+      ts.isIdentifier(node.left.expression) &&
+      node.left.expression.text === "module" &&
+      node.left.name.text === "exports" &&
+      ts.isObjectLiteralExpression(node.right)
+    ) {
+      for (const property of node.right.properties) {
+        if (
+          (ts.isShorthandPropertyAssignment(property) || ts.isPropertyAssignment(property)) &&
+          (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))
+        ) {
+          names.add(property.name.text);
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+}
+
+/**
+ * Statically collect the runtime named exports of a TypeScript/JavaScript
+ * module without evaluating it: export declarations, named re-exports, star
+ * re-exports (resolved recursively through relative modules), namespace
+ * re-exports, and default exports. Type-only exports (`export type`,
+ * `export interface`, `export type { ... }`) are not runtime names and are
+ * excluded. A `export { X } from "./x"` re-export is verified against the
+ * target module's runtime names, so a declared entrypoint can never publish a
+ * name the source does not actually export.
+ *
+ * @param {string} entryPath Absolute path of the entry module.
+ * @param {string} packageDir Absolute package root used for containment + resolution.
+ * @returns {Set<string>}
+ */
+export function collectRuntimeExportNames(entryPath, packageDir) {
+  const resolvedEntry = resolveContainedFile(
+    packageDir,
+    `./${relative(packageDir, entryPath).split("\\").join("/")}`,
+    "Entrypoint source",
+  );
+  const memo = new Map();
+  const stack = [];
+
+  const collect = (filePath) => {
+    if (memo.has(filePath)) return memo.get(filePath);
+    if (stack.includes(filePath)) {
+      throw new Error(
+        `Circular export graph detected while inspecting declared entrypoints: ` +
+          `${[...stack, filePath].map((entry) => relative(packageDir, entry)).join(" -> ")}.`,
+      );
+    }
+    stack.push(filePath);
+    const names = new Set();
+    memo.set(filePath, names);
+    const sourceFile = createAstSourceFile(filePath);
+    for (const statement of sourceFile.statements) {
+      if (ts.isExportDeclaration(statement)) {
+        if (statement.isTypeOnly) continue;
+        const specifier =
+          statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)
+            ? statement.moduleSpecifier.text
+            : null;
+        const clause = statement.exportClause;
+        if (!clause) {
+          if (!specifier) {
+            throw new Error(`Unsupported export declaration in ${relative(packageDir, filePath)}.`);
+          }
+          const target = resolveModuleFile(filePath, specifier, packageDir);
+          for (const name of collect(target)) names.add(name);
+          continue;
+        }
+        if (ts.isNamespaceExport(clause)) {
+          if (specifier) {
+            // Resolve the target so a namespace re-export of a missing or
+            // escaping module fails closed instead of silently passing.
+            resolveModuleFile(filePath, specifier, packageDir);
+          }
+          names.add(clause.name.text);
+          continue;
+        }
+        if (!ts.isNamedExports(clause)) {
+          throw new Error(`Unsupported export clause in ${relative(packageDir, filePath)}.`);
+        }
+        for (const element of clause.elements) {
+          if (element.isTypeOnly) continue;
+          const localName = element.propertyName ? element.propertyName.text : element.name.text;
+          if (specifier) {
+            const target = resolveModuleFile(filePath, specifier, packageDir);
+            if (!collect(target).has(localName)) {
+              throw new Error(
+                `${relative(packageDir, filePath)} re-exports "${localName}" from ` +
+                  `"${specifier}", but that module has no runtime export named "${localName}".`,
+              );
+            }
+          }
+          names.add(element.name.text);
+        }
+        continue;
+      }
+      if (ts.isVariableStatement(statement)) {
+        if (!hasExportModifier(statement)) continue;
+        for (const declaration of statement.declarationList.declarations) {
+          if (!ts.isIdentifier(declaration.name)) {
+            throw new Error(
+              `${relative(packageDir, filePath)} exports a destructuring pattern; declared ` +
+                `entrypoints must expose static named exports.`,
+            );
+          }
+          names.add(declaration.name.text);
+        }
+        continue;
+      }
+      if (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) {
+        if (!hasExportModifier(statement)) continue;
+        names.add(statement.name ? statement.name.text : "default");
+        continue;
+      }
+      if (ts.isEnumDeclaration(statement)) {
+        if (hasExportModifier(statement)) names.add(statement.name.text);
+        continue;
+      }
+      if (ts.isModuleDeclaration(statement)) {
+        if (hasExportModifier(statement) && ts.isIdentifier(statement.name)) {
+          names.add(statement.name.text);
+        }
+        continue;
+      }
+      if (ts.isImportEqualsDeclaration(statement)) {
+        if (hasExportModifier(statement)) names.add(statement.name.text);
+        continue;
+      }
+      if (ts.isExportAssignment(statement)) {
+        if (statement.isExportEquals) {
+          throw new Error(
+            `${relative(packageDir, filePath)} uses CommonJS "export ="; declared ` +
+              `entrypoints must use ESM named exports.`,
+          );
+        }
+        names.add("default");
+        continue;
+      }
+      // `export type` / `export interface` / `export type X = ...` are type-only.
+    }
+    if (names.size === 0 && /\.(?:c?js|jsx)$/.test(filePath)) {
+      collectCommonJsModuleExports(sourceFile, names);
+    }
+    stack.pop();
+    return names;
+  };
+
+  return collect(resolvedEntry);
+}
+
+/**
+ * Classify a package.json exports target. CSS and JSON targets are assets and
+ * are never entrypoints; everything else (conditional types/import/require
+ * objects and plain JS targets) is a code entry.
+ */
+export function classifyExportTarget(target) {
+  if (typeof target === "string") {
+    if (/\.css$/i.test(target) || /\.json$/i.test(target)) return "asset";
+    return "code";
+  }
+  return isPlainObject(target) ? "code" : "asset";
+}
+
+function readCatalogPackageJson(packageDir) {
+  const packageJsonPath = join(packageDir, "package.json");
+  if (!existsSync(packageJsonPath)) return null;
+  try {
+    return readJsonFile(packageJsonPath);
+  } catch (error) {
+    throw new Error(`Invalid JSON in ${packageJsonPath}: ${error.message}`);
+  }
+}
+
+/**
+ * Resolve one source `requires` name against the package's real metadata. The
+ * record kind is exactly "dependency" or "peer", `optional` comes from
+ * `optionalDependencies` or `peerDependenciesMeta`, and the range is copied
+ * from package.json — never duplicated in the source descriptor.
+ */
+export function resolveEntrypointRequirement(name, key, pkg) {
+  if (name === pkg?.name) {
+    throw new Error(
+      `Entrypoint ${JSON.stringify(key)} requires itself ("${name}"); a package cannot ` +
+        `declare its own package as a runtime requirement.`,
+    );
+  }
+  const records = [];
+  if (pkg?.dependencies && pkg.dependencies[name] !== undefined) {
+    records.push({ kind: "dependency", range: pkg.dependencies[name], optional: false });
+  }
+  if (pkg?.optionalDependencies && pkg.optionalDependencies[name] !== undefined) {
+    records.push({ kind: "dependency", range: pkg.optionalDependencies[name], optional: true });
+  }
+  if (pkg?.peerDependencies && pkg.peerDependencies[name] !== undefined) {
+    records.push({
+      kind: "peer",
+      range: pkg.peerDependencies[name],
+      optional: pkg.peerDependenciesMeta?.[name]?.optional === true,
+    });
+  }
+  const label = `Entrypoint ${JSON.stringify(key)} requires ${JSON.stringify(name)}`;
+  if (records.length === 0) {
+    throw new Error(
+      `${label}, which is not declared in package.json dependencies, optionalDependencies, ` +
+        `or peerDependencies; ranges are never duplicated in ${DESIGN_SYSTEM_SOURCE_FILENAME}.`,
+    );
+  }
+  if (records.length > 1) {
+    throw new Error(
+      `${label} more than once in package.json dependencies/optionalDependencies/` +
+        `peerDependencies; declare it in exactly one place.`,
+    );
+  }
+  const [{ kind, range, optional }] = records;
+  if (typeof range !== "string" || range.trim().length === 0) {
+    throw new Error(`${label} has an empty range in package.json.`);
+  }
+  return { name, kind, range: range.trim(), optional };
+}
+
+function resolveEntrypointRequirements(requires, key, pkg) {
+  return requires.map((name) => resolveEntrypointRequirement(name, key, pkg));
+}
+
+/**
+ * Copy and semantically validate a source descriptor's entrypoint/extension
+ * catalog against the package on disk: declared code entrypoints must exist in
+ * package.json exports (and every additional code export must be declared),
+ * contained source modules must export the declared runtime names, extensions
+ * must be non-canonical named exports of their entrypoint, and docs/example
+ * paths must be real contained files. No build is required and no package code
+ * is ever evaluated.
+ *
+ * @returns {{ entrypoints: object, extensions: object, exportsByEntrypoint: Map<string, Set<string>>, requirementsByEntrypoint: Map<string, object[]> }}
+ */
+export function analyzeDesignSystemCatalog({ packageDir, descriptor }) {
+  const entrypoints = descriptor.entrypoints ?? {};
+  const extensions = descriptor.extensions ?? {};
+  const declaredKeys = Object.keys(entrypoints);
+  const pkg = readCatalogPackageJson(packageDir);
+  const exportsField = isPlainObject(pkg?.exports) ? pkg.exports : null;
+  const exportsByEntrypoint = new Map();
+  const requirementsByEntrypoint = new Map();
+
+  if (exportsField) {
+    for (const [key, target] of Object.entries(exportsField)) {
+      if (classifyExportTarget(target) === "asset") continue;
+      if (key === "." || key === "./tokens") continue;
+      if (!declaredKeys.includes(key)) {
+        throw new Error(
+          `package.json exports[${JSON.stringify(key)}] is an additional public code entrypoint; ` +
+            `declare it in ${DESIGN_SYSTEM_SOURCE_FILENAME} "entrypoints" (only "." and ` +
+            `"./tokens" may stay implicit).`,
+        );
+      }
+    }
+  }
+  if (declaredKeys.length > 0 && !exportsField) {
+    throw new Error(
+      `package.json is missing the "exports" map required by the declared source entrypoints.`,
+    );
+  }
+
+  for (const key of declaredKeys) {
+    const entry = entrypoints[key];
+    if (exportsField) {
+      if (!(key in exportsField)) {
+        throw new Error(
+          `Declared entrypoint ${JSON.stringify(key)} is missing from package.json exports.`,
+        );
+      }
+      if (classifyExportTarget(exportsField[key]) === "asset") {
+        throw new Error(
+          `Declared entrypoint ${JSON.stringify(key)} resolves to a CSS/JSON asset export; ` +
+            `only code entrypoints can be declared.`,
+        );
+      }
+    }
+    const sourceFile = resolveContainedFile(
+      packageDir,
+      entry.source,
+      `Entrypoint ${JSON.stringify(key)} source`,
+    );
+    const names = collectRuntimeExportNames(sourceFile, packageDir);
+    if (names.size === 0) {
+      throw new Error(
+        `Declared entrypoint ${JSON.stringify(key)} source ${entry.source} has no runtime ` +
+          `named exports; empty subpath modules are never generated or declared.`,
+      );
+    }
+    exportsByEntrypoint.set(key, names);
+    if (pkg) {
+      requirementsByEntrypoint.set(key, resolveEntrypointRequirements(entry.requires, key, pkg));
+    }
+  }
+
+  for (const [name, extension] of Object.entries(extensions)) {
+    if (RESERVED_EXTENSION_NAMES.includes(name)) {
+      throw new Error(
+        `Extension ${JSON.stringify(name)} is reserved by the runtime design-system identity.`,
+      );
+    }
+    if (extension.entrypoint === "./tokens") {
+      throw new Error(
+        `Extension ${JSON.stringify(name)} must not use the server-only token entrypoint.`,
+      );
+    }
+    if (!(extension.entrypoint in entrypoints)) {
+      throw new Error(
+        `Extension ${JSON.stringify(name)} entrypoint ${JSON.stringify(
+          extension.entrypoint,
+        )} is not declared in ${DESIGN_SYSTEM_SOURCE_FILENAME} "entrypoints".`,
+      );
+    }
+    const names = exportsByEntrypoint.get(extension.entrypoint);
+    if (names && !names.has(name)) {
+      throw new Error(
+        `Extension ${JSON.stringify(name)} is not a runtime named export of entrypoint ` +
+          `${JSON.stringify(extension.entrypoint)} (${entrypoints[extension.entrypoint].source}); ` +
+          `declared extensions must match the actual public exports.`,
+      );
+    }
+    resolveContainedFile(packageDir, extension.docs, `Extension ${JSON.stringify(name)} docs`);
+    resolveContainedFile(
+      packageDir,
+      extension.example,
+      `Extension ${JSON.stringify(name)} example`,
+    );
+  }
+
+  return { entrypoints, extensions, exportsByEntrypoint, requirementsByEntrypoint };
+}
+
+/**
+ * Deterministic publicApi order for statically-collected export names:
+ * canonical components first in canonical order, then every other name
+ * alphabetically. Independent of module statement order.
+ */
+export function orderPublicApiNames(names) {
+  const remaining = new Set(names);
+  const ordered = [];
+  for (const name of COMPONENT_NAMES) {
+    if (remaining.delete(name)) ordered.push(name);
+  }
+  return [...ordered, ...[...remaining].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))];
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1247,7 +2070,8 @@ export function readSourceDescriptor(packageDir) {
     throw new Error(`${DESIGN_SYSTEM_SOURCE_FILENAME} must be a JSON object.`);
   }
   const descriptor = parseSourceDescriptor(raw);
-  return { ...descriptor, tokens: readTokensSource(packageDir) };
+  const catalog = analyzeDesignSystemCatalog({ packageDir, descriptor });
+  return { ...descriptor, tokens: readTokensSource(packageDir), catalog };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1762,7 +2586,66 @@ export function buildManifest({ id, packageDir }) {
   }
 
   const implementedOptional = OPTIONAL_COMPONENTS.filter((name) => name in source.components);
-  return {
+  const catalog = source.catalog;
+  const declaredKeys = Object.keys(catalog.entrypoints);
+  const entrypointKeys = [
+    ".",
+    "./tokens",
+    ...declaredKeys.filter((key) => key !== "." && key !== "./tokens"),
+  ];
+
+  const publicApi = {};
+  for (const key of entrypointKeys) {
+    const declared = catalog.entrypoints[key];
+    if (key === "." && !declared) {
+      publicApi[key] = [
+        ...REQUIRED_COMPONENTS,
+        ...implementedOptional,
+        "DesignSystem",
+        tokensExport,
+      ];
+      continue;
+    }
+    if (key === "./tokens" && !declared) {
+      publicApi[key] = [tokensExport];
+      continue;
+    }
+    const names = catalog.exportsByEntrypoint.get(key);
+    const ordered = orderPublicApiNames(names ?? []);
+    if (ordered.length === 0) {
+      throw new Error(
+        `Declared entrypoint ${JSON.stringify(key)} source ${declared.source} has no runtime ` +
+          `named exports; empty subpath modules are never published.`,
+      );
+    }
+    publicApi[key] = ordered;
+  }
+
+  const entrypoints = {};
+  for (const key of entrypointKeys) {
+    entrypoints[key] = {
+      requirements: catalog.requirementsByEntrypoint.get(key) ?? [],
+    };
+  }
+
+  const extensions = {};
+  for (const [name, extension] of Object.entries(catalog.extensions)) {
+    if (name === tokensExport) {
+      throw new Error(
+        `Extension ${JSON.stringify(name)} collides with the package token export ` +
+          `${JSON.stringify(tokensExport)}.`,
+      );
+    }
+    if (!publicApi[extension.entrypoint]?.includes(name)) {
+      throw new Error(
+        `Extension ${JSON.stringify(name)} is not part of the generated public API of ` +
+          `entrypoint ${JSON.stringify(extension.entrypoint)}.`,
+      );
+    }
+    extensions[name] = extension;
+  }
+
+  const manifest = {
     $schema: MANIFEST_SCHEMA_URL,
     schemaVersion: DESIGN_SYSTEM_MANIFEST_SCHEMA_VERSION,
     generated: GENERATED_MARKER,
@@ -1772,10 +2655,8 @@ export function buildManifest({ id, packageDir }) {
     package: toPackageName(resolvedId),
     version,
     exports: pkg.exports,
-    publicApi: {
-      ".": [...REQUIRED_COMPONENTS, ...implementedOptional, "DesignSystem", tokensExport],
-      "./tokens": [tokensExport],
-    },
+    publicApi,
+    entrypoints,
     components: source.components,
     capabilities: { categories: buildCapabilityCategories() },
     design: source.design,
@@ -1783,6 +2664,8 @@ export function buildManifest({ id, packageDir }) {
     tokens: buildTokenManifest(source.tokens, uiClass),
     docs: { readme: "./README.md", agents: "./AGENTS.md", ...(source.docs ?? {}) },
   };
+  if (Object.keys(extensions).length > 0) manifest.extensions = extensions;
+  return manifest;
 }
 
 function canonicalize(value) {

@@ -1,0 +1,60 @@
+{
+  "name": "@prism-system/ui-valid-custom",
+  "version": "0.0.0",
+  "description": "V4 custom catalog validation fixture package.",
+  "private": true,
+  "prismSystem": {
+    "name": "V4 Custom",
+    "contractVersion": 4,
+    "uiClass": "maivand-valid-custom-ui",
+    "tokensExport": "v4CustomTokens"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./styles.css": "./dist/index.css",
+    "./tailwind.css": "./dist/tailwind.css",
+    "./tokens": {
+      "types": "./dist/tokens/index.d.ts",
+      "import": "./dist/tokens/index.mjs",
+      "require": "./dist/tokens/index.js"
+    },
+    "./custom/reveal": {
+      "types": "./dist/custom/reveal/index.d.ts",
+      "import": "./dist/custom/reveal/index.mjs",
+      "require": "./dist/custom/reveal/index.js"
+    },
+    "./custom/keyboard-scene": {
+      "types": "./dist/custom/keyboard-scene/index.d.ts",
+      "import": "./dist/custom/keyboard-scene/index.mjs",
+      "require": "./dist/custom/keyboard-scene/index.js"
+    },
+    "./manifest": "./design-system.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "AGENTS.md",
+    "design-system.json",
+    "design-brief.json",
+    "LICENSE",
+    "docs",
+    "examples"
+  ],
+  "dependencies": {
+    "@prism-system/ui-core": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
+    "three": ">=0.160.0"
+  },
+  "peerDependenciesMeta": {
+    "three": {
+      "optional": true
+    }
+  }
+}

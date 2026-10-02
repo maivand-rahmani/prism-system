@@ -12,6 +12,7 @@
  */
 
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -26,6 +27,7 @@ import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import * as manifestTooling from "./design-system-manifest.mjs";
 import {
   CONTRACT_VERSION,
   buildEntry,
@@ -33,6 +35,7 @@ import {
   readSourceContractVersion,
   registerDesignSystem,
 } from "./register-design-system.mjs";
+import { EXTENSION_LOADERS_FILENAME } from "./sync-design-system-apps.mjs";
 import { RUNTIME_TARGET } from "./sync-design-system-versions.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -202,15 +205,17 @@ test("readSourceContractVersion accepts only the numeric contractVersion 4", () 
   const root = mkdtempSync(join(tmpdir(), "prism-source-"));
   try {
     const sourcePath = join(root, "design-system.source.json");
-    writeFileSync(sourcePath, JSON.stringify({ schemaVersion: 3, contractVersion: 4 }), "utf8");
+    writeFileSync(sourcePath, JSON.stringify({ schemaVersion: 4, contractVersion: 4 }), "utf8");
     assert.equal(readSourceContractVersion(root), 4);
-    writeFileSync(sourcePath, JSON.stringify({ schemaVersion: 3, contractVersion: "4" }), "utf8");
+    writeFileSync(sourcePath, JSON.stringify({ schemaVersion: 4, contractVersion: "4" }), "utf8");
     assert.throws(
       () => readSourceContractVersion(root),
       /must declare the numeric contractVersion 4/,
     );
+    writeFileSync(sourcePath, JSON.stringify({ schemaVersion: 3, contractVersion: 4 }), "utf8");
+    assert.throws(() => readSourceContractVersion(root), /must declare schemaVersion 4/);
     writeFileSync(sourcePath, JSON.stringify({ schemaVersion: 2, contractVersion: 4 }), "utf8");
-    assert.throws(() => readSourceContractVersion(root), /must declare schemaVersion 3/);
+    assert.throws(() => readSourceContractVersion(root), /must declare schemaVersion 4/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -257,6 +262,233 @@ test("an invalid token source is rejected and mutates no registry or app bytes",
     );
 
     assert.deepEqual(snapshotFiles(root), before);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("registration rejects a descriptor whose declared entrypoint has no package exports map", async () => {
+  const root = mkdtempSync(join(tmpdir(), "prism-register-"));
+  try {
+    makePackage(root, {
+      id: "pulse",
+      source: readJson(fixturePath("valid-custom", "design-system.source.json")),
+    });
+    seedManifestAndApps(root);
+    const before = snapshotFiles(root);
+
+    await assert.rejects(
+      registerDesignSystem({ id: "pulse", root }),
+      /Cannot register "pulse": invalid source in .*package\.json is missing the "exports" map required by the declared source entrypoints/,
+    );
+
+    assert.deepEqual(snapshotFiles(root), before);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+/* -------------------------------------------------------------------------- */
+/* CLI subprocess regression: real declared extensions                        */
+/* -------------------------------------------------------------------------- */
+
+const EXTENSION_FIXTURE_ID = "cli-extension-fixture";
+const EXTENSION_FIXTURE_NAME = "KeyboardScene";
+const EXTENSION_ENTRYPOINT = "./keyboard-scene";
+
+/**
+ * A real declared-extension package under a temporary root, mirroring the app
+ * sync fixture: both app targets, a config directory, and a schema-current
+ * source descriptor (all required components plus one validated extension)
+ * whose contained source, docs, and example files really exist.
+ */
+function createExtensionCliRoot(root, { dropEntrypointExport = false } = {}) {
+  mkdirSync(join(root, "config"), { recursive: true });
+  writeFileSync(
+    join(root, "config", "design-systems.json"),
+    `${JSON.stringify({ version: 3, designSystems: [] }, null, 2)}\n`,
+    "utf8",
+  );
+  for (const app of ["showcase", "reference-app"]) {
+    mkdirSync(join(root, "apps", app, "app"), { recursive: true });
+  }
+
+  const packageDir = join(root, "packages", EXTENSION_FIXTURE_ID);
+  mkdirSync(join(packageDir, "src", "keyboard-scene"), { recursive: true });
+  mkdirSync(join(packageDir, "docs"), { recursive: true });
+  mkdirSync(join(packageDir, "examples"), { recursive: true });
+  writeFileSync(
+    join(packageDir, "src", "keyboard-scene", "index.ts"),
+    `export function ${EXTENSION_FIXTURE_NAME}() {\n  return null;\n}\n`,
+    "utf8",
+  );
+  writeFileSync(join(packageDir, "docs", "keyboard-scene.md"), "# KeyboardScene\n", "utf8");
+  writeFileSync(join(packageDir, "examples", "keyboard-scene.tsx"), "export {};\n", "utf8");
+
+  writeFileSync(
+    join(packageDir, "package.json"),
+    `${JSON.stringify(
+      {
+        name: `@prism-system/ui-${EXTENSION_FIXTURE_ID}`,
+        version: "0.1.0",
+        prismSystem: {
+          name: "CLI Extension Fixture",
+          uiClass: "maivand-cli-extension-fixture-ui",
+          tokensExport: "cliExtensionFixtureTokens",
+        },
+        exports: {
+          ".": { types: "./dist/index.d.ts", import: "./dist/index.mjs" },
+          "./styles.css": "./dist/index.css",
+          "./manifest": "./design-system.json",
+          ...(dropEntrypointExport
+            ? {}
+            : {
+                [EXTENSION_ENTRYPOINT]: {
+                  types: "./dist/keyboard-scene/index.d.ts",
+                  import: "./dist/keyboard-scene/index.mjs",
+                },
+              }),
+        },
+        peerDependencies: { three: ">=0.186.0 <1" },
+        peerDependenciesMeta: { three: { optional: true } },
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+
+  const components = {};
+  for (const name of manifestTooling.REQUIRED_COMPONENTS) {
+    components[name] = { variants: [], sizes: [], members: [] };
+  }
+  writeFileSync(
+    join(packageDir, "design-system.source.json"),
+    `${JSON.stringify(
+      {
+        schemaVersion: manifestTooling.DESIGN_SYSTEM_SCHEMA_VERSION,
+        contractVersion: 4,
+        name: "CLI Extension Fixture",
+        components,
+        design: { density: "comfortable", theme: "light-first", radius: "small", keywords: [] },
+        rules: {
+          allowArbitraryColors: false,
+          allowArbitraryRadius: false,
+          allowArbitraryShadows: false,
+          allowPrimitiveDuplication: false,
+        },
+        entrypoints: {
+          [EXTENSION_ENTRYPOINT]: {
+            source: "./src/keyboard-scene/index.ts",
+            requires: ["three"],
+          },
+        },
+        extensions: {
+          [EXTENSION_FIXTURE_NAME]: {
+            apiVersion: 1,
+            entrypoint: EXTENSION_ENTRYPOINT,
+            description: "Keyboard scene extension",
+            docs: "./docs/keyboard-scene.md",
+            example: "./examples/keyboard-scene.tsx",
+            effects: {
+              features: ["3d", "motion"],
+              rendering: "webgl",
+              reducedMotion: true,
+              fallback: "static",
+            },
+          },
+        },
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+  writeFileSync(
+    join(packageDir, "tokens.source.json"),
+    readFileSync(fixturePath("valid", "tokens.source.json"), "utf8"),
+    "utf8",
+  );
+  return root;
+}
+
+/** Run the real register CLI against `root` with a finite deadlock timeout. */
+function runRegisterCli(root, id = EXTENSION_FIXTURE_ID) {
+  return spawnSync(
+    process.execPath,
+    [
+      join(repoRoot, "scripts", "register-design-system.mjs"),
+      id,
+      "--root",
+      root,
+      "--manifest",
+      join(root, "config", "design-systems.json"),
+    ],
+    { cwd: repoRoot, encoding: "utf8", timeout: 30_000 },
+  );
+}
+
+test("the register CLI completes with real declared extensions instead of deadlocking", () => {
+  const root = mkdtempSync(join(tmpdir(), "prism-register-cli-"));
+  try {
+    createExtensionCliRoot(root);
+    const first = runRegisterCli(root);
+    assert.equal(first.error, undefined, first.error?.message);
+    assert.equal(first.status, 0, `first run stderr: ${first.stderr}`);
+    assert.match(first.stdout, /as added/);
+    assert.doesNotMatch(
+      `${first.stdout}${first.stderr}`,
+      /unsettled top-level await|Detected unsettled/i,
+    );
+
+    const registry = JSON.parse(readFileSync(join(root, "config", "design-systems.json"), "utf8"));
+    assert.deepEqual(
+      registry.designSystems.map((system) => system.id),
+      [EXTENSION_FIXTURE_ID],
+    );
+
+    const loaderPath = join(root, "apps", "showcase", "app", EXTENSION_LOADERS_FILENAME);
+    const loader = readFileSync(loaderPath, "utf8");
+    assert.match(loader, /KeyboardScene: \(\) =>/);
+    assert.ok(
+      loader.includes(`import("@prism-system/ui-${EXTENSION_FIXTURE_ID}/keyboard-scene")`),
+      "the declared extension becomes one literal lazy import",
+    );
+    assert.ok(
+      !existsSync(join(root, "apps", "reference-app", "app", EXTENSION_LOADERS_FILENAME)),
+      "the Reference App never receives an extension loader",
+    );
+
+    const second = runRegisterCli(root);
+    assert.equal(second.error, undefined, second.error?.message);
+    assert.equal(second.status, 0, `second run stderr: ${second.stderr}`);
+    assert.match(second.stdout, /as unchanged/);
+    assert.doesNotMatch(
+      `${second.stdout}${second.stderr}`,
+      /unsettled top-level await|Detected unsettled/i,
+    );
+    assert.equal(readFileSync(loaderPath, "utf8"), loader, "the second run is idempotent");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("the register CLI reports invalid and missing packages with status 1", () => {
+  const root = mkdtempSync(join(tmpdir(), "prism-register-cli-"));
+  try {
+    createExtensionCliRoot(root, { dropEntrypointExport: true });
+
+    const invalid = runRegisterCli(root);
+    assert.equal(invalid.error, undefined, invalid.error?.message);
+    assert.equal(invalid.status, 1);
+    assert.match(invalid.stderr, /Cannot register/);
+    assert.match(invalid.stderr, /exports|entrypoint/i);
+
+    const missing = runRegisterCli(root, "missing-system");
+    assert.equal(missing.error, undefined, missing.error?.message);
+    assert.equal(missing.status, 1);
+    assert.match(missing.stderr, /Cannot register "missing-system"/);
+    assert.match(missing.stderr, /package directory not found/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

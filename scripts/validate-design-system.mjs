@@ -29,6 +29,7 @@ import {
   MANIFEST_RELATIVE_PATH,
   PACKAGE_DIRECTORY,
   assertSystemId,
+  assertWithin,
   readJsonFile,
   readManifest,
   readPackageMetadata,
@@ -46,6 +47,7 @@ import {
   MANIFEST_EXPORT_TARGET,
   TOKENS_SOURCE_FILENAME,
   checkDesignSystemManifest,
+  collectRuntimeExportNames,
   missingRequiredPackageFiles,
   readDesignSystemManifest,
   readSourceDescriptor,
@@ -940,6 +942,88 @@ function validateGeneratedManifest(context, fail) {
   }
 }
 
+/**
+ * Static built-artifact verification for declared code entrypoints. When a
+ * build is present, each entrypoint's built JS and DTS files must expose
+ * exactly the runtime names its source module statically exports. When no
+ * artifact exists yet, the source check already ran during manifest validation
+ * and the packed harness owns built tarball artifacts. Package code is never
+ * imported or executed to inspect extensions.
+ */
+function validateEntrypointArtifacts(context, fail) {
+  if (!context.packageDir || !context.pkg || !context.descriptor?.catalog) return;
+  const catalog = context.descriptor.catalog;
+  const keys = Object.keys(catalog.entrypoints).filter((key) => key !== "./tokens");
+  for (const key of keys) {
+    const expected = catalog.exportsByEntrypoint.get(key);
+    if (!expected || expected.size === 0) continue;
+    const target = context.pkg.exports?.[key];
+    if (!isPlainObject(target) || typeof target.types !== "string") {
+      fail(
+        `Entrypoint ${JSON.stringify(key)} must expose a conditional export with a "types" ` +
+          `target for built JS/DTS verification.`,
+      );
+      continue;
+    }
+    const runtimeFields = ["import", "require"].filter(
+      (field) => typeof target[field] === "string",
+    );
+    if (runtimeFields.length === 0) {
+      fail(
+        `Entrypoint ${JSON.stringify(key)} must expose an "import" or "require" runtime target.`,
+      );
+      continue;
+    }
+    const artifacts = [
+      { field: "types", path: target.types },
+      ...runtimeFields.map((field) => ({ field, path: target[field] })),
+    ].map((artifact) => {
+      let absolute;
+      try {
+        absolute = assertWithin(
+          context.packageDir,
+          resolve(context.packageDir, artifact.path),
+          `Entrypoint ${JSON.stringify(key)} ${artifact.field} target`,
+        );
+      } catch (error) {
+        fail(error.message);
+        return { ...artifact, absolute: null };
+      }
+      return { ...artifact, absolute };
+    });
+    if (artifacts.some((artifact) => artifact.absolute === null)) continue;
+    const existing = artifacts.filter((artifact) => existsSync(artifact.absolute));
+    if (existing.length === 0) continue; // Not built yet.
+    if (existing.length !== artifacts.length) {
+      const missing = artifacts.filter((artifact) => !existsSync(artifact.absolute));
+      fail(
+        `Entrypoint ${JSON.stringify(key)} artifacts are incomplete; missing: ` +
+          `${missing.map((artifact) => artifact.path).join(", ")}.`,
+      );
+      continue;
+    }
+    for (const artifact of artifacts) {
+      let names;
+      try {
+        names = collectRuntimeExportNames(artifact.absolute, context.packageDir);
+      } catch (error) {
+        fail(`Entrypoint ${JSON.stringify(key)} artifact ${artifact.path}: ${error.message}`);
+        continue;
+      }
+      const missing = [...expected].filter((name) => !names.has(name));
+      const extra = [...names].filter((name) => !expected.has(name));
+      if (missing.length > 0 || extra.length > 0) {
+        fail(
+          `Entrypoint ${JSON.stringify(key)} artifact ${artifact.path} does not match the ` +
+            `declared source exports.${missing.length > 0 ? ` Missing: ${missing.join(", ")}.` : ""}${
+              extra.length > 0 ? ` Extra: ${extra.join(", ")}.` : ""
+            }`,
+        );
+      }
+    }
+  }
+}
+
 /** Enforce version equality across package, manifest, and runtime. */
 function validateVersionConsistency(context, fail) {
   if (!context.pkg) return;
@@ -1362,6 +1446,7 @@ export function validateDesignSystem(options = {}) {
   check("package files field", () => validatePackageFilesField(context, fail));
   check("contract metadata", () => validateContractMetadata(context, fail));
   check("generated manifest", () => validateGeneratedManifest(context, fail));
+  check("entrypoint artifacts", () => validateEntrypointArtifacts(context, fail));
   check("version consistency", () => validateVersionConsistency(context, fail));
   check("component folders", () => validateComponentFolders(context, fail));
   check("component barrel exports", () => validateComponentBarrel(context, fail));

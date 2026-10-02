@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/maivand-rahmani/prism-system/schemas/design-system.source.schema.json",
   "title": "Design System Source Descriptor",
-  "description": "The explicit, package-owned API descriptor at packages/<id>/design-system.source.json (schemaVersion 3, contractVersion 4). It declares the 29 required components and only the optional components the system actually implements. Omitting an optional component means it is unavailable; there are no boolean false entries and no second capability list. Visual values are not stored here: semantic tokens live in the separate packages/<id>/tokens.source.json. It is a repository-only input and is not shipped in the tarball. scripts/design-system-manifest.mjs validates it and emits the shipped design-system.json.",
+  "description": "The explicit, package-owned API descriptor at packages/<id>/design-system.source.json (schemaVersion 4, contractVersion 4). It declares the 29 required components and only the optional components the system actually implements. Omitting an optional component means it is unavailable; there are no boolean false entries and no second capability list. Component entries may carry an optional `effects` declaration; missing effects means undeclared and is never inferred. The optional `entrypoints` map declares additional public code entrypoints (their contained source module and explicit required package names, never dependency ranges), and the optional nonempty `extensions` map declares PascalCase custom named exports with docs/example references, an apiVersion, and an optional effects declaration. A neutral system omits both sections. Visual values are not stored here: semantic tokens live in the separate packages/<id>/tokens.source.json. It is a repository-only input and is not shipped in the tarball. scripts/design-system-manifest.mjs validates it and emits the shipped design-system.json manifest (schemaVersion 5).",
   "type": "object",
   "required": ["schemaVersion", "contractVersion", "name", "components", "design", "rules"],
   "additionalProperties": false,
@@ -12,7 +12,7 @@
       "description": "Reference to this schema."
     },
     "schemaVersion": {
-      "const": 3,
+      "const": 4,
       "description": "Source-descriptor schema version."
     },
     "contractVersion": {
@@ -109,6 +109,22 @@
         "EmptyState": { "$ref": "#/$defs/component" }
       }
     },
+    "entrypoints": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "Optional declaration of additional public code entrypoints, keyed \".\" or a concrete lower-kebab \"./subpath\". Only code entries may be declared: CSS, manifest, and package.json asset exports are never entrypoints. Every declared key must exist in package.json exports, and every additional code export in package.json must be declared here. A neutral system omits this section.",
+      "propertyNames": {
+        "pattern": "^(?:\\.|\\./(?:[a-z0-9][a-z0-9-]*)(?:/[a-z0-9][a-z0-9-]*)*)$"
+      },
+      "additionalProperties": { "$ref": "#/$defs/entrypoint" }
+    },
+    "extensions": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "Optional nonempty map of custom named exports (never canonical component names) keyed by the PascalCase runtime named export. Requirements are not repeated here; they belong to the referenced entrypoint. A neutral system omits this section.",
+      "propertyNames": { "pattern": "^[A-Z][A-Za-z0-9]*$" },
+      "additionalProperties": { "$ref": "#/$defs/extension" }
+    },
     "design": {
       "type": "object",
       "required": ["density", "theme", "radius", "keywords"],
@@ -156,6 +172,103 @@
     }
   },
   "$defs": {
+    "effects": {
+      "type": "object",
+      "description": "Explicit visual-effects declaration. Missing means undeclared. `fallback` is only meaningful for webgl/mixed rendering, and a `3d` feature requires webgl or mixed rendering (CSS depth is not WebGL).",
+      "required": ["features", "rendering", "reducedMotion"],
+      "additionalProperties": false,
+      "properties": {
+        "features": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["depth", "motion", "3d"] },
+          "description": "Nonempty unique subset of the closed effect-feature set."
+        },
+        "rendering": {
+          "enum": ["dom", "webgl", "mixed"],
+          "description": "DOM/CSS rendering, real WebGL rendering, or a mixed DOM+WebGL component."
+        },
+        "reducedMotion": {
+          "type": "boolean",
+          "description": "Whether the component implements a tested reduced-motion behavior."
+        },
+        "fallback": {
+          "enum": ["static", "none"],
+          "description": "Graphics fallback behavior; only valid for webgl/mixed rendering."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "rendering": { "const": "dom" } },
+            "required": ["rendering"]
+          },
+          "then": { "not": { "required": ["fallback"] } }
+        },
+        {
+          "if": {
+            "properties": { "features": { "contains": { "const": "3d" } } },
+            "required": ["features"]
+          },
+          "then": {
+            "properties": { "rendering": { "enum": ["webgl", "mixed"] } }
+          }
+        }
+      ]
+    },
+    "entrypoint": {
+      "type": "object",
+      "description": "One declared public code entrypoint. `source` is a contained TypeScript module statically inspected for its runtime exports; `requires` lists explicit package names whose ranges are resolved from package.json (dependency/peer), never duplicated here.",
+      "required": ["source", "requires"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string",
+          "pattern": "^\\./[A-Za-z0-9._/-]+\\.tsx?$",
+          "description": "Package-relative contained source entry module (.ts or .tsx)."
+        },
+        "requires": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^(?:@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*$"
+          },
+          "description": "Explicit package names this entrypoint requires, resolved against package.json dependencies/optionalDependencies/peerDependencies. An empty list means no additional declared prerequisites."
+        }
+      }
+    },
+    "extension": {
+      "type": "object",
+      "description": "One custom extension: a PascalCase runtime named export of a declared code entrypoint, with real packaged docs/example references and an apiVersion. Extensions never reuse canonical component names and never repeat dependency requirements.",
+      "required": ["apiVersion", "entrypoint", "description", "docs", "example"],
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Positive extension API version owned by this design system."
+        },
+        "entrypoint": {
+          "type": "string",
+          "pattern": "^(?:\\.|\\./(?:[a-z0-9][a-z0-9-]*)(?:/[a-z0-9][a-z0-9-]*)*)$",
+          "description": "A declared code entrypoint key (never \"./tokens\") that exports the extension at runtime."
+        },
+        "description": { "type": "string", "minLength": 1 },
+        "docs": {
+          "type": "string",
+          "pattern": "^\\./.+",
+          "description": "Package-relative documentation file containing runnable snippets."
+        },
+        "example": {
+          "type": "string",
+          "pattern": "^\\./.+",
+          "description": "Package-relative example file with a real usage scenario."
+        },
+        "effects": { "$ref": "#/$defs/effects" }
+      }
+    },
     "component": {
       "type": "object",
       "required": ["variants", "sizes", "members"],
@@ -176,6 +289,7 @@
           "items": { "type": "string", "minLength": 1 },
           "uniqueItems": true
         },
+        "effects": { "$ref": "#/$defs/effects" },
         "description": { "type": "string", "minLength": 1 },
         "docs": { "type": "string", "minLength": 1 },
         "example": { "type": "string", "minLength": 1 }

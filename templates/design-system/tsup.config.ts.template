@@ -13,6 +13,26 @@ import { defineConfig } from "tsup";
  * separately, without the banner. `dist/` is cleaned once by the build script:
  * a per-config `clean` would delete the other config's declaration files,
  * because the two configs build in parallel.
+ *
+ * Bounded additional entrypoints: declare an extra config object only when the
+ * real source module exists; never create empty motion/custom placeholder
+ * modules. tsup externalizes package.json dependencies and peerDependencies by
+ * default, so an optional peer used only by one entrypoint never enters the
+ * root or `./tokens` JS/DTS. For example, a shipped
+ * `src/custom/keyboard-scene/index.ts` entry means:
+ *
+ *   {
+ *     entry: { "custom/keyboard-scene": "src/custom/keyboard-scene/index.ts" },
+ *     format: ["esm", "cjs"],
+ *     dts: true,
+ *     clean: false,
+ *     banner: { js: '"use client";' },
+ *   },
+ *
+ * added to this array together with the matching `package.json` exports entry
+ * and the `design-system.source.json` `entrypoints` declaration. Client
+ * entrypoints keep the banner; server-safe data subpaths build without it. The
+ * root entry and `./tokens` remain the only unconditional entries.
  */
 export default defineConfig([
   {

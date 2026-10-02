@@ -44,9 +44,13 @@ import {
 // The canonical source validation path. Registration invokes
 // `readSourceDescriptor` so a package whose component map or token source is
 // invalid can never be recorded in the registry or projected into the apps.
-// This import is intentionally static: the two modules form a benign ESM cycle
+// Both imports are intentionally static: the two modules form an ESM cycle
 // (the manifest tooling imports shared registry constants), and no imported
-// binding is read during either module's top-level evaluation.
+// binding is read during either module's top-level evaluation. The namespace
+// import is passed to `planAppIntegration` as its catalog so the CLI's
+// top-level `main()` never dynamically imports a module inside its own pending
+// evaluation cycle, which would leave the await unsettled forever.
+import * as designSystemManifest from "./design-system-manifest.mjs";
 import { DESIGN_SYSTEM_SCHEMA_VERSION, readSourceDescriptor } from "./design-system-manifest.mjs";
 
 /** Lower-kebab-case system id, e.g. `pulse`, `fancy-tech`. */
@@ -467,10 +471,13 @@ function assertCompletePrismSystem(prismSystem, packageJsonPath) {
  * Validate a package's source descriptor and semantic token source through the
  * canonical manifest validation path.
  *
- * Registration must never record or app-integrate a package whose component map
- * or token source is invalid, so this runs the same strict validation the
- * generated manifest uses (`readSourceDescriptor` -> `parseSourceDescriptor` +
- * `readTokensSource`) before any manifest read, plan, apply, or write.
+ * Registration must never record or app-integrate a package whose component map,
+ * token source, or declared entrypoint/extension catalog is invalid, so this
+ * runs the same strict validation the generated manifest uses
+ * (`readSourceDescriptor` -> `parseSourceDescriptor` + catalog analysis +
+ * `readTokensSource`) before any manifest read, plan, apply, or write. The
+ * catalog analysis is static: it requires no build and never executes package
+ * code.
  */
 function assertValidSource(packageDir, id) {
   try {
@@ -643,7 +650,9 @@ export async function registerDesignSystem(options = {}) {
 
   // Plan and apply app integration from the candidate manifest first. Writing
   // the manifest last means a failed manifest write can roll the apps back.
-  const plan = await planAppIntegration({ manifest, root });
+  // The already-evaluated namespace is injected as the catalog so this path
+  // never dynamic-imports a module inside the CLI's pending ESM cycle.
+  const plan = await planAppIntegration({ manifest, root, catalog: designSystemManifest });
   const applied = plan.status === "planned" ? applyAppIntegration(plan) : null;
   try {
     if (changed) writeManifest({ manifestPath, content });
