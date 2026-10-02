@@ -15,9 +15,11 @@
     "@prism-system/ui-core": "workspace:*",
     "@prism-system/ui-system-a": "workspace:*",
     "@prism-system/ui-system-b": "workspace:*",
+    "@react-three/fiber": "9.8.1",
     "next": "15.5.7",
-    "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "three": "0.186.1"
   },
   "devDependencies": {
     "@types/node": "22.18.0",
