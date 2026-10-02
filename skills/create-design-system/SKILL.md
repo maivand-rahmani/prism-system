@@ -53,6 +53,15 @@ Work through these phases in order, skipping any phase the session already answe
    when the user already approved or delegated those decisions.
 6. **Generation and implementation** — once ready, follow the sections below.
 
+During direction and constraints, resolve visual treatment of existing components:
+when unanswered, explicitly ask whether buttons and other relevant controls should be
+flat, have tactile depth, or use expressive animation/effects. Resolve independent
+custom-component requests separately; a dimensional or animated Button remains the
+existing Button contract. For these requests, read
+[visual effects and custom components](../references/visual-effects-and-custom-components.md)
+before choosing dependencies or recording the brief. Skip answered/delegated choices;
+ordinary systems do not need an expanded 3D interview.
+
 Ask one meaningful question per turn, or at most two when they are tightly coupled; never
 dump a multi-question form. When the environment provides a structured question capability,
 use it with 3-5 grounded, mutually distinctive options that each carry practical meaning,
@@ -83,6 +92,14 @@ material conflict may remain unresolved. Keep these three classifications separa
   ones.
 - **Product compositions** — pages, forms, workflows, and domain-specific patterns the
   product will compose from primitives. These are not automatically reusable components.
+
+Use optional `componentTreatments` for effects on existing contract components,
+`motionScenarios` for broader animation intent, and `requestedCustomComponents` for
+independent API requests. Keep requested capabilities distinct from these fields.
+Independent custom components are later declared as descriptor `entrypoints`/`extensions`
+with a real implementation, docs, example, and `apiVersion` — never as canonical contract
+names or `capabilities.categories`. Significant library choices and their
+authorization belong in `decisionNotes`; honor approval/delegation already in the session.
 
 If a material decision is still missing, ask one targeted question and resolve it; do not run
 an infinite interview. If an approved brief or explicit delegation already covers the
@@ -125,12 +142,17 @@ match the approved brief. Generated TypeScript tokens, CSS variables, Tailwind b
 manifest are outputs. The brief's foundations and data density are not transformed into
 tokens or `source.design` automatically; reconcile them manually. Declare real variants,
 examples, compound members, documentation paths, and actual optional implementations in the
-package descriptor (`design-system.source.json`). The descriptor stays `schemaVersion: 3`,
+package descriptor (`design-system.source.json`). The descriptor is `schemaVersion: 4`,
 never declares `capabilities`, and never declares public artifact or CSS paths (those belong
-to `package.json` exports and public entrypoints). The generated `design-system.json` is
-`schemaVersion: 4` and carries the canonical `capabilities.categories` inventory; actual
-support remains the descriptor/runtime component set, and availability is only the presence
-of a key in the manifest `components` map.
+to `package.json` exports and public entrypoints). Declare additional public code
+entrypoints in `entrypoints` (contained source module plus explicit required package
+names) and real custom exports in `extensions` (PascalCase name, `apiVersion`, docs,
+example, optional effects); a neutral system omits both sections. The generated
+`design-system.json` is
+`schemaVersion: 5` and carries the canonical `capabilities.categories` inventory; actual
+support remains the descriptor/runtime component set, availability is only the presence
+of a key in the manifest `components` map, and a custom extension is available only when
+its record exists in `manifest.extensions`.
 
 The required contract is implemented in full even when the requested scenarios are narrow:
 all twenty-nine required components ship. An optional capability counts only when its
@@ -138,6 +160,16 @@ implementation, runtime component map, public export, styles/CSS entry, descript
 generated manifest agree; never create empty stubs. Regenerate generated token artifacts and
 the manifest only with `pnpm ds:manifest <id> --write`; never hand-edit generated files or
 add a `capabilities` block to the descriptor.
+
+Implement depth and motion on an existing component in its existing folder and API.
+Declare the real implemented effect in that component's descriptor `effects` (`features`,
+`rendering`, `reducedMotion`, optional fallback); a missing declaration means undeclared,
+and `3d` requires webgl/mixed rather than CSS depth.
+Use the existing token source; package-local `src/motion/` is optional shared internal
+code, not a reason to create another public component or token catalog. Do not add
+Motion, GSAP, or a 3D renderer to a system that does not need them. Preserve native
+semantics and reduced-motion behavior; genuine WebGL in a standard control also needs
+a deliberate dependency/loading/fallback design.
 
 ## Review and finish
 

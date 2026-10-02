@@ -50,14 +50,14 @@ preferences, offer the options and let the user choose rather than pushing a
 recommendation.
 
 The manifest is the authority for the installed component catalog, variants, sizes,
-compound members, usage rules, token names, and CSS/documentation paths. Check that the
+compound members, declared effects, token names, and CSS/documentation paths. Check that the
 installed package, manifest, and config (when present) versions match exactly. Use documented exports
 only. For whole-page or form composition, read the shipped usage document when the
 installed manifest declares `docs.usage`; its examples must match that installed version.
 Do not infer installed features or substitute examples from repository sources, another
-system, or a newer manifest. Current shipped manifests are `schemaVersion: 4`
-(`contractVersion: 4`); tools that only understand schema 3 cannot read them and must be
-upgraded in lockstep with the package.
+system, or a newer manifest. Current shipped manifests are `schemaVersion: 5`
+(`contractVersion: 4`); tools that only understand schema 4 or older cannot read them and
+must be upgraded in lockstep with the package.
 
 The commands below assume `prism-ds` is already available in the consumer (installed as
 a dev dependency or on `node_modules/.bin`). `@prism-system/tools` is optional tooling,
@@ -71,13 +71,16 @@ of blocking UI work on it.
 ```bash
 npx prism-ds components --cwd <consumer-root>
 npx prism-ds tokens --cwd <consumer-root>
-npx prism-ds check --cwd <consumer-root> [--css <explicit-file>]
+npx prism-ds check --cwd <consumer-root> [--css <explicit-file>] [--entry <path-or-extension>]
 npx prism-ds check-usage --cwd <consumer-root>
 ```
 
 `check` is the primary offline health report and also runs strict usage validation; add
 `--css <explicit-file>` in a Tailwind project to check import order, because the tool
-never guesses which CSS file the product builds. Run standalone `check-usage` only when
+never guesses which CSS file the product builds. Add `--entry <path-or-extension>` when
+the product uses a declared extension or additional entrypoint: it validates that
+selected entry's declared requirements offline (`doctor --entry` reports the same
+prerequisites). Run standalone `check-usage` only when
 usage validation is all you need — do not duplicate a completed `check`.
 
 ## Compose semantically
@@ -107,6 +110,28 @@ patch `node_modules`.
   for product-owned placement and responsive composition. Avoid arbitrary product colors,
   radii, shadows, or overrides of system components. Business logic, data fetching, and
   state ownership stay in the product.
+
+## Use built-in effects and verify custom exports
+
+A dimensional or animated Button is still the installed system's Button. Use its existing
+public import and documented props; its appearance does not require a different component
+name, special token setup, or direct control of a library-owned animation engine. Do not
+invent `variant="3d"` or a `/spatial` import from a visual example. Effects declared in the
+installed manifest (`features`, `rendering`, `reducedMotion`, `fallback`) describe the real
+implementation; they never add props. For effects, motion
+primitives, or an independent custom component, read
+[visual effects and custom components](../references/visual-effects-and-custom-components.md).
+
+Discover custom exports from the exact installed release: `manifest.extensions` declares a
+custom export only when its entrypoint, docs, example, `apiVersion`, and public API are
+real, and `prism-ds components [name]` lists it with its requirements and effects. Import
+it only from its declared entrypoint. Install only its needed dependencies within existing
+task authorization; a catalog read or `doctor` never installs them. A custom entry's
+declared requirements are prerequisites of that entry, not of the standard root: verify
+them offline with `prism-ds check --entry <name-or-path>` (or `doctor --entry`) before
+use, and prefer the entry's documented loading, fallback, reduced-motion, and
+client-boundary behavior over guessed props. A proposed architecture document is not
+proof of installed support: trust only the installed manifest and shipped docs.
 
 ## Framework and setup paths
 

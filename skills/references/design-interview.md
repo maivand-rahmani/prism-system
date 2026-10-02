@@ -47,6 +47,30 @@ and never ask for information the repository or the user's message already provi
 Do not collect exact token values, hex codes, spacing numbers, or component API details.
 Those are implementation decisions; the interview settles intent.
 
+**Existing component effects and independent components**
+
+Use these only for unresolved choices; read
+[visual effects and custom components](visual-effects-and-custom-components.md) when
+classifying the result. Ask one at a time in the user's language:
+
+- "Should buttons feel flat, have tactile depth when pressed, or have more pronounced
+  animated effects?" — ground the options in the confirmed visual direction. These
+  are treatments of the existing Button, not requests for another contract.
+- "Where should movement matter most: feedback on actions, transitions between states,
+  or a larger sequence tied to scrolling?" — this defines the scenario before the engine.
+- "Does the product need a separate interactive object or scene, such as a keyboard
+  preview?" — ask when a real product scenario suggests it. A custom component can
+  be ordinary DOM, animated, or 3D.
+- "For the approved sequence, I suggest this library in this system because it handles
+  the timing we need. Shall we use it, or should I choose within your constraints?"
+  — explain the concrete dependency tradeoff and skip this if already authorized/delegated.
+
+Record existing component treatment in `componentTreatments`, broader motion in
+`motionScenarios`, independent API requests in `requestedCustomComponents`, and significant
+dependency decisions in `decisionNotes`. The implementation and generated public catalog
+later establish actual support. Do not list a dimensional Button as `Button3D` or
+requested custom capability merely because of its appearance.
+
 **Foundations proposal (propose a bundle, do not interrogate key by key)**
 
 When foundations are still open, propose one coherent bundle and let the user accept, adjust,

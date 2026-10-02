@@ -35,8 +35,8 @@ declare an optional component when it has real behavior, local CSS, and a public
 export. An omitted optional name means it is unavailable. Do not hardcode an optional
 set in the documentation; declare implemented components in the descriptor and
 regenerate the manifest, and the Showcase catalog follows the declaration. The source
-descriptor stays `schemaVersion: 3` and never declares `capabilities`: the generated
-`schemaVersion: 4` manifest carries the canonical `capabilities.categories` inventory,
+descriptor stays `schemaVersion: 4` and never declares `capabilities`: the generated
+`schemaVersion: 5` manifest carries the canonical `capabilities.categories` inventory,
 while availability remains the presence of a key in `manifest.components`. Do not
 implement optional components in the starter until there is a concrete need.
 
@@ -76,13 +76,17 @@ external coding agent consuming this package must:
 1. **Identify the system and version.** The installed package is
    `{{PACKAGE_NAME}}`. `package.json.version` is authoritative, and the generated
    `design-system.json` manifest (also exported as `{{PACKAGE_NAME}}/manifest`) is
-   `schemaVersion: 4` and records the current contract (`contractVersion: 4`), the same
-   exact version, the component catalog, variants, sizes, compound members, and the
-   strict usage rules below. Its `capabilities.categories` inventory (composition,
+   `schemaVersion: 5` and records the current contract (`contractVersion: 4`), the same
+   exact version, the component catalog, variants, sizes, compound members, the required
+   `entrypoints` map with package.json-derived dependency/peer requirements, optional
+   verified `extensions`, and the strict usage rules below. Its
+   `capabilities.categories` inventory (composition,
    forms, data-display) is canonical category membership, not availability: support is
    only the presence of a component key in `manifest.components`, and category
-   availability is derived by intersecting the two. Read the manifest and this file
-   before writing UI.
+   availability is derived by intersecting the two. Custom extensions are available only
+   when they are declared in `manifest.extensions`; read their entrypoint import path,
+   docs/example, effects, and the entrypoint requirements before using one. Read the
+   manifest and this file before writing UI.
 2. **Use the public API.** Import the twenty-nine required components from the package
    root and design tokens from `{{PACKAGE_NAME}}/tokens`. Import ordinary CSS from
    `{{PACKAGE_NAME}}/styles.css`; Tailwind v4 products additionally load

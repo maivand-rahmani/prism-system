@@ -6,10 +6,12 @@
  * Covers SKILL.md entrypoints/frontmatter, local links/anchors under skills/**,
  * the design-brief schema and every brief-shaped JSON example, and
  * normalizeBrief/dry-run compatibility with the optional interview notes.
- * Limits: a subset validator for the keywords the brief schema uses
- * ($ref/type/required/properties/additionalProperties/items/minLength/
- * uniqueItems/enum), not a JSON Schema engine; it proves structure, not
- * interview quality. The schema file is the full contract.
+ * Limits: frontmatter parsing is a bounded subset (flat scalar keys plus
+ * indented folded/literal `>`/`|` block scalars with chomping markers), not a
+ * YAML engine. The brief validator is a subset validator for the keywords the
+ * brief schema uses ($ref/type/required/properties/additionalProperties/items/
+ * minLength/uniqueItems/enum), not a JSON Schema engine; it proves structure,
+ * not interview quality. The schema file is the full contract.
  */
 
 import assert from "node:assert/strict";
@@ -127,16 +129,107 @@ function headingSlugs(text) {
   return slugs;
 }
 
-/** Minimal frontmatter reader; folded `>`/`|` values are treated as empty. */
+/**
+ * Minimal frontmatter reader for the flat skill entrypoints.
+ *
+ * Supported subset: a leading `---` block of top-level `key: value` scalars
+ * (plain or simply quoted) plus indented `>`/`|` block scalars with optional
+ * `-`/`+` chomping markers. Folded (`>`) content joins lines within a paragraph
+ * with single spaces and separates blank-line paragraphs with newlines; literal
+ * (`|`) content keeps its line breaks; chomping only affects trailing newlines,
+ * which are trimmed here. Content indentation is taken from the first non-empty
+ * content line, and the block ends at the next top-level key or at an
+ * unindented non-blank line. Explicit indentation indicators, anchors/aliases,
+ * flow collections, nested maps, and every other YAML feature are out of
+ * scope: this is a bounded reader for the frontmatter this repository writes,
+ * not a YAML engine. Every parsed value is trimmed, so an empty or
+ * whitespace-only block parses to "" and is rejected by the non-empty checks.
+ */
 function parseFrontmatter(text, relPath) {
   const block = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text);
   assert.ok(block, `${relPath}: expected a frontmatter block at the top of the file.`);
+  const lines = block[1].split(/\r?\n/);
   const fields = {};
-  for (const match of block[1].matchAll(/^([A-Za-z][\w-]*):[ \t]*(.*)$/gm)) {
-    const value = match[2].trim().replace(/^["']|["']$/g, "");
-    fields[match[1]] = /^[>|][+-]?$/.test(value) ? "" : value;
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = /^([A-Za-z][\w-]*):[ \t]*(.*)$/.exec(lines[index]);
+    if (!match) continue; // Indented or malformed lines are not top-level keys.
+    const [, key, rawValue] = match;
+    const scalar = rawValue.trim();
+    const indicator = /^([|>])([+-]?)$/.exec(scalar);
+    if (!indicator) {
+      fields[key] = scalar.replace(/^["']|["']$/g, "");
+      continue;
+    }
+
+    // Collect the indented (and blank) content lines; a following top-level
+    // key or an unindented non-blank line ends the block.
+    const content = [];
+    let cursor = index + 1;
+    while (cursor < lines.length) {
+      const line = lines[cursor];
+      if (line.trim() === "") {
+        content.push("");
+        cursor += 1;
+        continue;
+      }
+      if (/^[A-Za-z][\w-]*:/.test(line) || !/^[ \t]/.test(line)) break;
+      content.push(line);
+      cursor += 1;
+    }
+    fields[key] = parseBlockScalar(content, indicator[1]);
+    index = cursor - 1;
   }
   return fields;
+}
+
+/** Strip up to `indentation` leading whitespace characters from one line. */
+function stripBlockIndent(line, indentation) {
+  let count = 0;
+  while (count < indentation && (line[count] === " " || line[count] === "\t")) count += 1;
+  return line.slice(count);
+}
+
+/**
+ * Render the collected block-scalar content. Folded text keeps paragraph
+ * breaks and folds single newlines to spaces; literal text keeps newlines. The
+ * whole value is trimmed, so chomping markers are honored for trailing
+ * whitespace only.
+ */
+function parseBlockScalar(content, style) {
+  const nonEmpty = content.filter((line) => line.trim() !== "");
+  if (nonEmpty.length === 0) return "";
+  const indentation = /^[ \t]*/.exec(nonEmpty[0])[0].length;
+  const stripped = content.map((line) =>
+    line.trim() === "" ? "" : stripBlockIndent(line, indentation),
+  );
+  if (style === "|") return stripped.join("\n").trim();
+  const paragraphs = [];
+  let current = [];
+  for (const line of stripped) {
+    if (line.trim() === "") {
+      if (current.length > 0) paragraphs.push(current);
+      current = [];
+      continue;
+    }
+    current.push(line.trim());
+  }
+  if (current.length > 0) paragraphs.push(current);
+  return paragraphs
+    .map((paragraph) => paragraph.join(" "))
+    .join("\n")
+    .trim();
+}
+
+/**
+ * The entrypoint description assertion, shared by the repository scan and the
+ * block-scalar regression cases so an empty parsed value is rejected by the
+ * same validation the real skills use.
+ */
+function assertNonEmptyDescription(fields, relPath) {
+  assert.ok(
+    fields.description && fields.description.length > 0,
+    `${relPath}: frontmatter needs a non-empty "description".`,
+  );
 }
 
 /** Fenced ```json blocks, with the opening fence's 1-based line. */
@@ -283,11 +376,89 @@ test("the three skill entrypoints are the only SKILL.md files with frontmatter",
     );
     names.add(fields.name);
     assert.equal(fields.name, dirname(relPath).split(/[\\/]/).pop(), `${relPath}: name mismatch.`);
-    assert.ok(
-      fields.description && fields.description.length > 0,
-      `${relPath}: frontmatter needs a non-empty "description".`,
-    );
+    assertNonEmptyDescription(fields, relPath);
   }
+});
+
+test("frontmatter block scalars parse folded and literal values with chomping", () => {
+  const folded = parseFrontmatter(
+    [
+      "---",
+      "name: sample",
+      "description: >-",
+      "  Modify an existing package: tokens,",
+      "  variants, and states.",
+      "license: MIT",
+      "---",
+      "body",
+      "",
+    ].join("\n"),
+    "fixture.md",
+  );
+  assert.equal(folded.description, "Modify an existing package: tokens, variants, and states.");
+  assert.equal(folded.license, "MIT", "the block must stop at the following top-level key");
+
+  const foldedParagraphs = parseFrontmatter(
+    [
+      "---",
+      "name: sample",
+      "description: >",
+      "  First paragraph",
+      "",
+      "  Second paragraph",
+      "---",
+      "",
+    ].join("\n"),
+    "fixture.md",
+  );
+  assert.equal(foldedParagraphs.description, "First paragraph\nSecond paragraph");
+
+  const literalStrip = parseFrontmatter(
+    ["---", "name: sample", "description: |-", "  First line", "  second line.", "---", ""].join(
+      "\n",
+    ),
+    "fixture.md",
+  );
+  assert.equal(literalStrip.description, "First line\nsecond line.");
+
+  const literalKeep = parseFrontmatter(
+    ["---", "name: sample", "description: |+", "  Kept text.", "", "---", ""].join("\n"),
+    "fixture.md",
+  );
+  assert.equal(literalKeep.description, "Kept text.");
+
+  const quoted = parseFrontmatter(
+    ["---", "name: sample", 'description: "Quoted description"', "---", ""].join("\n"),
+    "fixture.md",
+  );
+  assert.equal(quoted.description, "Quoted description");
+});
+
+test("empty or whitespace-only block scalars fail the non-empty description validation", () => {
+  for (const indicator of [">-", ">", ">+", "|-", "|", "|+"]) {
+    const fields = parseFrontmatter(
+      ["---", "name: sample", `description: ${indicator}`, "license: MIT", "---", "body", ""].join(
+        "\n",
+      ),
+      "fixture.md",
+    );
+    assert.equal(fields.description, "", `${indicator} with no content must parse empty`);
+    assert.throws(
+      () => assertNonEmptyDescription(fields, "fixture.md"),
+      /fixture\.md: frontmatter needs a non-empty "description"\./,
+    );
+    assert.equal(fields.license, "MIT", `${indicator} must stop at the next top-level key`);
+  }
+
+  const spacesOnly = parseFrontmatter(
+    ["---", "name: sample", "description: >-", "   ", "", "---", ""].join("\n"),
+    "fixture.md",
+  );
+  assert.equal(spacesOnly.description, "");
+  assert.throws(
+    () => assertNonEmptyDescription(spacesOnly, "fixture.md"),
+    /needs a non-empty "description"/,
+  );
 });
 
 test("every relative Markdown link in skills/** resolves inside the repository", () => {

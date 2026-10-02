@@ -1,6 +1,9 @@
 ---
 name: modify-design-system
-description: Modify an existing Prism design-system package in its source repository: tokens, variants, states, optional capabilities, public API, styles, or package docs, preserving contract version 4 and the system's visual language.
+description: >-
+  Modify an existing Prism design-system package in its source repository: tokens,
+  variants, states, optional capabilities, public API, styles, or package docs,
+  preserving contract version 4 and the system's visual language.
 ---
 
 # Modify a Design System
@@ -35,6 +38,15 @@ Classify what is actually being asked before touching files:
 - public API or required-contract change;
 - product-owned page/workflow composition.
 
+Depth, 3D-like styling, and animation on an existing contract are component treatment
+changes. Keep the component's existing folder, public name, props, and token source.
+An independent component with its own API is a custom-component request, whether its
+rendering is ordinary DOM or 3D. For either case, read
+[visual effects and custom components](../references/visual-effects-and-custom-components.md)
+and use the descriptor `entrypoints`/`extensions` records plus their validation rather than
+inventing catalog support. Optional internal
+`src/motion/` helpers do not move ordinary components to an extension module.
+
 Check whether the request is a reusable visual pattern or a product-specific feature.
 Keep domain data, routing, business behavior, and one-off page composition in the
 product. An optional contract is available only if the system actually implements and
@@ -51,6 +63,11 @@ genuine choice changes the outcome:
 - whether a requested pattern is reusable system language or one product's composition;
 - whether a visual change is a system-wide redesign or a targeted component fix;
 - whether an optional capability belongs in the package or should be composed by the app.
+
+For an ambiguous request such as "make buttons 3D", clarify the desired visual and
+interactive treatment, including the difference between tactile CSS depth and an actual
+3D scene when it changes the result. Preserve already approved/delegated choices.
+Do not turn a clear effects change into a full interview or presume new library approval.
 
 Examples: "make the primary button darker on hover" is routine — implement it through the
 established variant/state pattern. "Add alerts and make the system denser" is ambiguous
@@ -121,15 +138,24 @@ stubs; an omitted optional entry means unavailable from that system.
 Regenerate the TypeScript/CSS/Tailwind bridge/manifest through the repository's
 `pnpm ds:manifest <id> --write` command. Never hand-edit generated token artifacts or
 `design-system.json`, and never add a `capabilities` block to the source descriptor
-(it stays `schemaVersion: 3`). Regenerated manifests are `schemaVersion: 4`; any custom
-manifest reader built for schema 3 must be updated in lockstep, because current tooling
-rejects schema 3 and older readers cannot parse schema 4.
+(it is `schemaVersion: 4`). Regenerated manifests are `schemaVersion: 5`; any custom
+manifest reader built for schema 4 or older must be updated in lockstep, because current
+tooling rejects schema 4 and older readers cannot parse schema 5.
 
 Use package-local patterns already established by the target system. If a user requests a
 reusable new pattern, first look for an existing core contract; when none fits, do not
 invent a new core capability as part of ordinary package work. Keep a product-specific
 scenario in the app or document the contract gap for a separate explicit core design
 decision.
+
+A system-specific custom export does not become a canonical capability. Declare it in the
+source descriptor `entrypoints`/`extensions` with a real contained source module, a
+PascalCase runtime export, docs, example, `apiVersion`, and optional effects; never put
+its name in `DesignSystem.components` or `capabilities.categories`, and do not invent a
+second runtime registry. Entrypoint requirements are resolved from `package.json`:
+publish an engine as an optional peer only when the standard root and `./tokens` do not
+import it. Updating visual-effect metadata must use the supported descriptor
+and generated manifest format; changes to the format require coordinated readers.
 
 ## Validate and hand back
 

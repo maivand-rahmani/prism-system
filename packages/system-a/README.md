@@ -182,20 +182,23 @@ calm, warm visual language.
 ## Manifest and version
 
 Every installed System A package ships a generated `design-system.json` manifest,
-available at `@prism-system/ui-system-a/manifest`. It is `schemaVersion: 4` and
+available at `@prism-system/ui-system-a/manifest`. It is `schemaVersion: 5` and
 records the current contract (`contractVersion: 4`), the exact package version, the
 component catalog, variants, sizes, compound members, token names, and the strict
-usage rules for this system. The manifest also carries the canonical
+usage rules for this system. It also carries the required `entrypoints` map with
+package.json-derived dependency/peer requirements for `.` and `./tokens`; System A
+declares no additional entrypoints or custom extensions, so the manifest omits
+`extensions`. The manifest also carries the canonical
 `capabilities.categories` inventory (`composition`, `forms`, `data-display`)
 shared by every system: it maps component names to categories, not to availability.
 A component is available only when its name is a key in `manifest.components`;
 derive category availability by intersecting the two, and remember that categories
-do not cover every component. The package-owned `design-system.source.json` stays
-`schemaVersion: 3` and must never declare a `capabilities` block. Regenerate the
+do not cover every component. The package-owned `design-system.source.json` is
+`schemaVersion: 4` and must never declare a `capabilities` block. Regenerate the
 manifest with `pnpm ds:manifest system-a --write` after changing the package-owned
-`design-system.source.json`. Readers built for `schemaVersion: 3` must be upgraded
-in lockstep: current `prism-ds` requires schema 4 and rejects schema 3, and an older
-`prism-ds` cannot read a schema-4 manifest. After `changeset version` changes `package.json.version`,
+`design-system.source.json`. Readers built for `schemaVersion: 4` must be upgraded
+in lockstep: current `prism-ds` requires schema 5 and rejects schema 4, and an older
+`prism-ds` cannot read a schema-5 manifest. After `changeset version` changes `package.json.version`,
 run `pnpm ds:sync-versions` from the monorepo root to align the runtime version, the
 generated manifest, and the registry entry; `pnpm ds:sync-versions --check` fails
 without writing when they drift.

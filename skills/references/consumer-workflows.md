@@ -79,13 +79,20 @@ Tailwind setup). A completed package-manager mutation is not rolled back automat
   automatically.
 - **Upgrading:** `npx prism-ds upgrade <package> <exact-version> --cwd <consumer-root>`.
   Always preview first with `--dry-run` and review the reported component
-  additions/removals, changed variants/sizes/compound members, public export targets,
+  additions/removals, changed variants/sizes/compound members and effects,
+  custom-extension and entrypoint-requirement changes, public export targets,
   metadata, and token-name additions/removals. Names are compared as sets; the manifest
   has no token values, so the diff cannot reveal visual value changes — review package
   docs and rendered screens too. Only after the user has explicitly selected the upgrade,
   run the command for real, re-read the installed manifest, types, and docs, repair call
   sites using only the new public API, then run `check` once (with an explicit `--css`
   path for Tailwind import-order validation).
+- **Using a declared system extension:** import it only from its entrypoint declared in
+  `manifest.extensions`, never from the package root. Its requirements belong to that
+  entry: select it explicitly with `--with-entry <name|entrypoint|consumer-file>` on
+  `install`/`use`/`upgrade`, pass `--peer name@exact-version` for a missing peer with a
+  non-exact declared range, and validate offline with `check --entry <...>` or
+  `doctor --entry <...>`. A missing peer of an unused extension is not a product failure.
 - **Discovery:** `search` and `info` are explicit network, read-only. Use them to ground
   options; they never write or install.
 
@@ -100,10 +107,11 @@ the user declines, report the Prism CLI check as skipped, never as passed.
 
 - Use the exact installed release only: imports, docs, config, and manifest must describe
   the same package and exact version.
-- Current shipped manifests are `schemaVersion: 4` with numeric `contractVersion: 4`;
-  readers built for schema 3 must be upgraded in lockstep, and an older `prism-ds` cannot
-  read a schema-4 manifest.
-- Availability is only the presence of a key in `manifest.components`;
+- Current shipped manifests are `schemaVersion: 5` with numeric `contractVersion: 4`;
+  readers built for schema 4 or older must be upgraded in lockstep, and an older
+  `prism-ds` cannot read a schema-5 manifest.
+- Contract availability is only the presence of a key in `manifest.components`;
+  custom extensions are available only as declared in `manifest.extensions`;
   `capabilities.categories` is canonical category membership, not availability.
 - If the installed package, config, manifest, and declarations disagree, fail closed,
   report the inconsistency, and do not patch the package or assume the conflicting

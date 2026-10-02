@@ -23,15 +23,17 @@ docs. If the installed runtime component map, manifest, and public exports disag
 report the package inconsistency and stop assuming any conflicting capability is usable;
 do not repair it by consulting a source checkout.
 
-The generated public manifest declares `schemaVersion: 4` and the numeric
-`contractVersion: 4`; the package-owned source descriptor stays `schemaVersion: 3` and is
-never shipped. There is only one current shipped shape: readers built for schema 3 must
-be upgraded in lockstep, an older `prism-ds` cannot read a schema-4 manifest, and current
-tools reject schema-3 manifests. Other shapes fail closed. Consumers follow the installed
+The generated public manifest declares `schemaVersion: 5` and the numeric
+`contractVersion: 4`; the package-owned source descriptor is `schemaVersion: 4` and is
+never shipped. There is only one current shipped shape: readers built for schema 4 must
+be upgraded in lockstep, an older `prism-ds` cannot read a schema-5 manifest, and current
+tools reject schema-4 and older manifests. Other shapes fail closed. Consumers follow the installed
 public manifest and shipped docs, without needing this source checkout. Never guess from
 package name or version number. Availability is only the presence of a key in the
 manifest `components` map: all required names plus keys for actual optional
-implementations. The generated `capabilities.categories` block is a canonical
+implementations; custom extensions are available only as declared in
+`manifest.extensions`, and the manifest `entrypoints` requirements are the only source
+for selected-entry dependency/peer checks. The generated `capabilities.categories` block is a canonical
 composition/forms/data-display membership inventory shared by every system, not a second
 availability list; derive availability inside a category by intersecting its names with
 `components`, and note that categories are scoped rather than exhaustive. Never add,
@@ -46,8 +48,10 @@ Edit `tokens.source.json` as the sole token source. Generated TypeScript token e
 token CSS variables, Tailwind bridge, and `design-system.json` are outputs; regenerate
 through `pnpm ds:manifest <id> --write` and never hand-edit them. Component CSS is
 editable package styling. The source descriptor (`design-system.source.json`,
-`schemaVersion: 3`) declares the implemented component set, variants, examples, compound
-members, and documentation paths; it never carries a `capabilities` block. Public
+`schemaVersion: 4`) declares the implemented component set, variants, examples, compound
+members, documentation paths, additional public code entrypoints (`entrypoints`), and
+custom exports (`extensions`); it never carries a `capabilities` block, and entry
+requirements are resolved from `package.json`, never duplicated in the descriptor. Public
 module/CSS export paths belong to package exports in `package.json` and public
 entrypoints, not descriptor fields. A neutral scaffold is a starting point, not the
 approved visual design: reconcile its `source.design` values with the confirmed brief.
@@ -55,6 +59,18 @@ approved visual design: reconcile its `source.design` values with the confirmed 
 In a consumer, installed public exports, package declarations, manifest, README, and
 shipped `AGENTS.md` are sufficient; a monorepo checkout and source token file are never
 required.
+
+## Effects and independent custom components
+
+Depth, dimensional styling, and animation can be implemented inside any existing
+contract without creating a different component name, folder, or token source.
+Independent custom components have their own API, are declared by the package descriptor
+`entrypoints`/`extensions`, and are never canonical capabilities.
+For creation, modification, and consumption of either, read
+[visual effects and custom components](visual-effects-and-custom-components.md).
+That reference distinguishes declared custom entries from undeclared ones; custom
+entries never enter the shared component contract, the runtime registry, or
+`capabilities.categories`.
 
 ## Product composition and validation
 

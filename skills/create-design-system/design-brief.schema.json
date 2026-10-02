@@ -151,6 +151,35 @@
       "description": "Optional requests for reusable capabilities, especially optional core contracts. Requests are intent only: the package descriptor and generated public manifest define actual available capabilities.",
       "examples": [["Alert", "Table"]]
     },
+    "componentTreatments": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Z][A-Za-z0-9]*$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Optional requested appearance and interaction effects on existing shared-contract components. Authors resolve keys against the canonical core names; no catalog is duplicated here. A dimensional or animated Button remains Button with its existing API, folder, and token source. These requests do not prove implementation and are not independent custom-component requests.",
+      "examples": [
+        {
+          "Button": "Tactile depth with a short press effect; retain native button behavior",
+          "Dialog": "Restrained entrance and exit transitions with reduced-motion support"
+        }
+      ]
+    },
+    "motionScenarios": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Optional broader animation scenarios beyond foundations.motionIntensity, such as interaction feedback, coordinated entrances, or scroll sequences. Record intent rather than engine-specific API. Significant dependency choices and authorization belong in decisionNotes; versions remain in package metadata.",
+      "examples": [["Reveal onboarding steps as they become active"]]
+    },
+    "requestedCustomComponents": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Optional independent component/API requests outside the shared core catalog, regardless of whether their rendering is DOM, animated, or 3D. These are requests only. Current canonical components maps and registry reject arbitrary names; record any integration gap and do not treat this field as installed or implemented support.",
+      "examples": [["KeyboardScene with key selection", "InteractiveWorkflowMap"]]
+    },
     "productCompositions": {
       "$ref": "#/$defs/stringArray",
       "description": "Optional whole-product page, form, workflow, and domain-specific composition scenarios to guide the visual system. These do not become component contracts merely by appearing here.",

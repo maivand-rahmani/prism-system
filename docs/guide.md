@@ -135,16 +135,23 @@ EmptyState
 Именно поэтому Reference App может переключать систему, не переписывая интерфейс.
 
 Источник истины по составу, вариантам, размерам и составным частям — манифест
-`design-system.json` (`schemaVersion: 4`, `contractVersion: 4`; публичный путь
-`./manifest`). Доступность компонента в конкретной системе определяет только
-наличие ключа в `components` манифеста; `capabilities.categories` (`composition`,
-`forms`, `data-display`) — канонический перечень принадлежности категориям, общий
-для всех систем, а не второй список доступности, и категории охватывают не все
-контракты. Package-owned descriptor `design-system.source.json` остаётся
-`schemaVersion: 3`, служит только входом генератора и не содержит блок
+`design-system.json` (`schemaVersion: 5`, `contractVersion: 4`; публичный путь
+`./manifest`). Доступность контрактного компонента в конкретной системе определяет
+только наличие ключа в `components` манифеста; `capabilities.categories`
+(`composition`, `forms`, `data-display`) — канонический перечень принадлежности
+категориям, общий для всех систем, а не второй список доступности, и категории
+охватывают не все контракты. Package-owned descriptor `design-system.source.json`
+теперь `schemaVersion: 4`, служит только входом генератора и не содержит блок
 `capabilities` — его туда не добавляют и не повторяют. Форма манифеста одна:
-читатели `schemaVersion: 3` обновляются вместе с системой, потому что текущий
-`prism-ds` требует schema 4 и отклоняет schema 3. Посмотреть конкретную систему:
+читатели schema 4 и более старых схем обновляются вместе с системой, потому что
+текущий `prism-ds` требует schema 5 и отклоняет schema 4.
+
+Помимо контракта манифест описывает публичные входы и самостоятельные расширения:
+`entrypoints` перечисляет требования зависимостей каждого входа, `extensions` —
+проверенные custom-экспорты с номером API, эффектами, документацией и примером.
+Расширение доступно только при наличии записи в `manifest.extensions`; оно не
+входит в общий контракт и не создаёт второй реестр. Подробнее — в
+[текущей спецификации](v4/README.md). Посмотреть конкретную систему:
 
 ```bash
 # документация и правила пакета
@@ -308,6 +315,39 @@ npx prism-ds check-usage --cwd .
 разработки и проверок. Остальные команды `ds:*` (`ds:create`, `ds:check`,
 `ds:manifest`, `ds:release`, `ds:check-tools`, `ds:check-docs`, `ds:check-all`) —
 инструменты мейнтейнера и не публикуются.
+
+### Самостоятельные расширения системы
+
+Помимо обязательных и дополнительных контрактов система может поставлять собственные
+публичные API. В System B это `KeyboardScene` (настоящий WebGL, импорт из
+`@prism-system/ui-system-b/custom/keyboard-scene`) и `InteractiveWorkflowMap`
+(DOM-паттерн, импорт из `@prism-system/ui-system-b/custom/interactive-workflow-map`).
+Их состав, эффекты, способ рендеринга, импорт, требования, docs и пример публикует
+`manifest.extensions`; отсутствие записи означает, что расширения нет. Такие экспорты
+не входят в общий контракт, не добавляются в `DesignSystem.components` и не создают
+второй реестр в `ui-core`.
+
+Графические peers (`three`, `@react-three/fiber`) нужны только выбранному входу:
+обычный импорт системы и `./tokens` их не загружают. Выбор входа учитывается явно:
+
+```bash
+# установка системы вместе с выбранным расширением:
+# уже установленный подходящий peer сохраняется, отсутствующий ставится,
+# а для диапазона вида ^0.186.1 нужна точная версия через --peer
+npx prism-ds use @prism-system/ui-system-b --cwd . --with-entry KeyboardScene \
+  --peer three@0.186.1 --peer @react-three/fiber@9.8.1
+
+# офлайн-проверка требований выбранного входа (без --entry продукт не сканируется)
+npx prism-ds check --cwd . --entry KeyboardScene
+npx prism-ds doctor --cwd . --entry KeyboardScene
+```
+
+`prism-ds components` показывает расширения отдельной группой вместе с их эффектами и
+требованиями; в TUI они видны в разделе Components. Команды `install`/`use`/`upgrade`
+принимают `--with-entry` (имя расширения, ключ входа или файл продукта) и `--peer`,
+команды `check`/`doctor` — `--entry`; сами по себе они не устанавливают пакеты и не
+выполняют код системы. Примеры обоих расширений System B лежат в её
+[README](../packages/system-b/README.md).
 
 ### Обычный CSS и Tailwind v4
 
@@ -492,13 +532,13 @@ workflow публикации           # защищённое окружени�
 | `npx prism-ds install <package-or-id> --cwd .`            | Явно установить систему (меняет зависимости)     |
 | `npx prism-ds use <package-or-id> --cwd .`                | Установить и подключить одной командой           |
 | `npx prism-ds upgrade <package-or-id> <version> --cwd .`  | Обновить до точной версии с диффом манифеста     |
-| `npx prism-ds components [name] --cwd .`                  | Каталог компонентов установленной системы (офлайн) |
+| `npx prism-ds components [name] --cwd .`                  | Каталог компонентов и расширений установленной системы (офлайн) |
 | `npx prism-ds tokens [group] --cwd .`                     | Имена токенов и их CSS/Tailwind-имена (офлайн)   |
-| `npx prism-ds check --cwd . [--css <file>]`               | Сводный отчёт о продукте (офлайн)                |
+| `npx prism-ds check --cwd . [--css <file>] [--entry <...>]` | Сводный отчёт о продукте и требованиях выбранного входа (офлайн) |
 | `npx prism-ds setup-tailwind --cwd . --css <file>`        | Подключить мост Tailwind v4 в указанный CSS      |
 | `npx prism-ds connect [package] --cwd .`                  | Настроить продукт-потребитель (офлайн)           |
 | `npx prism-ds check-usage --cwd .`                        | Строгая проверка использования (офлайн)          |
-| `npx prism-ds doctor [package] --cwd .`                   | Диагностика только для чтения (офлайн)           |
+| `npx prism-ds doctor [package] --cwd . [--entry <...>]`   | Диагностика только для чтения (офлайн)           |
 
 ## 13. Частые проблемы
 

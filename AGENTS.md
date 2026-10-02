@@ -111,8 +111,8 @@ target for new work.
 ## The shipped manifest
 
 Every design system publishes a generated, read-only `design-system.json` manifest at
-`./manifest`. It is `schemaVersion: 4` with the same numeric `contractVersion: 4`; the
-package-owned `design-system.source.json` descriptor stays `schemaVersion: 3` and is a
+`./manifest`. It is `schemaVersion: 5` with the same numeric `contractVersion: 4`; the
+package-owned `design-system.source.json` descriptor is `schemaVersion: 4` and is a
 repository-only input. The manifest also carries a top-level `capabilities.categories`
 inventory (`composition`, `forms`, `data-display`): canonical category membership shared
 by every system, not a second availability list. Per-system support remains only the
@@ -121,10 +121,19 @@ intersecting the category names with those keys. Categories are scoped, not exha
 many components belong to no category. Never add, edit, or repeat `capabilities` in
 `design-system.source.json`; regenerate the manifest with `pnpm ds:manifest <id> --write`.
 
+The manifest also carries a required `entrypoints` map (always `.` and `./tokens` plus
+every declared additional code entry) whose dependency/peer requirements are resolved
+from `package.json`, optional per-component `effects`, and optional nonempty `extensions`
+for verified custom exports (never canonical component names). A custom extension is
+available only when declared in `manifest.extensions`; it stays outside the shared
+contract and does not create a second runtime registry. Consumers import a custom
+extension from its declared entrypoint, and `prism-ds` validates requirements only for a
+selected entry, never for an unused extension.
+
 There is exactly one current shipped manifest shape. Current tooling requires
-`schemaVersion: 4` and rejects schema-3 manifests; manifest readers built for schema 3
-must be upgraded in lockstep, and an older published `prism-ds` cannot read a schema-4
-manifest.
+`schemaVersion: 5` and rejects schema-4 and older manifests; manifest readers built for
+schema 4 must be upgraded in lockstep, and an older published `prism-ds` cannot read a
+schema-5 manifest. Upgrade `prism-ds` together with the installed system.
 
 ## Styling ownership
 
@@ -155,6 +164,13 @@ Wrong:
 
 ## Rules for creating components
 
+Depth, dimensional styling, and animation on an existing contract remain that
+component's implementation in its existing folder and public API. Use the system's
+existing token source; optional package-local motion helpers do not create a new
+contract or catalog. For effects or independent custom-component requests, follow
+the shared [lifecycle guidance](skills/references/visual-effects-and-custom-components.md),
+which covers declared effects, custom extensions, and their entrypoint requirements.
+
 1. Prefer an existing `@prism-system/ui-core` contract before inventing a new shape.
 2. Prefer an existing shadcn/radix primitive before writing a new one.
 3. Keep component logic and styling inside the design-system package.
@@ -168,6 +184,10 @@ Wrong:
 - The current contract (version 4) is defined in `@prism-system/ui-core` and implemented
   by `@prism-system/ui-system-a` and `@prism-system/ui-system-b`. Each system declares
   its real optional capabilities in its generated `design-system.json` manifest.
+- System B additionally ships declared custom extensions (`KeyboardScene`,
+  `InteractiveWorkflowMap`) in separate public entrypoints with optional peers; System A
+  declares none. `prism-ds` reads declared extensions and entrypoint requirements from the
+  installed manifest catalog.
 - Factory and lifecycle tooling is in place: `templates/design-system`, the deterministic
   `pnpm ds:create`, `pnpm ds:register`, `pnpm ds:check`, `pnpm ds:manifest`,
   `pnpm ds:sync-versions`, and `pnpm ds:release` commands, and the
@@ -228,16 +248,16 @@ consume a released design system from here):
 ```bash
 npx prism-ds search [query...] [--registry <url>] [--size <1..250>] [--json]
 npx prism-ds info <package-or-id> [version] [--registry <url>] [--json]
-npx prism-ds install <package-or-id> [version] --cwd <consumer-root> [--dry-run]
-npx prism-ds use <package-or-id> [version] --cwd <consumer-root> [--tailwind --css <file>] [--check-usage] [--dry-run]
-npx prism-ds upgrade <package-or-id> <exact-version> --cwd <consumer-root> [--dry-run]
+npx prism-ds install <package-or-id> [version] --cwd <consumer-root> [--with-entry <value>] [--peer <name@version>] [--dry-run]
+npx prism-ds use <package-or-id> [version] --cwd <consumer-root> [--tailwind --css <file>] [--check-usage] [--with-entry <value>] [--peer <name@version>] [--dry-run]
+npx prism-ds upgrade <package-or-id> <exact-version> --cwd <consumer-root> [--with-entry <value>] [--peer <name@version>] [--dry-run]
 npx prism-ds components [name] --cwd <consumer-root>
 npx prism-ds tokens [group] --cwd <consumer-root>
-npx prism-ds check --cwd <consumer-root> [--css <file>]
+npx prism-ds check --cwd <consumer-root> [--css <file>] [--entry <path-or-extension>]
 npx prism-ds setup-tailwind --cwd <consumer-root> --css <file> [--dry-run|--check]
 npx prism-ds connect [package] --cwd <consumer-root> [--strict|--no-strict] [--check] [--dry-run]
 npx prism-ds check-usage --cwd <consumer-root> [--ignore <glob>]
-npx prism-ds doctor [package] --cwd <consumer-root>
+npx prism-ds doctor [package] --cwd <consumer-root> [--entry <path-or-extension>]
 ```
 
 `search`/`info` are explicit network, read-only; `install`/`use`/`upgrade` are the only
