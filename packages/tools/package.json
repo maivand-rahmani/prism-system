@@ -1,6 +1,6 @@
 {
   "name": "@prism-system/tools",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Published tooling for @prism-system design systems: search and inspect the npm registry (read-only), explicitly install (npm/pnpm), and configure/validate consumers with prism-ds. No postinstall, no source copying, no publishing.",
   "license": "MIT",
   "repository": {
@@ -9,7 +9,7 @@
   },
   "type": "module",
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=22.0.0"
   },
   "bin": {
     "prism-ds": "./bin/prism-ds.mjs"
@@ -32,9 +32,15 @@
     "clean": "rimraf .turbo"
   },
   "dependencies": {
+    "ink": "^7.0.2",
+    "react": "^19.2.5",
+    "runeframe": "0.5.3",
     "typescript": "5.9.3"
   },
   "publishConfig": {
     "access": "public"
+  },
+  "devDependencies": {
+    "ink-testing-library": "4.0.0"
   }
 }

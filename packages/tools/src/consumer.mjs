@@ -634,6 +634,69 @@ function readIfExists(filePath) {
 }
 
 /**
+ * Build the three managed consumer-file effects from explicit target content.
+ * Shared by the installed-package plan ({@link planConnect}) and the
+ * pre-install target plan ({@link planConnectForTarget}) so both produce
+ * byte-identical content, strict/ignore semantics, and containment checks.
+ *
+ * Containment: validate every consumer-owned path (including the
+ * .design-system directory) against the real consumer root before planning any
+ * write, so an external symlink/junction can never redirect config, AGENTS, or
+ * rollback writes outside the consumer root.
+ */
+function planConnectFiles({
+  consumerRoot,
+  packageName,
+  version,
+  contractVersion,
+  strict,
+  ignore,
+  source,
+  check = false,
+}) {
+  resolveConsumerPath(consumerRoot, CONSUMER_DIRECTORY);
+  const configPath = resolveConsumerPath(
+    consumerRoot,
+    CONSUMER_DIRECTORY,
+    CONSUMER_CONFIG_FILENAME,
+  );
+  const agentsPath = resolveConsumerPath(
+    consumerRoot,
+    CONSUMER_DIRECTORY,
+    CONSUMER_AGENTS_FILENAME,
+  );
+  const rootAgentsPath = resolveConsumerPath(consumerRoot, "AGENTS.md");
+
+  const configContent = `${JSON.stringify(
+    buildConsumerConfig({ packageName, version, strict, ignore }),
+    null,
+    2,
+  )}\n`;
+  const agentsContent = renderConsumerAgents({ packageName, version, strict, contractVersion });
+  const block = buildManagedBlock({ packageName, version, strict, contractVersion });
+  const rootAgentsAfter = applyManagedBlock(readIfExists(rootAgentsPath), block);
+
+  const fileEffect = (kind, path, after) => {
+    const before = readIfExists(path);
+    return { kind, path, before, after, changed: before !== after };
+  };
+
+  return {
+    consumerRoot,
+    packageName,
+    version,
+    strict,
+    source,
+    check,
+    files: [
+      fileEffect("config", configPath, configContent),
+      fileEffect("agents", agentsPath, agentsContent),
+      fileEffect("root-agents", rootAgentsPath, rootAgentsAfter),
+    ],
+  };
+}
+
+/**
  * Plan a connect without writing anything. Throws on any discovery or
  * verification failure (invalid config, multiple candidates, missing package,
  * mismatched versions, malformed markers).
@@ -652,72 +715,138 @@ export function planConnect({ cwd, package: explicitPackage, strict, check = fal
   });
 
   const effectiveStrict = strict ?? (discovered.config ? discovered.config.strict : true);
-  // Containment: validate every consumer-owned path (including the
-  // .design-system directory) against the real consumer root before planning
-  // any write, so an external symlink/junction can never redirect config,
-  // AGENTS, or rollback writes outside --cwd.
-  resolveConsumerPath(consumerRoot, CONSUMER_DIRECTORY);
-  const configPath = resolveConsumerPath(
-    consumerRoot,
-    CONSUMER_DIRECTORY,
-    CONSUMER_CONFIG_FILENAME,
-  );
-  const agentsPath = resolveConsumerPath(
-    consumerRoot,
-    CONSUMER_DIRECTORY,
-    CONSUMER_AGENTS_FILENAME,
-  );
-  const rootAgentsPath = resolveConsumerPath(consumerRoot, "AGENTS.md");
-
   // Preserve any configured ignore globs across re-connect so the config stays
   // idempotent and consumer-defined ignores are not dropped.
   const effectiveIgnore = discovered.config ? discovered.config.ignore : [];
-  const configContent = `${JSON.stringify(
-    buildConsumerConfig({
-      packageName: discovered.packageName,
-      version,
-      strict: effectiveStrict,
-      ignore: effectiveIgnore,
-    }),
-    null,
-    2,
-  )}\n`;
-  const agentsContent = renderConsumerAgents({
-    packageName: discovered.packageName,
-    version,
-    strict: effectiveStrict,
-    contractVersion,
-  });
-  const block = buildManagedBlock({
-    packageName: discovered.packageName,
-    version,
-    strict: effectiveStrict,
-    contractVersion,
-  });
-  const rootAgentsAfter = applyManagedBlock(readIfExists(rootAgentsPath), block);
-
-  return {
+  return planConnectFiles({
     consumerRoot,
     packageName: discovered.packageName,
     version,
+    contractVersion,
     strict: effectiveStrict,
+    ignore: effectiveIgnore,
     source: discovered.source,
     check,
-    files: [
-      { kind: "config", path: configPath, before: readIfExists(configPath), after: configContent },
-      { kind: "agents", path: agentsPath, before: readIfExists(agentsPath), after: agentsContent },
-      {
-        kind: "root-agents",
-        path: rootAgentsPath,
-        before: readIfExists(rootAgentsPath),
-        after: rootAgentsAfter,
-      },
-    ],
-  };
+  });
+}
+
+/**
+ * Plan the connect writes for one explicit, already-validated target version
+ * *before* the package is installed. The caller supplies the registry-validated
+ * manifest; the existing consumer config supplies the strict/ignore defaults
+ * exactly as a post-install {@link planConnect} derives them, and every path
+ * goes through the same containment checks. Nothing is written and nothing is
+ * resolved from `node_modules`.
+ */
+export function planConnectForTarget({
+  consumerRoot,
+  package: target,
+  version,
+  manifest,
+  strict,
+} = {}) {
+  if (typeof consumerRoot !== "string" || consumerRoot.trim().length === 0) {
+    throw new Error("planConnectForTarget requires an explicit consumerRoot.");
+  }
+  const root = resolve(consumerRoot);
+  if (!existsSync(root) || !statSync(root).isDirectory()) {
+    throw new Error(`Consumer root does not exist or is not a directory: ${root}.`);
+  }
+  const packageName = normalizeRequestedPackage(target);
+  const targetVersion = requireNonEmptyString(version, "version");
+  if (!isPlainObject(manifest)) {
+    throw new Error("planConnectForTarget requires the validated target manifest.");
+  }
+  if (manifest.package !== packageName) {
+    throw new Error(
+      `Target manifest package ${JSON.stringify(manifest.package ?? null)} does not match ` +
+        `"${packageName}".`,
+    );
+  }
+  if (manifest.version !== targetVersion) {
+    throw new Error(
+      `Target manifest version ${JSON.stringify(manifest.version ?? null)} does not match ` +
+        `"${targetVersion}".`,
+    );
+  }
+  if (
+    manifest.contractVersion !== CONTRACT_VERSION ||
+    manifest.schemaVersion !== MANIFEST_SCHEMA_VERSION
+  ) {
+    throw new Error(
+      `Target manifest must declare contractVersion ${CONTRACT_VERSION} and schemaVersion ` +
+        `${MANIFEST_SCHEMA_VERSION}; received contractVersion ${JSON.stringify(
+          manifest.contractVersion ?? null,
+        )}/schemaVersion ${JSON.stringify(manifest.schemaVersion ?? null)}.`,
+    );
+  }
+  const config = readConsumerConfig(root);
+  const effectiveStrict = strict ?? (config ? config.strict : true);
+  const effectiveIgnore = config ? config.ignore : [];
+  return planConnectFiles({
+    consumerRoot: root,
+    packageName,
+    version: targetVersion,
+    contractVersion: manifest.contractVersion,
+    strict: effectiveStrict,
+    ignore: effectiveIgnore,
+    source: "target",
+    check: false,
+  });
+}
+
+/**
+ * Compare a previewed connect plan against a freshly recomputed one by material
+ * file content only: consumer root, package, version, strict mode, and every
+ * managed file's kind/path/before/after. Returns human-readable differences; an
+ * empty array means the plans are materially identical.
+ */
+function connectPlanDifference(expected, actual) {
+  if (!isPlainObject(expected) || !Array.isArray(expected.files)) {
+    return ["the expected connect plan has no managed file list"];
+  }
+  const details = [];
+  if (expected.consumerRoot !== actual.consumerRoot) details.push("consumer root changed");
+  if (expected.packageName !== actual.packageName) details.push("package changed");
+  if (expected.version !== actual.version) details.push("version changed");
+  if (expected.strict !== actual.strict) details.push("strict mode changed");
+  const expectedFiles = expected.files;
+  const actualFiles = actual.files;
+  if (expectedFiles.length !== actualFiles.length) {
+    details.push(`managed file count changed (${expectedFiles.length} -> ${actualFiles.length})`);
+  }
+  const count = Math.min(expectedFiles.length, actualFiles.length);
+  for (let index = 0; index < count; index += 1) {
+    const before = expectedFiles[index];
+    const after = actualFiles[index];
+    if (!isPlainObject(before) || !isPlainObject(after)) {
+      details.push(`managed file ${index + 1} is malformed`);
+      continue;
+    }
+    const label = typeof before.kind === "string" ? before.kind : `file ${index + 1}`;
+    const changed = [];
+    if (before.kind !== after.kind) changed.push("kind");
+    if (before.path !== after.path) changed.push("path");
+    if (before.before !== after.before) changed.push("before");
+    if (before.after !== after.after) changed.push("after");
+    if (changed.length > 0) {
+      details.push(
+        `${label} (${typeof before.path === "string" ? before.path : "unknown path"}): ` +
+          changed.join(", "),
+      );
+    }
+  }
+  return details;
 }
 
 /**
  * Discover, verify, and (unless checking) write the consumer contract.
+ *
+ * `expectedPlan` is an optional write precondition for callers that already
+ * presented an exact plan (for example a confirmed TUI `use`/`upgrade`). In
+ * write mode the contract is planned once more and compared field by field
+ * against it; any drift fails closed before the first write and never
+ * replans-and-overwrites. It is ignored by `--check` and `--dry-run`.
  *
  * @returns {{ ok: boolean, changed: boolean, check: boolean, dryRun: boolean, failures: string[], plan: object | null, changes: object[] }}
  */
@@ -727,6 +856,7 @@ export function connectDesignSystem({
   strict,
   check = false,
   dryRun = false,
+  expectedPlan,
 } = {}) {
   let plan;
   try {
@@ -746,6 +876,31 @@ export function connectDesignSystem({
   const changes = plan.files
     .filter((file) => file.before !== file.after)
     .map((file) => ({ kind: file.kind, path: file.path }));
+
+  // Optional write precondition: recompute the plan, compare all file material,
+  // and fail closed on any drift *before* the first write. A confirmed caller
+  // (for example the TUI) can therefore never silently overwrite a consumer
+  // file that changed after its preview.
+  if (!check && !dryRun && expectedPlan !== undefined && expectedPlan !== null) {
+    const differences = connectPlanDifference(expectedPlan, plan);
+    if (differences.length > 0) {
+      return {
+        ok: false,
+        changed: false,
+        check: false,
+        dryRun: false,
+        boundary: "precondition",
+        failures: [
+          "Refusing to write the consumer contract: the current connect plan no longer " +
+            `matches the previewed plan (${differences.join("; ")}). No connect files were ` +
+            "written and the dependency change is not rolled back; preview again and confirm " +
+            "the new plan.",
+        ],
+        plan,
+        changes: [],
+      };
+    }
+  }
 
   if (check) {
     return {

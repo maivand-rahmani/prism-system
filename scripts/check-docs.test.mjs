@@ -420,8 +420,19 @@ test("V4 runtime component-map drift is reported with doc-check context", (t) =>
 
   const runtimePath = join(root, "packages", "system-a", "src", "design-system.ts");
   const source = readFileSync(runtimePath, "utf8");
-  assert.ok(source.includes("\n    Button,\n"), "runtime map contains the Button entry");
-  writeFileSync(runtimePath, source.replace("\n    Button,\n", "\n"), "utf8");
+  const componentMapStart = source.indexOf("components: {");
+  const componentMapEnd = source.indexOf("\n  },", componentMapStart);
+  assert.ok(componentMapStart >= 0 && componentMapEnd > componentMapStart);
+  const componentMap = source.slice(componentMapStart, componentMapEnd);
+  const buttonEntry = /\n[\t ]+Button,[\t ]*\r?\n/;
+  assert.match(componentMap, buttonEntry, "runtime map contains the Button entry");
+  writeFileSync(
+    runtimePath,
+    source.slice(0, componentMapStart) +
+      componentMap.replace(buttonEntry, "\n") +
+      source.slice(componentMapEnd),
+    "utf8",
+  );
 
   const drifted = runDocsCheck({ root });
   assert.equal(drifted.ok, false);

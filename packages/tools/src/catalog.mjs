@@ -14,11 +14,8 @@ import { createRequire } from "node:module";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 
 import {
-  CONSUMER_AGENTS_FILENAME,
-  CONSUMER_CONFIG_FILENAME,
-  CONSUMER_DIRECTORY,
   connectDesignSystem,
-  resolveConsumerPath,
+  planConnectForTarget,
   resolveConsumerRoot,
   resolveInstalledDesignSystem,
   verifyConsumerDesignSystem,
@@ -381,17 +378,25 @@ function buildUpgradePreview({ packageName, fromVersion, toVersion, command, dif
   return lines;
 }
 
-/** The three consumer contract files `connect` manages, in write order. */
-function plannedConnectPaths(consumerRoot) {
-  return [
-    resolveConsumerPath(consumerRoot, CONSUMER_DIRECTORY, CONSUMER_CONFIG_FILENAME),
-    resolveConsumerPath(consumerRoot, CONSUMER_DIRECTORY, CONSUMER_AGENTS_FILENAME),
-    resolveConsumerPath(consumerRoot, "AGENTS.md"),
-  ];
+/**
+ * Deterministic planned file effects of one target-version connect plan. Each
+ * managed config/AGENTS file carries its exact kind, absolute path, before/after
+ * content, and changed flag so previews, JSON output, and the TUI comparison
+ * material all see the same byte-level effects.
+ */
+function connectPlanChanges(connectPlan) {
+  return connectPlan.files.map((file) => ({
+    kind: "connect",
+    fileKind: file.kind,
+    path: file.path,
+    changed: file.before !== file.after,
+    before: file.before,
+    after: file.after,
+  }));
 }
 
 /** Deterministic planned effects of a dry-run `use`. */
-function buildUsePlannedChanges({ install, tailwindPlan }) {
+function buildUsePlannedChanges({ install, tailwindPlan, connectPlan }) {
   const changes = [{ kind: "dependency", manager: install.manager, command: install.command }];
   if (tailwindPlan) {
     changes.push({
@@ -402,9 +407,7 @@ function buildUsePlannedChanges({ install, tailwindPlan }) {
       after: tailwindPlan.after,
     });
   }
-  for (const path of plannedConnectPaths(install.consumerRoot)) {
-    changes.push({ kind: "connect", path });
-  }
+  changes.push(...connectPlanChanges(connectPlan));
   return changes;
 }
 
@@ -580,10 +583,18 @@ export async function installDesignSystem({
  * usage check. The target must be explicit; the package is never discovered.
  *
  * `dryRun` resolves the exact target and manager command (and, with `tailwind`,
- * the planned CSS import diff) without spawning or writing anything. `tailwind`
- * requires `cssPath` and preflights a current target, an installed Tailwind v4, and
- * the CSS file before any dependency mutation; the real Tailwind setup runs only
- * after a successful install and connect.
+ * the planned CSS import diff) without spawning or writing anything. It also
+ * builds the target-version connect plan from the validated registry manifest
+ * (exact config/AGENTS before/after content), so the preview shows the same
+ * bytes a later connect would write. `tailwind` requires `cssPath` and
+ * preflights a current target, an installed Tailwind v4, and the CSS file before
+ * any dependency mutation; the real Tailwind setup runs only after a successful
+ * install and connect.
+ *
+ * `expectedConnectPlan` is an optional write precondition: after the install and
+ * verification, reconnect recomputes the plan and refuses to write anything if
+ * it no longer matches the previewed plan (drift fails closed; the dependency
+ * change is never rolled back automatically).
  */
 export async function runUseDesignSystem({
   cwd,
@@ -601,6 +612,7 @@ export async function runUseDesignSystem({
   dryRun = false,
   tailwind = false,
   cssPath,
+  expectedConnectPlan,
 } = {}) {
   if (Array.isArray(ignore) && ignore.length > 0 && runUsage !== true) {
     return { ok: false, boundary: "arguments", failures: ["--ignore requires --check-usage."] };
@@ -614,9 +626,15 @@ export async function runUseDesignSystem({
   }
 
   let tailwindPlan = null;
+  // The preflight hook captures the validated registry target before any spawn
+  // (including a dry run) so the target-version connect plan can be built
+  // without a second registry fetch. A non-tailwind preflight returns nothing,
+  // so the install result shape is unchanged.
+  let targetInfo = null;
   const preflight =
     tailwind === true
       ? ({ consumerRoot, info }) => {
+          targetInfo = info;
           tailwindPlan = planUseTailwind({
             consumerRoot,
             packageName: info.package,
@@ -626,7 +644,9 @@ export async function runUseDesignSystem({
           });
           return tailwindPlan;
         }
-      : undefined;
+      : ({ info }) => {
+          targetInfo = info;
+        };
 
   const install = await installDesignSystem({
     cwd,
@@ -651,9 +671,20 @@ export async function runUseDesignSystem({
   }
 
   if (dryRun) {
+    let connectPlan;
     let plannedChanges;
     try {
-      plannedChanges = buildUsePlannedChanges({ install, tailwindPlan });
+      if (targetInfo === null) {
+        throw new Error("The validated registry target was not resolved before planning.");
+      }
+      connectPlan = planConnectForTarget({
+        consumerRoot: install.consumerRoot,
+        package: install.package,
+        version: install.version,
+        manifest: targetInfo.manifest,
+        strict,
+      });
+      plannedChanges = buildUsePlannedChanges({ install, tailwindPlan, connectPlan });
     } catch (error) {
       return { ok: false, boundary: "plan", failures: [error.message], install };
     }
@@ -666,6 +697,7 @@ export async function runUseDesignSystem({
       connect: null,
       usage: null,
       tailwind: tailwindPlan,
+      connectPlan,
       plannedChanges,
     };
   }
@@ -674,12 +706,20 @@ export async function runUseDesignSystem({
     cwd: install.consumerRoot,
     package: install.package,
     strict,
+    expectedPlan: expectedConnectPlan,
   });
   if (!connect.ok) {
+    const precondition = connect.boundary === "precondition";
     return {
       ok: false,
-      boundary: "connect",
+      boundary: precondition ? "connect-precondition" : "connect",
       failures: connect.failures,
+      note: precondition
+        ? "The package was installed and verified, but reconnect did not complete because the " +
+          "consumer files changed after the preview. No connect files were written. No rollback " +
+          "was attempted; the dependency change remains."
+        : "The package was installed and verified, but reconnect did not complete. " +
+          "No rollback was attempted.",
       install,
       connect,
     };
@@ -749,9 +789,14 @@ export async function runUseDesignSystem({
  * the validated registry target *before* any package-manager mutation, producing
  * deterministic component and token removals/additions plus a preview. A dry run
  * resolves and checks the target and manager, returning the exact manager command
- * and planned consumer file effects without spawning or writing. On a real run it
- * uses the same fixed npm/pnpm path as `use`, verifies the exact installed
- * identity/version, then reconnects. A manager mutation is never rolled back.
+ * and the target-version connect plan (exact config/AGENTS before/after content)
+ * without spawning or writing. On a real run it uses the same fixed npm/pnpm path
+ * as `use`, verifies the exact installed identity/version, then reconnects.
+ *
+ * `expectedConnectPlan` is an optional write precondition: after the upgrade and
+ * verification, reconnect recomputes the plan and refuses to write anything if
+ * it no longer matches the previewed plan (drift fails closed; the dependency
+ * change is never rolled back automatically).
  */
 export async function upgradeDesignSystem({
   cwd,
@@ -763,6 +808,7 @@ export async function upgradeDesignSystem({
   spawnImpl,
   stdio = "inherit",
   dryRun = false,
+  expectedConnectPlan,
 } = {}) {
   let requestedVersion;
   try {
@@ -858,11 +904,19 @@ export async function upgradeDesignSystem({
     diff,
   });
 
+  let connectPlan;
   let plannedChanges;
   try {
+    connectPlan = planConnectForTarget({
+      consumerRoot,
+      package: info.package,
+      version: info.version,
+      manifest: info.manifest,
+      strict,
+    });
     plannedChanges = [
       { kind: "dependency", manager: detection.manager, command },
-      ...plannedConnectPaths(consumerRoot).map((path) => ({ kind: "connect", path })),
+      ...connectPlanChanges(connectPlan),
     ];
   } catch (error) {
     return {
@@ -891,6 +945,7 @@ export async function upgradeDesignSystem({
     command,
     diff,
     preview,
+    connectPlan,
     plannedChanges,
   };
 
@@ -936,13 +991,24 @@ export async function upgradeDesignSystem({
     };
   }
 
-  const connect = connectDesignSystem({ cwd: consumerRoot, package: info.package, strict });
+  const connect = connectDesignSystem({
+    cwd: consumerRoot,
+    package: info.package,
+    strict,
+    expectedPlan: expectedConnectPlan,
+  });
   if (!connect.ok) {
+    const precondition = connect.boundary === "precondition";
     return {
       ok: false,
-      boundary: "connect",
+      boundary: precondition ? "connect-precondition" : "connect",
       failures: connect.failures,
-      note: "The package was updated and verified; only reconnect did not complete.",
+      note: precondition
+        ? "The package was updated and verified, but reconnect did not complete because the " +
+          "consumer files changed after the preview. No connect files were written. No rollback " +
+          "was attempted; the dependency change remains."
+        : "The package was updated and verified; only reconnect did not complete. " +
+          "No rollback was attempted.",
       ...base,
       connect,
     };

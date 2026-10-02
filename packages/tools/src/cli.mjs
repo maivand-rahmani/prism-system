@@ -21,6 +21,10 @@
  *   prism-ds upgrade <package-or-id> <exact-version> --cwd <root>
  *     [--dry-run] [--json] [--registry <url>] [--strict|--no-strict]
  *
+ * Bare `prism-ds` (no arguments) dynamically starts the inline interactive TUI
+ * (`./tui.mjs`) in the current process; every argument invocation, including
+ * `--help`, follows the argument path below unchanged.
+ *
  * Boundaries: `search`/`info` are explicit network, read-only. `install`/`use`/
  * `upgrade` are the only commands that mutate consumer dependencies (via a fixed
  * npm/pnpm command), and `upgrade` only when explicitly invoked.
@@ -1322,8 +1326,19 @@ export async function runUpgradeCommand(argv) {
 /* -------------------------------------------------------------------------- */
 
 export async function runCli(argv) {
+  if (argv.length === 0) {
+    // Bare `prism-ds`: start the inline interactive TUI in this process. The
+    // module is loaded dynamically so every argument command keeps a
+    // framework-free import graph.
+    const { runTui } = await import("./tui.mjs");
+    const result = await runTui();
+    if (typeof result?.status === "number" && result.status !== 0) {
+      process.exitCode = result.status;
+    }
+    return result;
+  }
   const [command, ...rest] = argv;
-  if (command === undefined || command === "--help" || command === "-h" || command === "help") {
+  if (command === "--help" || command === "-h" || command === "help") {
     process.stdout.write(helpText());
     return;
   }

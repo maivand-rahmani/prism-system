@@ -7,8 +7,11 @@ usage, sets up the Tailwind v4 bridge, and diagnoses the result.
 
 - **Executable:** `prism-ds` (`search`, `info`, `install`, `use`, `upgrade`, `connect`,
   `components`, `tokens`, `check`, `check-usage`, `setup-tailwind`, `doctor`, `--help`).
+- **Interactive by default:** bare `prism-ds` (no arguments) renders an inline interactive
+  TUI in the current terminal, in place, and never spawns a child terminal or window.
+  Argument commands and `--help` remain plain CLI invocations.
 - **Not a UI package:** it depends on no design system and on no `@prism-system/ui-*`
-  package. TypeScript is its only runtime dependency.
+  package. TypeScript and the Runeframe/Ink TUI runtime are its only runtime dependencies.
 - **One current contract:** it reads the current manifest shape (`schemaVersion: 4`,
   numeric `contractVersion: 4`) and rejects any other shape. The package-owned
   `design-system.source.json` descriptor stays `schemaVersion: 3` and is never shipped;
@@ -218,7 +221,7 @@ remains the authoritative design metadata; nothing duplicates it into `package.j
 
 ## Requirements
 
-- Node.js `>= 20.19.0`.
+- Node.js `>= 22.0.0` (the inline interactive TUI requires the Runeframe/Ink runtime).
 - Tailwind CSS v4 only when a product uses the token bridge; regular CSS consumers need
   none.
 

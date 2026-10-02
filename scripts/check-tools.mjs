@@ -545,10 +545,17 @@ runCheck("pack and inspect the @prism-system/tools artifact", () => {
   }
   // Stage TypeScript next to the packed tools so check-usage/check can lazy-load
   // it without a network install.
-  stageRuntimeDependencies(join(extracted, ".."), pkg.dependencies);
+  // The packed checks below exercise argument-driven commands only. TypeScript
+  // is the sole runtime dependency they load (for check-usage); the inline TUI
+  // dependencies stay lazy and are installed normally by package consumers.
+  stageRuntimeDependencies(join(extracted, ".."), {
+    typescript: pkg.dependencies.typescript,
+  });
   toolsPackageJson = pkg;
   toolsPackageJson.extractedDir = extracted;
 });
+
+assert(toolsPackageJson !== null, "packed tools inspection failed; see the failure above");
 
 const toolsBin = join(
   toolsPackageJson.extractedDir,

@@ -18,7 +18,15 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -899,4 +907,246 @@ test("upgrade updates, verifies the exact version, and reconnects", async (t) =>
   );
   assert.equal(config.version, "2.0.0");
   assert.equal(config.package, systemAManifest.package);
+});
+
+/* -------------------------------------------------------------------------- */
+/* Target connect plan and the optional write precondition                    */
+/* -------------------------------------------------------------------------- */
+
+test("use --dry-run returns the exact target connect plan and the real run writes those bytes", async (t) => {
+  const registry = createRegistry({
+    packageName: systemAManifest.package,
+    versions: { [V4_VERSION]: systemAManifest },
+  });
+  const consumer = createConsumer(t, { packageName: systemAManifest.package });
+  const manager = makeManager();
+
+  const preview = await runUseDesignSystem({
+    cwd: consumer.root,
+    package: systemAManifest.package,
+    version: V4_VERSION,
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: manager.spawnImpl,
+    dryRun: true,
+  });
+
+  assert.equal(preview.ok, true, preview.failures?.join(" "));
+  assert.deepEqual(
+    preview.connectPlan.files.map((file) => file.kind),
+    ["config", "agents", "root-agents"],
+  );
+  assert.deepEqual(
+    preview.connectPlan.files.map((file) => file.path),
+    [
+      join(consumer.root, ".design-system", "config.json"),
+      join(consumer.root, ".design-system", "AGENTS.md"),
+      join(consumer.root, "AGENTS.md"),
+    ],
+  );
+  const config = JSON.parse(preview.connectPlan.files[0].after);
+  assert.equal(config.package, systemAManifest.package);
+  assert.equal(config.version, V4_VERSION);
+  assert.equal(config.strict, true);
+  assert.equal(preview.connectPlan.files[0].before, null);
+
+  // plannedChanges carries the same exact file material, not just paths.
+  const connectChanges = preview.plannedChanges.filter((change) => change.kind === "connect");
+  assert.equal(connectChanges.length, 3);
+  for (const [index, change] of connectChanges.entries()) {
+    const file = preview.connectPlan.files[index];
+    assert.equal(change.path, file.path);
+    assert.equal(change.fileKind, file.kind);
+    assert.equal(change.before, file.before);
+    assert.equal(change.after, file.after);
+    assert.equal(change.changed, true);
+  }
+  assert.equal(manager.calls.length, 0);
+  assert.equal(existsSync(join(consumer.root, ".design-system", "config.json")), false);
+
+  // The real run uses the previewed plan as its write precondition and writes
+  // exactly those bytes.
+  const realManager = makeManager({
+    onSpawn: () => writeInstalled(consumer.root, systemAManifest, { bridge: true }),
+  });
+  const real = await runUseDesignSystem({
+    cwd: consumer.root,
+    package: systemAManifest.package,
+    version: V4_VERSION,
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: realManager.spawnImpl,
+    expectedConnectPlan: preview.connectPlan,
+  });
+
+  assert.equal(real.ok, true, real.failures?.join(" "));
+  assert.equal(real.connect.ok, true);
+  for (const file of preview.connectPlan.files) {
+    assert.equal(readFileSync(file.path, "utf8"), file.after);
+  }
+  assert.equal(realManager.calls.length, 1);
+});
+
+test("use fails closed without overwriting a managed file changed during install", async (t) => {
+  const registry = createRegistry({
+    packageName: systemAManifest.package,
+    versions: { [V4_VERSION]: systemAManifest },
+  });
+  const consumer = createConsumer(t, { packageName: systemAManifest.package });
+  const preview = await runUseDesignSystem({
+    cwd: consumer.root,
+    package: systemAManifest.package,
+    version: V4_VERSION,
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: makeManager().spawnImpl,
+    dryRun: true,
+  });
+  assert.equal(preview.ok, true, preview.failures?.join(" "));
+
+  const injected = "# injected while the package manager ran\n";
+  const manager = makeManager({
+    onSpawn: () => {
+      writeInstalled(consumer.root, systemAManifest, { bridge: true });
+      writeFileSync(join(consumer.root, "AGENTS.md"), injected, "utf8");
+    },
+  });
+
+  const result = await runUseDesignSystem({
+    cwd: consumer.root,
+    package: systemAManifest.package,
+    version: V4_VERSION,
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: manager.spawnImpl,
+    expectedConnectPlan: preview.connectPlan,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.boundary, "connect-precondition");
+  assert.equal(result.install.ok, true, "the dependency install did happen");
+  assert.equal(result.connect.boundary, "precondition");
+  assert.match(result.failures.join(" "), /No connect files were written/);
+  assert.match(result.failures.join(" "), /not rolled back/);
+  assert.match(result.note, /reconnect did not complete/);
+  assert.match(result.note, /No rollback was attempted/);
+  assert.equal(manager.calls.length, 1);
+
+  // The injected file is untouched and reconnect created nothing.
+  assert.equal(readFileSync(join(consumer.root, "AGENTS.md"), "utf8"), injected);
+  assert.equal(existsSync(join(consumer.root, ".design-system", "config.json")), false);
+  assert.equal(existsSync(join(consumer.root, ".design-system", "AGENTS.md")), false);
+});
+
+test("upgrade --dry-run returns the target connect plan and reconnects with those bytes when unchanged", async (t) => {
+  const registry = createRegistry({
+    packageName: systemAManifest.package,
+    versions: { "2.0.0": upgradeTo },
+  });
+  const consumer = createConsumer(t, {
+    packageName: systemAManifest.package,
+    manifest: upgradeFrom,
+    connected: true,
+  });
+
+  const preview = await upgradeDesignSystem({
+    cwd: consumer.root,
+    package: systemAManifest.package,
+    version: "2.0.0",
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: makeManager().spawnImpl,
+    dryRun: true,
+  });
+
+  assert.equal(preview.ok, true, preview.failures?.join(" "));
+  const configChange = preview.plannedChanges.find(
+    (change) => change.kind === "connect" && change.fileKind === "config",
+  );
+  assert.ok(configChange, "the planned config effect is reported with its file kind");
+  assert.equal(configChange.path, join(consumer.root, ".design-system", "config.json"));
+  assert.match(configChange.before, /"version": "1\.1\.0"/);
+  assert.match(configChange.after, /"version": "2\.0\.0"/);
+  assert.equal(configChange.changed, true);
+
+  const realManager = makeManager({
+    onSpawn: () => writeInstalled(consumer.root, upgradeTo, { bridge: false }),
+  });
+  const real = await upgradeDesignSystem({
+    cwd: consumer.root,
+    package: systemAManifest.package,
+    version: "2.0.0",
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: realManager.spawnImpl,
+    expectedConnectPlan: preview.connectPlan,
+  });
+
+  assert.equal(real.ok, true, real.failures?.join(" "));
+  assert.equal(real.connect.ok, true);
+  for (const file of preview.connectPlan.files) {
+    assert.equal(readFileSync(file.path, "utf8"), file.after);
+  }
+});
+
+test("upgrade fails closed without overwriting a managed file changed during the upgrade", async (t) => {
+  const registry = createRegistry({
+    packageName: systemAManifest.package,
+    versions: { "2.0.0": upgradeTo },
+  });
+  const consumer = createConsumer(t, {
+    packageName: systemAManifest.package,
+    manifest: upgradeFrom,
+    connected: true,
+  });
+
+  const preview = await upgradeDesignSystem({
+    cwd: consumer.root,
+    package: systemAManifest.package,
+    version: "2.0.0",
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: makeManager().spawnImpl,
+    dryRun: true,
+  });
+  assert.equal(preview.ok, true, preview.failures?.join(" "));
+
+  const injected = "# injected while the upgrade ran\n";
+  const manager = makeManager({
+    onSpawn: () => {
+      writeInstalled(consumer.root, upgradeTo, { bridge: false });
+      writeFileSync(join(consumer.root, "AGENTS.md"), injected, "utf8");
+    },
+  });
+
+  const result = await upgradeDesignSystem({
+    cwd: consumer.root,
+    package: systemAManifest.package,
+    version: "2.0.0",
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: manager.spawnImpl,
+    expectedConnectPlan: preview.connectPlan,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.boundary, "connect-precondition");
+  assert.match(result.failures.join(" "), /No connect files were written/);
+  assert.match(result.note, /reconnect did not complete/);
+  assert.match(result.note, /No rollback was attempted/);
+  assert.equal(manager.calls.length, 1);
+
+  // The dependency upgrade happened, but reconnect wrote nothing: the injected
+  // AGENTS.md and the old config both remain.
+  assert.equal(
+    readJson(
+      join(consumer.root, "node_modules", ...systemAManifest.package.split("/"), "package.json"),
+    ).version,
+    "2.0.0",
+  );
+  assert.equal(readFileSync(join(consumer.root, "AGENTS.md"), "utf8"), injected);
+  assert.equal(
+    JSON.parse(readFileSync(join(consumer.root, ".design-system", "config.json"), "utf8")).version,
+    "1.1.0",
+  );
 });

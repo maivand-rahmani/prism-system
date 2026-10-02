@@ -31,6 +31,7 @@ import { CONTRACT_VERSION, OPTIONAL_COMPONENTS, REQUIRED_COMPONENTS } from "../s
 import {
   connectDesignSystem,
   planConnect,
+  planConnectForTarget,
   resolveInstalledDesignSystem,
   verifyConsumerDesignSystem,
 } from "../src/consumer.mjs";
@@ -406,4 +407,170 @@ test("connect refuses an external .design-system symlink and writes nothing", (t
   assert.equal(result.ok, false);
   assert.match(result.failures.join(" "), /escapes/);
   assert.deepEqual(readdirSync(outsideDir), []);
+});
+
+/* -------------------------------------------------------------------------- */
+/* Target-version plans and the optional write precondition                   */
+/* -------------------------------------------------------------------------- */
+
+test("planConnectForTarget plans exact target content before install and matches the post-install plan", (t) => {
+  const { root, packageName, version, manifest } = createConsumer(t);
+
+  const target = planConnectForTarget({
+    consumerRoot: root,
+    package: packageName,
+    version,
+    manifest,
+  });
+
+  assert.equal(target.consumerRoot, root);
+  assert.equal(target.packageName, packageName);
+  assert.equal(target.version, version);
+  assert.equal(target.strict, true);
+  assert.deepEqual(
+    target.files.map((file) => file.kind),
+    ["config", "agents", "root-agents"],
+  );
+  for (const file of target.files) {
+    assert.ok(
+      file.path === root || file.path.startsWith(`${root}${sep}`),
+      `planned write escapes the consumer root: ${file.path}`,
+    );
+    assert.equal(file.changed, file.before !== file.after);
+  }
+
+  // Exact planned content: config identity/strict, contract instructions, and
+  // the appended managed block.
+  const config = JSON.parse(target.files[0].after);
+  assert.equal(config.package, packageName);
+  assert.equal(config.version, version);
+  assert.equal(config.strict, true);
+  assert.equal(config.manifest, "./manifest");
+  assert.equal(target.files[0].before, null);
+  assert.match(target.files[1].after, /Contract version: `4`/);
+  assert.match(target.files[2].after, /BEGIN @prism-system design system contract/);
+
+  // The pre-install target plan is materially identical to the plan connect
+  // recomputes from the installed package (same paths, before, and after).
+  const installedPlan = planConnect({ cwd: root });
+  const material = (plan) =>
+    plan.files.map(({ kind, path, before, after }) => ({ kind, path, before, after }));
+  assert.deepEqual(material(target), material(installedPlan));
+
+  // Given the target plan as the write precondition, connect writes exactly the
+  // previewed bytes.
+  const result = connectDesignSystem({ cwd: root, expectedPlan: target });
+  assert.equal(result.ok, true, result.failures.join(" "));
+  for (const file of target.files) {
+    assert.equal(readFileSync(file.path, "utf8"), file.after);
+  }
+});
+
+test("planConnectForTarget preserves configured strict/ignore semantics", (t) => {
+  const { root, packageName, version, manifest } = createConsumer(t, { withConfig: true });
+  writeJson(join(root, ".design-system", "config.json"), {
+    schemaVersion: 1,
+    package: packageName,
+    version,
+    manifest: "./manifest",
+    strict: false,
+    ignore: ["dist/**"],
+  });
+
+  const target = planConnectForTarget({
+    consumerRoot: root,
+    package: packageName,
+    version,
+    manifest,
+  });
+  assert.equal(target.strict, false);
+  const config = JSON.parse(target.files[0].after);
+  assert.equal(config.strict, false);
+  assert.deepEqual(config.ignore, ["dist/**"]);
+
+  // An explicit strict argument overrides the config exactly like planConnect.
+  const explicit = planConnectForTarget({
+    consumerRoot: root,
+    package: packageName,
+    version,
+    manifest,
+    strict: true,
+  });
+  assert.equal(explicit.strict, true);
+  assert.equal(JSON.parse(explicit.files[0].after).strict, true);
+});
+
+test("planConnectForTarget fails closed on a mismatched target manifest", (t) => {
+  const { root, packageName, version, manifest } = createConsumer(t);
+
+  assert.throws(
+    () =>
+      planConnectForTarget({
+        consumerRoot: root,
+        package: packageName,
+        version: "9.9.9",
+        manifest,
+      }),
+    /does not match/,
+  );
+
+  const stale = structuredClone(manifest);
+  stale.contractVersion = 3;
+  assert.throws(
+    () =>
+      planConnectForTarget({ consumerRoot: root, package: packageName, version, manifest: stale }),
+    /contractVersion 4/,
+  );
+});
+
+test("connect refuses to overwrite managed files that changed after the plan", (t) => {
+  const { root } = createConsumer(t);
+  const plan = planConnect({ cwd: root });
+
+  // A managed file changes after the preview (for example while a package
+  // manager runs); the write precondition must fail closed.
+  const injected = "# changed after the preview\n";
+  writeFile(root, "AGENTS.md", injected);
+
+  const result = connectDesignSystem({ cwd: root, expectedPlan: plan });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.boundary, "precondition");
+  assert.match(result.failures.join(" "), /No connect files were written/);
+  assert.match(result.failures.join(" "), /not rolled back/);
+  assert.match(result.failures.join(" "), /root-agents/);
+  // The injected change is preserved and no other managed file was created.
+  assert.equal(readFileSync(join(root, "AGENTS.md"), "utf8"), injected);
+  assert.equal(existsSync(join(root, ".design-system", "config.json")), false);
+  assert.equal(existsSync(join(root, ".design-system", "AGENTS.md")), false);
+  // The fresh plan is reported so the caller can preview and confirm again.
+  assert.ok(
+    result.plan.files.some((file) => file.kind === "root-agents" && file.before === injected),
+  );
+});
+
+test("connect fails closed when a managed config appears after the plan", (t) => {
+  const { root, packageName, version } = createConsumer(t);
+  const plan = planConnect({ cwd: root });
+
+  const injected = `${JSON.stringify(
+    {
+      schemaVersion: 1,
+      package: packageName,
+      version,
+      manifest: "./manifest",
+      strict: false,
+    },
+    null,
+    2,
+  )}\n`;
+  writeFile(root, ".design-system/config.json", injected);
+
+  const result = connectDesignSystem({ cwd: root, expectedPlan: plan });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.boundary, "precondition");
+  assert.match(result.failures.join(" "), /config .*before/);
+  assert.equal(readFileSync(join(root, ".design-system", "config.json"), "utf8"), injected);
+  assert.equal(existsSync(join(root, "AGENTS.md")), false);
 });
