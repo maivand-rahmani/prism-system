@@ -3,10 +3,21 @@
 import * as React from "react";
 import { OPTIONAL_COMPONENTS, REQUIRED_COMPONENTS } from "@prism-system/ui-core";
 import { registeredSystems, getRegisteredSystem, type RegisteredSystem } from "./registry";
+import { CatalogEffectFilters, ExtensionCatalog } from "./extension-catalog";
+import {
+  catalogEffectsFor,
+  DEFAULT_CATALOG_EFFECT_FILTERS,
+  effectLabels,
+  hasDeclaredCatalogEffects,
+  matchesCatalogEffectFilters,
+  effectsSummary,
+  type CatalogEffectFilters as CatalogEffectFilterState,
+} from "./catalog-effects";
 
 type ComponentName = (typeof REQUIRED_COMPONENTS)[number] | (typeof OPTIONAL_COMPONENTS)[number];
 type TokenRecord = Record<string, unknown>;
 type ComponentAvailability = { available: true } | { available: false; reason: string };
+const CatalogEffectFilterContext = React.createContext(DEFAULT_CATALOG_EFFECT_FILTERS);
 
 function hasOwn(value: object, name: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, name);
@@ -48,6 +59,38 @@ function componentAvailability(
 function runtimeComponent(system: RegisteredSystem, name: ComponentName): React.ElementType | null {
   if (!componentAvailability(system, name).available) return null;
   return system.components[name] ?? null;
+}
+
+function FilteredCatalogEntry({
+  system,
+  name,
+  filters,
+  children,
+}: {
+  system: RegisteredSystem;
+  name: string;
+  filters: CatalogEffectFilterState;
+  children: React.ReactNode;
+}) {
+  return matchesCatalogEffectFilters(catalogEffectsFor(system, name), filters) ? (
+    <>{children}</>
+  ) : null;
+}
+
+function CatalogEffectTags({ system, name }: { system: RegisteredSystem; name: string }) {
+  const labels = effectLabels(catalogEffectsFor(system, name));
+  if (labels.length === 0) return null;
+  return (
+    <span className="catalog-shortcut-effects" aria-label={`${name} declared effects`}>
+      {labels.join(" · ")}
+    </span>
+  );
+}
+
+function CanonicalEffectNote({ system, name }: { system: RegisteredSystem; name: string }) {
+  const effects = catalogEffectsFor(system, name);
+  if (!effects) return null;
+  return <p className="catalog-effect-note">Declared effects · {effectsSummary(effects)}</p>;
 }
 
 type PartComponent = React.ComponentType<Record<string, unknown>>;
@@ -320,9 +363,9 @@ function FoundationSection({ system }: { system: RegisteredSystem }) {
             <div className="container-samples">
               {containers.map(([name, value]) => (
                 <div key={name}>
-                  <span>{name}</span>
-                  <i style={{ width: value, maxWidth: "100%" }} />
+                  <span title={name}>{name}</span>
                   <small>{value}</small>
+                  <i style={{ width: value, maxWidth: "100%" }} />
                 </div>
               ))}
             </div>
@@ -449,6 +492,7 @@ function SpecimenField({
 }
 
 function ComponentsSection({ system }: { system: RegisteredSystem }) {
+  const [effectFilters, setEffectFilters] = React.useState(DEFAULT_CATALOG_EFFECT_FILTERS);
   const {
     Button,
     Input,
@@ -477,329 +521,404 @@ function ComponentsSection({ system }: { system: RegisteredSystem }) {
           fixed while the visual language changes.
         </p>
       </div>
+      {hasDeclaredCatalogEffects(system) && (
+        <CatalogEffectFilters filters={effectFilters} onChange={setEffectFilters} />
+      )}
+      {(effectFilters.motion || effectFilters.depth || effectFilters.rendering !== "all") && (
+        <p className="catalog-filter-result" role="status" aria-live="polite">
+          {[
+            ...Object.keys(system.manifest.components),
+            ...Object.keys(system.manifest.extensions ?? {}),
+          ].filter((name) =>
+            matchesCatalogEffectFilters(catalogEffectsFor(system, name), effectFilters),
+          ).length === 0
+            ? "No published entry declares this combination. Clear or adjust the filters."
+            : "Filtered by explicit effect metadata; entries without declarations are hidden until filters are cleared."}
+        </p>
+      )}
       <nav className="catalog-shortcuts" aria-label="Jump to a component specimen">
-        {[...REQUIRED_COMPONENTS, ...OPTIONAL_COMPONENTS].map((name) => (
-          <a key={name} href={`#component-${name.toLowerCase()}`}>
-            {name}
+        {[...REQUIRED_COMPONENTS, ...OPTIONAL_COMPONENTS]
+          .filter((name) =>
+            matchesCatalogEffectFilters(catalogEffectsFor(system, name), effectFilters),
+          )
+          .map((name) => (
+            <a key={name} href={`#component-${name.toLowerCase()}`}>
+              <span>{name}</span>
+              <CatalogEffectTags system={system} name={name} />
+            </a>
+          ))}
+        {Object.entries(system.manifest.extensions ?? {}).filter(([, extension]) =>
+          matchesCatalogEffectFilters(extension.effects ?? null, effectFilters),
+        ).length > 0 && (
+          <a className="extension-shortcut" href="#extensions">
+            System extensions <span aria-hidden="true">↓</span>
           </a>
-        ))}
+        )}
         <a className="dedicated-showcase-link" href={`/showcase/${system.id}#components`}>
           Open {system.name}&apos;s dedicated showcase <span aria-hidden="true">↗</span>
         </a>
       </nav>
-      <div className="component-stack">
-        <Card id="component-button" variant="elevated" padding="lg">
-          <Card.Header>
-            <Card.Title>Button / interaction atlas</Card.Title>
-            <Card.Description>
-              Variants, sizes, and the states that make an action legible.
-            </Card.Description>
-          </Card.Header>
-          <Card.Content>
-            <div className="specimen-block">
-              <h3>Variants</h3>
-              <div className="control-row">
-                <Button variant="primary">Primary</Button>
-                <Button variant="secondary">Secondary</Button>
-                <Button variant="outline">Outline</Button>
-                <Button variant="ghost">Ghost</Button>
-                <Button variant="destructive">Destructive</Button>
-                <Button variant="link">Inline link</Button>
-              </div>
-            </div>
-            <div className="specimen-block">
-              <h3>Sizes</h3>
-              <div className="control-row">
-                <Button size="sm">Small</Button>
-                <Button size="md">Medium</Button>
-                <Button size="lg">Large</Button>
-                <Button size="icon" aria-label="Add">
-                  +
-                </Button>
-              </div>
-            </div>
-            <div className="specimen-block">
-              <h3>
-                States{" "}
-                <span className="hint-label">hover each control · Tab to the focus specimen</span>
-              </h3>
-              <div className="state-grid">
-                <div>
-                  <Button>Default</Button>
-                  <small>ready</small>
+      <CatalogEffectFilterContext.Provider value={effectFilters}>
+        <div className="component-stack">
+          <FilteredCatalogEntry system={system} name="Button" filters={effectFilters}>
+            <Card id="component-button" variant="elevated" padding="lg">
+              <Card.Header>
+                <Card.Title>Button / interaction atlas</Card.Title>
+                <Card.Description>
+                  Variants, sizes, and the states that make an action legible.
+                </Card.Description>
+                <CanonicalEffectNote system={system} name="Button" />
+              </Card.Header>
+              <Card.Content>
+                <div className="specimen-block">
+                  <h3>Variants</h3>
+                  <div className="control-row">
+                    <Button variant="primary">Primary</Button>
+                    <Button variant="secondary">Secondary</Button>
+                    <Button variant="outline">Outline</Button>
+                    <Button variant="ghost">Ghost</Button>
+                    <Button variant="destructive">Destructive</Button>
+                    <Button variant="link">Inline link</Button>
+                  </div>
                 </div>
-                <div>
-                  <Button variant="secondary">Hover me</Button>
-                  <small>interactive</small>
+                <div className="specimen-block">
+                  <h3>Sizes</h3>
+                  <div className="control-row">
+                    <Button size="sm">Small</Button>
+                    <Button size="md">Medium</Button>
+                    <Button size="lg">Large</Button>
+                    <Button size="icon" aria-label="Add">
+                      +
+                    </Button>
+                  </div>
                 </div>
-                <div>
-                  <Button variant="outline">Focus</Button>
-                  <small>Tab here for keyboard ring</small>
+                <div className="specimen-block">
+                  <h3>
+                    States{" "}
+                    <span className="hint-label">
+                      hover each control · Tab to the focus specimen
+                    </span>
+                  </h3>
+                  <div className="state-grid">
+                    <div>
+                      <Button>Default</Button>
+                      <small>ready</small>
+                    </div>
+                    <div>
+                      <Button variant="secondary">Hover me</Button>
+                      <small>interactive</small>
+                    </div>
+                    <div>
+                      <Button variant="outline">Focus</Button>
+                      <small>Tab here for keyboard ring</small>
+                    </div>
+                    <div>
+                      <Button disabled>Disabled</Button>
+                      <small>unavailable</small>
+                    </div>
+                    <div>
+                      <Button loading>Saving</Button>
+                      <small>busy</small>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <Button disabled>Disabled</Button>
-                  <small>unavailable</small>
-                </div>
-                <div>
-                  <Button loading>Saving</Button>
-                  <small>busy</small>
-                </div>
-              </div>
-            </div>
-          </Card.Content>
-        </Card>
-        <div className="component-grid">
-          <Card id="component-input">
-            <Card.Header>
-              <Card.Title>Input</Card.Title>
-              <Card.Description>Labels, hints, and validation.</Card.Description>
-            </Card.Header>
-            <Card.Content>
-              <SpecimenField
-                system={system}
-                id="specimen-workspace"
-                label="Workspace name"
-                description="Shown to your team"
-              >
-                <Input placeholder="e.g. Northstar" />
-              </SpecimenField>
-              <SpecimenField
-                system={system}
-                id="specimen-invalid"
-                label="Invalid field"
-                error="Please choose another name."
-              >
-                <Input defaultValue="Needs attention" />
-              </SpecimenField>
-            </Card.Content>
-          </Card>
-          <Card id="component-badge">
-            <Card.Header>
-              <Card.Title>Badge</Card.Title>
-              <Card.Description>Small signals with a clear hierarchy.</Card.Description>
-            </Card.Header>
-            <Card.Content>
-              <div className="badge-row">
-                <Badge dot variant="success">
-                  Operational
-                </Badge>
-                <Badge variant="warning">Review</Badge>
-                <Badge variant="danger">Blocked</Badge>
-                <Badge variant="outline">Draft</Badge>
-              </div>
-            </Card.Content>
-          </Card>
-          <Card id="component-checkbox">
-            <Card.Header>
-              <Card.Title>Checkbox</Card.Title>
-              <Card.Description>Selection with supporting copy.</Card.Description>
-            </Card.Header>
-            <Card.Content>
-              <div className="checkbox-stack">
-                <SpecimenField
-                  system={system}
-                  id="specimen-digest"
-                  label="Weekly digest"
-                  description="A short summary every Monday."
-                >
-                  <Checkbox defaultChecked />
-                </SpecimenField>
-                <SpecimenField
-                  system={system}
-                  id="specimen-updates"
-                  label="Product updates"
-                  description="Occasional notes from the team."
-                >
-                  <Checkbox />
-                </SpecimenField>
-                <SpecimenField
-                  system={system}
-                  id="specimen-locked"
-                  label="Locked preference"
-                  disabled
-                >
-                  <Checkbox />
-                </SpecimenField>
-              </div>
-            </Card.Content>
-          </Card>
-          <Card id="component-select">
-            <Card.Header>
-              <Card.Title>Select</Card.Title>
-              <Card.Description>A package-owned accessible choice field.</Card.Description>
-            </Card.Header>
-            <Card.Content>
-              <Select defaultValue="balanced">
-                <SpecimenField
-                  system={system}
-                  id="specimen-theme"
-                  label="Theme preference"
-                  description="This specimen uses the package select."
-                >
-                  <Select.Trigger>
-                    <Select.Value />
-                  </Select.Trigger>
-                </SpecimenField>
-                <Select.Content>
-                  <Select.Item value="balanced">Balanced</Select.Item>
-                  <Select.Item value="quiet">Quiet</Select.Item>
-                  <Select.Item value="expressive">Expressive</Select.Item>
-                </Select.Content>
-              </Select>
-            </Card.Content>
-          </Card>
-          <Card id="component-tabs">
-            <Card.Header>
-              <Card.Title>Tabs</Card.Title>
-              <Card.Description>Surface-level navigation with arrow keys.</Card.Description>
-            </Card.Header>
-            <Card.Content>
-              <Tabs defaultValue="overview">
-                <Tabs.List>
-                  <Tabs.Trigger value="overview">Overview</Tabs.Trigger>
-                  <Tabs.Trigger value="details">Details</Tabs.Trigger>
-                  <Tabs.Trigger value="activity">Activity</Tabs.Trigger>
-                </Tabs.List>
-                <Tabs.Content value="overview">
-                  <p>Overview keeps the first read compact.</p>
-                </Tabs.Content>
-                <Tabs.Content value="details">
-                  <p>Details become available without leaving the surface.</p>
-                </Tabs.Content>
-                <Tabs.Content value="activity">
-                  <p>Activity gives the component a quiet timeline.</p>
-                </Tabs.Content>
-              </Tabs>
-            </Card.Content>
-          </Card>
-          <Card id="component-dialog">
-            <Card.Header>
-              <Card.Title>Dialog</Card.Title>
-              <Card.Description>Modal composition with focus management.</Card.Description>
-            </Card.Header>
-            <Card.Content>
-              <Dialog>
-                <Dialog.Trigger>Open dialog</Dialog.Trigger>
-                <Dialog.Content>
-                  <Dialog.Header>
-                    <Dialog.Title>Invite a collaborator</Dialog.Title>
-                    <Dialog.Description>
-                      Share a workspace invitation without losing your place.
-                    </Dialog.Description>
-                  </Dialog.Header>
-                  <SpecimenField system={system} id="specimen-invite" label="Email address">
-                    <Input id="specimen-invite" type="email" placeholder="name@example.com" />
+              </Card.Content>
+            </Card>
+          </FilteredCatalogEntry>
+          <div className="component-grid">
+            <FilteredCatalogEntry system={system} name="Input" filters={effectFilters}>
+              <Card id="component-input">
+                <Card.Header>
+                  <Card.Title>Input</Card.Title>
+                  <Card.Description>Labels, hints, and validation.</Card.Description>
+                  <CanonicalEffectNote system={system} name="Input" />
+                </Card.Header>
+                <Card.Content>
+                  <SpecimenField
+                    system={system}
+                    id="specimen-workspace"
+                    label="Workspace name"
+                    description="Shown to your team"
+                  >
+                    <Input placeholder="e.g. Northstar" />
                   </SpecimenField>
-                  <Dialog.Footer>
-                    <Dialog.Close>Cancel</Dialog.Close>
-                    <Button>Send invite</Button>
-                  </Dialog.Footer>
-                </Dialog.Content>
-              </Dialog>
-            </Card.Content>
-          </Card>
-          <Card id="component-textarea">
-            <Card.Header>
-              <Card.Title>Textarea</Card.Title>
-              <Card.Description>Long-form notes with a clear input boundary.</Card.Description>
-            </Card.Header>
-            <Card.Content>
-              <Textarea aria-label="Project notes" placeholder="Add a short note..." rows={3} />
-            </Card.Content>
-          </Card>
-          <Card id="component-radiogroup">
-            <Card.Header>
-              <Card.Title>RadioGroup</Card.Title>
-              <Card.Description>Related choices with one active direction.</Card.Description>
-            </Card.Header>
-            <Card.Content>
-              <RadioGroup aria-label="Density" defaultValue="balanced" orientation="vertical">
-                <RadioGroup.Item value="quiet">
-                  <span>Quiet</span>
-                </RadioGroup.Item>
-                <RadioGroup.Item value="balanced">
-                  <span>Balanced</span>
-                </RadioGroup.Item>
-                <RadioGroup.Item value="expressive" disabled>
-                  <span>Expressive (unavailable)</span>
-                </RadioGroup.Item>
-              </RadioGroup>
-            </Card.Content>
-          </Card>
-          <Card id="component-switch">
-            <Card.Header>
-              <Card.Title>Switch</Card.Title>
-              <Card.Description>A compact control for an immediate preference.</Card.Description>
-            </Card.Header>
-            <Card.Content>
-              <div className="checkbox-stack">
-                <div className="control-row">
-                  <Switch aria-label="Email updates" defaultChecked />
-                  <span>Weekly updates</span>
-                </div>
-                <div className="control-row">
-                  <Switch aria-label="SMS updates" disabled />
-                  <span>SMS updates (unavailable)</span>
-                </div>
-              </div>
-            </Card.Content>
-          </Card>
-          <Card id="component-dropdownmenu">
-            <Card.Header>
-              <Card.Title>DropdownMenu</Card.Title>
-              <Card.Description>Contextual actions gathered behind one trigger.</Card.Description>
-            </Card.Header>
-            <Card.Content>
-              <DropdownMenu>
-                <DropdownMenu.Trigger type="button">Open actions</DropdownMenu.Trigger>
-                <DropdownMenu.Content>
-                  <DropdownMenu.Item>Rename</DropdownMenu.Item>
-                  <DropdownMenu.Item>Duplicate</DropdownMenu.Item>
-                  <DropdownMenu.Separator />
-                  <DropdownMenu.Item disabled>Archive</DropdownMenu.Item>
-                </DropdownMenu.Content>
-              </DropdownMenu>
-            </Card.Content>
-          </Card>
-          <Card id="component-tooltip">
-            <Card.Header>
-              <Card.Title>Tooltip</Card.Title>
-              <Card.Description>Helpful context, close at hand.</Card.Description>
-            </Card.Header>
-            <Card.Content>
-              <Tooltip.Provider>
-                <Tooltip>
-                  <Tooltip.Trigger type="button">Focus or hover</Tooltip.Trigger>
-                  <Tooltip.Content>Helpful context, close at hand.</Tooltip.Content>
-                </Tooltip>
-              </Tooltip.Provider>
-            </Card.Content>
-          </Card>
-          <Card id="component-separator">
-            <Card.Header>
-              <Card.Title>Separator</Card.Title>
-              <Card.Description>A quiet boundary between related content.</Card.Description>
-            </Card.Header>
-            <Card.Content>
-              <div className="control-row">
-                <span>Before</span>
-                <Separator aria-label="Content boundary" />
-                <span>After</span>
-              </div>
-            </Card.Content>
-          </Card>
+                  <SpecimenField
+                    system={system}
+                    id="specimen-invalid"
+                    label="Invalid field"
+                    error="Please choose another name."
+                  >
+                    <Input defaultValue="Needs attention" />
+                  </SpecimenField>
+                </Card.Content>
+              </Card>
+            </FilteredCatalogEntry>
+            <FilteredCatalogEntry system={system} name="Badge" filters={effectFilters}>
+              <Card id="component-badge">
+                <Card.Header>
+                  <Card.Title>Badge</Card.Title>
+                  <Card.Description>Small signals with a clear hierarchy.</Card.Description>
+                  <CanonicalEffectNote system={system} name="Badge" />
+                </Card.Header>
+                <Card.Content>
+                  <div className="badge-row">
+                    <Badge dot variant="success">
+                      Operational
+                    </Badge>
+                    <Badge variant="warning">Review</Badge>
+                    <Badge variant="danger">Blocked</Badge>
+                    <Badge variant="outline">Draft</Badge>
+                  </div>
+                </Card.Content>
+              </Card>
+            </FilteredCatalogEntry>
+            <FilteredCatalogEntry system={system} name="Checkbox" filters={effectFilters}>
+              <Card id="component-checkbox">
+                <Card.Header>
+                  <Card.Title>Checkbox</Card.Title>
+                  <Card.Description>Selection with supporting copy.</Card.Description>
+                  <CanonicalEffectNote system={system} name="Checkbox" />
+                </Card.Header>
+                <Card.Content>
+                  <div className="checkbox-stack">
+                    <SpecimenField
+                      system={system}
+                      id="specimen-digest"
+                      label="Weekly digest"
+                      description="A short summary every Monday."
+                    >
+                      <Checkbox defaultChecked />
+                    </SpecimenField>
+                    <SpecimenField
+                      system={system}
+                      id="specimen-updates"
+                      label="Product updates"
+                      description="Occasional notes from the team."
+                    >
+                      <Checkbox />
+                    </SpecimenField>
+                    <SpecimenField
+                      system={system}
+                      id="specimen-locked"
+                      label="Locked preference"
+                      disabled
+                    >
+                      <Checkbox />
+                    </SpecimenField>
+                  </div>
+                </Card.Content>
+              </Card>
+            </FilteredCatalogEntry>
+            <FilteredCatalogEntry system={system} name="Select" filters={effectFilters}>
+              <Card id="component-select">
+                <Card.Header>
+                  <Card.Title>Select</Card.Title>
+                  <Card.Description>A package-owned accessible choice field.</Card.Description>
+                  <CanonicalEffectNote system={system} name="Select" />
+                </Card.Header>
+                <Card.Content>
+                  <Select defaultValue="balanced">
+                    <SpecimenField
+                      system={system}
+                      id="specimen-theme"
+                      label="Theme preference"
+                      description="This specimen uses the package select."
+                    >
+                      <Select.Trigger>
+                        <Select.Value />
+                      </Select.Trigger>
+                    </SpecimenField>
+                    <Select.Content>
+                      <Select.Item value="balanced">Balanced</Select.Item>
+                      <Select.Item value="quiet">Quiet</Select.Item>
+                      <Select.Item value="expressive">Expressive</Select.Item>
+                    </Select.Content>
+                  </Select>
+                </Card.Content>
+              </Card>
+            </FilteredCatalogEntry>
+            <FilteredCatalogEntry system={system} name="Tabs" filters={effectFilters}>
+              <Card id="component-tabs">
+                <Card.Header>
+                  <Card.Title>Tabs</Card.Title>
+                  <Card.Description>Surface-level navigation with arrow keys.</Card.Description>
+                  <CanonicalEffectNote system={system} name="Tabs" />
+                </Card.Header>
+                <Card.Content>
+                  <Tabs defaultValue="overview">
+                    <Tabs.List>
+                      <Tabs.Trigger value="overview">Overview</Tabs.Trigger>
+                      <Tabs.Trigger value="details">Details</Tabs.Trigger>
+                      <Tabs.Trigger value="activity">Activity</Tabs.Trigger>
+                    </Tabs.List>
+                    <Tabs.Content value="overview">
+                      <p>Overview keeps the first read compact.</p>
+                    </Tabs.Content>
+                    <Tabs.Content value="details">
+                      <p>Details become available without leaving the surface.</p>
+                    </Tabs.Content>
+                    <Tabs.Content value="activity">
+                      <p>Activity gives the component a quiet timeline.</p>
+                    </Tabs.Content>
+                  </Tabs>
+                </Card.Content>
+              </Card>
+            </FilteredCatalogEntry>
+            <FilteredCatalogEntry system={system} name="Dialog" filters={effectFilters}>
+              <Card id="component-dialog">
+                <Card.Header>
+                  <Card.Title>Dialog</Card.Title>
+                  <Card.Description>Modal composition with focus management.</Card.Description>
+                  <CanonicalEffectNote system={system} name="Dialog" />
+                </Card.Header>
+                <Card.Content>
+                  <Dialog>
+                    <Dialog.Trigger>Open dialog</Dialog.Trigger>
+                    <Dialog.Content>
+                      <Dialog.Header>
+                        <Dialog.Title>Invite a collaborator</Dialog.Title>
+                        <Dialog.Description>
+                          Share a workspace invitation without losing your place.
+                        </Dialog.Description>
+                      </Dialog.Header>
+                      <SpecimenField system={system} id="specimen-invite" label="Email address">
+                        <Input id="specimen-invite" type="email" placeholder="name@example.com" />
+                      </SpecimenField>
+                      <Dialog.Footer>
+                        <Dialog.Close>Cancel</Dialog.Close>
+                        <Button>Send invite</Button>
+                      </Dialog.Footer>
+                    </Dialog.Content>
+                  </Dialog>
+                </Card.Content>
+              </Card>
+            </FilteredCatalogEntry>
+            <FilteredCatalogEntry system={system} name="Textarea" filters={effectFilters}>
+              <Card id="component-textarea">
+                <Card.Header>
+                  <Card.Title>Textarea</Card.Title>
+                  <Card.Description>Long-form notes with a clear input boundary.</Card.Description>
+                  <CanonicalEffectNote system={system} name="Textarea" />
+                </Card.Header>
+                <Card.Content>
+                  <Textarea aria-label="Project notes" placeholder="Add a short note..." rows={3} />
+                </Card.Content>
+              </Card>
+            </FilteredCatalogEntry>
+            <FilteredCatalogEntry system={system} name="RadioGroup" filters={effectFilters}>
+              <Card id="component-radiogroup">
+                <Card.Header>
+                  <Card.Title>RadioGroup</Card.Title>
+                  <Card.Description>Related choices with one active direction.</Card.Description>
+                  <CanonicalEffectNote system={system} name="RadioGroup" />
+                </Card.Header>
+                <Card.Content>
+                  <RadioGroup aria-label="Density" defaultValue="balanced" orientation="vertical">
+                    <RadioGroup.Item value="quiet">
+                      <span>Quiet</span>
+                    </RadioGroup.Item>
+                    <RadioGroup.Item value="balanced">
+                      <span>Balanced</span>
+                    </RadioGroup.Item>
+                    <RadioGroup.Item value="expressive" disabled>
+                      <span>Expressive (unavailable)</span>
+                    </RadioGroup.Item>
+                  </RadioGroup>
+                </Card.Content>
+              </Card>
+            </FilteredCatalogEntry>
+            <FilteredCatalogEntry system={system} name="Switch" filters={effectFilters}>
+              <Card id="component-switch">
+                <Card.Header>
+                  <Card.Title>Switch</Card.Title>
+                  <Card.Description>
+                    A compact control for an immediate preference.
+                  </Card.Description>
+                  <CanonicalEffectNote system={system} name="Switch" />
+                </Card.Header>
+                <Card.Content>
+                  <div className="checkbox-stack">
+                    <div className="control-row">
+                      <Switch aria-label="Email updates" defaultChecked />
+                      <span>Weekly updates</span>
+                    </div>
+                    <div className="control-row">
+                      <Switch aria-label="SMS updates" disabled />
+                      <span>SMS updates (unavailable)</span>
+                    </div>
+                  </div>
+                </Card.Content>
+              </Card>
+            </FilteredCatalogEntry>
+            <FilteredCatalogEntry system={system} name="DropdownMenu" filters={effectFilters}>
+              <Card id="component-dropdownmenu">
+                <Card.Header>
+                  <Card.Title>DropdownMenu</Card.Title>
+                  <Card.Description>
+                    Contextual actions gathered behind one trigger.
+                  </Card.Description>
+                  <CanonicalEffectNote system={system} name="DropdownMenu" />
+                </Card.Header>
+                <Card.Content>
+                  <DropdownMenu>
+                    <DropdownMenu.Trigger type="button">Open actions</DropdownMenu.Trigger>
+                    <DropdownMenu.Content>
+                      <DropdownMenu.Item>Rename</DropdownMenu.Item>
+                      <DropdownMenu.Item>Duplicate</DropdownMenu.Item>
+                      <DropdownMenu.Separator />
+                      <DropdownMenu.Item disabled>Archive</DropdownMenu.Item>
+                    </DropdownMenu.Content>
+                  </DropdownMenu>
+                </Card.Content>
+              </Card>
+            </FilteredCatalogEntry>
+            <FilteredCatalogEntry system={system} name="Tooltip" filters={effectFilters}>
+              <Card id="component-tooltip">
+                <Card.Header>
+                  <Card.Title>Tooltip</Card.Title>
+                  <Card.Description>Helpful context, close at hand.</Card.Description>
+                  <CanonicalEffectNote system={system} name="Tooltip" />
+                </Card.Header>
+                <Card.Content>
+                  <Tooltip.Provider>
+                    <Tooltip>
+                      <Tooltip.Trigger type="button">Focus or hover</Tooltip.Trigger>
+                      <Tooltip.Content>Helpful context, close at hand.</Tooltip.Content>
+                    </Tooltip>
+                  </Tooltip.Provider>
+                </Card.Content>
+              </Card>
+            </FilteredCatalogEntry>
+            <FilteredCatalogEntry system={system} name="Separator" filters={effectFilters}>
+              <Card id="component-separator">
+                <Card.Header>
+                  <Card.Title>Separator</Card.Title>
+                  <Card.Description>A quiet boundary between related content.</Card.Description>
+                  <CanonicalEffectNote system={system} name="Separator" />
+                </Card.Header>
+                <Card.Content>
+                  <div className="control-row">
+                    <span>Before</span>
+                    <Separator aria-label="Content boundary" />
+                    <span>After</span>
+                  </div>
+                </Card.Content>
+              </Card>
+            </FilteredCatalogEntry>
+          </div>
+          <div className="contract-note">
+            <span>✓</span>
+            <p>
+              <strong>Contract-driven catalog</strong> Required examples come from the active
+              package; optional examples appear only when its runtime and manifest publish them.
+              <code>{system.packageName}</code>
+            </p>
+          </div>
+          <RequiredAdditionSpecimens system={system} />
+          <OptionalSpecimens system={system} />
+          <ExtensionCatalog system={system} filters={effectFilters} />
         </div>
-        <div className="contract-note">
-          <span>✓</span>
-          <p>
-            <strong>Contract-driven catalog</strong> Required examples come from the active package;
-            optional examples appear only when its runtime and manifest publish them.
-            <code>{system.packageName}</code>
-          </p>
-        </div>
-        <RequiredAdditionSpecimens system={system} />
-        <OptionalSpecimens system={system} />
-      </div>
+      </CatalogEffectFilterContext.Provider>
     </section>
   );
 }
@@ -834,6 +953,9 @@ function CapabilityCard({
   children: React.ReactNode;
 }) {
   const { Card } = system.components;
+  const filters = React.useContext(CatalogEffectFilterContext);
+  if (!matchesCatalogEffectFilters(catalogEffectsFor(system, name), filters)) return null;
+  const declaredEffects = catalogEffectsFor(system, name);
   const availability = componentAvailability(system, name);
   return (
     <article className="component-extension" id={`component-${name.toLowerCase()}`}>
@@ -841,6 +963,11 @@ function CapabilityCard({
         <Card.Header>
           <Card.Title>{name}</Card.Title>
           <Card.Description>{description}</Card.Description>
+          {declaredEffects && (
+            <p className="catalog-effect-note">
+              Declared effects · {effectsSummary(declaredEffects)}
+            </p>
+          )}
         </Card.Header>
         <Card.Content>
           {availability.available ? (

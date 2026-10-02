@@ -24,11 +24,17 @@ export type TokenSet = {
   typography?: TokenGroup;
 };
 
-/** One component entry of a package's generated `./manifest` metadata. */
+/**
+ * One component entry of a package's generated `./manifest` metadata.
+ *
+ * `effects` is declared metadata only: a missing block means effects are
+ * undeclared, and no feature or renderer is ever inferred from the name.
+ */
 export type RegisteredManifestComponent = {
   variants: readonly string[];
   sizes: readonly string[];
   members: readonly string[];
+  effects?: RegisteredManifestEffects;
   description?: string;
   docs?: string;
   example?: string;
@@ -40,14 +46,63 @@ export type RegisteredManifestCapabilityCategory = {
   optional: readonly string[];
 };
 
+/** The kind of prerequisite one public entrypoint declares. */
+export type RegisteredManifestRequirementKind = "dependency" | "peer";
+
+/** One resolved prerequisite of a package's generated `./manifest` metadata. */
+export type RegisteredManifestRequirement = {
+  name: string;
+  kind: RegisteredManifestRequirementKind;
+  range: string;
+  optional: boolean;
+};
+
+/** One code entrypoint of a package's generated `./manifest` metadata. */
+export type RegisteredManifestEntrypoint = {
+  requirements: readonly RegisteredManifestRequirement[];
+};
+
+/** One declared visual-effect feature of a component or extension. */
+export type RegisteredManifestEffectFeature = "depth" | "motion" | "3d";
+
+/** How a declared effect is rendered. */
+export type RegisteredManifestEffectRendering = "dom" | "webgl" | "mixed";
+
+/** The static fallback a webgl or mixed effect may provide. */
+export type RegisteredManifestEffectFallback = "static" | "none";
+
+/**
+ * Explicit effect metadata declared by a source descriptor. Missing means
+ * undeclared: consumers must never infer effects from a component name.
+ */
+export type RegisteredManifestEffects = {
+  features: readonly RegisteredManifestEffectFeature[];
+  rendering: RegisteredManifestEffectRendering;
+  reducedMotion: boolean;
+  fallback?: RegisteredManifestEffectFallback;
+};
+
+/** One declared extension export of a package's generated `./manifest` metadata. */
+export type RegisteredManifestExtension = {
+  apiVersion: number;
+  entrypoint: string;
+  description: string;
+  docs: string;
+  example: string;
+  effects?: RegisteredManifestEffects;
+};
+
 /**
  * The public generated `./manifest` metadata a package publishes.
  *
  * It describes the components, variants, sizes, and compound members the
- * package promises, plus the generated capability-category inventory. The
- * category membership is a reference only: the registered runtime component
- * map stays the source of truth for what actually exists. JSON imports widen
- * literals, so the metadata versions are typed as numbers.
+ * package promises, the public entrypoints and their resolved prerequisite
+ * requirements, and any declared extensions, plus the generated
+ * capability-category inventory. Availability is catalog metadata: a shared
+ * component exists when its key is present in `components`, an extension when
+ * its key is present in `extensions`. The category inventory is a reference
+ * only, never a second availability list. JSON imports widen literals, so the
+ * metadata versions are typed as numbers.
  */
 export type RegisteredManifest = {
   schemaVersion: number;
@@ -56,18 +111,21 @@ export type RegisteredManifest = {
   name: string;
   package: string;
   version: string;
+  entrypoints: Readonly<Record<string, RegisteredManifestEntrypoint>>;
   components: Readonly<Record<string, RegisteredManifestComponent>>;
   capabilities: {
     categories: Readonly<Record<string, RegisteredManifestCapabilityCategory>>;
   };
+  extensions?: Readonly<Record<string, RegisteredManifestExtension>>;
 };
 
 /**
  * A registered system with its scoped UI class, token groups, and the
  * package's public generated `./manifest` metadata.
  *
- * Availability of an optional component is a runtime question answered by the
- * real component-map keys, never by this type or by the manifest.
+ * Availability is the catalog metadata in `manifest` (`components` keys, and
+ * extension keys in `extensions`); the runtime component map is the imported
+ * implementation, not a second availability source.
  */
 export type RegisteredSystem = Omit<DesignSystem, "components"> & {
   components: DesignSystemComponents;

@@ -3,16 +3,22 @@
  * Manifest-driven static app integration for the factory.
  *
  * Showcase and Reference App are integrated from `config/design-systems.json`
- * with **static imports only** — no runtime package discovery, no dynamic
- * `import()` of design systems. Given a candidate manifest and an explicit
- * root, this module plans deterministic content for the tool-owned parts of
- * both apps:
+ * with **static system imports only** — no runtime package discovery, no
+ * dynamic `import()` of a design system's root entry. Given a candidate
+ * manifest and an explicit root, this module plans deterministic content for
+ * the tool-owned parts of both apps:
  *
  *   app/registry.ts   fully generated: one static import (package + tokens) per
  *                     manifest entry, the common `RegisteredSystem` type, and a
  *                     throwing lookup. Every entry imports the package's public
  *                     generated `./manifest` metadata and exposes the full
  *                     runtime component map.
+ *   app/extension-loaders.ts
+ *                     Showcase-only, fully generated: literal dynamic imports of
+ *                     every extension each package's validated source descriptor
+ *                     declares, dispatched by `(systemId, extensionName)`.
+ *                     Modules load only when `loadExtension` selects them. The
+ *                     Reference App never imports an extension.
  *   app/layout.tsx    generated import block for every registered stylesheet,
  *                     with the surrounding metadata/body preserved verbatim.
  *   package.json      workspace dependency set reconciled to the manifest, all
@@ -31,12 +37,15 @@
  *     manifest-only skip. A root with only one app is a hard error. The module
  *     never falls back to the repository root.
  *
- * This module is a library (imported by `register-design-system.mjs`) and is
- * self-contained: it imports no other repository module, avoiding a cycle.
+ * This module is a library (imported by `register-design-system.mjs`). The
+ * canonical catalog reader is injected by callers that already hold the
+ * evaluated namespace (the registry CLI lives inside a module cycle with it and
+ * must never `import()` it late); standalone callers fall back to loading it on
+ * demand only when a package actually has a source descriptor.
  */
 
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 /** Marker on fully tool-owned files (for example `app/registry.ts`). */
 export const TOOL_OWNED_MARKER = "// @prism-system:tool-owned";
@@ -46,6 +55,10 @@ export const STYLES_END = "// @prism-system:styles:end";
 /** Markers around the generated `transpilePackages` block in next.config. */
 export const TRANSPILE_BEGIN = "// @prism-system:transpile:begin";
 export const TRANSPILE_END = "// @prism-system:transpile:end";
+/** Package-owned, prebuild-safe API descriptor read for declared extensions. */
+export const SOURCE_DESCRIPTOR_FILENAME = "design-system.source.json";
+/** Tool-owned, Showcase-only generated extension loader module. */
+export const EXTENSION_LOADERS_FILENAME = "extension-loaders.ts";
 
 /** The unstyled foundation every app always transpiles and depends on. */
 export const CORE_PACKAGE = "@prism-system/ui-core";
@@ -59,6 +72,7 @@ export const APP_TARGETS = Object.freeze([
     title: "Maivand design systems · Showcase",
     description: "A component laboratory for portable Maivand design systems.",
     stylesheet: "./showcase.css",
+    extensions: true,
   }),
   Object.freeze({
     name: "reference-app",
@@ -67,12 +81,24 @@ export const APP_TARGETS = Object.freeze([
     title: "Maivand reference app",
     description: "A fixed composition for validating interchangeable design systems.",
     stylesheet: "./reference.css",
+    extensions: false,
   }),
 ]);
 
 const SYSTEM_ID_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const IDENTIFIER_PATTERN = /^[A-Za-z_$][\w$]*$/;
 const CSS_CLASS_PATTERN = /^[A-Za-z_][\w-]*$/;
+/** A safe managed package name; the only scope the generator imports. */
+const MANAGED_PACKAGE_PATTERN = /^@prism-system\/[a-z0-9-]+$/;
+/** A declared extension key is a PascalCase named export, never a canonical name. */
+const EXTENSION_NAME_PATTERN = /^[A-Z][A-Za-z0-9]*$/;
+/**
+ * A concrete package export subpath such as `./custom/keyboard-scene`.
+ * Segments start with an alphanumeric character, so `.`/`..` traversal and
+ * empty segments are rejected before any import specifier is generated.
+ */
+const ENTRYPOINT_PATTERN =
+  /^\.\/[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?(?:\/[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)*$/;
 
 const REGISTRY_HEADER = [
   TOOL_OWNED_MARKER,
@@ -190,6 +216,184 @@ function requiredPackages(entries) {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Declared extensions                                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Lazily load the canonical catalog tooling for standalone callers that do not
+ * inject it. The extension declarations are read through the catalog's own
+ * `readSourceDescriptor` so entrypoint and export-map validation stays in one
+ * place. `planAppIntegration` accepts a `catalog` option because callers inside
+ * the registry module cycle (`register-design-system.mjs`) already hold the
+ * evaluated namespace: a dynamic `import()` of a module in the caller's own
+ * pending evaluation cycle never settles, so late loading is the wrong default
+ * there.
+ */
+let catalogModulePromise = null;
+function loadCatalogModule() {
+  catalogModulePromise ??= import("./design-system-manifest.mjs");
+  return catalogModulePromise;
+}
+
+/**
+ * Locate a registered package directory inside `root`. The registry's
+ * `packagePath` is preferred, the canonical `packages/<id>` layout is the
+ * fallback. Absolute and escaping paths are ignored (never followed).
+ */
+function resolvePackageDirectory(root, entry) {
+  const candidates = [];
+  if (typeof entry.packagePath === "string" && entry.packagePath.trim().length > 0) {
+    candidates.push(entry.packagePath);
+  }
+  candidates.push(`packages/${entry.id}`);
+  for (const candidate of candidates) {
+    const normalized = candidate.split("\\").join("/");
+    if (isAbsolute(candidate) || normalized.startsWith("..")) continue;
+    const target = resolve(root, candidate);
+    const relativePath = relative(resolve(root), target);
+    if (relativePath.startsWith("..") || isAbsolute(relativePath)) continue;
+    if (existsSync(target)) return target;
+  }
+  return null;
+}
+
+/**
+ * Turn the extensions a validated source descriptor declared into the loader
+ * declarations the Showcase needs. The catalog reader has already validated
+ * the full schema, the package export map, and the real runtime named exports;
+ * this step enforces the remaining code-generation boundary: a safe extension
+ * name, a concrete subpath declared by `package.json exports`, and a managed
+ * import specifier built from it.
+ */
+function normalizeExtensionDeclarations({ entry, packageDir, declared, catalog }) {
+  if (!isPlainObject(declared)) {
+    throw new Error(`App integration: "${entry.id}" descriptor "extensions" must be an object.`);
+  }
+  const names = Object.keys(declared);
+  if (names.length === 0) return [];
+  if (!MANAGED_PACKAGE_PATTERN.test(entry.packageName)) {
+    throw new Error(
+      `App integration: "${entry.id}" has unsafe package name ${JSON.stringify(
+        entry.packageName,
+      )} for declared extensions.`,
+    );
+  }
+
+  const packageJsonPath = join(packageDir, "package.json");
+  let pkg = null;
+  if (existsSync(packageJsonPath)) {
+    try {
+      pkg = JSON.parse(stripBom(readFileSync(packageJsonPath, "utf8")));
+    } catch (error) {
+      throw new Error(
+        `App integration: "${entry.id}" has invalid JSON in ${packageJsonPath}: ${error.message}`,
+      );
+    }
+  }
+  const exportsMap = isPlainObject(pkg?.exports) ? pkg.exports : {};
+  const canonical = new Set([
+    ...(Array.isArray(catalog?.REQUIRED_COMPONENTS) ? catalog.REQUIRED_COMPONENTS : []),
+    ...(Array.isArray(catalog?.OPTIONAL_COMPONENTS) ? catalog.OPTIONAL_COMPONENTS : []),
+  ]);
+
+  const declarations = [];
+  for (const name of names) {
+    const label = `App integration: "${entry.id}" extension "${name}"`;
+    if (!EXTENSION_NAME_PATTERN.test(name)) {
+      throw new Error(`${label} must be a PascalCase named export.`);
+    }
+    if (canonical.has(name)) {
+      throw new Error(`${label} collides with a canonical component name.`);
+    }
+    const raw = declared[name];
+    if (!isPlainObject(raw)) {
+      throw new Error(`${label} must be an object.`);
+    }
+    if (typeof raw.entrypoint !== "string" || !ENTRYPOINT_PATTERN.test(raw.entrypoint)) {
+      throw new Error(`${label} "entrypoint" must be a concrete "./subpath".`);
+    }
+    if (!Object.prototype.hasOwnProperty.call(exportsMap, raw.entrypoint)) {
+      throw new Error(
+        `${label} entrypoint ${JSON.stringify(raw.entrypoint)} is not declared by package.json ` +
+          `"exports"; refusing to generate an undeclared import.`,
+      );
+    }
+    declarations.push({
+      name,
+      systemId: entry.id,
+      importSpecifier: `${entry.packageName}${raw.entrypoint.slice(1)}`,
+    });
+  }
+  declarations.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  return declarations;
+}
+
+/**
+ * Read the extensions one registered package declares. A package directory or
+ * descriptor that does not exist contributes no extensions. A descriptor that
+ * declares no `extensions` map is neutral and is left to the catalog and
+ * registration checks; a descriptor that does declare one is validated through
+ * the canonical catalog reader, so invalid metadata fails the whole plan
+ * instead of generating a guessed import.
+ */
+async function readExtensionDeclarations(root, entry, catalog) {
+  const packageDir = resolvePackageDirectory(root, entry);
+  if (packageDir === null) return [];
+  const descriptorPath = join(packageDir, SOURCE_DESCRIPTOR_FILENAME);
+  if (!existsSync(descriptorPath)) return [];
+  let raw;
+  try {
+    raw = JSON.parse(stripBom(readFileSync(descriptorPath, "utf8")));
+  } catch (error) {
+    throw new Error(
+      `App integration: "${entry.id}" has invalid JSON in ${descriptorPath}: ${error.message}`,
+    );
+  }
+  if (
+    !isPlainObject(raw) ||
+    !isPlainObject(raw.extensions) ||
+    Object.keys(raw.extensions).length === 0
+  ) {
+    return [];
+  }
+  const catalogModule = catalog ?? (await loadCatalogModule());
+  let descriptor;
+  try {
+    descriptor = catalogModule.readSourceDescriptor(packageDir);
+  } catch (error) {
+    throw new Error(
+      `App integration: "${entry.id}" has an invalid source descriptor: ${error.message}`,
+    );
+  }
+  const validated = descriptor?.extensions;
+  if (!isPlainObject(validated) || Object.keys(validated).length === 0) {
+    throw new Error(
+      `App integration: "${entry.id}" declares extensions but the catalog reader did not ` +
+        `validate them; refusing to generate an incomplete extension loader.`,
+    );
+  }
+  return normalizeExtensionDeclarations({
+    entry,
+    packageDir,
+    declared: validated,
+    catalog: catalogModule,
+  });
+}
+
+/** Prepare the sorted entries and attach each package's declared extensions. */
+async function prepareEntriesWithExtensions(manifest, root, catalog) {
+  const entries = prepareEntries(manifest);
+  const prepared = [];
+  for (const entry of entries) {
+    prepared.push({
+      ...entry,
+      extensions: await readExtensionDeclarations(root, entry, catalog),
+    });
+  }
+  return prepared;
+}
+
+/* -------------------------------------------------------------------------- */
 /* Generated source                                                           */
 /* -------------------------------------------------------------------------- */
 
@@ -237,11 +441,17 @@ function buildRegistrySource(entries) {
     "  typography?: TokenGroup;",
     "};",
     "",
-    "/** One component entry of a package's generated `./manifest` metadata. */",
+    "/**",
+    " * One component entry of a package's generated `./manifest` metadata.",
+    " *",
+    " * `effects` is declared metadata only: a missing block means effects are",
+    " * undeclared, and no feature or renderer is ever inferred from the name.",
+    " */",
     "export type RegisteredManifestComponent = {",
     "  variants: readonly string[];",
     "  sizes: readonly string[];",
     "  members: readonly string[];",
+    "  effects?: RegisteredManifestEffects;",
     "  description?: string;",
     "  docs?: string;",
     "  example?: string;",
@@ -253,14 +463,63 @@ function buildRegistrySource(entries) {
     "  optional: readonly string[];",
     "};",
     "",
+    "/** The kind of prerequisite one public entrypoint declares. */",
+    'export type RegisteredManifestRequirementKind = "dependency" | "peer";',
+    "",
+    "/** One resolved prerequisite of a package's generated `./manifest` metadata. */",
+    "export type RegisteredManifestRequirement = {",
+    "  name: string;",
+    "  kind: RegisteredManifestRequirementKind;",
+    "  range: string;",
+    "  optional: boolean;",
+    "};",
+    "",
+    "/** One code entrypoint of a package's generated `./manifest` metadata. */",
+    "export type RegisteredManifestEntrypoint = {",
+    "  requirements: readonly RegisteredManifestRequirement[];",
+    "};",
+    "",
+    "/** One declared visual-effect feature of a component or extension. */",
+    'export type RegisteredManifestEffectFeature = "depth" | "motion" | "3d";',
+    "",
+    "/** How a declared effect is rendered. */",
+    'export type RegisteredManifestEffectRendering = "dom" | "webgl" | "mixed";',
+    "",
+    "/** The static fallback a webgl or mixed effect may provide. */",
+    'export type RegisteredManifestEffectFallback = "static" | "none";',
+    "",
+    "/**",
+    " * Explicit effect metadata declared by a source descriptor. Missing means",
+    " * undeclared: consumers must never infer effects from a component name.",
+    " */",
+    "export type RegisteredManifestEffects = {",
+    "  features: readonly RegisteredManifestEffectFeature[];",
+    "  rendering: RegisteredManifestEffectRendering;",
+    "  reducedMotion: boolean;",
+    "  fallback?: RegisteredManifestEffectFallback;",
+    "};",
+    "",
+    "/** One declared extension export of a package's generated `./manifest` metadata. */",
+    "export type RegisteredManifestExtension = {",
+    "  apiVersion: number;",
+    "  entrypoint: string;",
+    "  description: string;",
+    "  docs: string;",
+    "  example: string;",
+    "  effects?: RegisteredManifestEffects;",
+    "};",
+    "",
     "/**",
     " * The public generated `./manifest` metadata a package publishes.",
     " *",
     " * It describes the components, variants, sizes, and compound members the",
-    " * package promises, plus the generated capability-category inventory. The",
-    " * category membership is a reference only: the registered runtime component",
-    " * map stays the source of truth for what actually exists. JSON imports widen",
-    " * literals, so the metadata versions are typed as numbers.",
+    " * package promises, the public entrypoints and their resolved prerequisite",
+    " * requirements, and any declared extensions, plus the generated",
+    " * capability-category inventory. Availability is catalog metadata: a shared",
+    " * component exists when its key is present in `components`, an extension when",
+    " * its key is present in `extensions`. The category inventory is a reference",
+    " * only, never a second availability list. JSON imports widen literals, so the",
+    " * metadata versions are typed as numbers.",
     " */",
     "export type RegisteredManifest = {",
     "  schemaVersion: number;",
@@ -269,18 +528,21 @@ function buildRegistrySource(entries) {
     "  name: string;",
     "  package: string;",
     "  version: string;",
+    "  entrypoints: Readonly<Record<string, RegisteredManifestEntrypoint>>;",
     "  components: Readonly<Record<string, RegisteredManifestComponent>>;",
     "  capabilities: {",
     "    categories: Readonly<Record<string, RegisteredManifestCapabilityCategory>>;",
     "  };",
+    "  extensions?: Readonly<Record<string, RegisteredManifestExtension>>;",
     "};",
     "",
     "/**",
     " * A registered system with its scoped UI class, token groups, and the",
     " * package's public generated `./manifest` metadata.",
     " *",
-    " * Availability of an optional component is a runtime question answered by the",
-    " * real component-map keys, never by this type or by the manifest.",
+    " * Availability is the catalog metadata in `manifest` (`components` keys, and",
+    " * extension keys in `extensions`); the runtime component map is the imported",
+    " * implementation, not a second availability source.",
     " */",
     'export type RegisteredSystem = Omit<DesignSystem, "components"> & {',
     "  components: DesignSystemComponents;",
@@ -304,6 +566,82 @@ function buildRegistrySource(entries) {
     "}",
     "",
   ].join("\n");
+}
+
+/**
+ * Showcase-only extension loader source. Every entry is a literal dynamic
+ * import wrapped in a function: the mapping is data, and a module is imported
+ * only when `loadExtension` selects its `(systemId, name)` pair. Systems with
+ * no declared extensions contribute no import at all.
+ */
+function buildExtensionLoadersSource(entries) {
+  const lines = [
+    TOOL_OWNED_MARKER,
+    "// Generated by scripts/sync-design-system-apps.mjs from each registered system's source descriptor.",
+    "// Do not edit by hand; run `pnpm ds:register <id>` to regenerate.",
+    "",
+    "/** The runtime module namespace of one declared design-system extension. */",
+    "export type ExtensionModule = Record<string, unknown>;",
+    "",
+    "/** A loader that imports one declared extension module on demand. */",
+    "type ExtensionLoader = () => Promise<unknown>;",
+    "",
+    "/** All declared extension loaders for one design system, keyed by name. */",
+    "type SystemExtensionLoaders = Readonly<Record<string, ExtensionLoader>>;",
+    "",
+    "/**",
+    " * Literal dynamic imports keyed by design-system id and declared extension",
+    " * name. No module is loaded until `loadExtension` selects it.",
+    " */",
+    "const extensionLoaders: Readonly<Record<string, SystemExtensionLoaders>> = {",
+  ];
+  for (const entry of entries) {
+    if (entry.extensions.length === 0) continue;
+    lines.push(`  ${JSON.stringify(entry.id)}: {`);
+    for (const extension of entry.extensions) {
+      lines.push(`    ${JSON.stringify(extension.name)}: () =>`);
+      lines.push(`      import(${JSON.stringify(extension.importSpecifier)}),`);
+    }
+    lines.push("  },");
+  }
+  lines.push(
+    "};",
+    "",
+    "/**",
+    " * Load one declared extension of a registered design system.",
+    " *",
+    " * Only the `(systemId, name)` pairs declared by the registered systems'",
+    " * validated source descriptors resolve; anything else is rejected instead of",
+    " * guessing an import path. The selected module is imported on demand, so",
+    " * opening one example never evaluates another extension.",
+    " */",
+    "export async function loadExtension(",
+    "  systemId: string,",
+    "  name: string,",
+    "): Promise<ExtensionModule> {",
+    "  const systemLoaders = Object.prototype.hasOwnProperty.call(extensionLoaders, systemId)",
+    "    ? extensionLoaders[systemId]",
+    "    : undefined;",
+    "  const loader =",
+    "    systemLoaders !== undefined && Object.prototype.hasOwnProperty.call(systemLoaders, name)",
+    "      ? systemLoaders[name]",
+    "      : undefined;",
+    "  if (loader === undefined) {",
+    "    throw new Error(",
+    "      `Unknown extension ${JSON.stringify(name)} for design system ${JSON.stringify(systemId)}.`,",
+    "    );",
+    "  }",
+    "  const extension = (await loader()) as ExtensionModule;",
+    "  if (!(name in extension)) {",
+    "    throw new Error(",
+    "      `Design system ${JSON.stringify(systemId)} extension ${JSON.stringify(name)} did not expose that export.`,",
+    "    );",
+    "  }",
+    "  return extension;",
+    "}",
+    "",
+  );
+  return lines.join("\n");
 }
 
 function buildStylesBlock(entries) {
@@ -520,6 +858,16 @@ function computeRegistry(existing, entries, relativePath) {
   return { after: buildRegistrySource(entries), source: "migrate" };
 }
 
+function computeExtensionLoaders(existing, entries, relativePath) {
+  if (existing === null || existing.includes(TOOL_OWNED_MARKER)) {
+    return { after: buildExtensionLoadersSource(entries), source: "update" };
+  }
+  throw new Error(
+    `Refusing to rewrite ${relativePath}: it is neither tool-owned nor a recognized generated ` +
+      "extension loader registry.",
+  );
+}
+
 function computeLayout(existing, target, entries, relativePath) {
   if (existing === null) {
     return { after: buildLayoutSource(target, entries), source: "update" };
@@ -636,7 +984,7 @@ async function buildFilePlan({ root, target, kind, path, compute, prettier }) {
 async function planAppFiles({ root, target, entries, prettier }) {
   const appRoot = join(root, "apps", target.dir);
   const packages = requiredPackages(entries);
-  return [
+  const files = [
     await buildFilePlan({
       root,
       target,
@@ -670,6 +1018,22 @@ async function planAppFiles({ root, target, entries, prettier }) {
       compute: (existing, relativePath) => computeNextConfig(existing, packages, relativePath),
     }),
   ];
+  // The extension loader registry is Showcase-only. The Reference App keeps
+  // validating the shared contract and never imports an extension.
+  if (target.extensions) {
+    files.push(
+      await buildFilePlan({
+        root,
+        target,
+        kind: "extension-loaders",
+        path: join(appRoot, "app", EXTENSION_LOADERS_FILENAME),
+        prettier,
+        compute: (existing, relativePath) =>
+          computeExtensionLoaders(existing, entries, relativePath),
+      }),
+    );
+  }
+  return files;
 }
 
 /**
@@ -678,12 +1042,15 @@ async function planAppFiles({ root, target, entries, prettier }) {
  * @param {object} options
  * @param {object} options.manifest Normalized manifest (`{ version, designSystems }`).
  * @param {string} options.root     Explicit root holding `apps/`; never defaulted.
+ * @param {object} [options.catalog] Already-evaluated canonical catalog namespace
+ *   (`design-system-manifest.mjs`); standalone callers may omit it and get the
+ *   lazy load. Callers inside that module's ESM cycle must inject it.
  * @returns {Promise<
  *   | { status: "skipped", reason: string, files: [] }
  *   | { status: "planned", reason: null, files: object[] }
  * >}
  */
-export async function planAppIntegration({ manifest, root } = {}) {
+export async function planAppIntegration({ manifest, root, catalog } = {}) {
   if (typeof root !== "string" || root.trim().length === 0) {
     throw new Error(
       "planAppIntegration requires an explicit root; it never defaults to repoRoot().",
@@ -704,7 +1071,7 @@ export async function planAppIntegration({ manifest, root } = {}) {
     );
   }
 
-  const entries = prepareEntries(manifest);
+  const entries = await prepareEntriesWithExtensions(manifest, resolvedRoot, catalog);
   const prettier = await loadPrettier();
   const files = [];
   for (const target of APP_TARGETS) {
@@ -769,8 +1136,8 @@ export function rollbackAppIntegration(applied) {
 }
 
 /** Plan then apply in one step (used by callers that do not need the plan). */
-export async function syncDesignSystemApps({ manifest, root } = {}) {
-  const plan = await planAppIntegration({ manifest, root });
+export async function syncDesignSystemApps({ manifest, root, catalog } = {}) {
+  const plan = await planAppIntegration({ manifest, root, catalog });
   if (plan.status !== "planned") return { ...plan, applied: null };
   return { ...plan, applied: applyAppIntegration(plan) };
 }
