@@ -34,7 +34,11 @@
  * --ignore-scripts` command, then removes only generated files that are still
  * byte-identical to their expected generated content and strips the managed
  * root-AGENTS block. User-edited files, malformed markers, unrelated
- * dependencies/peers, and user CSS are preserved and reported.
+ * dependencies/peers, and user CSS are preserved and reported. Exact package
+ * CSS bridge imports in an explicitly named `--css` file are never deleted or
+ * rewritten (setup-tailwind records no ownership marker): they fail the plan
+ * closed with manual-removal guidance, before any spawn or write, and a dry run
+ * reports the same blocker with no planned changes.
  */
 
 import {
@@ -95,7 +99,7 @@ import {
   spawnInstall,
 } from "./package-manager.mjs";
 import { isExactSemver } from "./semver.mjs";
-import { removeBridgeImports } from "./tailwind-setup.mjs";
+import { findBridgeImports } from "./tailwind-setup.mjs";
 import { fetchDesignSystemInfo } from "./registry.mjs";
 
 function isPlainObject(value) {
@@ -2013,6 +2017,15 @@ export function collectRemoveBlockers(usage) {
 /**
  * Plan the generated-integration removal: only byte-identical generated files
  * are removed; every edited/malformed/unknown file is preserved and reported.
+ *
+ * The explicitly named CSS file is read but never rewritten. Because
+ * `setup-tailwind` writes no ownership marker, exact package bridge imports
+ * cannot be attributed to this tool; they are returned as `blockers` instead of
+ * being deleted so the caller can fail closed before any spawn or write.
+ *
+ * No CSS file is scanned or guessed. When no non-empty `cssPath` is supplied,
+ * the plan reports a `css-not-inspected` coverage warning instead of implying
+ * CSS references were checked; CSS is left unchanged and removal is not blocked.
  */
 function planRemoveIntegrations({
   consumerRoot,
@@ -2026,6 +2039,7 @@ function planRemoveIntegrations({
   const changes = [];
   const preserved = [];
   const warnings = [];
+  const blockers = [];
   const version =
     installedVersion ??
     config?.version ??
@@ -2143,25 +2157,45 @@ function planRemoveIntegrations({
     if (!existsSync(cssTarget) || !statSync(cssTarget).isFile()) {
       throw new Error(
         `CSS file does not exist or is not a regular file: ${cssTarget}. ` +
-          "remove only edits an explicitly named existing file inside --cwd.",
+          "remove only reads an explicitly named existing file inside --cwd.",
       );
     }
     const before = readFileSync(cssTarget, "utf8");
-    const removal = removeBridgeImports(before, { packageName });
+    const found = findBridgeImports(before, { packageName });
     css = {
       kind: "css",
       path: cssTarget,
-      changed: removal.changed,
+      changed: false,
       before,
-      after: removal.after,
-      removed: removal.removed,
+      after: before,
     };
-    if (!removal.changed) {
+    if (found.imports.length > 0) {
+      const located = found.imports
+        .map((specifier, index) => `"${specifier}" (line ${found.lines[index]})`)
+        .join(", ");
+      blockers.push({
+        code: "unattributable-css-imports",
+        message:
+          `${cssTarget} still imports ${located} from "${packageName}". ` +
+          "setup-tailwind records no ownership marker, so these imports cannot be proven " +
+          "tool-managed; remove them manually (the CSS file was left unchanged), then re-run " +
+          "remove.",
+        file: cssTarget,
+        line: found.lines[0],
+      });
+    } else {
       warnings.push({
         code: "css-bridge-not-found",
-        message: `No managed "${packageName}" bridge imports were found in ${cssTarget}; the CSS file was left unchanged.`,
+        message: `No "${packageName}" bridge imports were found in ${cssTarget}; the CSS file was left unchanged.`,
       });
     }
+  } else {
+    warnings.push({
+      code: "css-not-inspected",
+      message:
+        "No CSS file was inspected; CSS is left unchanged. Pass --css <file> to check " +
+        "for package bridge imports.",
+    });
   }
 
   const directoryPath = resolveConsumerPath(consumerRoot, CONSUMER_DIRECTORY);
@@ -2191,7 +2225,7 @@ function planRemoveIntegrations({
     }
   }
 
-  return { changes, preserved, warnings, css, directory };
+  return { changes, preserved, warnings, css, directory, blockers };
 }
 
 /**
@@ -2199,6 +2233,9 @@ function planRemoveIntegrations({
  *
  * Options mirror the catalog lifecycle naming: `cwd`, `package`, `cssPath`,
  * `dryRun`. `confirmed: true` is required for any dependency or file mutation.
+ * `cssPath` is the only CSS input: no CSS file is scanned or guessed, and with
+ * no non-empty `cssPath` the plan carries a `css-not-inspected` compatibility
+ * warning, leaves CSS unchanged, and never blocks removal by itself.
  *
  * `expectedPlan` is the optional execution precondition: the previous
  * successful plan result (or its `planMaterial`). When supplied on a confirmed
@@ -2502,6 +2539,37 @@ export function removeDesignSystem({
       reason: "integration-plan-failed",
       failures: [error.message],
       package: packageName,
+      dryRun,
+    };
+  }
+
+  if (integration.blockers.length > 0) {
+    if (expectedMaterial !== null) {
+      return planDriftResult({
+        dryRun,
+        failures: [
+          `The expected plan is no longer executable: exact "${packageName}" CSS bridge imports ` +
+            "cannot be proven tool-managed.",
+          ...integration.blockers.map((blocker) => blocker.message),
+        ],
+        extra: { package: packageName, version: installedVersion ?? null, usage },
+      });
+    }
+    return {
+      ok: false,
+      boundary: "css-ownership",
+      reason: "unattributable-css-imports",
+      failures: integration.blockers.map((blocker) => blocker.message),
+      package: packageName,
+      version: installedVersion ?? null,
+      usage,
+      compatibility: {
+        blockers: integration.blockers,
+        warnings: integration.warnings,
+        coverage: coverageOf(usage, buildTokenIndex(installedSystem?.manifest ?? null)),
+      },
+      plannedChanges: [],
+      preserved: integration.preserved,
       dryRun,
     };
   }

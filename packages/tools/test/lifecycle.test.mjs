@@ -1284,6 +1284,11 @@ const USER_CSS = [
   "",
 ].join("\n");
 
+/** User CSS without any selected-package bridge imports. */
+const UNRELATED_CSS = ["/* product */", "body { margin: 0; }", '@import "tailwindcss";', ""].join(
+  "\n",
+);
+
 function removeConsumer(t, options = {}) {
   const oldManifest = options.oldManifest ?? buildOldManifest();
   return createConsumer(t, {
@@ -1314,9 +1319,36 @@ function removeOnSpawn(root, packageName) {
   };
 }
 
-test("remove --dry-run plans the exact command and file removals without spawning or writing", (t) => {
+test("remove --dry-run fails closed on unmarked bridge imports without spawning or writing", (t) => {
   const oldManifest = buildOldManifest();
   const root = removeConsumer(t, { css: USER_CSS });
+  writeFile(root, join(".design-system", "AGENTS.md"), generatedConsumerAgents(oldManifest));
+  const manager = makeManager();
+  const before = snapshot(root);
+
+  const result = removeDesignSystem({
+    cwd: root,
+    cssPath: "src/app.css",
+    dryRun: true,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.boundary, "css-ownership");
+  assert.equal(result.reason, "unattributable-css-imports");
+  assert.equal(result.dryRun, true);
+  assert.deepEqual(result.plannedChanges, []);
+  assert.ok(
+    result.compatibility.blockers.some((blocker) => blocker.code === "unattributable-css-imports"),
+  );
+  assert.match(result.failures.join(" "), /cannot be proven tool-managed/);
+  assert.match(result.failures.join(" "), /manually/);
+  assert.equal(manager.calls.length, 0);
+  assertUnchanged(root, before);
+});
+
+test("remove --dry-run plans generated removals while leaving unrelated CSS byte-identical", (t) => {
+  const oldManifest = buildOldManifest();
+  const root = removeConsumer(t, { css: UNRELATED_CSS });
   writeFile(root, join(".design-system", "AGENTS.md"), generatedConsumerAgents(oldManifest));
   const manager = makeManager();
   const before = snapshot(root);
@@ -1338,17 +1370,62 @@ test("remove --dry-run plans the exact command and file removals without spawnin
     ["dependency", "file", "file", "file", "css", "directory"],
   );
   const cssChange = result.plannedChanges.find((change) => change.kind === "css");
-  assert.ok(!cssChange.after.includes(`${OLD_PACKAGE}/tailwind.css`));
-  assert.ok(!cssChange.after.includes(`${OLD_PACKAGE}/styles.css`));
-  assert.ok(cssChange.after.includes('@import "tailwindcss";'));
-  assert.ok(cssChange.after.includes("body { margin: 0; }"));
+  assert.equal(cssChange.changed, false);
+  assert.equal(cssChange.after, UNRELATED_CSS);
+  assert.ok(
+    result.compatibility.warnings.some((warning) => warning.code === "css-bridge-not-found"),
+  );
   assert.equal(manager.calls.length, 0);
   assertUnchanged(root, before);
 });
 
-test("remove uninstalls, deletes only generated files, and preserves user content and unrelated deps", (t) => {
+test("remove refuses to uninstall while unmarked bridge imports remain in the named CSS file", (t) => {
   const oldManifest = buildOldManifest();
   const root = removeConsumer(t, { css: USER_CSS });
+  writeFile(root, join(".design-system", "AGENTS.md"), generatedConsumerAgents(oldManifest));
+  const manager = makeManager({ onSpawn: removeOnSpawn(root, OLD_PACKAGE) });
+  const before = snapshot(root);
+
+  const result = removeDesignSystem({
+    cwd: root,
+    cssPath: "src/app.css",
+    confirmed: true,
+    spawnImpl: manager.spawnImpl,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.boundary, "css-ownership");
+  assert.equal(result.reason, "unattributable-css-imports");
+  assert.deepEqual(result.plannedChanges, []);
+  assert.equal(manager.calls.length, 0);
+  assertUnchanged(root, before);
+  assert.equal(readFileSync(join(root, "src", "app.css"), "utf8"), USER_CSS);
+});
+
+test("remove without --css leaves a CSS file with bridge imports untouched and does not block", (t) => {
+  const oldManifest = buildOldManifest();
+  const root = removeConsumer(t, { css: USER_CSS });
+  writeFile(root, join(".design-system", "AGENTS.md"), generatedConsumerAgents(oldManifest));
+  const manager = makeManager({ onSpawn: removeOnSpawn(root, OLD_PACKAGE) });
+
+  const result = removeDesignSystem({ cwd: root, confirmed: true, spawnImpl: manager.spawnImpl });
+
+  assert.equal(result.ok, true, result.failures?.join(" "));
+  assert.equal(manager.calls.length, 1);
+  assert.equal(readFileSync(join(root, "src", "app.css"), "utf8"), USER_CSS);
+  assert.equal(result.removed.css, false);
+  const coverageWarning = result.compatibility.warnings.find(
+    (warning) => warning.code === "css-not-inspected",
+  );
+  assert.ok(coverageWarning, "remove without --css must report that CSS was not inspected");
+  assert.match(coverageWarning.message, /No CSS file was inspected/);
+  assert.match(coverageWarning.message, /CSS is left unchanged/);
+  assert.match(coverageWarning.message, /--css <file>/);
+});
+
+test("remove uninstalls and deletes only generated files, preserving unrelated deps and CSS bytes", (t) => {
+  const oldManifest = buildOldManifest();
+  const root = removeConsumer(t, { css: UNRELATED_CSS });
   writeFile(root, join(".design-system", "AGENTS.md"), generatedConsumerAgents(oldManifest));
   const manager = makeManager({ onSpawn: removeOnSpawn(root, OLD_PACKAGE) });
 
@@ -1370,10 +1447,8 @@ test("remove uninstalls, deletes only generated files, and preserves user conten
     readFileSync(join(root, "AGENTS.md"), "utf8"),
     "# Project\n\nSome user instructions.\n",
   );
-  const css = readFileSync(join(root, "src", "app.css"), "utf8");
-  assert.ok(!css.includes(OLD_PACKAGE));
-  assert.ok(css.includes('@import "tailwindcss";'));
-  assert.ok(css.includes("body { margin: 0; }"));
+  assert.equal(readFileSync(join(root, "src", "app.css"), "utf8"), UNRELATED_CSS);
+  assert.equal(result.removed.css, false);
 
   const packageJson = readJson(join(root, "package.json"));
   assert.equal(typeof packageJson.dependencies[OLD_PACKAGE], "undefined");
@@ -1382,7 +1457,7 @@ test("remove uninstalls, deletes only generated files, and preserves user conten
 });
 
 test("remove blocks when the package is still actively imported", (t) => {
-  const root = removeConsumer(t, { source: { "src/app.tsx": APP_TSX }, css: USER_CSS });
+  const root = removeConsumer(t, { source: { "src/app.tsx": APP_TSX }, css: UNRELATED_CSS });
   const manager = makeManager();
   const before = snapshot(root);
 
@@ -1514,7 +1589,7 @@ test("remove makes no file changes when the manager fails", (t) => {
 
 test("remove reports a stale resolved dependency after the manager exits without writing files", (t) => {
   const oldManifest = buildOldManifest();
-  const root = removeConsumer(t, { css: USER_CSS });
+  const root = removeConsumer(t, { css: UNRELATED_CSS });
   writeFile(root, join(".design-system", "AGENTS.md"), generatedConsumerAgents(oldManifest));
   const manager = makeManager({
     onSpawn: () => {
@@ -1540,7 +1615,7 @@ test("remove reports a stale resolved dependency after the manager exits without
 
 test("remove fails closed on drift after the manager runs", (t) => {
   const oldManifest = buildOldManifest();
-  const root = removeConsumer(t, { css: USER_CSS });
+  const root = removeConsumer(t, { css: UNRELATED_CSS });
   writeFile(root, join(".design-system", "AGENTS.md"), generatedConsumerAgents(oldManifest));
   const injected = "/* injected */\n";
   const manager = makeManager({
@@ -2009,7 +2084,7 @@ test("buildLifecyclePlanMaterial accepts the preview result and the material its
 
 test("remove expectedPlan executes a frozen preview and cleans the reviewed integration", (t) => {
   const oldManifest = buildOldManifest();
-  const root = removeConsumer(t, { css: USER_CSS });
+  const root = removeConsumer(t, { css: UNRELATED_CSS });
   writeFile(root, join(".design-system", "AGENTS.md"), generatedConsumerAgents(oldManifest));
 
   const preview = removeDesignSystem({ cwd: root, cssPath: "src/app.css", dryRun: true });
@@ -2084,10 +2159,10 @@ test("remove expectedPlan rejects changed dependency, CSS, and installed manifes
   assertUnchanged(dependencyRoot, dependencyBefore);
   assert.match(dependencyResult.failures.join(" "), /The dependency state for/);
 
-  const cssRoot = removeConsumer(t, { css: USER_CSS });
+  const cssRoot = removeConsumer(t, { css: UNRELATED_CSS });
   const cssPreview = removeDesignSystem({ cwd: cssRoot, cssPath: "src/app.css", dryRun: true });
   assert.equal(cssPreview.ok, true, cssPreview.failures?.join(" "));
-  writeFileSync(join(cssRoot, "src", "app.css"), `${USER_CSS}/* changed */\n`, "utf8");
+  writeFileSync(join(cssRoot, "src", "app.css"), `${UNRELATED_CSS}/* changed */\n`, "utf8");
   const cssBefore = snapshot(cssRoot);
   const cssManager = makeManager();
   const cssResult = removeDesignSystem({

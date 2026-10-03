@@ -260,6 +260,9 @@ test("root help and the switch/remove helps are complete and offline", async () 
   for (const flag of ["--cwd", "--css", "--dry-run", "--yes", "--json"]) {
     assert.match(removeHelp.stdout, new RegExp(flag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
+  assert.match(removeHelp.stdout, /refused while active source imports or token references/);
+  assert.match(removeHelp.stdout, /explicitly named --css file is checked/);
+  assert.match(removeHelp.stdout, /When --css is omitted, CSS is not inspected/);
 });
 
 test("switch/remove validate required arguments before any work", async (t) => {
@@ -514,6 +517,7 @@ test("remove without --yes prints the exact preview and changes nothing", async 
   assert.match(result.stdout, /Remove preview \(confirmation required\)/);
   assert.match(result.stdout, /requires --yes; nothing was changed/);
   assert.match(result.stdout, /dependency: npm uninstall/);
+  assert.match(result.stdout, /warning \[css-not-inspected\]/);
   assert.deepEqual(snapshot(root), before);
   assert.equal(readdirSync(dir).includes("spawned.txt"), false);
 });
@@ -534,6 +538,10 @@ test("remove --dry-run --json plans the exact removal without writing", async (t
   assert.equal(report.package, SYSTEM_A.package);
   assert.ok(report.plannedChanges.some((change) => change.kind === "dependency"));
   assert.ok(report.planMaterial.action === "remove");
+  assert.ok(
+    report.compatibility.warnings.some((warning) => warning.code === "css-not-inspected"),
+    "the JSON result must carry the CSS-not-inspected coverage warning",
+  );
   assert.deepEqual(snapshot(root), before);
   assert.equal(readdirSync(dir).includes("spawned.txt"), false);
 });
@@ -558,6 +566,50 @@ test("remove reports precise active-usage blockers and exits 1", async (t) => {
   assert.match(human.stdout, /blocker \[active-import\]/);
   assert.match(human.stdout, /src[/\\]app\.ts:1/);
   assert.deepEqual(snapshot(root), before, "blocked removal must not write");
+});
+
+test("remove fails closed on unmarked bridge imports in the named CSS file", async (t) => {
+  const { root } = createConsumer(t);
+  const css = [
+    "/* user styles */",
+    `@import "${SYSTEM_A.package}/tailwind.css";`,
+    `@import "${SYSTEM_A.package}/styles.css";`,
+    "",
+  ].join("\n");
+  const cssPath = writeFile(root, "src/app.css", css);
+  const before = snapshot(root);
+  const { dir } = createFakeManagerDir(t);
+
+  const dryRun = await runBin(
+    ["remove", "--cwd", root, "--css", "src/app.css", "--dry-run", "--json"],
+    { env: managerEnv(dir) },
+  );
+  assert.equal(dryRun.exitCode, 1);
+  const report = JSON.parse(dryRun.stdout);
+  assert.equal(report.ok, false);
+  assert.equal(report.boundary, "css-ownership");
+  assert.equal(report.reason, "unattributable-css-imports");
+  assert.deepEqual(report.plannedChanges, []);
+  assert.ok(
+    report.compatibility.blockers.some((blocker) => blocker.code === "unattributable-css-imports"),
+  );
+  assert.match(report.failures.join(" "), /cannot be proven tool-managed/);
+  assert.match(report.failures.join(" "), /manually/);
+
+  const human = await runBin(["remove", "--cwd", root, "--css", "src/app.css"], {
+    env: managerEnv(dir),
+  });
+  assert.equal(human.exitCode, 1);
+  assert.match(human.stdout, /Remove failed \(boundary: css-ownership/);
+  assert.match(human.stdout, /blocker \[unattributable-css-imports\]/);
+
+  const confirmed = await runBin(["remove", "--cwd", root, "--css", "src/app.css", "--yes"], {
+    env: managerEnv(dir),
+  });
+  assert.equal(confirmed.exitCode, 1);
+  assert.equal(readdirSync(dir).includes("spawned.txt"), false, "no manager was spawned");
+  assert.equal(readFileSync(cssPath, "utf8"), css, "the CSS bytes are preserved exactly");
+  assert.deepEqual(snapshot(root), before, "no file was written");
 });
 
 test("remove --yes runs the fixed command and reports the residual dependency honestly", async (t) => {

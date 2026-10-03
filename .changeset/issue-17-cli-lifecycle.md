@@ -12,9 +12,11 @@ Add five first-class lifecycle capabilities to `prism-ds` (seventeen root comman
   rewrites product UI, and retains the previous dependency. `--css` must name the CSS file
   explicitly; `--with-entry`/`--peer` plan selected target entry requirements.
 - `remove [package] --cwd <root>` — remove the selected system only when no active source
-  or style references remain; removes the dependency plus unchanged attributable
-  integration, preserves unrelated dependencies/peers/CSS/edited generated files, and
-  mutates only with `--yes`.
+  imports or token references remain; an explicit `--css` file is additionally checked for
+  unmarked package bridge imports (which fail the plan closed), while without `--css` no
+  CSS is inspected and the plan reports a `css-not-inspected` warning. Removes the
+  dependency plus unchanged attributable integration, preserves unrelated
+  dependencies/peers/CSS/edited generated files, and mutates only with `--yes`.
 - `skills list/add/update/remove` — manage official Prism and curated general-design
   instructions. `list` is an offline inventory of actual files in both scopes (no invented
   statistics, shared placement reported); add/update/remove require an explicit

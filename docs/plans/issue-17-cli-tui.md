@@ -62,6 +62,11 @@ prism-ds remove [package] --cwd <root> [--css <file>] [--dry-run] [--yes]
 - Refuse removal while active source or style references remain.
 - Preview removal of the selected dependency and unchanged, attributable
   integration files/managed blocks.
+- Never delete or rewrite an import that cannot be attributed to the tool:
+  `setup-tailwind` writes no ownership marker, so an exact package bridge
+  `@import` in the named `--css` file blocks the plan (including `--dry-run`)
+  with manual-cleanup guidance and zero mutations, and the CSS bytes are
+  preserved.
 - Preserve unrelated dependencies, peers, instructions and consumer CSS.
 - Preserve edited generated files and explain any required manual cleanup.
 - Do not delete product UI, whole configuration directories or arbitrary files.

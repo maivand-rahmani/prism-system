@@ -180,38 +180,39 @@ export function mergeBridgeImports(existing, { packageName } = {}) {
 }
 
 /**
- * Remove exactly the package-owned Tailwind v4 bridge imports from existing CSS.
+ * Find exact package Tailwind v4 bridge imports in existing CSS.
  *
- * Only pure `@import "<package>/tailwind.css";` and
- * `@import "<package>/styles.css";` lines are removed. Every other line is
- * preserved byte-for-byte, including `@import "tailwindcss";` and all user CSS;
- * a bridge from another design system is never touched. Removing nothing is
- * reported as `changed: false`.
+ * `setup-tailwind` writes no ownership marker, so an exact
+ * `@import "<package>/tailwind.css";` / `@import "<package>/styles.css";` line
+ * cannot be proven tool-managed. `remove` must therefore never delete or
+ * rewrite these lines: the returned findings are blockers for the caller, and
+ * the CSS bytes are always left exactly as found. Imports of another package
+ * and `@import "tailwindcss";` are not findings.
  *
  * @param {string} existing CSS source.
  * @param {{ packageName: string }} options
- * @returns {{ after: string, changed: boolean, removed: string[] }}
+ * @returns {{ imports: string[], lines: number[] }} Matching specifiers with
+ *   their 1-based line numbers, in file order.
  */
-export function removeBridgeImports(existing, { packageName } = {}) {
+export function findBridgeImports(existing, { packageName } = {}) {
   if (typeof existing !== "string") {
-    throw new Error("removeBridgeImports requires the existing CSS source as a string.");
+    throw new Error("findBridgeImports requires the existing CSS source as a string.");
   }
   if (typeof packageName !== "string" || packageName.trim().length === 0) {
-    throw new Error("removeBridgeImports requires a non-empty design system package name.");
+    throw new Error("findBridgeImports requires a non-empty design system package name.");
   }
   const managed = new Set([`${packageName}/tailwind.css`, `${packageName}/styles.css`]);
   const lines = splitLines(existing);
-  const output = [];
-  const removed = [];
-  for (const line of lines) {
-    const specifier = importSpecifierOf(stripTerminator(line));
+  const imports = [];
+  const lineNumbers = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const specifier = importSpecifierOf(stripTerminator(lines[index]));
     if (specifier !== null && managed.has(specifier)) {
-      removed.push(specifier);
-      continue;
+      imports.push(specifier);
+      lineNumbers.push(index + 1);
     }
-    output.push(line);
   }
-  return { after: output.join(""), changed: removed.length > 0, removed };
+  return { imports, lines: lineNumbers };
 }
 
 /** Walk up from a resolved entry to the nearest `package.json` with this name. */

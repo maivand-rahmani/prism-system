@@ -227,14 +227,23 @@ equality, rendering behavior, accessibility, or runtime compatibility.
 ### `prism-ds remove [package] --cwd <root>`
 
 Explicitly remove the selected system once it is unused. It refuses while active source
-or style references remain, and previews removal of the selected dependency plus only
-unchanged, attributable integration files/managed blocks. Unrelated dependencies, peers,
-instructions, consumer CSS, and edited generated files are preserved; any required
-manual cleanup is explained instead of guessed. `--css <file>` explicitly names the CSS
-file inspected for residual imports. `--dry-run` resolves and previews without spawning
-or writing; `--yes` is required to mutate. It never deletes product UI, whole
-configuration directories, or arbitrary files, and it verifies the dependency and the
-planned owned integration are absent afterward.
+imports or token references remain, and previews removal of the selected dependency plus
+only unchanged, attributable generated integration (consumer config, AGENTS files/managed
+blocks). Unrelated dependencies, peers, instructions, consumer CSS, and edited generated
+files are preserved; any required manual cleanup is explained instead of guessed. The
+explicit `--css <file>` names the CSS file inspected for residual imports. With no
+`--css`, no CSS file is scanned or guessed: CSS is not inspected, a `css-not-inspected`
+compatibility warning is reported in the human plan and JSON result, and the CSS is left
+unchanged. `setup-tailwind` records no ownership marker, so exact
+`@import "<package>/tailwind.css"` / `"<package>/styles.css"` lines can never be attributed
+to the tool: `remove` never deletes or rewrites them. When the named CSS file contains
+such imports, the plan fails closed before any dependency uninstall or file write —
+`--dry-run` reports the same blocker and no planned changes — and the bytes are left
+untouched for manual removal. A named CSS file without them is left byte-identical and
+does not block removal. `--dry-run` resolves and previews without spawning or writing;
+`--yes` is required to mutate. It never deletes product UI, whole configuration
+directories, or arbitrary files, and it verifies the dependency and the planned owned
+integration are absent afterward.
 
 ## Offline commands
 

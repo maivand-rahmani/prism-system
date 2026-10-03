@@ -26,7 +26,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 
-import { mergeBridgeImports, setupTailwind } from "../src/tailwind-setup.mjs";
+import { findBridgeImports, mergeBridgeImports, setupTailwind } from "../src/tailwind-setup.mjs";
 
 const PACKAGE_NAME = "@prism-system/ui-system-a";
 
@@ -445,5 +445,41 @@ test("mergeBridgeImports is a pure, deterministic transform", () => {
         packageName: PACKAGE_NAME,
       }),
     /one design-system bridge is supported/,
+  );
+});
+
+test("findBridgeImports reports exact package bridge imports without rewriting anything", () => {
+  const css = [
+    "/* product */",
+    `@import "${PACKAGE_NAME}/tailwind.css";`,
+    `@import '${PACKAGE_NAME}/styles.css';`,
+    `@import url("${PACKAGE_NAME}/styles.css");`,
+    '@import "tailwindcss";',
+    '@import "@prism-system/ui-system-b/styles.css";',
+    "",
+  ].join("\n");
+
+  const found = findBridgeImports(css, { packageName: PACKAGE_NAME });
+
+  assert.deepEqual(found.imports, [
+    `${PACKAGE_NAME}/tailwind.css`,
+    `${PACKAGE_NAME}/styles.css`,
+    `${PACKAGE_NAME}/styles.css`,
+  ]);
+  assert.deepEqual(found.lines, [2, 3, 4]);
+
+  const none = findBridgeImports(
+    ['@import "tailwindcss";', '@import "./local.css";', "body { margin: 0; }", ""].join("\n"),
+    { packageName: PACKAGE_NAME },
+  );
+  assert.deepEqual(none.imports, []);
+  assert.deepEqual(none.lines, []);
+});
+
+test("findBridgeImports validates its inputs", () => {
+  assert.throws(() => findBridgeImports(null), /existing CSS source/);
+  assert.throws(
+    () => findBridgeImports("", { packageName: "   " }),
+    /non-empty design system package name/,
   );
 });

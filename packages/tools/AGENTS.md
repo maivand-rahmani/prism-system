@@ -102,9 +102,15 @@ consumer root and read only through its public `exports` (notably `./manifest`).
   before they connect. `switch` retains the previous dependency and additionally applies
   only the reviewed literal module/CSS import substitutions and managed integration
   changes; `remove` removes only the selected dependency plus unchanged, attributable
-  integration, never product UI or arbitrary files. `--dry-run` resolves and plans
-  without spawning or writing, and a mutation is never rolled back automatically. None of
-  them touch the design-systems source repository.
+  integration, never product UI or arbitrary files. Because `setup-tailwind` writes no
+  ownership marker, `remove` never deletes or rewrites exact package `@import` bridge lines
+  in an explicit `--css` file: they fail the plan closed with manual-removal guidance and
+  zero effects, including on `--dry-run`, and the CSS bytes are preserved; a named CSS file
+  without them is left byte-identical and does not block removal; with no `--css`, no CSS
+  file is scanned or guessed and the plan reports a `css-not-inspected` coverage warning
+  instead of implying CSS was checked. `--dry-run` resolves and plans without spawning or
+  writing, and a mutation is never rolled back automatically. None of them touch the
+  design-systems source repository.
 - `connect` stays offline and writes only the consumer config/AGENTS files; it never edits
   dependencies.
 - `setup-tailwind` stays offline and edits only the explicitly named `--css` file inside
