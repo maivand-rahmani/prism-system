@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Text, useApp, useWindowSize } from "ink";
+import { Text, useApp, useBoxMetrics, useWindowSize } from "ink";
 import {
+  AppShell,
   Badge,
   Button,
   List,
@@ -8,6 +9,7 @@ import {
   Tabs,
   TextInput as RuneframeTextInput,
   ThemeProvider,
+  useModal,
   useKeyHandler,
 } from "runeframe";
 
@@ -23,6 +25,21 @@ const CATEGORY_NAMES = new Set(["composition", "forms", "data-display"]);
 
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const MANAGED_FILE_KINDS = new Set(["config", "agents", "root-agents"]);
+// Runeframe swaps out the current screen subtree while a registered modal is open.
+// Keep the pending approval across that unmount so closing a read-only diff returns
+// to the same confirmation instead of the app's initial view.
+const confirmationResumeByServices = new WeakMap();
+
+function rememberConfirmationForPreview(services, pendingConfirmation) {
+  confirmationResumeByServices.set(services, {
+    view: "confirm",
+    pendingConfirmation,
+  });
+}
+
+function clearRememberedConfirmation(services) {
+  confirmationResumeByServices.delete(services);
+}
 
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -355,8 +372,8 @@ function wrapFileLine(value, maxWidth) {
   return rows;
 }
 
-function managedFileViewportRows(rows) {
-  return Math.max(2, Math.min(30, rows - 15));
+function previewViewportRows(rows) {
+  return Math.max(1, Math.min(18, rows - 12));
 }
 
 function resultRows(result, kind) {
@@ -414,6 +431,150 @@ function detailSummary(result, kind) {
     ];
   }
   return failuresOf(result);
+}
+
+export function ChangePreviewModal({ modalProps = {}, closeModal = () => {} }) {
+  const { columns = 80, rows = 24 } = useWindowSize();
+  const [fileIndex, setFileIndex] = useState(0);
+  const closePreview = useCallback(() => closeModal(), [closeModal]);
+  const compact = columns < 58 || rows < 18;
+  const files = Array.isArray(modalProps.files) ? modalProps.files : [];
+  const diffLines = Array.isArray(modalProps.lines) ? modalProps.lines : [];
+  const isFileDiff = modalProps.kind === "managed-files";
+  const selectedFile = files[fileIndex] ?? files[0];
+  const moveFile = useCallback(
+    (direction) => {
+      if (files.length < 2) return;
+      setFileIndex((index) => (index + direction + files.length) % files.length);
+    },
+    [files.length],
+  );
+
+  useKeyHandler(
+    (event) => {
+      if (!event.escape) return false;
+      closePreview();
+      return true;
+    },
+    "modal",
+    { priority: 200, deps: [closePreview] },
+  );
+
+  useKeyHandler(
+    (event) => {
+      if (!isFileDiff || files.length < 2) return false;
+      if (event.left || event.key === "[") {
+        moveFile(-1);
+        return true;
+      }
+      if (event.right || event.key === "]") {
+        moveFile(1);
+        return true;
+      }
+      return false;
+    },
+    "modal",
+    { priority: 50, deps: [files.length, isFileDiff, moveFile] },
+  );
+
+  const closeAction = h(KeyButton, {
+    key: "close",
+    shortcut: "Esc",
+    label: "Close preview",
+    onActivate: closePreview,
+    compact: true,
+  });
+
+  if (isFileDiff && selectedFile) {
+    const contentRows = fileContentRows(selectedFile, Math.max(8, columns - 12));
+    const fileLabel = managedFileKindLabel(selectedFile.kind);
+    const changeStatus =
+      selectedFile.changed === true
+        ? "CHANGED"
+        : selectedFile.changed === false
+          ? "UNCHANGED"
+          : "STATUS NOT RETURNED";
+    const items = contentRows.map((row, index) => ({
+      id: `file-row-${index}`,
+      label: row.text,
+      row,
+    }));
+    const footerActions = [];
+    if (files.length > 1) {
+      footerActions.push(
+        h(KeyButton, {
+          key: "previous-diff",
+          shortcut: "←",
+          label: compact ? "Prev diff" : "Previous diff",
+          onActivate: () => moveFile(-1),
+          compact: true,
+        }),
+        h(KeyButton, {
+          key: "next-diff",
+          shortcut: "→",
+          label: compact ? "Next diff" : "Next diff",
+          onActivate: () => moveFile(1),
+          compact: true,
+        }),
+      );
+    }
+    footerActions.push(closeAction);
+
+    return paragraph([
+      h(Heading, { key: "title" }, "Managed-file changes"),
+      h(
+        Text,
+        { key: "position", color: "cyan", bold: true, wrap: "wrap" },
+        `DIFF ${fileIndex + 1}/${files.length} · ${fileLabel} · ${changeStatus}`,
+      ),
+      h(Text, { key: "path", wrap: "wrap" }, `PATH  ${displayValue(selectedFile.path)}`),
+      h(
+        Text,
+        { key: "scroll-hint", dimColor: true, wrap: "wrap" },
+        files.length > 1
+          ? "↑/↓ scroll · ←/→ change diff · Esc close"
+          : "↑/↓ scroll · Esc close",
+      ),
+      h(List, {
+        key: `managed-file-${fileIndex}`,
+        items,
+        maxVisible: previewViewportRows(rows),
+        renderItem: (item, { focused }) => {
+          const row = item.row;
+          if (row.kind === "section") {
+            return h(Text, { color: "cyan", bold: true }, `── ${row.text} ──`);
+          }
+          if (row.kind === "note") {
+            return h(Text, { dimColor: true, wrap: "wrap" }, `  ${row.text}`);
+          }
+          return h(Text, { bold: focused }, `│ ${row.text}`);
+        },
+      }),
+      line(footerActions, { key: "footer", flexWrap: "wrap" }),
+    ]);
+  }
+
+  const items = diffLines.map((label, index) => ({
+    id: `manifest-diff-${index}`,
+    label,
+  }));
+  return paragraph([
+    h(Heading, { key: "title" }, "Manifest diff"),
+    h(
+      Text,
+      { key: "target", wrap: "wrap" },
+      `${displayValue(modalProps.packageName)} · ${displayValue(modalProps.fromVersion)} → ${displayValue(modalProps.toVersion)}`,
+    ),
+    h(Text, { key: "scroll-hint", dimColor: true }, "↑/↓ scroll · Esc close"),
+    items.length > 0
+      ? h(List, {
+          key: "manifest-diff-list",
+          items,
+          maxVisible: previewViewportRows(rows),
+        })
+      : h(Text, { key: "empty", dimColor: true }, "No manifest changes were returned."),
+    line([closeAction], { key: "footer" }),
+  ]);
 }
 
 function projectBanner(state, cwd, compact) {
@@ -475,12 +636,16 @@ function systemInfoRows(manifest) {
 function TuiApp({ services }) {
   const { columns = 80, rows = 24 } = useWindowSize();
   const { exit } = useApp();
+  const { openModal, isOpen: isModalOpen } = useModal();
   const compact = columns < 58 || rows < 18;
+  const [restoredConfirmation] = useState(
+    () => confirmationResumeByServices.get(services) ?? null,
+  );
 
   const [project, setProject] = useState(null);
   const [projectLoading, setProjectLoading] = useState(true);
   const [projectError, setProjectError] = useState(null);
-  const [view, setView] = useState("main");
+  const [view, setView] = useState(() => restoredConfirmation?.view ?? "main");
   const [activeTab, setActiveTab] = useState("systems");
   const [componentSection, setComponentSection] = useState("required");
   const [componentCatalog, setComponentCatalog] = useState(null);
@@ -506,13 +671,16 @@ function TuiApp({ services }) {
   const [cssDraft, setCssDraft] = useState("");
   const [operation, setOperation] = useState(null);
   const [notice, setNotice] = useState(null);
-  const [pendingConfirmation, setPendingConfirmation] = useState(null);
-  const [showManagedFileDetail, setShowManagedFileDetail] = useState(false);
-  const [managedFileIndex, setManagedFileIndex] = useState(0);
-  const [managedFileOffset, setManagedFileOffset] = useState(0);
+  const [pendingConfirmation, setPendingConfirmation] = useState(
+    () => restoredConfirmation?.pendingConfirmation ?? null,
+  );
+  const [footerActionPage, setFooterActionPage] = useState(0);
   const mountedRef = useRef(false);
   const executeLock = useRef(false);
   const operationLock = useRef(false);
+  const footerPageCountRef = useRef(1);
+  const footerLayoutRef = useRef(null);
+  const footerMetrics = useBoxMetrics(footerLayoutRef);
 
   const readProjectState = useCallback(() => {
     setProjectLoading(true);
@@ -640,42 +808,29 @@ function TuiApp({ services }) {
     [tokenCatalog, tokenGroup],
   );
 
-  const moveManagedFile = useCallback(
-    (direction) => {
-      const managedFiles = managedFileEffectsOf(pendingConfirmation?.preview);
-      if (managedFiles.length === 0) return;
-      setManagedFileIndex(
-        (index) => (index + direction + managedFiles.length) % managedFiles.length,
-      );
-      setManagedFileOffset(0);
-    },
-    [pendingConfirmation],
-  );
+  const openManagedFilePreview = useCallback(() => {
+    if (!pendingConfirmation) return;
+    const files = managedFileEffectsOf(pendingConfirmation.preview);
+    if (files.length === 0) return;
+    rememberConfirmationForPreview(services, pendingConfirmation);
+    openModal("change-preview", {
+      kind: "managed-files",
+      files,
+    });
+  }, [openModal, pendingConfirmation, services]);
 
-  const scrollManagedFile = useCallback(
-    (movement) => {
-      const managedFiles = managedFileEffectsOf(pendingConfirmation?.preview);
-      const currentFile = managedFiles[managedFileIndex] ?? managedFiles[0];
-      if (!currentFile) return;
-      const pageSize = managedFileViewportRows(rows);
-      const lineCount = fileContentRows(currentFile, Math.max(8, columns - 8)).length;
-      const maximumOffset = Math.max(0, lineCount - pageSize);
-      setManagedFileOffset((offset) => Math.max(0, Math.min(maximumOffset, offset + movement)));
-    },
-    [columns, managedFileIndex, pendingConfirmation, rows],
-  );
-
-  const scrollManagedFileTo = useCallback(
-    (edge) => {
-      const managedFiles = managedFileEffectsOf(pendingConfirmation?.preview);
-      const currentFile = managedFiles[managedFileIndex] ?? managedFiles[0];
-      if (!currentFile) return;
-      const pageSize = managedFileViewportRows(rows);
-      const lineCount = fileContentRows(currentFile, Math.max(8, columns - 8)).length;
-      setManagedFileOffset(edge === "top" ? 0 : Math.max(0, lineCount - pageSize));
-    },
-    [columns, managedFileIndex, pendingConfirmation, rows],
-  );
+  const openManifestDiffPreview = useCallback(() => {
+    if (!pendingConfirmation || pendingConfirmation.action.kind !== "upgrade") return;
+    const { action, preview } = pendingConfirmation;
+    rememberConfirmationForPreview(services, pendingConfirmation);
+    openModal("change-preview", {
+      kind: "manifest-diff",
+      lines: getUpgradeDiffLines(preview.diff),
+      packageName: preview.packageName ?? action.packageName ?? project?.packageName,
+      fromVersion: project?.version,
+      toVersion: preview.version ?? action.version ?? project?.version,
+    });
+  }, [openModal, pendingConfirmation, project, services]);
 
   const openInspection = useCallback(
     async (packageName, version) => {
@@ -773,9 +928,6 @@ function TuiApp({ services }) {
           setNotice({ type: "error", message: detail });
           return;
         }
-        setShowManagedFileDetail(false);
-        setManagedFileIndex(0);
-        setManagedFileOffset(0);
         setPendingConfirmation({ action, preview, returnView: view });
         setOperation({ status: "info", label: "Review the plan before applying it" });
         setView("confirm");
@@ -792,20 +944,20 @@ function TuiApp({ services }) {
 
   const cancelConfirmation = useCallback(() => {
     if (!pendingConfirmation) return;
+    clearRememberedConfirmation(services);
     setView(pendingConfirmation.returnView);
     setPendingConfirmation(null);
-    setShowManagedFileDetail(false);
     setOperation({ status: "neutral", label: "Cancelled · nothing was changed" });
-  }, [pendingConfirmation]);
+  }, [pendingConfirmation, services]);
 
   const confirmMutation = useCallback(async () => {
     if (!pendingConfirmation || executeLock.current || operationLock.current) return;
     executeLock.current = true;
     operationLock.current = true;
     const { action, preview } = pendingConfirmation;
+    clearRememberedConfirmation(services);
     setView("main");
     setPendingConfirmation(null);
-    setShowManagedFileDetail(false);
     setOperation({ status: "loading", label: `Applying ${action.kind}` });
     try {
       const result = await services.executeMutation(action, preview);
@@ -893,11 +1045,24 @@ function TuiApp({ services }) {
         exit();
         return true;
       }
+      if (isModalOpen) return false;
       if (
         !["search-input", "token-search", "upgrade-input", "css-input"].includes(view) &&
         event.key === "q"
       ) {
         exit();
+        return true;
+      }
+      if (
+        !["search-input", "token-search", "upgrade-input", "css-input"].includes(view) &&
+        footerPageCountRef.current > 1 &&
+        (event.key === "." || event.key === ",")
+      ) {
+        const pageCount = footerPageCountRef.current;
+        const pageDelta = event.key === "." ? 1 : -1;
+        setFooterActionPage((page) =>
+          Math.max(0, Math.min(pageCount - 1, page + pageDelta)),
+        );
         return true;
       }
       if (view === "confirm") {
@@ -910,46 +1075,13 @@ function TuiApp({ services }) {
           return true;
         }
         const managedFiles = managedFileEffectsOf(pendingConfirmation?.preview);
-        if (!showManagedFileDetail && event.key === "v" && managedFiles.length > 0) {
-          setManagedFileIndex(0);
-          setManagedFileOffset(0);
-          setShowManagedFileDetail(true);
+        if (event.key === "v" && managedFiles.length > 0) {
+          openManagedFilePreview();
           return true;
         }
-        if (showManagedFileDetail && managedFiles.length > 0) {
-          if (event.key === "v") {
-            setShowManagedFileDetail(false);
-            return true;
-          }
-          if (event.left || event.key === "[") {
-            moveManagedFile(-1);
-            return true;
-          }
-          if (event.right || event.key === "]") {
-            moveManagedFile(1);
-            return true;
-          }
-
-          const pageSize = managedFileViewportRows(rows);
-          const key = String(event.key ?? "").toLowerCase();
-          const movement =
-            event.up || key === "pageup" || key === "page-up"
-              ? key === "pageup" || key === "page-up"
-                ? -pageSize
-                : -1
-              : event.down || key === "pagedown" || key === "page-down"
-                ? key === "pagedown" || key === "page-down"
-                  ? pageSize
-                  : 1
-                : 0;
-          if (movement !== 0) {
-            scrollManagedFile(movement);
-            return true;
-          }
-          if (key === "home" || key === "end") {
-            scrollManagedFileTo(key === "home" ? "top" : "bottom");
-            return true;
-          }
+        if (event.key === "m" && pendingConfirmation?.action.kind === "upgrade") {
+          openManifestDiffPreview();
+          return true;
         }
         return false;
       }
@@ -1117,9 +1249,8 @@ function TuiApp({ services }) {
       priority: 100,
       deps: [
         view,
-        showManagedFileDetail,
-        managedFileIndex,
-        managedFileOffset,
+        isModalOpen,
+        footerActionPage,
         pendingConfirmation,
         rows,
         columns,
@@ -1134,9 +1265,8 @@ function TuiApp({ services }) {
         tokenCatalog,
         tokenGroup,
         cycleTokenGroup,
-        moveManagedFile,
-        scrollManagedFile,
-        scrollManagedFileTo,
+        openManagedFilePreview,
+        openManifestDiffPreview,
         cancelConfirmation,
         confirmMutation,
         searchCatalog,
@@ -1159,6 +1289,7 @@ function TuiApp({ services }) {
         exit();
         return true;
       }
+      if (isModalOpen) return false;
       if (
         view !== "search-input" &&
         view !== "token-search" &&
@@ -1192,7 +1323,7 @@ function TuiApp({ services }) {
       priority: 200,
       enabled:
         view === "confirm" || (project?.status === "empty" && view === "main" && catalogLoaded),
-      deps: [view, project, catalogLoaded, cancelConfirmation, confirmMutation],
+      deps: [view, project, catalogLoaded, cancelConfirmation, confirmMutation, isModalOpen],
     },
   );
 
@@ -1532,6 +1663,7 @@ function TuiApp({ services }) {
     const groups = Array.isArray(tokenCatalog.groups) ? tokenCatalog.groups : [];
     const groupNames = Array.isArray(tokenCatalog.groupNames) ? tokenCatalog.groupNames : [];
     const selected = groups.find((group) => group.group === tokenGroup) ?? groups[0];
+    const selectedGroupName = selected?.group ?? groupNames[0] ?? null;
     const allTokens = Array.isArray(selected?.tokens) ? selected.tokens : [];
     const query = tokenQuery.trim().toLowerCase();
     const visibleTokens = query
@@ -1574,15 +1706,18 @@ function TuiApp({ services }) {
         h(
           MouseLayout,
           { key: "groups", flexDirection: "row", flexWrap: "wrap" },
-          groupNames.map((name, index) =>
+          groupNames.map((name) =>
             h(
-              Text,
-              {
-                key: `group-${name}`,
-                bold: name === (tokenGroup ?? groupNames[0]),
-                color: name === (tokenGroup ?? groupNames[0]) ? "cyan" : undefined,
-              },
-              `${index > 0 ? "  ·  " : ""}${name === (tokenGroup ?? groupNames[0]) ? "› " : ""}${name}`,
+              MouseLayout,
+              { key: `group-${name}`, marginRight: 1 },
+              h(
+                Button,
+                {
+                  variant: name === selectedGroupName ? "primary" : "ghost",
+                  onActivate: () => setTokenGroup(name),
+                },
+                h(Text, { bold: name === selectedGroupName }, `${name === selectedGroupName ? "› " : ""}${name}`),
+              ),
             ),
           ),
         ),
@@ -1739,66 +1874,6 @@ function TuiApp({ services }) {
     const isDependencyChange =
       action.kind === "install" || action.kind === "use" || action.kind === "upgrade";
 
-    if (showManagedFileDetail && managedFiles.length > 0) {
-      const fileIndex = Math.max(0, Math.min(managedFileIndex, managedFiles.length - 1));
-      const file = managedFiles[fileIndex];
-      const pageSize = managedFileViewportRows(rows);
-      const contentRows = fileContentRows(file, Math.max(8, columns - 8));
-      const maximumOffset = Math.max(0, contentRows.length - pageSize);
-      const firstRow = Math.min(managedFileOffset, maximumOffset);
-      const visibleRows = contentRows.slice(firstRow, firstRow + pageSize);
-      const lastRow = firstRow + visibleRows.length;
-      const changeStatus =
-        file.changed === true
-          ? "CHANGED"
-          : file.changed === false
-            ? "UNCHANGED"
-            : "CHANGE STATUS NOT RETURNED";
-      return paragraph([
-        h(Heading, { key: "title" }, "Confirm planned change · managed file"),
-        h(
-          Text,
-          { key: "target", wrap: "wrap" },
-          `${action.kind.toUpperCase()} · ${preview.packageName ?? action.packageName ?? project?.packageName}@${targetVersion ?? "unknown version"}`,
-        ),
-        h(
-          Text,
-          { key: "file-label", color: "cyan", bold: true, wrap: "wrap" },
-          `FILE ${fileIndex + 1}/${managedFiles.length} · ${managedFileKindLabel(file.kind)} · ${changeStatus}`,
-        ),
-        h(Text, { key: "path", wrap: "wrap" }, `PATH  ${displayValue(file.path)}`),
-        h(
-          Text,
-          { key: "states", wrap: "wrap" },
-          `BEFORE  ${managedFileStateLabel(file.before)}  ·  AFTER  ${managedFileStateLabel(file.after)}`,
-        ),
-        h(
-          Text,
-          { key: "position", dimColor: true, wrap: "wrap" },
-          `Content rows ${contentRows.length === 0 ? 0 : firstRow + 1}–${lastRow} of ${contentRows.length} · visual wraps do not change the file content.`,
-        ),
-        h(
-          MouseLayout,
-          { key: "file-content", flexDirection: "column" },
-          visibleRows.map((row, index) =>
-            row.kind === "section"
-              ? h(
-                  Text,
-                  { key: `content-${firstRow + index}`, color: "cyan", bold: true },
-                  `── ${row.text} ──`,
-                )
-              : row.kind === "note"
-                ? h(
-                    Text,
-                    { key: `content-${firstRow + index}`, dimColor: true, wrap: "wrap" },
-                    `  ${row.text}`,
-                  )
-                : h(Text, { key: `content-${firstRow + index}` }, `│ ${row.text}`),
-          ),
-        ),
-      ]);
-    }
-
     return paragraph([
       h(Heading, { key: "title" }, "Confirm planned change"),
       h(
@@ -1807,23 +1882,27 @@ function TuiApp({ services }) {
         "Review the exact target and planned file effects before approval. Canceling leaves the project unchanged.",
       ),
       rule("TARGET", "target-rule"),
-      keyValue("ACTION", action.kind === "use" ? "Use · installs and connects" : action.kind, {
-        key: "action",
-      }),
-      keyValue("PACKAGE", preview.packageName ?? action.packageName ?? project?.packageName, {
-        key: "package",
-      }),
-      keyValue("EXACT VERSION", targetVersion ?? "Not reported by the preview", { key: "version" }),
-      keyValue("PROJECT", services.cwd, { key: "project" }),
+      catalogDetail(
+        "ACTION",
+        action.kind === "use" ? "Use · installs and connects" : action.kind,
+        "action",
+      ),
+      catalogDetail(
+        "PACKAGE",
+        preview.packageName ?? action.packageName ?? project?.packageName,
+        "package",
+      ),
+      catalogDetail("EXACT VERSION", targetVersion ?? "Not reported by the preview", "version"),
+      catalogDetail("PROJECT", services.cwd, "project"),
       isDependencyChange &&
         paragraph(
           [
-            keyValue(
+            catalogDetail(
               "PACKAGE MANAGER",
               preview.manager ?? preview.command?.manager ?? "not reported",
-              { key: "manager" },
+              "manager",
             ),
-            keyValue("COMMAND", command ?? "not reported", { key: "command" }),
+            catalogDetail("COMMAND", command ?? "not reported", "command"),
           ],
           { key: "dependency" },
         ),
@@ -1858,7 +1937,7 @@ function TuiApp({ services }) {
             h(
               Text,
               { key: "managed-copy", wrap: "wrap" },
-              "Each managed file's exact before/after content is available for review. Missing files are labeled explicitly.",
+              "Open the managed-file diff to review exact before/after content. Missing files are labeled explicitly.",
             ),
           ],
           { key: "managed-file-entry" },
@@ -1871,11 +1950,11 @@ function TuiApp({ services }) {
               { key: "diff-title", color: "cyan", bold: true },
               `Existing manifest diff · ${upgradeLines.length} change line${upgradeLines.length === 1 ? "" : "s"}`,
             ),
-            h(List, {
-              key: "diff",
-              items: upgradeLines.map((label, index) => ({ id: `diff-${index}`, label })),
-              maxVisible: Math.max(2, Math.min(8, rows - (compact ? 18 : 20))),
-            }),
+            h(
+              Text,
+              { key: "diff-copy", dimColor: true, wrap: "wrap" },
+              "Open the manifest diff for the complete change list.",
+            ),
           ],
           { key: "manifest-diff" },
         ),
@@ -2017,32 +2096,62 @@ function TuiApp({ services }) {
       )
     : null;
   const currentStatus = projectBanner(project, services.cwd, compact);
+  const inlineOperation = operation?.status === "neutral" && view !== "confirm";
   const confirmationHasManagedFiles =
     view === "confirm" && managedFileEffectsOf(pendingConfirmation?.preview).length > 0;
-  const showActivity = Boolean(notice || (operation && view !== "confirm"));
+  const showActivity = Boolean(notice || (operation && view !== "confirm" && !inlineOperation));
+  const showNotice = notice && notice.message !== operation?.detail;
   const footerBusy = operation?.status === "loading";
   const footerCompact = compact || rows < 30;
+  const footerShortLabels = columns < 58 || rows < 18;
+  const compactFooterLabels = {
+    "inspect-files": "File diffs",
+    "manifest-diff": "Manifest diff",
+    confirm: "Apply",
+    "submit-search": "Search",
+    "apply-filter": "Filter",
+    "preview-upgrade": "Preview",
+    "check-css": "Check CSS",
+    install: "Install",
+    use: "Use",
+    "back-from-details": "Back",
+    "retry-project": "Retry",
+    connect: "Connect",
+    "refresh-project": "Refresh",
+    "inspect-system": "Inspect",
+    reconnect: "Reconnect",
+    upgrade: "Upgrade",
+    required: "Required",
+    optional: "Optional",
+    categories: "Categories",
+    extensions: "Extensions",
+    "reload-components": "Reload",
+    "previous-group": "Prev group",
+    "next-group": "Next group",
+    "search-tokens": "Filter",
+    "reload-tokens": "Reload",
+    "run-check": "Check",
+    "run-doctor": "Doctor",
+    "run-usage": "Usage",
+    "inspect-selection": "Inspect",
+    "browse-again": "Browse",
+    "browse-catalog": "Browse",
+    "search-catalog": "Search",
+    "refresh-catalog": "Refresh",
+    "footer-prev-page": "Back",
+    "footer-next-page": "More",
+  };
   const footerActions = [];
   const addFooterAction = (key, shortcut, label, onActivate, options = {}) => {
     footerActions.push({ key, shortcut, label, onActivate, ...options });
   };
 
   if (view === "confirm") {
-    const managedFiles = managedFileEffectsOf(pendingConfirmation?.preview);
-    if (showManagedFileDetail) {
-      addFooterAction("scroll-up", "↑", "Scroll up", () => scrollManagedFile(-1));
-      addFooterAction("scroll-down", "↓", "Scroll down", () => scrollManagedFile(1));
-      if (managedFiles.length > 1) {
-        addFooterAction("previous-file", "←", "Previous file", () => moveManagedFile(-1));
-        addFooterAction("next-file", "→", "Next file", () => moveManagedFile(1));
-      }
-      addFooterAction("close-file", "v", "Close preview", () => setShowManagedFileDetail(false));
-    } else if (confirmationHasManagedFiles) {
-      addFooterAction("inspect-files", "v", "Inspect files", () => {
-        setManagedFileIndex(0);
-        setManagedFileOffset(0);
-        setShowManagedFileDetail(true);
-      });
+    if (confirmationHasManagedFiles) {
+      addFooterAction("inspect-files", "v", "View file diffs", openManagedFilePreview);
+    }
+    if (pendingConfirmation?.action.kind === "upgrade") {
+      addFooterAction("manifest-diff", "m", "View manifest diff", openManifestDiffPreview);
     }
     if (pendingConfirmation) {
       addFooterAction("confirm", "y / Enter", "Confirm & apply", () => void confirmMutation(), {
@@ -2262,15 +2371,55 @@ function TuiApp({ services }) {
     }
   }
 
-  const footer = h(MouseLayout, { key: "footer", flexDirection: "column" }, [
+  const actionsPerFooterPage = footerShortLabels ? 1 : Math.max(1, footerActions.length);
+  const footerPageCount = Math.max(1, Math.ceil(footerActions.length / actionsPerFooterPage));
+  footerPageCountRef.current = footerPageCount;
+  const activeFooterPage = Math.min(footerActionPage, footerPageCount - 1);
+  const visibleFooterActions = footerShortLabels
+    ? footerActions.slice(
+        activeFooterPage * actionsPerFooterPage,
+        (activeFooterPage + 1) * actionsPerFooterPage,
+      )
+    : footerActions;
+  const footerActionsWithPaging = [...visibleFooterActions];
+  if (footerPageCount > 1) {
+    if (activeFooterPage > 0) {
+      footerActionsWithPaging.unshift({
+        key: "footer-prev-page",
+        shortcut: ",",
+        label: "Previous actions",
+        onActivate: () => setFooterActionPage(Math.max(0, activeFooterPage - 1)),
+      });
+    }
+    if (activeFooterPage < footerPageCount - 1) {
+      footerActionsWithPaging.push({
+        key: "footer-next-page",
+        shortcut: ".",
+        label: "More actions",
+        onActivate: () => {
+          setFooterActionPage(Math.min(footerPageCount - 1, activeFooterPage + 1));
+        },
+      });
+    }
+  }
+
+  const footer = h(MouseLayout, { key: "footer", flexDirection: "column", width: "100%" }, [
     footerActions.length > 0 &&
-      h(MouseLayout, { key: "action-buttons", flexDirection: "row", flexWrap: "wrap" }, [
-        h(Heading, { key: "actions-heading", compact: true }, "Actions"),
-        ...footerActions.map((action) =>
+      h(MouseLayout, {
+        key: "action-buttons",
+        flexDirection: "row",
+        flexWrap: "wrap",
+        width: "100%",
+      }, [
+        !footerShortLabels && h(Heading, { key: "actions-heading", compact: true }, "Actions"),
+        ...footerActionsWithPaging.map((action) =>
           h(KeyButton, {
             key: action.key,
             shortcut: action.shortcut,
-            label: action.label,
+            label:
+              footerShortLabels
+                ? (compactFooterLabels[action.key] ?? action.label)
+                : action.label,
             onActivate: action.onActivate,
             variant: action.variant,
             active: action.active,
@@ -2283,81 +2432,147 @@ function TuiApp({ services }) {
     h(
       Text,
       { key: "exit-hint", dimColor: true, wrap: "wrap" },
-      `${isInputView ? "Ctrl+C" : "q or Ctrl+C"} exit`,
+      `${isInputView ? "" : "↑/↓ scroll · "}${isInputView ? "Ctrl+C" : "q or Ctrl+C"} exit`,
     ),
+  ]);
+
+  const shortTerminal = rows < 18;
+  const masthead = h(
+    MouseLayout,
+    {
+      key: "masthead",
+      flexDirection: compact ? "column" : "row",
+      justifyContent: "space-between",
+      flexWrap: "wrap",
+      width: "100%",
+    },
+    [
+      h(Heading, { key: "brand" }, "PRISM DS  /  CONSUMER TERMINAL"),
+      !compact &&
+        h(
+          Text,
+          { key: "target-label", dimColor: true, wrap: "wrap" },
+          `TARGET  ${services.cwd}`,
+        ),
+    ],
+  );
+  const statusAndTabs = tabsVisible
+    ? h(MouseLayout, { key: "tabs", flexDirection: "column", marginBottom: 1, width: "100%" }, [
+        line([h(MouseLayout, { key: "status" }, currentStatus)], {
+          key: "project-status",
+          marginBottom: 1,
+          flexWrap: "wrap",
+        }),
+        h(Tabs, {
+          key: "tab-control",
+          tabs:
+            columns < 48
+              ? SYSTEM_TABS.map((tab, index) => ({
+                  ...tab,
+                  label: `${index + 1} ${["Sys", "Comp", "Tok", "Check"][index]}`,
+                }))
+              : SYSTEM_TABS.map((tab, index) => ({ ...tab, label: `${index + 1} ${tab.label}` })),
+          activeTabId: activeTab,
+          onChange: selectTab,
+          scope: "list",
+        }),
+      ])
+    : !tabsVisible && view !== "confirm"
+      ? line([h(MouseLayout, { key: "status" }, currentStatus)], {
+          key: "project-status",
+          marginBottom: 1,
+          flexWrap: "wrap",
+        })
+      : null;
+  const topBar = h(MouseLayout, { flexDirection: "column", width: "100%" }, [
+    masthead,
+    compact && !shortTerminal &&
+      h(Text, { key: "target-compact", dimColor: true, wrap: "wrap" }, `TARGET  ${services.cwd}`),
+    !shortTerminal && rule(undefined, "top-rule"),
+    !shortTerminal && statusAndTabs,
+  ]);
+  const contentScrollKey = [
+    "content-shell",
+    view,
+    activeTab,
+    componentSection,
+    selectedExtensionName ?? "",
+    tokenGroup ?? "",
+    checkKind ?? "",
+    catalogLoaded,
+    tokenQuery,
+    operation?.status ?? "",
+    operation?.label ?? "",
+    notice?.message ?? "",
+  ].join("-");
+  const mainContent = h(MouseLayout, { flexDirection: "column" }, [
+    shortTerminal &&
+      h(Text, { key: "target-short", dimColor: true, wrap: "wrap" }, `TARGET  ${services.cwd}`),
+    shortTerminal && statusAndTabs,
+    inlineOperation && operationText,
+    view === "confirm" ? h(MouseLayout, { key: "confirm-title" }, rule("CHANGE PREVIEW")) : null,
+    showActivity && rule("ACTIVITY", "activity-rule"),
+    view !== "confirm" && !inlineOperation && operationText,
+    showNotice &&
+      line(
+        [
+          statusBadge(notice.type, notice.type === "error" ? "Error" : notice.type, "status"),
+          h(Text, { key: "notice", wrap: "wrap" }, notice.message),
+        ],
+        { key: "notice-row", flexWrap: "wrap" },
+      ),
+    h(MouseLayout, { key: "main-content", flexDirection: "column" }, content),
   ]);
 
   return h(
     ThemeProvider,
     {
       mode: "dark",
-      theme: { colors: { focus: { ring: "cyan", active: "cyan" }, status: { info: "cyan" } } },
+      theme: {
+        colors: { focus: { ring: "cyan", active: "cyan" }, status: { info: "cyan" } },
+        components: { appShell: { spacing: { topBarMarginBottom: 0, statusBarMarginTop: 0 } } },
+      },
     },
-    h(MouseLayout, { flexDirection: "column", width: "100%", paddingX: compact ? 0 : 1 }, [
-      h(
-        MouseLayout,
-        {
-          key: "masthead",
-          flexDirection: compact ? "column" : "row",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-        },
-        [
-          h(Heading, { key: "brand" }, "PRISM DS  /  CONSUMER TERMINAL"),
-          !compact &&
-            h(
-              Text,
-              { key: "target-label", dimColor: true, wrap: "wrap" },
-              `TARGET  ${services.cwd}`,
-            ),
-        ],
-      ),
-      compact &&
-        h(Text, { key: "target-compact", dimColor: true, wrap: "wrap" }, `TARGET  ${services.cwd}`),
-      rule(undefined, "top-rule"),
-      !tabsVisible &&
-        view !== "confirm" &&
-        line([h(MouseLayout, { key: "status" }, currentStatus)], {
-          key: "project-status",
-          marginBottom: 1,
-          flexWrap: "wrap",
+    h(
+      MouseLayout,
+      {
+        flexDirection: "column",
+        width: "100%",
+        height: rows,
+        overflow: "hidden",
+        paddingX: compact ? 0 : 1,
+      },
+      [
+        h(AppShell, {
+          key: contentScrollKey,
+          topBar,
+          children: mainContent,
+          statusBar: h(MouseLayout, {
+            height: footerMetrics.hasMeasured ? Math.max(1, footerMetrics.height - 2) : 1,
+            backgroundColor: "black",
+          }),
+          sidebarPosition: "fixed",
+          scrollContent: true,
         }),
-      tabsVisible &&
-        h(MouseLayout, { key: "tabs", flexDirection: "column", marginBottom: 1 }, [
-          line([h(MouseLayout, { key: "status" }, currentStatus)], {
-            key: "project-status",
-            marginBottom: 1,
-            flexWrap: "wrap",
-          }),
-          h(Tabs, {
-            key: "tab-control",
-            tabs:
-              columns < 48
-                ? SYSTEM_TABS.map((tab, index) => ({
-                    ...tab,
-                    label: `${index + 1} ${["Sys", "Comp", "Tok", "Check"][index]}`,
-                  }))
-                : SYSTEM_TABS.map((tab, index) => ({ ...tab, label: `${index + 1} ${tab.label}` })),
-            activeTabId: activeTab,
-            onChange: selectTab,
-            scope: "list",
-          }),
-        ]),
-      view === "confirm" ? h(MouseLayout, { key: "confirm-title" }, rule("CHANGE PREVIEW")) : null,
-      h(MouseLayout, { key: "main-content", flexDirection: "column" }, content),
-      showActivity && rule("ACTIVITY", "activity-rule"),
-      notice &&
-        line(
-          [
-            statusBadge(notice.type, notice.type === "error" ? "Error" : notice.type, "status"),
-            h(Text, { key: "notice", wrap: "wrap" }, notice.message),
-          ],
-          { key: "notice-row", flexWrap: "wrap" },
+        h(
+          MouseLayout,
+          {
+            key: "anchored-footer",
+            ref: footerLayoutRef,
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            width: "100%",
+            flexDirection: "column",
+            borderStyle: "single",
+            borderColor: "gray",
+            backgroundColor: "black",
+            paddingX: compact ? 1 : 0,
+          },
+          footer,
         ),
-      view !== "confirm" && operationText,
-      rule(undefined, "bottom-rule"),
-      footer,
-    ]),
+      ],
+    ),
   );
 }
 

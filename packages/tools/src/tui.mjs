@@ -124,7 +124,12 @@ export async function renderInkTui({
   mouseEnabled,
   mouseEventSource,
 }) {
-  const [{ default: React }, { render }, runeframe, { default: TuiApp }] = await Promise.all([
+  const [
+    { default: React },
+    { render },
+    runeframe,
+    { default: TuiApp, ChangePreviewModal },
+  ] = await Promise.all([
     import("react"),
     import("ink"),
     import("runeframe"),
@@ -138,6 +143,11 @@ export async function renderInkTui({
     title: CLI_NAME,
     component: () => React.createElement(TuiApp, { services }),
   });
+  registry.register({
+    id: "change-preview",
+    title: "Change preview",
+    component: (props) => React.createElement(ChangePreviewModal, props),
+  });
 
   const layoutProps = { flexDirection: "column" };
   if (mouseEnabled) {
@@ -149,9 +159,13 @@ export async function renderInkTui({
   }
 
   const element = React.createElement(
-    FrameworkProvider,
-    providerProps,
-    React.createElement(MouseLayout, layoutProps, React.createElement(ScreenOutlet)),
+    MouseLayout,
+    layoutProps,
+    React.createElement(
+      FrameworkProvider,
+      providerProps,
+      React.createElement(ScreenOutlet),
+    ),
   );
   return render(element, { stdin, stdout, stderr });
 }
