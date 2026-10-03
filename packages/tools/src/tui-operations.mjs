@@ -68,6 +68,7 @@ import {
   searchDesignSystems,
   upgradeDesignSystem,
 } from "./catalog.mjs";
+import { runUseWithSkills } from "./use-skills.mjs";
 import { checkDesignSystem } from "./check.mjs";
 import { listDesignSystemComponents } from "./components.mjs";
 import {
@@ -79,6 +80,17 @@ import {
   verifyConsumerDesignSystem,
 } from "./consumer.mjs";
 import { collectDoctorReport } from "./doctor.mjs";
+import { switchDesignSystem, removeDesignSystem } from "./lifecycle.mjs";
+import { getSkillCatalogEntry, listSkillCatalog } from "./skill-catalog.mjs";
+import { listInstalledSkills, SKILL_AGENT_IDS, SKILL_SCOPE_VALUES } from "./skill-inventory.mjs";
+import { planSkillOperation, executeSkillOperation } from "./skills.mjs";
+import { checkCliUpdate, selfUpdate } from "./self-update.mjs";
+import {
+  buildRecoverySuggestions,
+  collectRecoveryReport,
+  previewRecoveryAction as previewRecoveryBackend,
+  executeRecoveryAction as executeRecoveryBackend,
+} from "./recovery.mjs";
 import { setupTailwind } from "./tailwind-setup.mjs";
 import { listDesignSystemTokens } from "./tokens.mjs";
 import { checkUsage } from "./usage.mjs";
@@ -92,7 +104,14 @@ export const PROJECT_STATES = Object.freeze({
 });
 
 /** Mutation kinds the facade previews and executes. */
-export const TUI_ACTION_KINDS = Object.freeze(["install", "use", "connect", "upgrade"]);
+export const TUI_ACTION_KINDS = Object.freeze([
+  "install",
+  "use",
+  "connect",
+  "upgrade",
+  "switch",
+  "remove",
+]);
 
 /** Default operations: the real published implementations, nothing duplicated. */
 const DEFAULT_OPERATIONS = Object.freeze({
@@ -100,8 +119,11 @@ const DEFAULT_OPERATIONS = Object.freeze({
   inspect: inspectDesignSystem,
   install: installDesignSystem,
   use: runUseDesignSystem,
+  useWithSkills: runUseWithSkills,
   connect: connectDesignSystem,
   upgrade: upgradeDesignSystem,
+  switch: switchDesignSystem,
+  remove: removeDesignSystem,
   components: listDesignSystemComponents,
   tokens: listDesignSystemTokens,
   check: checkDesignSystem,
@@ -113,6 +135,16 @@ const DEFAULT_OPERATIONS = Object.freeze({
   discover: discoverConsumerPackage,
   resolveInstalled: resolveInstalledDesignSystem,
   verifyInstalled: verifyConsumerDesignSystem,
+  skillCatalog: listSkillCatalog,
+  skillInventory: listInstalledSkills,
+  skillPlan: planSkillOperation,
+  skillExecute: executeSkillOperation,
+  updateCheck: checkCliUpdate,
+  update: selfUpdate,
+  recoveryReport: collectRecoveryReport,
+  recoverySuggestions: buildRecoverySuggestions,
+  recoveryPreview: previewRecoveryBackend,
+  recoveryExecute: executeRecoveryBackend,
 });
 
 const OPERATION_KEYS = Object.freeze(Object.keys(DEFAULT_OPERATIONS));
@@ -134,6 +166,8 @@ function isPlainObject(value) {
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
+
+const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
 function failure(boundary, error) {
   return { ok: false, boundary, failures: [errorMessage(error)] };
@@ -235,10 +269,16 @@ function requestFromAction(action) {
     typeof action.version === "string" && action.version.trim() !== ""
       ? action.version.trim()
       : null;
-  if (kind === "upgrade" && version === null) {
+  if ((kind === "upgrade" || kind === "switch") && version === null) {
     return {
       ok: false,
-      failures: ['The "upgrade" action requires an explicit exact version.'],
+      failures: [`The ${JSON.stringify(kind)} action requires an explicit exact version.`],
+    };
+  }
+  if ((kind === "upgrade" || kind === "switch") && !EXACT_VERSION.test(version)) {
+    return {
+      ok: false,
+      failures: [`The ${JSON.stringify(kind)} action requires a valid exact version.`],
     };
   }
 
@@ -283,6 +323,9 @@ function requestFromAction(action) {
   )
     .filter((peer) => typeof peer === "string" && peer.trim() !== "")
     .map((peer) => peer.trim());
+  const skillAgents = Array.isArray(action.skillAgents)
+    ? action.skillAgents.filter((agent) => typeof agent === "string" && agent.trim() !== "")
+    : [];
 
   return {
     ok: true,
@@ -296,6 +339,8 @@ function requestFromAction(action) {
     checkUsage,
     tailwind,
     cssPath,
+    skills: action.skills === true,
+    skillAgents,
     entries,
     peers: peerSpecs,
     registry:
@@ -344,10 +389,15 @@ function normalizePlannedChange(change) {
       after,
     };
   }
-  return {
+  const normalized = {
     kind: typeof change.kind === "string" ? change.kind : "unknown",
     path: typeof change.path === "string" ? change.path : null,
   };
+  for (const key of ["fileKind", "changed", "before", "after", "manager", "section", "reason"]) {
+    if (Object.prototype.hasOwnProperty.call(change, key)) normalized[key] = change[key];
+  }
+  if (isPlainObject(change.command)) normalized.command = normalizeCommand(change.command);
+  return normalized;
 }
 
 /** One planned connect/config file effect, with its exact before/after content. */
@@ -439,6 +489,8 @@ function buildPlanMaterial(request, result) {
       checkUsage: request.checkUsage,
       tailwind: request.tailwind,
       cssPath: request.cssPath,
+      skills: request.skills,
+      skillAgents: [...request.skillAgents],
       withEntry: [...request.entries],
       peers: [...request.peers],
       registry: request.registry,
@@ -456,6 +508,8 @@ function buildPlanMaterial(request, result) {
     peers: [],
     diff: null,
     tailwind: null,
+    lifecyclePlan: null,
+    skillPlan: null,
   };
 
   if (request.kind === "connect") {
@@ -493,6 +547,40 @@ function buildPlanMaterial(request, result) {
         after: typeof result.tailwind.after === "string" ? result.tailwind.after : null,
       };
     }
+    material.skillPlan = isPlainObject(result?.skillPlan)
+      ? result.skillPlan
+      : isPlainObject(result?.skillSetup?.plan)
+        ? result.skillSetup.plan
+        : null;
+    return material;
+  }
+
+  if (request.kind === "switch") {
+    material.package = typeof result?.to?.package === "string" ? result.to.package : null;
+    material.version = typeof result?.to?.version === "string" ? result.to.version : null;
+    material.fromVersion = typeof result?.from?.version === "string" ? result.from.version : null;
+    material.toVersion = material.version;
+    material.manager = typeof result?.manager === "string" ? result.manager : null;
+    material.command = normalizeCommand(result?.command);
+    material.entrySelection = normalizeEntrySelection(result?.entrySelection);
+    material.peers = normalizePeerPlan(result?.peers);
+    material.effects = (Array.isArray(result?.plannedChanges) ? result.plannedChanges : [])
+      .map(normalizePlannedChange)
+      .filter((effect) => effect !== null);
+    material.lifecyclePlan = isPlainObject(result?.planMaterial) ? result.planMaterial : null;
+    return material;
+  }
+
+  if (request.kind === "remove") {
+    material.package = typeof result?.package === "string" ? result.package : request.packageName;
+    material.version = typeof result?.version === "string" ? result.version : null;
+    material.fromVersion = material.version;
+    material.manager = typeof result?.manager === "string" ? result.manager : null;
+    material.command = normalizeCommand(result?.command);
+    material.effects = (Array.isArray(result?.plannedChanges) ? result.plannedChanges : [])
+      .map(normalizePlannedChange)
+      .filter((effect) => effect !== null);
+    material.lifecyclePlan = isPlainObject(result?.planMaterial) ? result.planMaterial : null;
     return material;
   }
 
@@ -531,6 +619,15 @@ function buildPreview(cwd, request, result) {
     plannedChanges: material.effects,
     diff: material.diff,
     tailwind: material.tailwind,
+    from: isPlainObject(result?.from) ? result.from : null,
+    to: isPlainObject(result?.to) ? result.to : null,
+    compatibility: isPlainObject(result?.compatibility) ? result.compatibility : null,
+    usage: isPlainObject(result?.usage) ? result.usage : null,
+    warnings: Array.isArray(result?.warnings) ? [...result.warnings] : [],
+    preserved: Array.isArray(result?.preserved) ? [...result.preserved] : [],
+    skillSetup: isPlainObject(result?.skillSetup) ? result.skillSetup : null,
+    partial: result?.partial === true,
+    note: typeof result?.note === "string" ? result.note : null,
     material,
     result,
   };
@@ -567,13 +664,19 @@ function mutationChanged(result) {
   // installed and verified the dependency; reconnect is refused, but that
   // earlier mutation remains applied.
   if (result.boundary === "connect-precondition") return true;
+  if (result.partial === true) return true;
   if (result.ok !== true) return false;
   return typeof result.changed === "boolean" ? result.changed : true;
 }
 
 function mutationApplied(result) {
   if (!isPlainObject(result) || result.dryRun === true) return false;
-  return result.ok === true || result.boundary === "connect-precondition";
+  return (
+    result.ok === true ||
+    result.boundary === "connect-precondition" ||
+    result.partial === true ||
+    result.changed === true
+  );
 }
 
 /**
@@ -757,7 +860,507 @@ export function createTuiOperations({
     }
   }
 
-  function invokeMutation(request, dryRun, precondition = null) {
+  async function listSkills({ scope = "all" } = {}) {
+    if (!SKILL_SCOPE_VALUES.includes(scope)) {
+      return {
+        ok: false,
+        boundary: "arguments",
+        scope,
+        catalog: [],
+        installed: [],
+        failures: [`scope must be one of ${SKILL_SCOPE_VALUES.join(", ")}.`],
+      };
+    }
+    try {
+      const catalog = ops.skillCatalog();
+      const inventory = await ops.skillInventory({ cwd: resolvedCwd, scope });
+      return {
+        ok: inventory?.ok === true,
+        scope,
+        catalog: Array.isArray(catalog) ? catalog : [],
+        installed: Array.isArray(inventory?.skills) ? inventory.skills : [],
+        failures: Array.isArray(inventory?.failures) ? [...inventory.failures] : [],
+        inventory,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        boundary: "skills-list",
+        scope,
+        catalog: [],
+        installed: [],
+        failures: [errorMessage(error)],
+      };
+    }
+  }
+
+  function skillRequestFromAction(action) {
+    if (!isPlainObject(action)) {
+      return { ok: false, failures: ["Skill actions must be objects."] };
+    }
+    if (!["add", "update", "remove"].includes(action.action)) {
+      return { ok: false, failures: ['Skill action must be "add", "update", or "remove".'] };
+    }
+    if (typeof action.skillId !== "string" || !getSkillCatalogEntry(action.skillId)) {
+      return { ok: false, failures: ["Choose a skill from the published Prism skill catalog."] };
+    }
+    const scope = action.scope;
+    if (!SKILL_SCOPE_VALUES.includes(scope) || scope === "all") {
+      return { ok: false, failures: ['Skill scope must be explicitly "project" or "global".'] };
+    }
+    const agents = Array.isArray(action.agents)
+      ? [...new Set(action.agents.filter((agent) => typeof agent === "string"))]
+      : typeof action.agent === "string"
+        ? [action.agent]
+        : [];
+    if (agents.length === 0 || agents.some((agent) => !SKILL_AGENT_IDS.includes(agent))) {
+      return {
+        ok: false,
+        failures: [`Choose at least one supported agent: ${SKILL_AGENT_IDS.join(", ")}.`],
+      };
+    }
+    return { ok: true, action: action.action, skillId: action.skillId, scope, agents };
+  }
+
+  function skillOperationOptions(request, extra = {}) {
+    return {
+      action: request.action,
+      skillId: request.skillId,
+      cwd: resolvedCwd,
+      scope: request.scope,
+      agents: [...request.agents],
+      fetchImpl,
+      spawnImpl,
+      ...extra,
+    };
+  }
+
+  function skillPlanMaterial(request, result) {
+    return {
+      action: request.action,
+      skillId: request.skillId,
+      scope: request.scope,
+      agents: [...request.agents],
+      expectedPlan: isPlainObject(result?.expectedPlan) ? result.expectedPlan : null,
+      command: isPlainObject(result?.command) ? result.command : null,
+      targets: Array.isArray(result?.targets) ? result.targets : [],
+      warnings: Array.isArray(result?.warnings) ? result.warnings : [],
+    };
+  }
+
+  async function previewSkillMutation(action) {
+    const request = skillRequestFromAction(action);
+    if (!request.ok) {
+      return {
+        ok: false,
+        dryRun: true,
+        boundary: "action",
+        failures: request.failures,
+        action: null,
+        material: null,
+        result: null,
+      };
+    }
+    try {
+      const result = await ops.skillPlan(skillOperationOptions(request));
+      return {
+        ...(isPlainObject(result) ? result : {}),
+        ok: result?.ok === true,
+        dryRun: true,
+        kind: "skill",
+        cwd: resolvedCwd,
+        action: request.action,
+        skillId: request.skillId,
+        scope: request.scope,
+        agents: [...request.agents],
+        failures: Array.isArray(result?.failures) ? [...result.failures] : [],
+        material: result?.ok === true ? skillPlanMaterial(request, result) : null,
+        result,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        dryRun: true,
+        kind: "skill",
+        boundary: "planning",
+        action: request.action,
+        skillId: request.skillId,
+        scope: request.scope,
+        agents: [...request.agents],
+        failures: [errorMessage(error)],
+        material: null,
+        result: null,
+      };
+    }
+  }
+
+  async function executeSkillMutation(action, acceptedPreview) {
+    const request = skillRequestFromAction(action);
+    if (!request.ok) {
+      return {
+        ok: false,
+        applied: false,
+        changed: false,
+        boundary: "action",
+        failures: request.failures,
+        preview: null,
+        result: null,
+      };
+    }
+    if (
+      !isPlainObject(acceptedPreview) ||
+      acceptedPreview.dryRun !== true ||
+      acceptedPreview.ok !== true ||
+      acceptedPreview.kind !== "skill" ||
+      !isPlainObject(acceptedPreview.material)
+    ) {
+      return {
+        ok: false,
+        applied: false,
+        changed: false,
+        boundary: "preview",
+        failures: ["executeSkillMutation requires a successful preview for the same action."],
+        preview: null,
+        result: null,
+      };
+    }
+    const fresh = await previewSkillMutation(action);
+    if (fresh.ok !== true) {
+      return {
+        ok: false,
+        applied: false,
+        changed: false,
+        boundary: fresh.boundary ?? "preview",
+        failures: [...fresh.failures, "The skill change was not applied."],
+        preview: fresh,
+        result: null,
+      };
+    }
+    if (!isDeepStrictEqual(fresh.material, acceptedPreview.material)) {
+      return {
+        ok: false,
+        applied: false,
+        changed: false,
+        boundary: "preview-drift",
+        failures: ["The skill plan changed after review; nothing was installed or removed."],
+        preview: fresh,
+        result: null,
+      };
+    }
+    let result;
+    try {
+      result = await ops.skillExecute(
+        skillOperationOptions(request, { plan: fresh.result, confirmed: true }),
+      );
+    } catch (error) {
+      return {
+        ok: false,
+        applied: false,
+        changed: false,
+        boundary: "operation",
+        failures: [errorMessage(error)],
+        preview: fresh,
+        result: null,
+      };
+    }
+    return {
+      ok: result?.ok === true,
+      applied: result?.executed === true || result?.ok === true,
+      changed: result?.executed === true,
+      partial: result?.executed === true && result?.ok !== true,
+      boundary: typeof result?.boundary === "string" ? result.boundary : null,
+      failures: Array.isArray(result?.failures) ? [...result.failures] : [],
+      preview: fresh,
+      result,
+    };
+  }
+
+  async function checkCliUpdate(options = {}) {
+    try {
+      return await ops.updateCheck({ ...options, cwd: resolvedCwd, fetchImpl });
+    } catch (error) {
+      return {
+        ok: false,
+        skipped: false,
+        available: false,
+        current: null,
+        latest: null,
+        error: errorMessage(error),
+        advice: `The prism-ds update check could not finish: ${errorMessage(error)}`,
+      };
+    }
+  }
+
+  function updateOptions(options = {}) {
+    return { ...options, cwd: resolvedCwd, fetchImpl, spawnImpl };
+  }
+
+  async function previewCliUpdate(options = {}) {
+    try {
+      const result = await ops.update(
+        updateOptions({ ...options, dryRun: true, confirmed: false }),
+      );
+      const plan = isPlainObject(result?.plan) ? result.plan : null;
+      return {
+        ...(isPlainObject(result) ? result : {}),
+        ok: result?.ok === true,
+        dryRun: true,
+        kind: "self-update",
+        failures: Array.isArray(result?.failures) ? [...result.failures] : [],
+        material:
+          result?.ok === true ? { plan, plannedChanges: result.plannedChanges ?? [] } : null,
+        result,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        dryRun: true,
+        kind: "self-update",
+        failures: [errorMessage(error)],
+        material: null,
+        result: null,
+      };
+    }
+  }
+
+  async function executeCliUpdate(options, acceptedPreview) {
+    if (
+      !isPlainObject(acceptedPreview) ||
+      acceptedPreview.kind !== "self-update" ||
+      acceptedPreview.dryRun !== true ||
+      acceptedPreview.ok !== true ||
+      !isPlainObject(acceptedPreview.material)
+    ) {
+      return {
+        ok: false,
+        applied: false,
+        changed: false,
+        boundary: "preview",
+        failures: ["executeCliUpdate requires a successful, reviewed preview."],
+        preview: null,
+        result: null,
+      };
+    }
+    const fresh = await previewCliUpdate(options);
+    if (fresh.ok !== true) {
+      return {
+        ok: false,
+        applied: false,
+        changed: false,
+        boundary: fresh.boundary ?? "preview",
+        failures: [...fresh.failures, "The CLI update was not applied."],
+        preview: fresh,
+        result: null,
+      };
+    }
+    if (!isDeepStrictEqual(fresh.material, acceptedPreview.material)) {
+      return {
+        ok: false,
+        applied: false,
+        changed: false,
+        boundary: "preview-drift",
+        failures: ["The self-update plan changed after review; prism-ds was not updated."],
+        preview: fresh,
+        result: null,
+      };
+    }
+    let result;
+    try {
+      result = await ops.update(
+        updateOptions({
+          ...options,
+          dryRun: false,
+          confirmed: true,
+          expectedPlan: fresh.plan,
+        }),
+      );
+    } catch (error) {
+      return {
+        ok: false,
+        applied: false,
+        changed: false,
+        boundary: "operation",
+        failures: [errorMessage(error)],
+        preview: fresh,
+        result: null,
+      };
+    }
+    const partial = result?.partial === true || result?.state === "unverified";
+    return {
+      ok: result?.ok === true,
+      applied: result?.changed === true || partial,
+      changed: result?.changed === true,
+      partial,
+      boundary: typeof result?.boundary === "string" ? result.boundary : null,
+      failures: Array.isArray(result?.failures) ? [...result.failures] : [],
+      preview: fresh,
+      result,
+    };
+  }
+
+  function recoveryOptions(options = {}) {
+    const { cssPath, ...rest } = options;
+    return {
+      cwd: resolvedCwd,
+      ...rest,
+      ...(typeof cssPath === "string" && cssPath.trim() !== "" ? { css: cssPath.trim() } : {}),
+    };
+  }
+
+  function runRecovery(options = {}) {
+    try {
+      const report = ops.recoveryReport(recoveryOptions(options));
+      const suggestions = ops.recoverySuggestions(report, {
+        packageName: options.packageName,
+        css: options.cssPath,
+        entry: options.entry,
+      });
+      return {
+        ok: report?.ok === true,
+        report,
+        suggestions: Array.isArray(suggestions) ? suggestions : [],
+        failures: Array.isArray(report?.failures) ? [...report.failures] : [],
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        boundary: "recovery",
+        failures: [errorMessage(error)],
+        report: null,
+        suggestions: [],
+      };
+    }
+  }
+
+  function recoveryRequest(action) {
+    if (
+      !isPlainObject(action) ||
+      typeof action.actionId !== "string" ||
+      action.actionId.trim() === ""
+    ) {
+      return {
+        ok: false,
+        failures: ["Choose an exact recovery action id from the current report."],
+      };
+    }
+    return {
+      ok: true,
+      actionId: action.actionId.trim(),
+      ...(typeof action.packageName === "string" ? { packageName: action.packageName } : {}),
+      ...(typeof action.cssPath === "string" && action.cssPath.trim() !== ""
+        ? { cssPath: action.cssPath.trim() }
+        : {}),
+      ...(typeof action.entry === "string" && action.entry.trim() !== ""
+        ? { entry: action.entry.trim() }
+        : {}),
+      ...(typeof action.strict === "boolean" ? { strict: action.strict } : {}),
+    };
+  }
+
+  function recoveryPlanMaterial(result) {
+    return {
+      actionId: result.actionId,
+      kind: result.kind ?? result.suggestion?.kind ?? null,
+      suggestion: result.suggestion ?? null,
+      plan: result.plan ?? null,
+      changes: Array.isArray(result.changes) ? result.changes : [],
+    };
+  }
+
+  function previewRecoveryAction(action) {
+    const request = recoveryRequest(action);
+    if (!request.ok) {
+      return { ok: false, boundary: "action", failures: request.failures, plan: null, changes: [] };
+    }
+    try {
+      const result = ops.recoveryPreview(recoveryOptions(request));
+      return {
+        ...(isPlainObject(result) ? result : {}),
+        kind: result?.kind ?? "recovery",
+        dryRun: true,
+        material: result?.ok === true ? recoveryPlanMaterial(result) : null,
+        result,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        boundary: "preview",
+        failures: [errorMessage(error)],
+        plan: null,
+        changes: [],
+        result: null,
+      };
+    }
+  }
+
+  function executeRecoveryAction(action, acceptedPreview) {
+    const request = recoveryRequest(action);
+    if (!request.ok) {
+      return {
+        ok: false,
+        actionCompleted: false,
+        repaired: false,
+        healthy: false,
+        boundary: "action",
+        failures: request.failures,
+      };
+    }
+    if (
+      !isPlainObject(acceptedPreview) ||
+      acceptedPreview.dryRun !== true ||
+      acceptedPreview.ok !== true ||
+      !isPlainObject(acceptedPreview.material)
+    ) {
+      return {
+        ok: false,
+        actionCompleted: false,
+        repaired: false,
+        healthy: false,
+        boundary: "preview",
+        failures: ["executeRecoveryAction requires a successful preview for this action."],
+      };
+    }
+    const fresh = previewRecoveryAction(action);
+    if (fresh.ok !== true) {
+      return {
+        ok: false,
+        actionCompleted: false,
+        repaired: false,
+        healthy: false,
+        boundary: fresh.boundary ?? "preview",
+        failures: [...(fresh.failures ?? []), "The recovery action was not applied."],
+        preview: fresh,
+      };
+    }
+    if (!isDeepStrictEqual(fresh.material, acceptedPreview.material)) {
+      return {
+        ok: false,
+        actionCompleted: false,
+        repaired: false,
+        healthy: false,
+        boundary: "preview-drift",
+        failures: ["The recovery plan changed after review; no repair was applied."],
+        preview: fresh,
+      };
+    }
+    try {
+      return ops.recoveryExecute(
+        recoveryOptions({ ...request, confirmed: true, expectedPlan: fresh.plan }),
+      );
+    } catch (error) {
+      return {
+        ok: false,
+        actionCompleted: false,
+        repaired: false,
+        healthy: false,
+        boundary: "operation",
+        failures: [errorMessage(error)],
+        preview: fresh,
+      };
+    }
+  }
+
+  function invokeMutation(request, dryRun, precondition = null, acceptedResult = null) {
     if (request.kind === "install") {
       return ops.install({
         cwd: resolvedCwd,
@@ -774,7 +1377,7 @@ export function createTuiOperations({
       });
     }
     if (request.kind === "use") {
-      return ops.use({
+      const options = {
         cwd: resolvedCwd,
         package: request.packageName,
         version: request.version ?? undefined,
@@ -790,8 +1393,28 @@ export function createTuiOperations({
         peers: [...request.peers],
         fetchImpl,
         spawnImpl,
-        ...(precondition !== null ? { expectedConnectPlan: precondition } : {}),
         dryRun,
+      };
+      if (request.skills) {
+        return ops.useWithSkills({
+          ...options,
+          skills: true,
+          skillAgents: [...request.skillAgents],
+          confirmed: dryRun !== true,
+          ...(!dryRun && acceptedResult !== null
+            ? {
+                preview: {
+                  use: acceptedResult.use ?? acceptedResult,
+                  skillPlan: acceptedResult.skillPlan ?? null,
+                },
+              }
+            : {}),
+          ...(precondition !== null ? { expectedConnectPlan: precondition } : {}),
+        });
+      }
+      return ops.use({
+        ...options,
+        ...(precondition !== null ? { expectedConnectPlan: precondition } : {}),
       });
     }
     if (request.kind === "connect") {
@@ -801,6 +1424,35 @@ export function createTuiOperations({
         package: request.packageName ?? undefined,
         strict: request.strict,
         dryRun,
+      });
+    }
+    if (request.kind === "switch") {
+      return ops.switch({
+        cwd: resolvedCwd,
+        package: request.packageName,
+        version: request.version,
+        registry: request.registry ?? undefined,
+        cssPath: request.cssPath ?? undefined,
+        withEntry: [...request.entries],
+        peers: [...request.peers],
+        strict: request.strict,
+        ignore: [...request.ignore],
+        fetchImpl,
+        spawnImpl,
+        dryRun,
+        confirmed: dryRun !== true,
+        ...(acceptedResult !== null ? { expectedPlan: acceptedResult } : {}),
+      });
+    }
+    if (request.kind === "remove") {
+      return ops.remove({
+        cwd: resolvedCwd,
+        package: request.packageName,
+        cssPath: request.cssPath ?? undefined,
+        spawnImpl,
+        dryRun,
+        confirmed: dryRun !== true,
+        ...(acceptedResult !== null ? { expectedPlan: acceptedResult } : {}),
       });
     }
     return ops.upgrade({
@@ -909,7 +1561,12 @@ export function createTuiOperations({
       // The exact plan from the final fresh preview is the optional write
       // precondition of the real invocation; when the operation exposes no plan
       // (for example an injected fake), behavior is unchanged.
-      result = await invokeMutation(request, false, connectPrecondition(fresh.result));
+      result = await invokeMutation(
+        request,
+        false,
+        connectPrecondition(fresh.result),
+        fresh.result,
+      );
     } catch (error) {
       return {
         ok: false,
@@ -922,7 +1579,9 @@ export function createTuiOperations({
         result: null,
       };
     }
-    const partial = isPlainObject(result) && result.boundary === "connect-precondition";
+    const partial =
+      isPlainObject(result) &&
+      (result.partial === true || result.boundary === "connect-precondition");
     return {
       ok: isPlainObject(result) && result.ok === true,
       applied: mutationApplied(result),
@@ -938,6 +1597,7 @@ export function createTuiOperations({
 
   return {
     cwd: resolvedCwd,
+    skillAgentIds: SKILL_AGENT_IDS,
     getProjectState,
     searchSystems,
     inspectSystem,
@@ -947,7 +1607,16 @@ export function createTuiOperations({
     runDoctor,
     runUsageCheck,
     runTailwindCheck,
+    listSkills,
     previewMutation,
     executeMutation,
+    previewSkillMutation,
+    executeSkillMutation,
+    checkCliUpdate,
+    previewCliUpdate,
+    executeCliUpdate,
+    runRecovery,
+    previewRecoveryAction,
+    executeRecoveryAction,
   };
 }

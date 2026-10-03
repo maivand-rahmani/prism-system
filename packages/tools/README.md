@@ -10,11 +10,12 @@ usage, sets up the Tailwind v4 bridge, and diagnoses the result.
   `check-usage`, `setup-tailwind`, `doctor`, `skills`, `self-update`, `recover`,
   `--help`). `skills` has `list`/`add`/`update`/`remove` subcommands; they are not
   separate root command names.
-- **Interactive by default:** bare `prism-ds` (no arguments) renders an inline interactive
-  TUI in the current terminal, in place, and never spawns a child terminal or window.
-  Argument commands and `--help` remain plain CLI invocations. Startup may perform one
-  bounded (2500 ms), nonblocking, read-only update check; `PRISM_DS_UPDATE_CHECK=0`
-  disables it.
+- **Interactive by default:** bare `prism-ds` (no arguments) run from the product root
+  renders an inline interactive TUI in the current terminal, in place, and never spawns
+  a child terminal or window. Argument commands and `--help` remain plain CLI
+  invocations. Startup may perform one bounded (2500 ms), nonblocking, read-only update
+  check; `PRISM_DS_UPDATE_CHECK=0` disables it. Navigation and confirmation are described
+  under [Interactive TUI](#interactive-tui).
 - **Not a UI package:** it depends on no design system and on no `@prism-system/ui-*`
   package. TypeScript and the Runeframe/Ink TUI runtime are its only runtime dependencies.
 - **One current contract:** it reads the current manifest shape (`schemaVersion: 5`,
@@ -64,6 +65,46 @@ npx prism-ds use @prism-system/ui-system-a --cwd . --check-usage
 # 4. One offline read-only health report for CI and agents.
 npx prism-ds check --cwd .
 ```
+
+## Interactive TUI
+
+Run `npx prism-ds` with no arguments from the product root. The TUI targets the current
+directory (it takes no `--cwd`), renders inline in the current terminal, and never spawns
+a child terminal; argument commands and `--help` remain plain CLI invocations.
+
+The main screen reflects the project state: with nothing installed it offers the
+read-only catalog (browse, search, inspect a release); an installed-but-unconfigured
+package offers Configure / Connect; a connected project gets tabs `1`–`4` for Systems,
+Components, Tokens, and Checks. Press `m` for **Manage**, which groups:
+
+- **System lifecycle** (`s`) — switch to another exact release after a usage-aware
+  compatibility review, or remove an unused system as a separate operation;
+- **Skills** (`k`) — the Prism and curated design catalogs, with project/global scope and
+  a supported agent chosen explicitly;
+- **Update prism-ds** (`u`) — a read-only check and an explicit CLI update, separate from
+  a design-system upgrade;
+- **Project recovery** (`r`) — offline diagnosis first, then only applicable repairs.
+
+Each screen's footer lists its actions and keyboard shortcuts; `Esc` goes back or
+cancels, and `q` (or `Ctrl+C`; `Ctrl+C` in a text field) exits.
+
+Every change is previewed read-only first: the exact target and version, the
+package-manager command, and planned file effects; a switch adds usage/compatibility
+coverage, a removal lists preserved files, a skill change shows its source revision and
+placements, and a CLI update shows the installation context. Nothing is applied until you
+confirm with `y`/Enter; `Esc`/`n` cancels. When a preview lists managed files, press `v`
+to inspect each file's exact before/after content. If the state changes after review, the
+operation is refused instead of applying a stale plan.
+
+On a release details screen with nothing installed, `i` installs only, `u` installs and
+connects, `a` chooses a skill agent, and `n` uses without skill setup. The consumer-use
+skill is offered when an agent is explicitly chosen or reliably detected; an unresolved
+selection stays pending and does not block system setup. Skill add/update/remove installs
+instructions only — it never executes them or installs product dependencies. On
+Node < 22.20 the pinned `npx skills@1.7.0` installer cannot run: skill changes are blocked
+with a clear message while catalog and inventory keep working. The startup update check is
+one bounded (2500 ms), nonblocking, read-only request; `PRISM_DS_UPDATE_CHECK=0` disables
+it, and no update is ever installed automatically.
 
 ## Network commands
 
