@@ -124,17 +124,13 @@ export async function renderInkTui({
   mouseEnabled,
   mouseEventSource,
 }) {
-  const [
-    { default: React },
-    { render },
-    runeframe,
-    { default: TuiApp, ChangePreviewModal },
-  ] = await Promise.all([
-    import("react"),
-    import("ink"),
-    import("runeframe"),
-    import("./tui-app.mjs"),
-  ]);
+  const [{ default: React }, { render }, runeframe, { default: TuiApp, ChangePreviewModal }] =
+    await Promise.all([
+      import("react"),
+      import("ink"),
+      import("runeframe"),
+      import("./tui-app.mjs"),
+    ]);
   const { FrameworkProvider, MouseLayout, ScreenOutlet, ScreenRegistry } = runeframe;
 
   const registry = new ScreenRegistry();
@@ -161,11 +157,7 @@ export async function renderInkTui({
   const element = React.createElement(
     MouseLayout,
     layoutProps,
-    React.createElement(
-      FrameworkProvider,
-      providerProps,
-      React.createElement(ScreenOutlet),
-    ),
+    React.createElement(FrameworkProvider, providerProps, React.createElement(ScreenOutlet)),
   );
   return render(element, { stdin, stdout, stderr });
 }
