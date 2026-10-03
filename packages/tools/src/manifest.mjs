@@ -348,7 +348,13 @@ export function collectExtensionsFailures(value, { entrypoints, publicApi } = {}
       failures.push(`${prefix} must be an object.`);
       continue;
     }
-    collectAllowedKeys(extension, EXTENSION_FIELDS, EXTENSION_REQUIRED_FIELDS, `${prefix}.`, failures);
+    collectAllowedKeys(
+      extension,
+      EXTENSION_FIELDS,
+      EXTENSION_REQUIRED_FIELDS,
+      `${prefix}.`,
+      failures,
+    );
     if (
       hasOwn(extension, "apiVersion") &&
       (!Number.isInteger(extension.apiVersion) || extension.apiVersion < 1)
@@ -732,9 +738,7 @@ function collectCurrentManifestFailures(manifest, { packageName, version } = {})
     if (isPlainObject(manifest.entrypoints)) {
       for (const key of Object.keys(manifest.entrypoints)) {
         if (!hasOwn(manifest.exports, key)) {
-          failures.push(
-            `exports[${JSON.stringify(key)}] is required for the declared entrypoint.`,
-          );
+          failures.push(`exports[${JSON.stringify(key)}] is required for the declared entrypoint.`);
           continue;
         }
         if (classifyManifestExportTarget(manifest.exports[key]) === "asset") {

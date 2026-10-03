@@ -275,7 +275,11 @@ function requestFromAction(action) {
     .filter((entry) => typeof entry === "string" && entry.trim() !== "")
     .map((entry) => entry.trim());
   const peerSpecs = (
-    Array.isArray(action.peers) ? action.peers : typeof action.peers === "string" ? [action.peers] : []
+    Array.isArray(action.peers)
+      ? action.peers
+      : typeof action.peers === "string"
+        ? [action.peers]
+        : []
   )
     .filter((peer) => typeof peer === "string" && peer.trim() !== "")
     .map((peer) => peer.trim());

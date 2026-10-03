@@ -201,9 +201,7 @@ export function buildComponentCatalog({ manifest, name } = {}) {
       publicApi: manifest.publicApi,
     });
     if (extensionFailures.length > 0) {
-      throw new Error(
-        `Invalid design-system manifest extensions: ${extensionFailures.join(" ")}`,
-      );
+      throw new Error(`Invalid design-system manifest extensions: ${extensionFailures.join(" ")}`);
     }
   }
 

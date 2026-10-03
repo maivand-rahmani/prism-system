@@ -1245,9 +1245,7 @@ export function packageRequiresDist(pkg) {
     }
   };
   collect(pkg?.exports);
-  return targets.some(
-    (target) => target === "./dist" || target.startsWith("./dist/"),
-  );
+  return targets.some((target) => target === "./dist" || target.startsWith("./dist/"));
 }
 
 function packAndExtract({ target, runDirectory, log, failures }) {

@@ -763,10 +763,7 @@ test("dist is required only when the published payload is dist-based", () => {
     packageRequiresDist({ files: ["bin", "src"], exports: { ".": "./src/index.mjs" } }),
     false,
   );
-  assert.equal(
-    packageRequiresDist({ exports: { ".": { import: "./dist/index.js" } } }),
-    true,
-  );
+  assert.equal(packageRequiresDist({ exports: { ".": { import: "./dist/index.js" } } }), true);
   assert.equal(packageRequiresDist({ files: ["dist"] }), true);
   assert.equal(packageRequiresDist({}), false);
 });

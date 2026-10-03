@@ -39,7 +39,12 @@ import {
   readJsonFile,
 } from "./constants.mjs";
 import { detectManifestContract } from "./manifest.mjs";
-import { exactSemverRange, isExactSemver, isValidSemverRange, satisfiesSemverRange } from "./semver.mjs";
+import {
+  exactSemverRange,
+  isExactSemver,
+  isValidSemverRange,
+  satisfiesSemverRange,
+} from "./semver.mjs";
 import { resolveInstalledDesignSystem } from "./consumer.mjs";
 import { getTypeScript } from "./usage.mjs";
 
@@ -404,7 +409,9 @@ export function planEntryAndPeers({
 } = {}) {
   const selection = resolveEntrySelection({ consumerRoot, manifest, entries });
   const overrides = parsePeerOverrides(peerSpecs);
-  const byName = new Map(selection.requirements.map((requirement) => [requirement.name, requirement]));
+  const byName = new Map(
+    selection.requirements.map((requirement) => [requirement.name, requirement]),
+  );
   for (const override of overrides) {
     const requirement = byName.get(override.name);
     if (requirement === undefined) {
@@ -743,7 +750,8 @@ export function collectEntryPrerequisites({
         (selection.entrypoint === null ? [] : [selection.entrypoint])),
     ],
     selectedExtensions: [
-      ...(selection.selectedExtensions ?? (selection.extension === null ? [] : [selection.extension])),
+      ...(selection.selectedExtensions ??
+        (selection.extension === null ? [] : [selection.extension])),
     ],
     file: selection.file,
     source: selection.source,

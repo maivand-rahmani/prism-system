@@ -212,7 +212,8 @@ export const EXTENSION_FIELDS = Object.freeze([...EXTENSION_REQUIRED_FIELDS, "ef
  * an optional `@scope/` followed by a lowercase-safe segment. Rejects
  * whitespace, shell metacharacters, empty segments, and injection attempts.
  */
-export const PACKAGE_NAME_PATTERN = /^(?:@[A-Za-z0-9][A-Za-z0-9._-]*\/)?[A-Za-z0-9][A-Za-z0-9._-]*$/;
+export const PACKAGE_NAME_PATTERN =
+  /^(?:@[A-Za-z0-9][A-Za-z0-9._-]*\/)?[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 /** The nine token groups exposed as flattened semantic token names. */
 export const TOKEN_GROUP_KEYS = Object.freeze([

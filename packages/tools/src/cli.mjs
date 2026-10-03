@@ -1032,9 +1032,7 @@ function reportComponentCatalog(result) {
         ? ` effects: ${extension.effects.features.join("+")}/${extension.effects.rendering}`
         : " effects: undeclared";
       lines.push(`    ${extension.name}  api v${extension.apiVersion}  ${extension.importPath}`);
-      lines.push(
-        `      ${extension.requirements.length} requirement(s)${effect}`,
-      );
+      lines.push(`      ${extension.requirements.length} requirement(s)${effect}`);
     }
   }
   if (result.requested) {

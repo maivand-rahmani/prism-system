@@ -29,10 +29,7 @@ import {
   assertWithin,
   readJsonFile,
 } from "./constants.mjs";
-import {
-  planEntryAndPeers,
-  verifyPeerInstallations,
-} from "./entry-scan.mjs";
+import { planEntryAndPeers, verifyPeerInstallations } from "./entry-scan.mjs";
 import { buildInstallCommand, detectPackageManager, spawnInstall } from "./package-manager.mjs";
 import { fetchDesignSystemInfo, searchRegistry } from "./registry.mjs";
 import { assertExactSemver } from "./semver.mjs";
@@ -339,7 +336,9 @@ function computeManifestDiff(fromManifest, toManifest) {
   const toExtensions = isPlainObject(toManifest?.extensions) ? toManifest.extensions : {};
   const extensionOrder = [
     ...Object.keys(toExtensions),
-    ...Object.keys(fromExtensions).filter((name) => !Object.prototype.hasOwnProperty.call(toExtensions, name)),
+    ...Object.keys(fromExtensions).filter(
+      (name) => !Object.prototype.hasOwnProperty.call(toExtensions, name),
+    ),
   ];
   const extensions = { added: [], removed: [], changed: [] };
   for (const name of extensionOrder) {
@@ -370,7 +369,9 @@ function computeManifestDiff(fromManifest, toManifest) {
   const toEntrypoints = isPlainObject(toManifest?.entrypoints) ? toManifest.entrypoints : {};
   const entrypointOrder = [
     ...Object.keys(toEntrypoints),
-    ...Object.keys(fromEntrypoints).filter((key) => !Object.prototype.hasOwnProperty.call(toEntrypoints, key)),
+    ...Object.keys(fromEntrypoints).filter(
+      (key) => !Object.prototype.hasOwnProperty.call(toEntrypoints, key),
+    ),
   ];
   const entrypoints = { added: [], removed: [], changed: [] };
   for (const key of entrypointOrder) {
@@ -385,7 +386,8 @@ function computeManifestDiff(fromManifest, toManifest) {
       continue;
     }
     const requirements = diffRequirements(before?.requirements, after?.requirements);
-    if (requirementsDiffer(requirements)) entrypoints.changed.push({ entrypoint: key, requirements });
+    if (requirementsDiffer(requirements))
+      entrypoints.changed.push({ entrypoint: key, requirements });
   }
 
   const metadata = {};

@@ -1358,11 +1358,7 @@ test("large numeric versions stay JSON-safe in the TUI model", async () => {
     command: {
       manager: "pnpm",
       verb: "add",
-      args: [
-        ...base.command.args.slice(0, -2),
-        `three@${HUGE}`,
-        "@react-three/fiber@8.18.0",
-      ],
+      args: [...base.command.args.slice(0, -2), `three@${HUGE}`, "@react-three/fiber@8.18.0"],
     },
     peers: [
       {

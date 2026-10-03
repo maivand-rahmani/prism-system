@@ -1170,7 +1170,12 @@ function sceneTarget({ version = "2.0.0" } = {}) {
       { name: "three", kind: "peer", range: "^0.186.0", optional: true },
       { name: "@react-three/fiber", kind: "peer", range: "8.18.0", optional: true },
     ],
-    effects: { features: ["depth", "3d"], rendering: "webgl", reducedMotion: true, fallback: "static" },
+    effects: {
+      features: ["depth", "3d"],
+      rendering: "webgl",
+      reducedMotion: true,
+      fallback: "static",
+    },
   });
   manifest.version = version;
   return manifest;

@@ -86,9 +86,7 @@ test("CSS, JSON, and manifest exports are never entrypoints", () => {
 test("entrypoint requirements are exact and validated", () => {
   const manifest = syntheticManifest();
   manifest.entrypoints["."] = {
-    requirements: [
-      { name: "react", kind: "peer", range: "^18.0.0 || ^19.0.0", optional: false },
-    ],
+    requirements: [{ name: "react", kind: "peer", range: "^18.0.0 || ^19.0.0", optional: false }],
   };
   manifest.exports["."] = "./dist/index.mjs";
   manifest.publicApi["."] = [];
@@ -100,12 +98,16 @@ test("entrypoint requirements are exact and validated", () => {
   };
   const failures = collectManifestFailures(bad);
   assert.ok(
-    failures.some((failure) => failure.includes('.requirements[0].name must be a valid package')),
+    failures.some((failure) => failure.includes(".requirements[0].name must be a valid package")),
     failures.join(" "),
   );
   assert.ok(failures.some((failure) => failure.includes(".requirements[0].kind must be one of")));
-  assert.ok(failures.some((failure) => failure.includes(".requirements[0].range must be a non-empty")));
-  assert.ok(failures.some((failure) => failure.includes(".requirements[0].optional must be a boolean")));
+  assert.ok(
+    failures.some((failure) => failure.includes(".requirements[0].range must be a non-empty")),
+  );
+  assert.ok(
+    failures.some((failure) => failure.includes(".requirements[0].optional must be a boolean")),
+  );
 
   // The range is copied verbatim from package.json (schema/generator parity):
   // workspace and other real range forms are valid data. Semver evaluation of a
@@ -183,9 +185,7 @@ test("every public code export must declare an entrypoint (generator parity)", (
   // Conditional objects are code exports and must be declared.
   neutral.exports["./widgets"] = { import: "./dist/widgets.mjs" };
   assert.ok(
-    collectManifestFailures(neutral).some((failure) =>
-      failure.includes('exports["./widgets"]'),
-    ),
+    collectManifestFailures(neutral).some((failure) => failure.includes('exports["./widgets"]')),
   );
 
   // Unknown target shapes cannot be proven to be assets and fail closed.
@@ -290,8 +290,12 @@ test("effects are closed and never inferred", () => {
     fallback: "static",
   };
   const failures = collectManifestFailures(invalid);
-  assert.ok(failures.some((failure) => failure.includes('features contains unknown value "hologram"')));
-  assert.ok(failures.some((failure) => failure.includes("rendering must be one of dom, webgl, mixed")));
+  assert.ok(
+    failures.some((failure) => failure.includes('features contains unknown value "hologram"')),
+  );
+  assert.ok(
+    failures.some((failure) => failure.includes("rendering must be one of dom, webgl, mixed")),
+  );
   assert.ok(failures.some((failure) => failure.includes("reducedMotion must be a boolean")));
 
   const domFallback = sceneManifest();
@@ -347,9 +351,7 @@ test("nested lower-kebab entrypoints are accepted and exposed with their full im
     name: "Reveal",
     entrypoint: "./custom/reveal",
     target: "./dist/custom/reveal/index.mjs",
-    requirements: [
-      { name: "three", kind: "peer", range: "^0.186.0", optional: true },
-    ],
+    requirements: [{ name: "three", kind: "peer", range: "^0.186.0", optional: true }],
     effects: { features: ["depth", "motion"], rendering: "dom", reducedMotion: true },
   });
   assert.deepEqual(collectManifestFailures(manifest), []);
@@ -444,8 +446,9 @@ test("canonical catalog entries expose the declared root entrypoint metadata", (
   assert.equal(catalog.extensions[0].importPath, `${manifest.package}/keyboard-scene`);
 
   assert.deepEqual(
-    buildInfoResult({ package: manifest.package, version: manifest.version, manifest })
-      .entrypoints["."],
+    buildInfoResult({ package: manifest.package, version: manifest.version, manifest }).entrypoints[
+      "."
+    ],
     manifest.entrypoints["."],
   );
 });
@@ -486,7 +489,10 @@ test("info carries the declared entrypoints and verified extensions", () => {
 
   assert.equal(result.package, manifest.package);
   assert.deepEqual(result.availableExtensions, ["KeyboardScene"]);
-  assert.deepEqual(result.extensions[0].requirements, manifest.entrypoints["./keyboard-scene"].requirements);
+  assert.deepEqual(
+    result.extensions[0].requirements,
+    manifest.entrypoints["./keyboard-scene"].requirements,
+  );
   assert.equal(result.extensions[0].importPath, `${manifest.package}/keyboard-scene`);
   assert.deepEqual(result.entrypoints, manifest.entrypoints);
   assert.equal(result.manifest, manifest);

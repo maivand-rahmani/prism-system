@@ -238,7 +238,9 @@ export function collectDoctorReport({ cwd, package: explicitPackage, entry } = {
       entry,
     });
     const requirements = result.report?.requirements ?? [];
-    const satisfied = requirements.filter((requirement) => requirement.status === "satisfied").length;
+    const satisfied = requirements.filter(
+      (requirement) => requirement.status === "satisfied",
+    ).length;
     checks.push(
       result.ok
         ? info(

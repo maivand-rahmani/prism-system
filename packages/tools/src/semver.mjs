@@ -306,9 +306,7 @@ function expandHyphen(left, right) {
   }
   if (upper.major !== null) {
     if (upper.minor === null) {
-      comparators.push(
-        comparator("<", fullVersion(successorIdentifier(upper.major), 0, 0, ["0"])),
-      );
+      comparators.push(comparator("<", fullVersion(successorIdentifier(upper.major), 0, 0, ["0"])));
     } else if (upper.patch === null) {
       comparators.push(
         comparator("<", fullVersion(upper.major, successorIdentifier(upper.minor), 0, ["0"])),

@@ -74,11 +74,7 @@ function sceneManifest() {
 }
 
 /** Write the installed package (package.json + manifest + artifacts). */
-function writeInstalledDesignSystem(
-  root,
-  manifest,
-  { artifacts = {}, exportTargets = {} } = {},
-) {
+function writeInstalledDesignSystem(root, manifest, { artifacts = {}, exportTargets = {} } = {}) {
   const dir = join(root, "node_modules", ...manifest.package.split("/"));
   const exportsMap = { "./manifest": "./design-system.json" };
   for (const key of Object.keys(manifest.entrypoints)) {
@@ -228,10 +224,7 @@ test("large numeric identifiers compare losslessly for versions, ranges, and ove
     satisfiesSemverRange(`9007199254740994.0.0`, `${ABOVE_SAFE}.0.0 - ${HUGE}.0.0`),
     false,
   );
-  assert.equal(
-    satisfiesSemverRange(`${HUGE}.0.0`, `${ABOVE_SAFE}.0.0 - ${HUGE}.0.0`),
-    true,
-  );
+  assert.equal(satisfiesSemverRange(`${HUGE}.0.0`, `${ABOVE_SAFE}.0.0 - ${HUGE}.0.0`), true);
   assert.equal(satisfiesSemverRange(`${HUGE}.1.0`, `<=${HUGE}`), true);
   assert.equal(satisfiesSemverRange(`9007199254740994.0.0`, `<=${HUGE}`), false);
   assert.equal(satisfiesSemverRange(`${ABOVE_SAFE}.0.0`, `>${SAFE_MAX}`), true);
@@ -321,7 +314,11 @@ test("extensions, entrypoints, and defaults select declared requirements", (t) =
   const manifest = sceneManifest();
   const root = createRoot(t);
 
-  const extension = resolveEntrySelection({ consumerRoot: root, manifest, entries: ["KeyboardScene"] });
+  const extension = resolveEntrySelection({
+    consumerRoot: root,
+    manifest,
+    entries: ["KeyboardScene"],
+  });
   assert.equal(extension.entries[0].kind, "extension");
   assert.equal(extension.entries[0].entrypoint, "./keyboard-scene");
   assert.deepEqual(
