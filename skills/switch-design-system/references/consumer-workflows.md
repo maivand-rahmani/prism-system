@@ -1,6 +1,13 @@
+<!-- Generated standalone copy for the `switch-design-system` skill. Canonical source:
+     `skills/references/consumer-workflows.md` in the design-systems author
+     workspace; edit that file and run
+     `node scripts/sync-skill-references.mjs --write`.
+     Do not edit this copy. Workspace paths such as `docs/...`, `packages/...`,
+     and `schemas/...` are author-workspace files, not installed with this skill. -->
+
 # Consumer workflows reference
 
-Companion to [`use-design-system`](../use-design-system/SKILL.md). Read only the section
+Companion to the `use-design-system` skill. Read only the section
 that matches the task. Everything here works from the installed package and its public
 subpaths; no design-system monorepo, package source, or `tokens.source.json` is required.
 

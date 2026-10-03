@@ -179,6 +179,41 @@ export function mergeBridgeImports(existing, { packageName } = {}) {
   return output.join("");
 }
 
+/**
+ * Remove exactly the package-owned Tailwind v4 bridge imports from existing CSS.
+ *
+ * Only pure `@import "<package>/tailwind.css";` and
+ * `@import "<package>/styles.css";` lines are removed. Every other line is
+ * preserved byte-for-byte, including `@import "tailwindcss";` and all user CSS;
+ * a bridge from another design system is never touched. Removing nothing is
+ * reported as `changed: false`.
+ *
+ * @param {string} existing CSS source.
+ * @param {{ packageName: string }} options
+ * @returns {{ after: string, changed: boolean, removed: string[] }}
+ */
+export function removeBridgeImports(existing, { packageName } = {}) {
+  if (typeof existing !== "string") {
+    throw new Error("removeBridgeImports requires the existing CSS source as a string.");
+  }
+  if (typeof packageName !== "string" || packageName.trim().length === 0) {
+    throw new Error("removeBridgeImports requires a non-empty design system package name.");
+  }
+  const managed = new Set([`${packageName}/tailwind.css`, `${packageName}/styles.css`]);
+  const lines = splitLines(existing);
+  const output = [];
+  const removed = [];
+  for (const line of lines) {
+    const specifier = importSpecifierOf(stripTerminator(line));
+    if (specifier !== null && managed.has(specifier)) {
+      removed.push(specifier);
+      continue;
+    }
+    output.push(line);
+  }
+  return { after: output.join(""), changed: removed.length > 0, removed };
+}
+
 /** Walk up from a resolved entry to the nearest `package.json` with this name. */
 function findPackageJsonUpward(startDir, packageName) {
   let current = resolve(startDir);

@@ -24,8 +24,10 @@ workspace source paths.
 The repository's packed consumer check (`pnpm ds:check-tools`) hydrates its own
 scratch copies under a fresh `TEMP/lifecycle/tools-packed-<run-id>/` directory and runs
 `prism-ds connect`, `components`, `tokens`, `check`, `setup-tailwind`,
-`check-usage`, `doctor`, and the dependency-mutating commands against packed
-artifacts, without mutating this repository.
+`check-usage`, `doctor`, the dependency-mutating commands, and deterministic
+`switch`/`remove`/`recover`/`skills list` previews against packed
+artifacts, without mutating this repository. It never invokes the real pinned Skills CLI
+and never runs a real CLI self-update.
 
 To exercise the maintainer wrapper manually, pack the artifacts and extract them
 into a scratch copy under `TEMP/lifecycle/`:

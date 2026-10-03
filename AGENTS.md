@@ -49,11 +49,14 @@ design-systems/
 - `@prism-system/tools` is the **published tooling** (the `prism-ds` executable), not a
   UI package. It is independent of `@prism-system/ui-core` and every design system and
   imports no repository source at runtime. Its `search`/`info` commands are explicit
-  network read-only; `install`/`use`/`upgrade` are the only commands that mutate consumer
-  dependencies (via a fixed npm/pnpm command); `connect` writes only consumer config and
-  agent instructions; `setup-tailwind` edits only the explicitly named consumer CSS file;
-  `components`/`tokens`/`check`/`check-usage`/`doctor` are offline and read-only. It has no
-  postinstall, copies no source, and never publishes.
+  network read-only; `install`/`use`/`upgrade`/`switch`/`remove` are the only commands
+  that mutate consumer dependencies (via a fixed npm/pnpm command; `switch` retains the
+  previous dependency and applies only reviewed literal substitutions); `connect` writes
+  only consumer config and agent instructions; `setup-tailwind` edits only the explicitly
+  named consumer CSS file; `components`/`tokens`/`check`/`check-usage`/`doctor`, default
+  `recover`, and `skills list` are offline and read-only; `skills add/update/remove` may
+  bootstrap the pinned `npx skills@1.7.0`; `self-update` updates only the CLI itself. It
+  has no postinstall, copies no source, and never publishes.
 - `apps/*` only compose. They own layout, placement, and reference scenarios.
   They must not restyle, copy, or override package internals.
 
@@ -193,10 +196,20 @@ which covers declared effects, custom extensions, and their entrypoint requireme
   `pnpm ds:sync-versions`, and `pnpm ds:release` commands, and the
   `config/design-systems.json` registry. Showcase and Reference App integrate registered
   systems from that registry.
-- `@prism-system/tools` ships the consumer `prism-ds` CLI: explicit network reads
-  (`search`, `info`), dependency-mutating commands (`install`, `use`, `upgrade`),
-  configuration (`connect`), catalog reads (`components`, `tokens`), Tailwind v4 setup
-  (`setup-tailwind`), and offline checks (`check`, `check-usage`, `doctor`).
+- `@prism-system/tools` ships the consumer `prism-ds` CLI with seventeen root commands:
+  explicit network reads (`search`, `info`), dependency-mutating commands (`install`,
+  `use`, `upgrade`, `switch`, `remove`), configuration (`connect`), catalog reads
+  (`components`, `tokens`), Tailwind v4 setup (`setup-tailwind`), offline checks
+  (`check`, `check-usage`, `doctor`), skill management (`skills list/add/update/remove`),
+  CLI self-update (`self-update`), and project recovery (`recover`). `switch` reviews
+  actual usage against the target manifest, blocks on missing support, exposes dynamic
+  usage as unverified, applies only reviewed literal module/CSS substitutions, and
+  retains the previous dependency; `remove` is a separate explicit operation that refuses
+  while active references remain. `skills list` is offline; `skills add/update/remove`
+  may bootstrap the pinned `npx skills@1.7.0` (Node >= 22.20 for that command only) and
+  install instructions, never dependencies or executions. `self-update` is separate from
+  design-system `upgrade`; `recover` defaults to offline advice and mutates only with an
+  explicitly selected `--action --yes`.
 - Acceptance checks: `pnpm ds:check <id>` for a package, `pnpm ds:check-tools` for the
   packed tooling and manifests, `pnpm ds:check-docs` for the active documentation, and
   `pnpm ds:check-all` for the full gate over packed artifacts. All of them are read-only
@@ -251,6 +264,8 @@ npx prism-ds info <package-or-id> [version] [--registry <url>] [--json]
 npx prism-ds install <package-or-id> [version] --cwd <consumer-root> [--with-entry <value>] [--peer <name@version>] [--dry-run]
 npx prism-ds use <package-or-id> [version] --cwd <consumer-root> [--tailwind --css <file>] [--check-usage] [--with-entry <value>] [--peer <name@version>] [--dry-run]
 npx prism-ds upgrade <package-or-id> <exact-version> --cwd <consumer-root> [--with-entry <value>] [--peer <name@version>] [--dry-run]
+npx prism-ds switch <target> [version] --cwd <consumer-root> [--css <file>] [--with-entry <value>] [--peer <name@version>] [--dry-run|--yes]
+npx prism-ds remove [package] --cwd <consumer-root> [--css <file>] [--dry-run|--yes]
 npx prism-ds components [name] --cwd <consumer-root>
 npx prism-ds tokens [group] --cwd <consumer-root>
 npx prism-ds check --cwd <consumer-root> [--css <file>] [--entry <path-or-extension>]
@@ -258,20 +273,38 @@ npx prism-ds setup-tailwind --cwd <consumer-root> --css <file> [--dry-run|--chec
 npx prism-ds connect [package] --cwd <consumer-root> [--strict|--no-strict] [--check] [--dry-run]
 npx prism-ds check-usage --cwd <consumer-root> [--ignore <glob>]
 npx prism-ds doctor [package] --cwd <consumer-root> [--entry <path-or-extension>]
+npx prism-ds skills list --cwd <consumer-root> [--global]
+npx prism-ds skills add|update|remove <id> --cwd <consumer-root> --agent <id> [--global] [--dry-run|--yes]
+npx prism-ds self-update [--check] [--cwd <consumer-root>] [--global] [--manager npm|pnpm] [--registry <url>] [--dry-run|--yes] [--json]
+npx prism-ds recover [package] --cwd <consumer-root> [--css <file>] [--entry <path-or-extension>]
+npx prism-ds recover [package] --cwd <consumer-root> --action <id> [--css <file>] [--dry-run|--yes]
 ```
 
-`search`/`info` are explicit network, read-only; `install`/`use`/`upgrade` are the only
-commands that mutate consumer dependencies; `connect` only writes consumer config and
-agent instructions; `setup-tailwind` edits only its explicitly named CSS file;
-`components`/`tokens`/`check`/`check-usage`/`doctor` are offline and read-only.
+`search`/`info` are explicit network, read-only; `install`/`use`/`upgrade`/`switch`/`remove`
+are the only commands that mutate consumer dependencies (`switch` retains the previous
+dependency, `remove` is a separate explicit operation, and both apply only reviewed
+literal substitutions/attributable cleanup — never product UI rewrites or source
+deletion); `connect` only writes consumer config and agent instructions; `setup-tailwind`
+edits only its explicitly named CSS file; `components`/`tokens`/`check`/`check-usage`/
+`doctor` and default `recover` are offline and read-only. Declared network exceptions:
+the bare-TUI startup may run one bounded (2500 ms), nonblocking, read-only update check
+(`PRISM_DS_UPDATE_CHECK=0` disables it), `self-update` checks or explicitly installs the
+CLI itself (never a design system), and `skills add/update/remove` may bootstrap the
+pinned `npx skills@1.7.0` (network/npm cache) to install instructions only; `skills list`
+stays offline. None of these reads a local design-systems checkout or imports repository
+code at runtime; skills use only explicitly declared remote instruction sources.
 `pnpm ds:connect` and `pnpm ds:check-usage` are compatibility wrappers around the same
 implementation that ships as `@prism-system/tools`; `ds:create`, `ds:register`,
 `ds:check`, `ds:manifest`, `ds:sync-versions`, `ds:release`, `ds:check-tools`,
 `ds:check-docs`, and `ds:check-all` remain maintainer-only and are not published.
 
 Lifecycle skills: `skills/create-design-system/SKILL.md` (create),
-`skills/use-design-system/SKILL.md` (consume), and
-`skills/modify-design-system/SKILL.md` (evolve).
+`skills/modify-design-system/SKILL.md` (evolve), `skills/use-design-system/SKILL.md`
+(consume), and `skills/switch-design-system/SKILL.md` (switch systems). Each skill folder
+is standalone: the copies under `skills/<skill>/references/` are generated from the
+canonical `skills/references/*.md` files. Edit the canonical reference and run
+`node scripts/sync-skill-references.mjs --write`; `--check` reports drift and is enforced
+by the skills regression (`scripts/check-skills.test.mjs`).
 
 Quality criteria and coverage limits: `docs/v4/quality.md`. CI, release, and publish
 verification jobs share `.github/workflows/verify.yml`; the full acceptance gate is the
