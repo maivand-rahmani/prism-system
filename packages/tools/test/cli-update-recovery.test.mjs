@@ -159,8 +159,11 @@ async function invokeInProcess(runFn, argv, { fetchImpl } = {}) {
   let stderr = "";
   process.exitCode = undefined;
   if (fetchImpl !== undefined) globalThis.fetch = fetchImpl;
+  // Under `node --test`, the runner's child protocol pipes V8-serialized binary
+  // events through `process.stdout`; only the command's text output belongs in
+  // the captured stream.
   process.stdout.write = (chunk) => {
-    stdout += chunk;
+    if (typeof chunk === "string") stdout += chunk;
     return true;
   };
   process.stderr.write = (chunk) => {
@@ -522,6 +525,18 @@ test("self-update reports registry failures cleanly and spawns nothing", async (
   assert.match(plan.stdout, /Registry responded 500/);
   assert.match(plan.stdout, /Nothing was spawned or written\./);
   assert.equal(existsSync(marker), false);
+});
+
+test("in-process capture ignores binary test-runner protocol writes", async () => {
+  const result = await invokeInProcess(async () => {
+    // Mirrors the V8-serialized events Node's test runner pipes through
+    // `process.stdout` in a test-file child process.
+    process.stdout.write(Buffer.from([0xff, 0x0f, 0x00, 0x00, 0x00, 0x40]));
+    process.stdout.write(JSON.stringify({ ok: true }));
+  }, []);
+  assert.equal(result.exitCode, undefined);
+  assert.deepEqual(JSON.parse(result.stdout), { ok: true });
+  assert.equal(result.stderr, "");
 });
 
 test("self-update --check stays non-throwing offline in-process", async () => {
