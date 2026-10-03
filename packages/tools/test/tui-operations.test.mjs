@@ -25,8 +25,11 @@ const OPERATION_NAMES = Object.freeze([
   "inspect",
   "install",
   "use",
+  "useWithSkills",
   "connect",
   "upgrade",
+  "switch",
+  "remove",
   "components",
   "tokens",
   "check",
@@ -38,6 +41,16 @@ const OPERATION_NAMES = Object.freeze([
   "discover",
   "resolveInstalled",
   "verifyInstalled",
+  "skillCatalog",
+  "skillInventory",
+  "skillPlan",
+  "skillExecute",
+  "updateCheck",
+  "update",
+  "recoveryReport",
+  "recoverySuggestions",
+  "recoveryPreview",
+  "recoveryExecute",
 ]);
 
 function spy(impl) {
@@ -1385,4 +1398,400 @@ test("large numeric versions stay JSON-safe in the TUI model", async () => {
   assert.doesNotThrow(() => JSON.stringify(preview));
   assert.equal(JSON.stringify(preview).includes("BigInt"), false);
   assert.equal(calls.install[0][0].peers[0], `three@${HUGE}`);
+});
+
+/* -------------------------------------------------------------------------- */
+/* Issue 17 TUI lifecycle, skills, update, and recovery workflows              */
+/* -------------------------------------------------------------------------- */
+
+test("switch and remove previews preserve exact lifecycle effects and execute only a reviewed plan", async () => {
+  const switchPlan = {
+    materialVersion: 1,
+    action: "switch",
+    consumerRoot: CONSUMER_ROOT,
+    from: { package: TARGET, version: "1.2.3" },
+    to: { package: TARGET_B, version: "2.0.0" },
+  };
+  const switchCommand = {
+    manager: "pnpm",
+    verb: "add",
+    args: ["add", "--ignore-scripts", `${TARGET_B}@2.0.0`],
+  };
+  const switchResult = {
+    ok: true,
+    dryRun: true,
+    from: { package: TARGET, version: "1.2.3" },
+    to: { package: TARGET_B, version: "2.0.0" },
+    manager: "pnpm",
+    command: switchCommand,
+    plannedChanges: [
+      { kind: "dependency", manager: "pnpm", command: switchCommand },
+      {
+        kind: "source",
+        path: `${CONSUMER_ROOT}/src/app.tsx`,
+        changed: true,
+        before: `import { Button } from "${TARGET}";`,
+        after: `import { Button } from "${TARGET_B}";`,
+      },
+    ],
+    compatibility: {
+      blockers: [],
+      warnings: [{ code: "appearance-unknown", message: "Token values are not compared." }],
+      coverage: { filesScanned: 3, skippedFiles: 0, unverified: 0 },
+    },
+    usage: { counts: { sourceFiles: 3 } },
+    planMaterial: switchPlan,
+  };
+  const removePlan = {
+    materialVersion: 1,
+    action: "remove",
+    consumerRoot: CONSUMER_ROOT,
+    package: TARGET,
+  };
+  const removeCommand = {
+    manager: "pnpm",
+    verb: "remove",
+    args: ["remove", "--ignore-scripts", TARGET],
+  };
+  const removeResult = {
+    ok: true,
+    dryRun: true,
+    package: TARGET,
+    version: "1.2.3",
+    manager: "pnpm",
+    command: removeCommand,
+    plannedChanges: [
+      { kind: "dependency", manager: "pnpm", command: removeCommand },
+      {
+        kind: "config",
+        path: `${CONSUMER_ROOT}/.design-system/config.json`,
+        changed: true,
+        before: '{"package":"old"}',
+        after: null,
+      },
+    ],
+    compatibility: {
+      blockers: [],
+      warnings: [{ code: "edited-file", message: "Edited instructions are preserved." }],
+      coverage: { filesScanned: 3, skippedFiles: 0, unverified: 0 },
+    },
+    preserved: [{ path: `${CONSUMER_ROOT}/AGENTS.md`, reason: "edited file" }],
+    planMaterial: removePlan,
+  };
+  const { tui, calls } = createHarness({
+    switch: (options) =>
+      options.dryRun ? switchResult : { ...switchResult, ok: true, dryRun: false, changed: true },
+    remove: (options) =>
+      options.dryRun ? removeResult : { ...removeResult, ok: true, dryRun: false, changed: true },
+  });
+
+  const switchAction = {
+    kind: "switch",
+    packageName: TARGET_B,
+    version: "2.0.0",
+    cssPath: "src/theme.css",
+    withEntry: "KeyboardScene",
+    peers: ["three@0.186.1"],
+  };
+  const switchPreview = await tui.previewMutation(switchAction);
+  assert.equal(switchPreview.ok, true);
+  assert.equal(switchPreview.from.package, TARGET);
+  assert.equal(switchPreview.to.package, TARGET_B);
+  assert.equal(switchPreview.compatibility.coverage.filesScanned, 3);
+  assert.match(switchPreview.compatibility.warnings[0].message, /not compared/);
+  assert.equal(switchPreview.material.effects[1].before, `import { Button } from "${TARGET}";`);
+  assert.equal(calls.switch[0][0].cssPath, "src/theme.css");
+  assert.deepEqual(calls.switch[0][0].withEntry, ["KeyboardScene"]);
+  assert.deepEqual(calls.switch[0][0].peers, ["three@0.186.1"]);
+  const switchOutcome = await tui.executeMutation(switchAction, switchPreview);
+  assert.equal(switchOutcome.ok, true);
+  assert.equal(switchOutcome.applied, true);
+  assert.deepEqual(dryRunFlags(calls, "switch"), [true, true, false]);
+  assert.equal(calls.switch[2][0].confirmed, true);
+  assert.deepEqual(calls.switch[2][0].expectedPlan, switchResult);
+
+  const removePreview = await tui.previewMutation({ kind: "remove", packageName: TARGET });
+  assert.equal(removePreview.ok, true);
+  assert.deepEqual(removePreview.preserved, removeResult.preserved);
+  assert.equal(removePreview.material.effects[1].after, null);
+  const removeOutcome = await tui.executeMutation(
+    { kind: "remove", packageName: TARGET },
+    removePreview,
+  );
+  assert.equal(removeOutcome.ok, true);
+  assert.equal(removeOutcome.applied, true);
+  assert.deepEqual(dryRunFlags(calls, "remove"), [true, true, false]);
+  assert.equal(calls.remove[2][0].confirmed, true);
+  assert.deepEqual(calls.remove[2][0].expectedPlan, removeResult);
+});
+
+test("use-with-skills is routed through the shared preview and the frozen skill plan", async () => {
+  const skillPlan = { expectedPlan: { revision: "a".repeat(40), skillId: "use-design-system" } };
+  const usePlan = makeUseDryRun();
+  const combinedPreview = {
+    ...usePlan,
+    use: usePlan,
+    skillPlan,
+    skillSetup: {
+      enabled: true,
+      status: "planned",
+      scope: "project",
+      agents: ["codex"],
+      requested: true,
+      guidance: null,
+    },
+  };
+  const { tui, calls } = createHarness({
+    useWithSkills: (options) =>
+      options.dryRun
+        ? combinedPreview
+        : { ok: true, failures: [], use: { ok: true }, skillSetup: { status: "installed" } },
+  });
+  const action = {
+    kind: "use",
+    packageName: TARGET,
+    version: "1.2.3",
+    skills: true,
+    skillAgents: ["codex"],
+  };
+
+  const preview = await tui.previewMutation(action);
+  assert.equal(preview.ok, true);
+  assert.deepEqual(calls.useWithSkills[0][0].skillAgents, ["codex"]);
+  assert.equal(calls.useWithSkills[0][0].skills, true);
+  assert.equal(preview.skillSetup.status, "planned");
+  assert.deepEqual(preview.material.skillPlan, skillPlan);
+
+  const outcome = await tui.executeMutation(action, preview);
+  assert.equal(outcome.ok, true);
+  assert.deepEqual(dryRunFlags(calls, "useWithSkills"), [true, true, false]);
+  const execution = calls.useWithSkills[2][0];
+  assert.equal(execution.confirmed, true);
+  assert.equal(execution.preview.skillPlan, skillPlan);
+  assert.equal(execution.preview.use, usePlan);
+  assert.deepEqual(execution.expectedConnectPlan, usePlan.connectPlan);
+});
+
+test("skill listing is offline and skill execution refuses a changed source/placement preview", async () => {
+  const catalog = [
+    { id: "use-design-system", skill: "use-design-system", type: "prism", source: "prism-system" },
+  ];
+  let revision = "a".repeat(40);
+  const executionCalls = [];
+  const { tui, calls, fetchImpl, spawnImpl } = createHarness({
+    skillCatalog: () => catalog,
+    skillInventory: async ({ cwd, scope }) => ({
+      ok: true,
+      cwd,
+      scope,
+      skills: [{ catalogId: "use-design-system", scope: "project", managed: true }],
+    }),
+    skillPlan: async (options) => ({
+      ok: true,
+      action: options.action,
+      skillId: options.skillId,
+      expectedPlan: { revision, skillId: options.skillId },
+      command: { executable: "npx", package: "skills@1.7.0", args: ["--yes"] },
+      targets: [{ path: `${CONSUMER_ROOT}/.agents/skills/use-design-system`, selected: true }],
+      warnings: [],
+    }),
+    skillExecute: async (options) => {
+      executionCalls.push(options);
+      return { ok: true, executed: true, failures: [] };
+    },
+  });
+
+  const inventory = await tui.listSkills({ scope: "project" });
+  assert.equal(inventory.ok, true);
+  assert.equal(inventory.catalog, catalog);
+  assert.equal(inventory.installed[0].managed, true);
+  assert.deepEqual(calls.skillInventory[0][0], { cwd: RESOLVED_CWD, scope: "project" });
+  assert.equal(fetchImpl.calls.length, 0);
+  assert.equal(spawnImpl.calls.length, 0);
+
+  const action = {
+    action: "add",
+    skillId: "use-design-system",
+    scope: "project",
+    agents: ["codex"],
+  };
+  const preview = await tui.previewSkillMutation(action);
+  assert.equal(preview.ok, true);
+  assert.equal(preview.material.expectedPlan.revision, revision);
+  assert.deepEqual(calls.skillPlan[0][0].agents, ["codex"]);
+  assert.equal(calls.skillPlan[0][0].cwd, RESOLVED_CWD);
+
+  const outcome = await tui.executeSkillMutation(action, preview);
+  assert.equal(outcome.ok, true);
+  assert.equal(outcome.applied, true);
+  assert.equal(executionCalls.length, 1);
+  assert.equal(executionCalls[0].confirmed, true);
+  assert.equal(executionCalls[0].plan.expectedPlan.revision, revision);
+
+  const driftPreview = await tui.previewSkillMutation(action);
+  revision = "b".repeat(40);
+  const drift = await tui.executeSkillMutation(action, driftPreview);
+  assert.equal(drift.ok, false);
+  assert.equal(drift.boundary, "preview-drift");
+  assert.equal(drift.applied, false);
+  assert.equal(executionCalls.length, 1, "a changed revision is never sent to the installer");
+});
+
+test("CLI update planning is separate, bounded-check options pass through, and confirmation is mandatory", async () => {
+  const command = {
+    manager: "npm",
+    verb: "install",
+    args: ["install", "--global", "--ignore-scripts", "@prism-system/tools@3.0.0"],
+  };
+  const plan = {
+    action: "self-update",
+    scope: "global",
+    packageName: "@prism-system/tools",
+    currentVersion: "2.9.0",
+    targetVersion: "3.0.0",
+    updateAvailable: true,
+    installation: { kind: "global", manager: "npm", verified: true },
+    command,
+    postVerifySupported: true,
+  };
+  const { tui, calls, fetchImpl, spawnImpl } = createHarness({
+    updateCheck: async (options) => ({
+      ok: true,
+      available: true,
+      current: "2.9.0",
+      latest: "3.0.0",
+      installation: plan.installation,
+      advice: "Update available.",
+      timeoutMs: options.timeoutMs,
+    }),
+    update: async (options) =>
+      options.dryRun
+        ? {
+            ok: true,
+            dryRun: true,
+            updateAvailable: true,
+            currentVersion: "2.9.0",
+            targetVersion: "3.0.0",
+            plan,
+            plannedChanges: [{ kind: "dependency", command }],
+          }
+        : { ok: true, changed: true, installedVersion: "3.0.0", targetVersion: "3.0.0" },
+  });
+
+  const checked = await tui.checkCliUpdate({ timeoutMs: 2500 });
+  assert.equal(checked.available, true);
+  assert.equal(checked.timeoutMs, 2500);
+  assert.equal(calls.updateCheck[0][0].cwd, RESOLVED_CWD);
+  assert.equal(calls.updateCheck[0][0].fetchImpl, fetchImpl);
+
+  const options = { global: true, manager: "npm" };
+  const preview = await tui.previewCliUpdate(options);
+  assert.equal(preview.ok, true);
+  assert.equal(preview.updateAvailable, true);
+  assert.deepEqual(preview.plan.command, command);
+  assert.equal(calls.update[0][0].dryRun, true);
+  assert.equal(calls.update[0][0].confirmed, false);
+  assert.equal(calls.update[0][0].cwd, RESOLVED_CWD);
+  assert.equal(calls.update[0][0].spawnImpl, spawnImpl);
+
+  const outcome = await tui.executeCliUpdate(options, preview);
+  assert.equal(outcome.ok, true);
+  assert.equal(outcome.applied, true);
+  assert.deepEqual(dryRunFlags(calls, "update"), [true, true, false]);
+  assert.equal(calls.update[2][0].confirmed, true);
+  assert.deepEqual(calls.update[2][0].expectedPlan, plan);
+});
+
+test("recovery report is read-only; action preview is exact and execution stays explicit", async () => {
+  const report = { ok: false, cwd: CONSUMER_ROOT, issues: [{ id: "connection" }] };
+  const suggestion = {
+    id: "connect",
+    executable: true,
+    label: "Reconnect",
+    reason: "The consumer config is stale.",
+    kind: "connect",
+    command: { bin: "prism-ds", args: ["connect"] },
+  };
+  const plan = {
+    packageName: TARGET,
+    version: "1.2.3",
+    files: [
+      {
+        kind: "config",
+        path: `${CONSUMER_ROOT}/.design-system/config.json`,
+        before: '{"version":"old"}',
+        after: '{"version":"1.2.3"}',
+      },
+    ],
+  };
+  const suggestionPreview = {
+    ok: true,
+    actionId: "connect",
+    kind: "connect",
+    suggestion,
+    plan,
+    changes: plan.files,
+  };
+  const executeCalls = [];
+  const { tui, calls } = createHarness({
+    recoveryReport: (options) => {
+      assert.equal(options.css, "src/app.css");
+      assert.equal(options.entry, "KeyboardScene");
+      return report;
+    },
+    recoverySuggestions: (receivedReport, context) => {
+      assert.equal(receivedReport, report);
+      assert.deepEqual(context, {
+        packageName: TARGET,
+        css: "src/app.css",
+        entry: "KeyboardScene",
+      });
+      return [suggestion];
+    },
+    recoveryPreview: (options) => {
+      assert.equal(options.actionId, "connect");
+      assert.equal(options.css, "src/app.css");
+      assert.equal(options.entry, "KeyboardScene");
+      return suggestionPreview;
+    },
+    recoveryExecute: (options) => {
+      executeCalls.push(options);
+      return {
+        ok: true,
+        actionCompleted: true,
+        repaired: true,
+        healthy: false,
+        stillRemaining: ["usage"],
+      };
+    },
+  });
+
+  const recovery = tui.runRecovery({
+    packageName: TARGET,
+    cssPath: "src/app.css",
+    entry: "KeyboardScene",
+  });
+  assert.equal(recovery.ok, false);
+  assert.equal(recovery.report, report);
+  assert.deepEqual(recovery.suggestions, [suggestion]);
+  assert.equal(calls.recoveryReport.length, 1);
+  assert.equal(calls.recoveryPreview.length, 0, "diagnosis alone never creates an action plan");
+
+  const action = {
+    actionId: "connect",
+    packageName: TARGET,
+    cssPath: "src/app.css",
+    entry: "KeyboardScene",
+  };
+  const preview = tui.previewRecoveryAction(action);
+  assert.equal(preview.ok, true);
+  assert.equal(preview.material.plan.files[0].after, plan.files[0].after);
+  assert.equal(calls.recoveryPreview.length, 1);
+  const outcome = tui.executeRecoveryAction(action, preview);
+  assert.equal(outcome.actionCompleted, true);
+  assert.equal(outcome.repaired, true);
+  assert.equal(outcome.healthy, false);
+  assert.equal(executeCalls.length, 1);
+  assert.equal(executeCalls[0].confirmed, true);
+  assert.deepEqual(executeCalls[0].expectedPlan, plan);
 });

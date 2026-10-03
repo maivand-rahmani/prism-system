@@ -161,6 +161,23 @@ export function quoteWindowsArgument(value) {
 }
 
 /**
+ * Build the fixed removal command used by `prism-ds remove`. It removes exactly
+ * one already-selected package from the consumer manifest with lifecycle
+ * scripts disabled; there are no user-supplied extra arguments and no registry
+ * or scope arguments. The caller verifies absence afterwards.
+ *
+ * @returns {{ manager: string, verb: string, args: string[] }}
+ */
+export function buildRemoveCommand({ manager, packageName } = {}) {
+  if (!SUPPORTED_MANAGERS.includes(manager)) {
+    throw new Error(`Unsupported package manager ${JSON.stringify(manager)}.`);
+  }
+  const verb = manager === "npm" ? "uninstall" : "remove";
+  const args = [verb, assertSafeArgument(packageName, "remove target"), "--ignore-scripts"];
+  return { manager, verb, args };
+}
+
+/**
  * Build the exact spawn plan. POSIX uses the manager directly with `shell:false`;
  * Windows uses a narrowly constrained `cmd.exe /d /s /c` adapter for the
  * allowlisted npm/pnpm shim. No user text is ever executed.

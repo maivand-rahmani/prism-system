@@ -5,11 +5,17 @@ styles in the npm registry, explicitly installs or upgrades one in a product, co
 the consumer contract, reads the installed component and token catalogs, validates strict
 usage, sets up the Tailwind v4 bridge, and diagnoses the result.
 
-- **Executable:** `prism-ds` (`search`, `info`, `install`, `use`, `upgrade`, `connect`,
-  `components`, `tokens`, `check`, `check-usage`, `setup-tailwind`, `doctor`, `--help`).
-- **Interactive by default:** bare `prism-ds` (no arguments) renders an inline interactive
-  TUI in the current terminal, in place, and never spawns a child terminal or window.
-  Argument commands and `--help` remain plain CLI invocations.
+- **Executable:** `prism-ds` with seventeen root commands (`search`, `info`, `install`,
+  `use`, `upgrade`, `switch`, `remove`, `connect`, `components`, `tokens`, `check`,
+  `check-usage`, `setup-tailwind`, `doctor`, `skills`, `self-update`, `recover`,
+  `--help`). `skills` has `list`/`add`/`update`/`remove` subcommands; they are not
+  separate root command names.
+- **Interactive by default:** bare `prism-ds` (no arguments) run from the product root
+  renders an inline interactive TUI in the current terminal, in place, and never spawns
+  a child terminal or window. Argument commands and `--help` remain plain CLI
+  invocations. Startup may perform one bounded (2500 ms), nonblocking, read-only update
+  check; `PRISM_DS_UPDATE_CHECK=0` disables it. Navigation and confirmation are described
+  under [Interactive TUI](#interactive-tui).
 - **Not a UI package:** it depends on no design system and on no `@prism-system/ui-*`
   package. TypeScript and the Runeframe/Ink TUI runtime are its only runtime dependencies.
 - **One current contract:** it reads the current manifest shape (`schemaVersion: 5`,
@@ -19,12 +25,18 @@ usage, sets up the Tailwind v4 bridge, and diagnoses the result.
   metadata is the only source for the custom-extension catalog and selected-entry
   requirements; nothing is inferred from a name.
 - **Explicit boundaries:** `search`/`info` are network read-only; `install`/`use`/
-  `upgrade` are the only commands that mutate consumer dependencies; `setup-tailwind`
+  `upgrade`/`switch`/`remove` mutate consumer dependencies (`switch` retains the previous
+  dependency and `remove` is a separate explicit operation); `self-update` installs a
+  newer CLI only with `--yes`; `skills add/update/remove` may bootstrap the pinned
+  `npx skills@1.7.0` and mutate only the selected skill directory; `setup-tailwind`
   mutates only the explicitly named consumer CSS file; `connect` writes only the consumer
-  config and agent instructions; `components`/`tokens`/`check`/`check-usage`/`doctor` are
-  offline (`check-usage` may lazy-load TypeScript). No postinstall, no source copying, no
-  publishing, no hidden package selection, and no access to the design-systems source
-  repository. A regular-CSS consumer needs no Tailwind; only the token bridge does.
+  config and agent instructions; `components`/`tokens`/`check`/`check-usage`/`doctor`,
+  default `recover`, and `skills list` are offline (`check-usage` and other
+  scanner-backed steps may lazy-load TypeScript). The bare-TUI startup update check is
+  the only automatic network read and can be disabled with `PRISM_DS_UPDATE_CHECK=0`.
+  No postinstall, no source copying, no publishing, no hidden package selection, and no
+  access to the design-systems source repository. A regular-CSS consumer needs no
+  Tailwind; only the token bridge does.
 
 ## Install
 
@@ -54,6 +66,46 @@ npx prism-ds use @prism-system/ui-system-a --cwd . --check-usage
 npx prism-ds check --cwd .
 ```
 
+## Interactive TUI
+
+Run `npx prism-ds` with no arguments from the product root. The TUI targets the current
+directory (it takes no `--cwd`), renders inline in the current terminal, and never spawns
+a child terminal; argument commands and `--help` remain plain CLI invocations.
+
+The main screen reflects the project state: with nothing installed it offers the
+read-only catalog (browse, search, inspect a release); an installed-but-unconfigured
+package offers Configure / Connect; a connected project gets tabs `1`–`4` for Systems,
+Components, Tokens, and Checks. Press `m` for **Manage**, which groups:
+
+- **System lifecycle** (`s`) — switch to another exact release after a usage-aware
+  compatibility review, or remove an unused system as a separate operation;
+- **Skills** (`k`) — the Prism and curated design catalogs, with project/global scope and
+  a supported agent chosen explicitly;
+- **Update prism-ds** (`u`) — a read-only check and an explicit CLI update, separate from
+  a design-system upgrade;
+- **Project recovery** (`r`) — offline diagnosis first, then only applicable repairs.
+
+Each screen's footer lists its actions and keyboard shortcuts; `Esc` goes back or
+cancels, and `q` (or `Ctrl+C`; `Ctrl+C` in a text field) exits.
+
+Every change is previewed read-only first: the exact target and version, the
+package-manager command, and planned file effects; a switch adds usage/compatibility
+coverage, a removal lists preserved files, a skill change shows its source revision and
+placements, and a CLI update shows the installation context. Nothing is applied until you
+confirm with `y`/Enter; `Esc`/`n` cancels. When a preview lists managed files, press `v`
+to inspect each file's exact before/after content. If the state changes after review, the
+operation is refused instead of applying a stale plan.
+
+On a release details screen with nothing installed, `i` installs only, `u` installs and
+connects, `a` chooses a skill agent, and `n` uses without skill setup. The consumer-use
+skill is offered when an agent is explicitly chosen or reliably detected; an unresolved
+selection stays pending and does not block system setup. Skill add/update/remove installs
+instructions only — it never executes them or installs product dependencies. On
+Node < 22.20 the pinned `npx skills@1.7.0` installer cannot run: skill changes are blocked
+with a clear message while catalog and inventory keep working. The startup update check is
+one bounded (2500 ms), nonblocking, read-only request; `PRISM_DS_UPDATE_CHECK=0` disables
+it, and no update is ever installed automatically.
+
 ## Network commands
 
 ### `prism-ds search [query...]`
@@ -82,7 +134,7 @@ manifest.
 
 ### `prism-ds install <package-or-id> [version] --cwd <root>`
 
-One of the only three commands that mutate consumer dependencies. It resolves and
+One of the commands that mutate consumer dependencies. It resolves and
 validates the exact version from the registry first; if that fails, the package manager is
 never invoked. The manager is detected from a valid `packageManager` field
 (`npm@...`/`pnpm@...`) or exactly one supported lockfile
@@ -136,6 +188,62 @@ npm/pnpm path as `use`, verifies the exact installed identity/version, then reco
 `--dry-run` resolves the target and manager and returns the exact command plus the planned
 consumer file effects without spawning or writing. It only mutates consumer dependencies
 and never the design-systems source repository; a manager mutation is never rolled back.
+
+### `prism-ds switch <target> [version] --cwd <root>`
+
+Explicitly move a connected consumer from its current system to another exact release.
+The target is resolved and validated from the registry first; then the installed and
+target public manifests are compared and the consumer's actual usage is scanned —
+literal imports and entrypoints, extensions, and supported literal variant, size,
+compound-member, and token-name references. Missing target support for actively used
+APIs is a **blocker**; dynamic or otherwise unsupported usage is reported as
+**unverified** rather than compatible. Nothing beyond reviewed literal module/CSS import
+substitutions and managed integration changes is rewritten: component structure, props,
+and application source are never rewritten, and controls are never restyled.
+`--css <file>` explicitly names the one CSS file whose literal package-name imports may
+be substituted (never guessed). The bounded literal active-usage scan also auto-selects
+entries: every target extension it found imported (deduplicated by name; compatibility
+has already proved the target declares the same name and entrypoint) is included in peer
+planning automatically, and the plan reports them as `autoSelectedEntries` in `--json`
+output. Only literally detected usage is selected — installed-but-unused extensions and
+arbitrary entry files are never selected.
+`--with-entry <extension|entrypoint|consumer-file>` explicitly adds target entries beyond
+detected usage, and `--peer name@exact-version` resolves a missing peer with a non-exact
+declared range. Selected-entry requirements use the same safe planner as
+`install`/`use`/`upgrade`: a satisfying installed peer is retained, a missing peer with
+an exact declared range is installed at that exact version, and a missing peer with a
+non-exact range requires the explicit satisfying `--peer`. Selected peers are verified
+afterward against the declared ranges. `--dry-run` resolves the target, the exact manager
+command, and the planned substitutions without spawning or writing.
+A real run uses the same fixed npm/pnpm path as `use` (`--ignore-scripts`,
+no user-supplied extra arguments), verifies the installed target, applies the reviewed
+substitutions, and reconnects. The previous dependency is **retained**; removing it is
+the separate `remove` operation. A completed package-manager mutation is never rolled
+back automatically, and partial effects are reported precisely.
+
+Token names do not reveal token values: the manifest diff cannot establish visual
+equality, rendering behavior, accessibility, or runtime compatibility.
+
+### `prism-ds remove [package] --cwd <root>`
+
+Explicitly remove the selected system once it is unused. It refuses while active source
+imports or token references remain, and previews removal of the selected dependency plus
+only unchanged, attributable generated integration (consumer config, AGENTS files/managed
+blocks). Unrelated dependencies, peers, instructions, consumer CSS, and edited generated
+files are preserved; any required manual cleanup is explained instead of guessed. The
+explicit `--css <file>` names the CSS file inspected for residual imports. With no
+`--css`, no CSS file is scanned or guessed: CSS is not inspected, a `css-not-inspected`
+compatibility warning is reported in the human plan and JSON result, and the CSS is left
+unchanged. `setup-tailwind` records no ownership marker, so exact
+`@import "<package>/tailwind.css"` / `"<package>/styles.css"` lines can never be attributed
+to the tool: `remove` never deletes or rewrites them. When the named CSS file contains
+such imports, the plan fails closed before any dependency uninstall or file write —
+`--dry-run` reports the same blocker and no planned changes — and the bytes are left
+untouched for manual removal. A named CSS file without them is left byte-identical and
+does not block removal. `--dry-run` resolves and previews without spawning or writing;
+`--yes` is required to mutate. It never deletes product UI, whole configuration
+directories, or arbitrary files, and it verifies the dependency and the planned owned
+integration are absent afterward.
 
 ## Offline commands
 
@@ -215,7 +323,9 @@ Offline, deterministic AST-based validation of strict usage from the installed p
 shipped `./manifest`. It flags arbitrary colors/radius/shadows in class tokens, visual
 inline-style overrides and unverifiable styles, and obvious local primitive replacements.
 Strict findings exit non-zero; non-strict findings are warnings. `--ignore <glob>` adds a
-root-relative ignore (repeatable). TypeScript is lazy-loaded only for this command.
+root-relative ignore (repeatable). TypeScript is lazy-loaded for scanner-backed
+operations: this command, `check --entry`/`--with-entry` planning, the `switch`
+compatibility scan, and `recover` when it needs the same scanner.
 
 ### `prism-ds doctor [package] --cwd <consumer-root> [--entry <path-or-extension>]`
 
@@ -224,7 +334,87 @@ version resolved through Node package resolution, the public `./manifest` and it
 exact identity/version invariants, the Tailwind bridge advertisement/export/file, and
 the consumer config state. With `--entry` it adds the same selected-entry prerequisite
 validation as `check`; without it no entry is scanned. It writes nothing and exits non-zero
-when any check fails.
+when any check fails. When it finds an applicable project-state issue, it points at the
+matching `recover` action; `doctor` and `check` remain offline and read-only.
+
+## Skills commands
+
+`prism-ds skills` manages two independent catalog types: **first-party Prism lifecycle
+instructions** and **curated general-design instructions** (UI, UX, accessibility,
+component composition, motion, 3D). Technology names in the catalog are tags, not
+additional lifecycle contracts. Installation scope (project or global) and the target
+agent are separate, explicit choices from a bounded allowlist.
+
+### `prism-ds skills list --cwd <root> [--global]`
+
+Offline, read-only inventory of the selected scope. It reports what is actually on disk,
+including installations made outside Prism — a lock entry alone never establishes
+existence or integrity — and reports the shared canonical placement instead of promising
+per-agent isolation. It contains no invented popularity or usage statistics.
+
+### `prism-ds skills add <id> --cwd <root> --agent <id> [--global] [--dry-run] [--yes]`
+
+### `prism-ds skills update <id> --cwd <root> --agent <id> [--global] [--dry-run] [--yes]`
+
+### `prism-ds skills remove <id> --cwd <root> --agent <id> [--global] [--dry-run] [--yes]`
+
+Explicit, confirmed operations against the trusted catalog. The first-party source is the
+approved `maivand-rahmani/prism-system` repository, resolved to an immutable commit during
+explicit planning and frozen into the confirmed operation; the tooling never reads a local
+design-systems checkout at runtime. `add`/`update` may bootstrap the pinned
+`npx skills@1.7.0` executable (network and npm cache). An existing installation is never
+silently replaced: `update` requires verified, unchanged managed content, and a modified
+or unverifiable installation is blocked with manual-preservation guidance. `--dry-run`
+previews without invoking the installer; `--yes` confirms the mutation. Installing skills
+installs **instructions only** — it never executes them and never installs Three.js, GSAP,
+or any other product dependency.
+
+The four first-party skills are `use-design-system` and `switch-design-system` (consumer
+instructions) and `create-design-system` and `modify-design-system` (author-workspace
+instructions). Each ships portable, self-contained references and never requires the
+design-systems checkout. `use` may include the consumer skill in its visible setup plan
+only when an agent is explicitly selected with `--skill-agent <id>` (repeatable) or
+reliably identified; `--no-skills` opts out. No provider is guessed and no authoring
+skills are installed automatically.
+
+## CLI self-update
+
+### `prism-ds self-update [--check] [--cwd <root>] [--global] [--manager npm|pnpm] [--registry <url>] [--dry-run] [--yes] [--json]`
+
+Checks for or explicitly installs a newer release of this CLI. It is deliberately separate
+from `upgrade`, which upgrades a design-system package. The invocation context is
+classified as local, global, ephemeral, source, or unknown; only an identified or
+explicitly selected supported installation is updated, through fixed exact
+package-manager arguments. Unknown, source, and ephemeral contexts receive accurate
+advice instead of a guessed global mutation. `--check` is a read-only report;
+`--dry-run` previews the exact command; `--yes` is required to mutate. A post-install
+verification that cannot run is reported as partial, never as success, and a completed
+package-manager mutation is never rolled back automatically.
+
+**TUI startup exception:** bare `prism-ds` may perform one bounded (2500 ms),
+nonblocking, read-only update check when it starts. Set `PRISM_DS_UPDATE_CHECK=0` to
+disable it. The check never mutates the installation, never writes to the consumer, and
+never blocks startup when the network is unavailable. It is the only automatic network
+access in the package; every other network call requires an explicit command.
+
+## Recovery
+
+### `prism-ds recover [package] --cwd <root> [--css <file>] [--entry <entry>]`
+
+### `prism-ds recover [package] --cwd <root> --action <id> [--css <file>] [--dry-run] [--yes]`
+
+Turns project-state diagnostics into applicable recovery actions. The default run is
+offline, read-only, and structured: it reports the observed state and only actions valid
+for it. An optional `[package]` positional (or `--package <name>`) names the installed
+system explicitly when discovery is ambiguous. Missing or malformed configuration,
+multiple candidates, missing peers, and schema
+mismatches receive distinct guidance; an upgrade is not recommended as a universal
+repair, and no CSS file or version is guessed. `--action <id>` selects one reported
+action; the applicable existing connect and Tailwind planners are reused, and `--dry-run`
+previews while `--yes` confirms the mutation. Completing an action is not the same as
+repairing the issue or making the project healthy: the targeted diagnosis is rechecked and
+unresolved postchecks remain visible. Unknown errors stay manual with their reason
+visible.
 
 ## Consumer contract
 
@@ -255,6 +445,9 @@ remains the authoritative design metadata; nothing duplicates it into `package.j
 ## Requirements
 
 - Node.js `>= 22.0.0` (the inline interactive TUI requires the Runeframe/Ink runtime).
+  The `skills` commands use the pinned `npx skills@1.7.0`, which requires Node.js
+  `>= 22.20.0`; on older Node those commands are blocked gracefully with a clear message,
+  and every other command keeps working.
 - Tailwind CSS v4 only when a product uses the token bridge; regular CSS consumers need
   none.
 

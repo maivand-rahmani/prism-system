@@ -131,6 +131,41 @@ function displayValue(value) {
   return String(value);
 }
 
+function switchAutoSelectedEntryLine(entry) {
+  if (!isRecord(entry)) return null;
+  const name = typeof entry.name === "string" && entry.name.trim() ? entry.name : null;
+  const entrypoint =
+    typeof entry.entrypoint === "string" && entry.entrypoint.trim() ? entry.entrypoint : null;
+  const file = typeof entry.file === "string" && entry.file.trim() ? entry.file : null;
+  const label = name && entrypoint ? `${name} (${entrypoint})` : (name ?? entrypoint);
+  if (!label && !file) return null;
+  return `• ${label ?? file}${label && file ? ` · ${file}` : ""}`;
+}
+
+function switchPeerActionLine(peer) {
+  if (!isRecord(peer) || typeof peer.name !== "string" || !peer.name.trim()) return null;
+  const details = [];
+  if (typeof peer.range === "string" && peer.range.trim()) details.push(peer.range);
+  if (typeof peer.optional === "boolean") details.push(peer.optional ? "optional" : "required");
+  if (peer.action === "install") {
+    details.push(
+      typeof peer.version === "string" && peer.version.trim()
+        ? `install ${peer.version}`
+        : "install",
+    );
+  } else if (peer.action === "retain") {
+    details.push(
+      typeof peer.installed === "string" && peer.installed.trim()
+        ? `retain installed ${peer.installed}`
+        : "retain",
+    );
+  } else if (typeof peer.action === "string" && peer.action.trim()) {
+    details.push(peer.action);
+  }
+  const kind = typeof peer.kind === "string" && peer.kind.trim() ? ` [${peer.kind}]` : "";
+  return `• ${peer.name}${kind}${details.length > 0 ? ` · ${details.join(" · ")}` : ""}`;
+}
+
 function effectMetadataText(effects) {
   if (!isRecord(effects)) return "Not declared";
   const features = Array.isArray(effects.features) ? effects.features.join(", ") : "not declared";
@@ -267,6 +302,13 @@ function commandText(command) {
   return parts.join(" ") || null;
 }
 
+function skillCommandText(command) {
+  if (!isRecord(command)) return null;
+  return [command.executable, command.package, ...(Array.isArray(command.args) ? command.args : [])]
+    .filter((part) => typeof part === "string" && part !== "")
+    .join(" ");
+}
+
 function plannedEffectText(effect) {
   if (!isRecord(effect)) return String(effect);
   if (effect.kind === "dependency") {
@@ -290,16 +332,53 @@ function plannedEffectText(effect) {
   return `${displayValue(effect.kind)} · ${displayValue(effect.path)}`;
 }
 
-function managedFileEffectsOf(preview) {
-  return (Array.isArray(preview?.plannedChanges) ? preview.plannedChanges : []).filter(
-    (effect) => isRecord(effect) && MANAGED_FILE_KINDS.has(effect.kind),
+function fileReviewEffectsOf(pending) {
+  const preview = pending?.preview;
+  const candidates = (Array.isArray(preview?.plannedChanges) ? preview.plannedChanges : []).filter(
+    (effect) =>
+      isRecord(effect) &&
+      typeof effect.path === "string" &&
+      (typeof effect.before === "string" || effect.before === null) &&
+      (typeof effect.after === "string" || effect.after === null),
   );
+  if (pending?.type === "recovery" && isRecord(preview?.plan)) {
+    const plan = preview.plan;
+    if (Array.isArray(plan.files)) candidates.push(...plan.files);
+    else if (
+      typeof plan.cssPath === "string" &&
+      (typeof plan.before === "string" || plan.before === null)
+    ) {
+      candidates.push({
+        kind: "css",
+        path: plan.cssPath,
+        changed: plan.changed === true,
+        before: plan.before,
+        after: plan.after,
+      });
+    }
+  }
+  const unique = new Map();
+  for (const effect of candidates) {
+    if (!isRecord(effect) || typeof effect.path !== "string") continue;
+    const kind = typeof effect.fileKind === "string" ? effect.fileKind : effect.kind;
+    if (!unique.has(effect.path)) {
+      unique.set(effect.path, {
+        ...effect,
+        kind,
+        changed:
+          typeof effect.changed === "boolean" ? effect.changed : effect.before !== effect.after,
+      });
+    }
+  }
+  return [...unique.values()];
 }
 
 function managedFileKindLabel(kind) {
   if (kind === "root-agents") return "ROOT AGENTS";
   if (kind === "agents") return "AGENTS";
-  return "CONFIG";
+  if (kind === "config") return "CONFIG";
+  if (kind === "css") return "CSS FILE";
+  return "SOURCE FILE";
 }
 
 function managedFileStateLabel(content) {
@@ -531,9 +610,7 @@ export function ChangePreviewModal({ modalProps = {}, closeModal = () => {} }) {
       h(
         Text,
         { key: "scroll-hint", dimColor: true, wrap: "wrap" },
-        files.length > 1
-          ? "↑/↓ scroll · ←/→ change diff · Esc close"
-          : "↑/↓ scroll · Esc close",
+        files.length > 1 ? "↑/↓ scroll · ←/→ change diff · Esc close" : "↑/↓ scroll · Esc close",
       ),
       h(List, {
         key: `managed-file-${fileIndex}`,
@@ -638,15 +715,15 @@ function TuiApp({ services }) {
   const { exit } = useApp();
   const { openModal, isOpen: isModalOpen } = useModal();
   const compact = columns < 58 || rows < 18;
-  const [restoredConfirmation] = useState(
-    () => confirmationResumeByServices.get(services) ?? null,
-  );
+  const [restoredConfirmation] = useState(() => confirmationResumeByServices.get(services) ?? null);
 
   const [project, setProject] = useState(null);
   const [projectLoading, setProjectLoading] = useState(true);
   const [projectError, setProjectError] = useState(null);
   const [view, setView] = useState(() => restoredConfirmation?.view ?? "main");
   const [activeTab, setActiveTab] = useState("systems");
+  const [searchContext, setSearchContext] = useState("catalog");
+  const [detailReturnView, setDetailReturnView] = useState("main");
   const [componentSection, setComponentSection] = useState("required");
   const [componentCatalog, setComponentCatalog] = useState(null);
   const [componentError, setComponentError] = useState(null);
@@ -675,6 +752,21 @@ function TuiApp({ services }) {
     () => restoredConfirmation?.pendingConfirmation ?? null,
   );
   const [footerActionPage, setFooterActionPage] = useState(0);
+  const [startupUpdate, setStartupUpdate] = useState(null);
+  const [skillsResult, setSkillsResult] = useState(null);
+  const [skillsLoading, setSkillsLoading] = useState(false);
+  const [skillSection, setSkillSection] = useState("prism");
+  const [selectedSkillId, setSelectedSkillId] = useState(null);
+  const [skillScope, setSkillScope] = useState("project");
+  const [selectedSkillAgent, setSelectedSkillAgent] = useState(null);
+  const [recoveryResult, setRecoveryResult] = useState(null);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [recoveryCssPath, setRecoveryCssPath] = useState("");
+  const [recoveryEntry, setRecoveryEntry] = useState("");
+  const [recoveryActionId, setRecoveryActionId] = useState(null);
+  const [lifecycleCssPath, setLifecycleCssPath] = useState("");
+  const [updateManager, setUpdateManager] = useState(null);
+  const [skillAgentDraft, setSkillAgentDraft] = useState("");
   const mountedRef = useRef(false);
   const executeLock = useRef(false);
   const operationLock = useRef(false);
@@ -706,18 +798,130 @@ function TuiApp({ services }) {
     readProjectState();
   }, [readProjectState]);
 
+  useEffect(() => {
+    if (typeof services.checkCliUpdate !== "function") return undefined;
+    let active = true;
+    setStartupUpdate({ loading: true, result: null });
+    // The read-only request starts alongside the first local render. A slow or
+    // unavailable registry never delays project state, keyboard input, or TUI startup.
+    Promise.resolve()
+      .then(() => services.checkCliUpdate({ timeoutMs: 2500 }))
+      .then((result) => {
+        if (active) setStartupUpdate({ loading: false, result });
+      })
+      .catch((error) => {
+        if (active) {
+          setStartupUpdate({
+            loading: false,
+            result: {
+              ok: false,
+              available: false,
+              advice: messageOf(error),
+              error: messageOf(error),
+            },
+          });
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [services]);
+
+  const openManage = useCallback(() => {
+    setNotice(null);
+    setView("manage-home");
+  }, []);
+
+  const loadSkills = useCallback(
+    async (scope = "all") => {
+      if (typeof services.listSkills !== "function") {
+        setSkillsResult({
+          ok: false,
+          failures: ["Skill management is unavailable in this TUI build."],
+          catalog: [],
+          installed: [],
+        });
+        setSkillsLoading(false);
+        return null;
+      }
+      setSkillsLoading(true);
+      try {
+        const result = await services.listSkills({ scope });
+        setSkillsResult(result);
+        const entries = Array.isArray(result?.catalog) ? result.catalog : [];
+        const selected = entries.find((entry) => entry.type === skillSection) ?? entries[0];
+        if (selected) setSelectedSkillId(selected.id);
+        return result;
+      } catch (error) {
+        const result = { ok: false, failures: [messageOf(error)], catalog: [], installed: [] };
+        setSkillsResult(result);
+        return result;
+      } finally {
+        setSkillsLoading(false);
+      }
+    },
+    [services, skillSection],
+  );
+
+  const openSkills = useCallback(() => {
+    setView("skills-home");
+    setSkillScope("project");
+    setSelectedSkillAgent(null);
+    void loadSkills("all");
+  }, [loadSkills]);
+
+  const loadRecovery = useCallback(
+    async ({ cssPath = recoveryCssPath, entry = recoveryEntry } = {}) => {
+      if (typeof services.runRecovery !== "function") {
+        const result = {
+          ok: false,
+          failures: ["Project recovery is unavailable in this TUI build."],
+          report: null,
+          suggestions: [],
+        };
+        setRecoveryResult(result);
+        return result;
+      }
+      setRecoveryLoading(true);
+      try {
+        await Promise.resolve();
+        const result = services.runRecovery({
+          ...(cssPath.trim() ? { cssPath: cssPath.trim() } : {}),
+          ...(entry.trim() ? { entry: entry.trim() } : {}),
+        });
+        setRecoveryResult(result);
+        const first = Array.isArray(result?.suggestions) ? result.suggestions[0] : null;
+        setRecoveryActionId(first?.id ?? null);
+        return result;
+      } catch (error) {
+        const result = { ok: false, failures: [messageOf(error)], report: null, suggestions: [] };
+        setRecoveryResult(result);
+        return result;
+      } finally {
+        setRecoveryLoading(false);
+      }
+    },
+    [recoveryCssPath, recoveryEntry, services],
+  );
+
+  const openRecovery = useCallback(() => {
+    setView("recovery-home");
+    void loadRecovery();
+  }, [loadRecovery]);
+
   const searchCatalog = useCallback(
-    async (query, { refresh = false } = {}) => {
+    async (query, { refresh = false, context = searchContext } = {}) => {
       if (operationLock.current) return;
       operationLock.current = true;
       const cleanQuery = typeof query === "string" ? query.trim() : "";
       setSearchQuery(cleanQuery);
       setCatalogError(null);
+      setSearchContext(context);
       setOperation({
         status: "loading",
         label: refresh ? "Refreshing catalog" : "Searching catalog",
       });
-      setView("main");
+      setView(context === "switch" ? "switch-search" : "main");
       try {
         const result = await services.searchSystems({ query: cleanQuery, size: 50 });
         if (!result?.ok) {
@@ -747,7 +951,7 @@ function TuiApp({ services }) {
         operationLock.current = false;
       }
     },
-    [services],
+    [searchContext, services],
   );
 
   const loadComponentCatalog = useCallback(
@@ -810,7 +1014,7 @@ function TuiApp({ services }) {
 
   const openManagedFilePreview = useCallback(() => {
     if (!pendingConfirmation) return;
-    const files = managedFileEffectsOf(pendingConfirmation.preview);
+    const files = fileReviewEffectsOf(pendingConfirmation);
     if (files.length === 0) return;
     rememberConfirmationForPreview(services, pendingConfirmation);
     openModal("change-preview", {
@@ -833,11 +1037,12 @@ function TuiApp({ services }) {
   }, [openModal, pendingConfirmation, project, services]);
 
   const openInspection = useCallback(
-    async (packageName, version) => {
+    async (packageName, version, returnView = "main") => {
       if (operationLock.current) return;
       operationLock.current = true;
       setInspection(null);
       setInspectionError(null);
+      setDetailReturnView(returnView);
       setOperation({ status: "loading", label: "Inspecting published manifest" });
       setView("detail-loading");
       try {
@@ -865,10 +1070,18 @@ function TuiApp({ services }) {
   );
 
   const actionForCurrentContext = useCallback(
-    (kind, explicitVersion) => {
+    (kind, explicitVersion, options = {}) => {
       if (kind === "connect") {
         if (!project?.packageName) return null;
         return { kind, packageName: project.packageName, strict: undefined };
+      }
+      if (kind === "remove") {
+        if (!project?.packageName) return null;
+        return {
+          kind,
+          packageName: project.packageName,
+          ...(lifecycleCssPath.trim() ? { cssPath: lifecycleCssPath.trim() } : {}),
+        };
       }
       if (kind === "upgrade") {
         if (!project?.packageName) return null;
@@ -877,6 +1090,20 @@ function TuiApp({ services }) {
           packageName: project.packageName,
           version: (explicitVersion ?? upgradeVersion).trim(),
           strict: undefined,
+        };
+      }
+      if (kind === "switch") {
+        const manifest = inspection?.manifest;
+        const packageName = inspection?.package ?? manifest?.package;
+        const version = inspection?.version ?? manifest?.version;
+        if (typeof packageName !== "string" || typeof version !== "string") return null;
+        return {
+          kind,
+          packageName,
+          version,
+          strict: undefined,
+          ignore: [],
+          ...(lifecycleCssPath.trim() ? { cssPath: lifecycleCssPath.trim() } : {}),
         };
       }
       const manifest = inspection?.manifest;
@@ -897,14 +1124,16 @@ function TuiApp({ services }) {
         checkUsage: false,
         tailwind: false,
         cssPath: null,
+        skills: options.skills === true,
+        skillAgents: Array.isArray(options.skillAgents) ? options.skillAgents : [],
       };
     },
-    [inspection, project, upgradeVersion],
+    [inspection, lifecycleCssPath, project, upgradeVersion],
   );
 
   const beginMutation = useCallback(
-    async (kind, explicitVersion) => {
-      const action = actionForCurrentContext(kind, explicitVersion);
+    async (kind, explicitVersion, options = {}) => {
+      const action = actionForCurrentContext(kind, explicitVersion, options);
       if (!action) {
         setNotice({ type: "error", message: "A package and exact target version are required." });
         return;
@@ -928,7 +1157,12 @@ function TuiApp({ services }) {
           setNotice({ type: "error", message: detail });
           return;
         }
-        setPendingConfirmation({ action, preview, returnView: view });
+        setPendingConfirmation({
+          type: "mutation",
+          action,
+          preview,
+          returnView: options.returnView ?? view,
+        });
         setOperation({ status: "info", label: "Review the plan before applying it" });
         setView("confirm");
       } catch (error) {
@@ -950,47 +1184,270 @@ function TuiApp({ services }) {
     setOperation({ status: "neutral", label: "Cancelled · nothing was changed" });
   }, [pendingConfirmation, services]);
 
+  const beginSkillMutation = useCallback(
+    async (actionName) => {
+      if (!selectedSkillId || !selectedSkillAgent) {
+        setNotice({
+          type: "warning",
+          message: "Choose a catalog skill and one supported agent before planning a skill change.",
+        });
+        return;
+      }
+      if (operationLock.current) return;
+      operationLock.current = true;
+      setNotice(null);
+      setOperation({ status: "loading", label: `Planning skill ${actionName}` });
+      const action = {
+        action: actionName,
+        skillId: selectedSkillId,
+        scope: skillScope,
+        agents: [selectedSkillAgent],
+      };
+      try {
+        const preview = await services.previewSkillMutation(action);
+        if (!preview?.ok || !isRecord(preview.material)) {
+          const detail = failuresOf(preview).join(" ") || "The skill change could not be planned.";
+          setOperation({ status: "error", label: "Skill preview blocked", detail });
+          setNotice({ type: "error", message: detail });
+          return;
+        }
+        setPendingConfirmation({ type: "skill", action, preview, returnView: view });
+        setOperation({ status: "info", label: "Review the skill plan before continuing" });
+        setView("confirm");
+      } catch (error) {
+        const detail = messageOf(error);
+        setOperation({ status: "error", label: "Skill preview failed", detail });
+        setNotice({ type: "error", message: detail });
+      } finally {
+        operationLock.current = false;
+      }
+    },
+    [selectedSkillAgent, selectedSkillId, services, skillScope, view],
+  );
+
+  const beginCliUpdate = useCallback(
+    async (options = {}) => {
+      if (operationLock.current) return;
+      operationLock.current = true;
+      setNotice(null);
+      setOperation({ status: "loading", label: "Building an explicit CLI update plan" });
+      try {
+        const preview = await services.previewCliUpdate(options);
+        if (!preview?.ok) {
+          const detail =
+            [...failuresOf(preview), preview?.advice].filter(Boolean).join(" ") ||
+            "This prism-ds installation cannot be safely updated from the current context.";
+          setOperation({ status: "warning", label: "CLI update is not available here", detail });
+          setNotice({ type: "warning", message: detail });
+          return;
+        }
+        if (preview.updateAvailable !== true || preview.state === "up-to-date") {
+          const detail =
+            preview?.plan?.advice ??
+            `prism-ds ${displayValue(preview?.currentVersion ?? preview?.plan?.currentVersion)} is up to date.`;
+          setOperation({ status: "success", label: "No CLI update needed", detail });
+          return;
+        }
+        const action = { options };
+        setPendingConfirmation({ type: "self-update", action, preview, returnView: view });
+        setOperation({ status: "info", label: "Review the CLI update before installing it" });
+        setView("confirm");
+      } catch (error) {
+        const detail = messageOf(error);
+        setOperation({ status: "error", label: "CLI update plan failed", detail });
+        setNotice({ type: "error", message: detail });
+      } finally {
+        operationLock.current = false;
+      }
+    },
+    [services, view],
+  );
+
+  const beginRecoveryAction = useCallback(
+    async (suggestion) => {
+      if (!suggestion || suggestion.executable !== true) {
+        setNotice({
+          type: "warning",
+          message: suggestion
+            ? `Guidance only. ${suggestion.reason ?? "Review its command; the TUI will not run it."}`
+            : "This suggestion is guidance only. Review its command; the TUI will not run it.",
+        });
+        return;
+      }
+      if (operationLock.current) return;
+      operationLock.current = true;
+      setNotice(null);
+      setOperation({ status: "loading", label: "Checking recovery action" });
+      const action = {
+        actionId: suggestion.id,
+        ...(project?.packageName ? { packageName: project.packageName } : {}),
+        ...(recoveryCssPath.trim() ? { cssPath: recoveryCssPath.trim() } : {}),
+        ...(recoveryEntry.trim() ? { entry: recoveryEntry.trim() } : {}),
+      };
+      try {
+        const preview = await services.previewRecoveryAction(action);
+        if (!preview?.ok || !isRecord(preview.material)) {
+          const detail =
+            failuresOf(preview).join(" ") || "The recovery action is no longer applicable.";
+          setOperation({ status: "warning", label: "Recovery action blocked", detail });
+          setNotice({ type: "warning", message: detail });
+          return;
+        }
+        setPendingConfirmation({ type: "recovery", action, preview, returnView: view });
+        setOperation({ status: "info", label: "Review the targeted recovery plan" });
+        setView("confirm");
+      } catch (error) {
+        const detail = messageOf(error);
+        setOperation({ status: "error", label: "Recovery preview failed", detail });
+        setNotice({ type: "error", message: detail });
+      } finally {
+        operationLock.current = false;
+      }
+    },
+    [project, recoveryCssPath, recoveryEntry, services, view],
+  );
+
+  const beginSwitchSearch = useCallback(() => {
+    setSearchContext("switch");
+    setCatalogLoaded(false);
+    setCatalogResults([]);
+    setCatalogError(null);
+    void searchCatalog("", { context: "switch" });
+  }, [searchCatalog]);
+
+  const openUseAgentInput = useCallback(() => {
+    setSkillAgentDraft("");
+    setView("use-agent-input");
+  }, []);
+
+  const openSkillAgentInput = useCallback(() => {
+    setSkillAgentDraft("");
+    setView("skill-agent-input");
+  }, []);
+
   const confirmMutation = useCallback(async () => {
     if (!pendingConfirmation || executeLock.current || operationLock.current) return;
     executeLock.current = true;
     operationLock.current = true;
-    const { action, preview } = pendingConfirmation;
+    const { type = "mutation", action, preview, returnView = "main" } = pendingConfirmation;
     clearRememberedConfirmation(services);
-    setView("main");
+    setView(type === "mutation" ? "main" : returnView);
     setPendingConfirmation(null);
-    setOperation({ status: "loading", label: `Applying ${action.kind}` });
+    setOperation({
+      status: "loading",
+      label: type === "mutation" ? `Applying ${action.kind}` : `Applying ${type}`,
+    });
     try {
-      const result = await services.executeMutation(action, preview);
-      const refreshed = readProjectState();
-      if (result?.ok) {
-        setOperation({
-          status: "success",
-          label: `${action.kind[0].toUpperCase()}${action.kind.slice(1)} complete`,
-          detail: "Local project state refreshed.",
-        });
+      let result;
+      if (type === "skill") result = await services.executeSkillMutation(action, preview);
+      else if (type === "self-update") {
+        result = await services.executeCliUpdate(action.options, preview);
+      } else if (type === "recovery") {
+        result = await services.executeRecoveryAction(action, preview);
+      } else result = await services.executeMutation(action, preview);
+
+      const applied =
+        result?.applied === true ||
+        result?.actionCompleted === true ||
+        result?.changed === true ||
+        result?.result?.executed === true;
+      const recoveryIncomplete =
+        type === "recovery" &&
+        result?.actionCompleted === true &&
+        (result.repaired !== true || result.healthy !== true);
+      const partial =
+        result?.partial === true ||
+        result?.result?.partial === true ||
+        result?.state === "unverified" ||
+        recoveryIncomplete;
+      const notes = [
+        ...failuresOf(result),
+        typeof result?.result?.note === "string" ? result.result.note : null,
+        typeof result?.note === "string" ? result.note : null,
+      ].filter(Boolean);
+
+      if (type === "mutation") {
+        const refreshed = readProjectState();
         setActiveTab("systems");
         setComponentCatalog(null);
         setComponentError(null);
         setTokenCatalog(null);
         setTokenError(null);
+        setSearchContext("catalog");
+        if (applied || result?.ok === true) setView("main");
+        else setView(returnView);
         if (refreshed?.status === "connected") setView("main");
-      } else {
-        const detail = failuresOf(result).join(" ") || "The change did not complete.";
-        setOperation({
-          status: "error",
-          label: `${action.kind[0].toUpperCase()}${action.kind.slice(1)} failed`,
-          detail,
+      } else if (type === "skill") {
+        void loadSkills("all");
+      } else if (type === "recovery") {
+        void loadRecovery();
+      } else if (type === "self-update" && result?.ok) {
+        setStartupUpdate({
+          loading: false,
+          result: {
+            ok: true,
+            available: false,
+            current: result.installedVersion ?? result.targetVersion ?? null,
+            latest: result.targetVersion ?? null,
+            advice: result.note ?? "The CLI update action completed.",
+          },
         });
       }
+
+      let label;
+      if (type === "recovery") {
+        label =
+          result?.actionCompleted === true
+            ? result.repaired === true
+              ? "Recovery action completed · targeted issue resolved"
+              : "Recovery action completed · issues remain"
+            : "Recovery action did not complete";
+        notes.unshift(
+          `Target issue repaired: ${result?.repaired === true ? "yes" : "no"}.`,
+          `Whole project healthy: ${result?.healthy === true ? "yes" : "no"}.`,
+          `Remaining issues: ${Array.isArray(result?.stillRemaining) ? result.stillRemaining.join(", ") || "none reported" : "not reported"}.`,
+        );
+      } else if (type === "mutation") {
+        label = result?.ok
+          ? `${action.kind[0].toUpperCase()}${action.kind.slice(1)} complete`
+          : applied
+            ? `${action.kind[0].toUpperCase()}${action.kind.slice(1)} partially applied`
+            : `${action.kind[0].toUpperCase()}${action.kind.slice(1)} not completed`;
+      } else if (type === "self-update") {
+        label = result?.ok
+          ? partial
+            ? "CLI update completed · verification incomplete"
+            : "CLI update complete"
+          : applied
+            ? "CLI update partially applied"
+            : "CLI update not completed";
+      } else {
+        label = result?.ok
+          ? partial
+            ? "Skill action completed · verification incomplete"
+            : "Skill action complete"
+          : applied
+            ? "Skill action partially applied"
+            : "Skill action not completed";
+      }
+      setOperation({
+        status: result?.ok ? (partial ? "warning" : "success") : applied ? "warning" : "error",
+        label,
+        detail:
+          notes.join(" ") ||
+          (applied
+            ? "The local state was refreshed."
+            : "Review the reported state before trying again."),
+      });
     } catch (error) {
       const detail = messageOf(error);
-      readProjectState();
-      setOperation({ status: "error", label: `${action.kind} failed`, detail });
+      if (type === "mutation") readProjectState();
+      setOperation({ status: "error", label: `${type} failed`, detail });
     } finally {
       operationLock.current = false;
       executeLock.current = false;
     }
-  }, [pendingConfirmation, readProjectState, services]);
+  }, [loadRecovery, loadSkills, pendingConfirmation, readProjectState, services]);
 
   const runCheckAction = useCallback(
     async (kind, cssPath) => {
@@ -1039,6 +1496,86 @@ function TuiApp({ services }) {
     setView("upgrade-input");
   }, []);
 
+  const submitUseAgent = useCallback(
+    (value = skillAgentDraft) => {
+      const agent = value.trim();
+      const allowed = Array.isArray(services.skillAgentIds)
+        ? services.skillAgentIds
+        : ["claude-code", "codex", "cursor", "opencode"];
+      if (!allowed.includes(agent)) {
+        setNotice({
+          type: "error",
+          message: `Choose one supported agent: ${allowed.join(", ")}. No provider is guessed.`,
+        });
+        return;
+      }
+      setView("details");
+      void beginMutation("use", undefined, {
+        skills: true,
+        skillAgents: [agent],
+        returnView: "details",
+      });
+    },
+    [beginMutation, services.skillAgentIds, skillAgentDraft],
+  );
+
+  const submitSkillAgent = useCallback(
+    (value = skillAgentDraft) => {
+      const agent = value.trim();
+      const allowed = Array.isArray(services.skillAgentIds)
+        ? services.skillAgentIds
+        : ["claude-code", "codex", "cursor", "opencode"];
+      if (!allowed.includes(agent)) {
+        setNotice({
+          type: "error",
+          message: `Choose one supported agent: ${allowed.join(", ")}. No provider is guessed.`,
+        });
+        return;
+      }
+      setSelectedSkillAgent(agent);
+      setNotice(null);
+      setView("skills-home");
+    },
+    [services.skillAgentIds, skillAgentDraft],
+  );
+
+  const checkCliUpdateNow = useCallback(async () => {
+    if (typeof services.checkCliUpdate !== "function") {
+      setStartupUpdate({
+        loading: false,
+        result: { ok: false, available: false, advice: "The CLI update check is unavailable." },
+      });
+      return;
+    }
+    setStartupUpdate((current) => ({ loading: true, result: current?.result ?? null }));
+    try {
+      const result = await services.checkCliUpdate({ timeoutMs: 2500 });
+      setStartupUpdate({ loading: false, result });
+      setOperation({
+        status: result?.available ? "warning" : result?.ok ? "success" : "warning",
+        label: result?.available
+          ? `CLI update available · ${displayValue(result.latest)}`
+          : result?.ok
+            ? "CLI is up to date"
+            : "CLI update check did not complete",
+        detail: result?.advice ?? result?.error ?? "Read-only check only; nothing was installed.",
+      });
+    } catch (error) {
+      const result = {
+        ok: false,
+        available: false,
+        error: messageOf(error),
+        advice: messageOf(error),
+      };
+      setStartupUpdate({ loading: false, result });
+      setOperation({
+        status: "warning",
+        label: "CLI update check did not complete",
+        detail: result.advice,
+      });
+    }
+  }, [services]);
+
   useKeyHandler(
     (event) => {
       if (event.ctrl && event.key === "c") {
@@ -1047,7 +1584,17 @@ function TuiApp({ services }) {
       }
       if (isModalOpen) return false;
       if (
-        !["search-input", "token-search", "upgrade-input", "css-input"].includes(view) &&
+        ![
+          "search-input",
+          "token-search",
+          "upgrade-input",
+          "css-input",
+          "use-agent-input",
+          "skill-agent-input",
+          "recovery-css-input",
+          "recovery-entry-input",
+          "lifecycle-css-input",
+        ].includes(view) &&
         event.key === "q"
       ) {
         exit();
@@ -1060,9 +1607,7 @@ function TuiApp({ services }) {
       ) {
         const pageCount = footerPageCountRef.current;
         const pageDelta = event.key === "." ? 1 : -1;
-        setFooterActionPage((page) =>
-          Math.max(0, Math.min(pageCount - 1, page + pageDelta)),
-        );
+        setFooterActionPage((page) => Math.max(0, Math.min(pageCount - 1, page + pageDelta)));
         return true;
       }
       if (view === "confirm") {
@@ -1074,7 +1619,7 @@ function TuiApp({ services }) {
           void confirmMutation();
           return true;
         }
-        const managedFiles = managedFileEffectsOf(pendingConfirmation?.preview);
+        const managedFiles = fileReviewEffectsOf(pendingConfirmation);
         if (event.key === "v" && managedFiles.length > 0) {
           openManagedFilePreview();
           return true;
@@ -1089,13 +1634,30 @@ function TuiApp({ services }) {
         view === "search-input" ||
         view === "token-search" ||
         view === "upgrade-input" ||
-        view === "css-input"
+        view === "css-input" ||
+        view === "use-agent-input" ||
+        view === "skill-agent-input" ||
+        view === "recovery-css-input" ||
+        view === "recovery-entry-input" ||
+        view === "lifecycle-css-input"
       ) {
         return false;
       }
       if (event.escape) {
         if (view === "details" || view === "detail-loading") {
-          setView(project?.status === "empty" ? "main" : "main");
+          setView(detailReturnView);
+          return true;
+        }
+        if (view === "manage-home") {
+          setView("main");
+          return true;
+        }
+        if (["lifecycle-home", "skills-home", "self-update-home", "recovery-home"].includes(view)) {
+          setView("manage-home");
+          return true;
+        }
+        if (view === "switch-search") {
+          setView("lifecycle-home");
           return true;
         }
         if (view !== "main") {
@@ -1115,7 +1677,162 @@ function TuiApp({ services }) {
         return false;
       }
 
+      if (view === "manage-home") {
+        if (event.key === "s") {
+          setView("lifecycle-home");
+          return true;
+        }
+        if (event.key === "k") {
+          openSkills();
+          return true;
+        }
+        if (event.key === "u") {
+          setView("self-update-home");
+          return true;
+        }
+        if (event.key === "r") {
+          openRecovery();
+          return true;
+        }
+      }
+      if ((view === "details" || view === "detail-loading") && event.key === "b") {
+        setView(detailReturnView);
+        return true;
+      }
+      if (view === "lifecycle-home") {
+        if (event.key === "w") {
+          beginSwitchSearch();
+          return true;
+        }
+        if (event.key === "x") {
+          void beginMutation("remove");
+          return true;
+        }
+        if (event.key === "c") {
+          setCssDraft(lifecycleCssPath);
+          setView("lifecycle-css-input");
+          return true;
+        }
+      }
+      if (view === "switch-search") {
+        if (event.key === "/") {
+          setSearchDraft(searchQuery);
+          setView("search-input");
+          return true;
+        }
+        if (event.key === "r") {
+          void searchCatalog(searchQuery, { refresh: true, context: "switch" });
+          return true;
+        }
+        if (event.enter && catalogLoaded && catalogResults.length > 0) {
+          const selected =
+            catalogResults.find((item) => `${item.name}@${item.version}` === selectedSystemId) ??
+            catalogResults[0];
+          if (selected) void openInspection(selected.name, selected.version, "lifecycle-home");
+          return true;
+        }
+      }
+      if (view === "skills-home") {
+        if (event.key === "p" || event.key === "d") {
+          const section = event.key === "p" ? "prism" : "design";
+          setSkillSection(section);
+          const first = skillsResult?.catalog?.find((entry) => entry.type === section);
+          if (first) setSelectedSkillId(first.id);
+          return true;
+        }
+        if (event.key >= "1" && event.key <= "4") {
+          const agents = Array.isArray(services.skillAgentIds)
+            ? services.skillAgentIds
+            : ["claude-code", "codex", "cursor", "opencode"];
+          setSelectedSkillAgent(agents[Number(event.key) - 1] ?? null);
+          return true;
+        }
+        if (event.key === "a") {
+          openSkillAgentInput();
+          return true;
+        }
+        if (event.key === "g") {
+          setSkillScope((scope) => (scope === "project" ? "global" : "project"));
+          return true;
+        }
+        if (event.key === "l") {
+          void loadSkills("all");
+          return true;
+        }
+        if (event.enter) {
+          void beginSkillMutation("add");
+          return true;
+        }
+        if (event.key === "u") {
+          void beginSkillMutation("update");
+          return true;
+        }
+        if (event.key === "x") {
+          void beginSkillMutation("remove");
+          return true;
+        }
+      }
+      if (view === "self-update-home") {
+        if (event.key === "c") {
+          void checkCliUpdateNow();
+          return true;
+        }
+        if (event.key === "n" || event.key === "p") {
+          setUpdateManager(event.key === "n" ? "npm" : "pnpm");
+          return true;
+        }
+        if (event.key === "l") {
+          void beginCliUpdate({ ...(updateManager ? { manager: updateManager } : {}) });
+          return true;
+        }
+        if (event.key === "g") {
+          if (!updateManager) {
+            setNotice({
+              type: "warning",
+              message: "Choose npm or pnpm first; global update context is never guessed.",
+            });
+          } else {
+            void beginCliUpdate({ global: true, manager: updateManager });
+          }
+          return true;
+        }
+      }
+      if (view === "recovery-home") {
+        if (event.key >= "1" && event.key <= "9") {
+          const suggestion = recoveryResult?.suggestions?.[Number(event.key) - 1];
+          if (suggestion) {
+            setRecoveryActionId(suggestion.id);
+            return true;
+          }
+        }
+        if (event.key === "r") {
+          void loadRecovery();
+          return true;
+        }
+        if (event.key === "c") {
+          setCssDraft(recoveryCssPath);
+          setView("recovery-css-input");
+          return true;
+        }
+        if (event.key === "e") {
+          setCssDraft(recoveryEntry);
+          setView("recovery-entry-input");
+          return true;
+        }
+        if (event.enter) {
+          const suggestion = recoveryResult?.suggestions?.find(
+            (item) => item.id === recoveryActionId,
+          );
+          if (suggestion) void beginRecoveryAction(suggestion);
+          return true;
+        }
+      }
+
       if (project?.status === "empty" && view === "main") {
+        if (event.key === "m") {
+          openManage();
+          return true;
+        }
         if (event.key === "b" && (!catalogLoaded || catalogResults.length === 0)) {
           void searchCatalog(searchQuery);
           return true;
@@ -1133,7 +1850,7 @@ function TuiApp({ services }) {
           const selected =
             catalogResults.find((item) => `${item.name}@${item.version}` === selectedSystemId) ??
             catalogResults[0];
-          if (selected) void openInspection(selected.name, selected.version);
+          if (selected) void openInspection(selected.name, selected.version, "main");
           return true;
         }
       } else if (project?.status === "empty" && view === "details") {
@@ -1142,7 +1859,24 @@ function TuiApp({ services }) {
           return true;
         }
         if (event.key === "u") {
-          void beginMutation("use");
+          void beginMutation("use", undefined, { skills: true });
+          return true;
+        }
+        if (event.key === "n") {
+          void beginMutation("use", undefined, { skills: false });
+          return true;
+        }
+        if (event.key === "a") {
+          openUseAgentInput();
+          return true;
+        }
+      } else if (
+        (project?.status === "connected" || project?.status === "installed") &&
+        view === "details" &&
+        searchContext === "switch"
+      ) {
+        if (event.key === "w") {
+          void beginMutation("switch", undefined, { returnView: "details" });
           return true;
         }
       } else if (project?.status === "installed" && view === "main") {
@@ -1152,6 +1886,10 @@ function TuiApp({ services }) {
         }
         if (event.key === "p") {
           readProjectState();
+          return true;
+        }
+        if (event.key === "m") {
+          openManage();
           return true;
         }
       } else if (project?.status === "connected" && view === "main") {
@@ -1164,6 +1902,10 @@ function TuiApp({ services }) {
           return true;
         }
         if (activeTab === "systems") {
+          if (event.key === "m") {
+            openManage();
+            return true;
+          }
           if (event.key === "c") {
             void beginMutation("connect");
             return true;
@@ -1241,6 +1983,9 @@ function TuiApp({ services }) {
       } else if (project?.status === "error" && event.key === "p") {
         readProjectState();
         return true;
+      } else if (project?.status === "error" && view === "main" && event.key === "m") {
+        openManage();
+        return true;
       }
       return false;
     },
@@ -1257,10 +2002,16 @@ function TuiApp({ services }) {
         project,
         activeTab,
         searchQuery,
+        searchContext,
         selectedSystemId,
         catalogLoaded,
         catalogResults,
         notice,
+        skillsResult,
+        recoveryResult,
+        recoveryActionId,
+        lifecycleCssPath,
+        updateManager,
         tokenQuery,
         tokenCatalog,
         tokenGroup,
@@ -1274,6 +2025,18 @@ function TuiApp({ services }) {
         beginMutation,
         openInspection,
         openUpgradeInput,
+        openManage,
+        openSkills,
+        openRecovery,
+        beginSwitchSearch,
+        beginSkillMutation,
+        beginCliUpdate,
+        beginRecoveryAction,
+        checkCliUpdateNow,
+        loadSkills,
+        loadRecovery,
+        openUseAgentInput,
+        openSkillAgentInput,
         selectTab,
         loadComponentCatalog,
         loadTokenCatalog,
@@ -1295,6 +2058,11 @@ function TuiApp({ services }) {
         view !== "token-search" &&
         view !== "upgrade-input" &&
         view !== "css-input" &&
+        view !== "use-agent-input" &&
+        view !== "skill-agent-input" &&
+        view !== "recovery-css-input" &&
+        view !== "recovery-entry-input" &&
+        view !== "lifecycle-css-input" &&
         event.key === "q"
       ) {
         exit();
@@ -1343,9 +2111,15 @@ function TuiApp({ services }) {
   const openSelectedResult = useCallback(
     (id) => {
       const selected = catalogResults.find((item) => `${item.name}@${item.version}` === id);
-      if (selected) void openInspection(selected.name, selected.version);
+      if (selected) {
+        void openInspection(
+          selected.name,
+          selected.version,
+          searchContext === "switch" ? "lifecycle-home" : "main",
+        );
+      }
     },
-    [catalogResults, openInspection],
+    [catalogResults, openInspection, searchContext],
   );
 
   const renderEmptyHome = () => {
@@ -1424,6 +2198,57 @@ function TuiApp({ services }) {
     ]);
   };
 
+  const renderSwitchSearch = () => {
+    if (!catalogLoaded && !catalogError) {
+      return paragraph([
+        statusBadge("info", "Searching the registry", "status"),
+        h(
+          Text,
+          { key: "copy", dimColor: true, wrap: "wrap" },
+          "The current system remains installed. Choose and inspect one exact published release before reviewing a switch plan.",
+        ),
+      ]);
+    }
+    return paragraph([
+      h(
+        Heading,
+        { key: "title" },
+        searchQuery ? `Switch target · ${searchQuery}` : "Choose a switch target",
+      ),
+      h(
+        Text,
+        { key: "copy", wrap: "wrap" },
+        compact
+          ? "Read-only search · previous dependency retained on confirm."
+          : "This search is read-only. The previous design-system dependency is retained if a switch is later confirmed.",
+      ),
+      catalogError &&
+        line(
+          [
+            statusBadge("error", "Registry error", "status"),
+            h(Text, { key: "detail", wrap: "wrap" }, catalogError),
+          ],
+          { key: "registry-error", flexWrap: "wrap" },
+        ),
+      !catalogError &&
+        catalogResults.length === 0 &&
+        h(Text, { key: "none", dimColor: true }, "No supported releases matched this query."),
+      catalogResults.length > 0 &&
+        h(List, {
+          key: "switch-targets",
+          items: catalogResults.map((item) => ({
+            id: `${item.name}@${item.version}`,
+            label: `${item.name}@${item.version}`,
+            description: item.description || "No registry description published.",
+          })),
+          selectedId: selectedSystemId ?? undefined,
+          onSelect: setSelectedResult,
+          maxVisible: Math.max(2, Math.min(10, rows - (compact ? 13 : 15))),
+        }),
+      h(Text, { key: "hint", dimColor: true }, "↑/↓ select · Enter inspect · / search · Esc back"),
+    ]);
+  };
+
   const renderInstalledHome = () =>
     paragraph([
       h(Heading, { key: "title" }, "Configure this system"),
@@ -1470,9 +2295,12 @@ function TuiApp({ services }) {
       h(
         Text,
         { key: "hint", dimColor: true, wrap: "wrap" },
-        project?.status === "connected"
-          ? "Published manifest for the connected exact version."
-          : "Install and use changes are previewed before anything is applied.",
+        (project?.status === "connected" || project?.status === "installed") &&
+          searchContext === "switch"
+          ? "Review this exact release before a usage-aware switch. Missing target support blocks the change; token names do not promise visual equality. Use & connect can also offer the consumer skill when an agent is known, or you can choose one explicitly."
+          : project?.status === "connected"
+            ? "Published manifest for the connected exact version."
+            : "Install and use changes are previewed before anything is applied.",
       ),
     ]);
   };
@@ -1716,7 +2544,11 @@ function TuiApp({ services }) {
                   variant: name === selectedGroupName ? "primary" : "ghost",
                   onActivate: () => setTokenGroup(name),
                 },
-                h(Text, { bold: name === selectedGroupName }, `${name === selectedGroupName ? "› " : ""}${name}`),
+                h(
+                  Text,
+                  { bold: name === selectedGroupName },
+                  `${name === selectedGroupName ? "› " : ""}${name}`,
+                ),
               ),
             ),
           ),
@@ -1823,6 +2655,353 @@ function TuiApp({ services }) {
     ]);
   };
 
+  const renderManageHome = () => {
+    const update = startupUpdate?.result;
+    return paragraph([
+      h(Heading, { key: "title" }, "Manage project and tooling"),
+      h(
+        Text,
+        { key: "intro", wrap: "wrap" },
+        "Each workflow uses the same published CLI planner. Nothing changes until you review a specific plan and confirm it.",
+      ),
+      project?.packageName &&
+        keyValue("CONNECTED SYSTEM", `${project.packageName}@${project.version}`, {
+          compact,
+          key: "managed-system",
+        }),
+      paragraph(
+        [
+          h(Text, { key: "title", color: "cyan", bold: true }, "SYSTEM LIFECYCLE"),
+          h(
+            Text,
+            { key: "copy", wrap: "wrap" },
+            "Switch to a reviewed release or remove an unused system. Switch keeps the previous dependency.",
+          ),
+        ],
+        { key: "lifecycle", marginTop: 1 },
+      ),
+      paragraph(
+        [
+          h(Text, { key: "title", color: "cyan", bold: true }, "SKILLS"),
+          h(
+            Text,
+            { key: "copy", wrap: "wrap" },
+            "Browse Prism and curated design instructions. Project/global scope and a supported agent are selected separately.",
+          ),
+        ],
+        { key: "skills", marginTop: 1 },
+      ),
+      paragraph(
+        [
+          h(Text, { key: "title", color: "cyan", bold: true }, "CLI UPDATE"),
+          h(
+            Text,
+            { key: "copy", wrap: "wrap" },
+            update?.available === true
+              ? `A newer prism-ds release is available (${displayValue(update.latest)}). It will not install unless you preview and confirm.`
+              : startupUpdate?.loading
+                ? "A read-only version check is running in the background; it does not delay this screen."
+                : "Check or explicitly update prism-ds itself; this is separate from a design-system upgrade.",
+          ),
+        ],
+        { key: "updates", marginTop: 1 },
+      ),
+      paragraph(
+        [
+          h(Text, { key: "title", color: "cyan", bold: true }, "RECOVERY"),
+          h(
+            Text,
+            { key: "copy", wrap: "wrap" },
+            "Diagnose first. Only currently applicable connect or explicit CSS repairs can be previewed here.",
+          ),
+        ],
+        { key: "recovery", marginTop: 1 },
+      ),
+    ]);
+  };
+
+  const renderLifecycleHome = () =>
+    paragraph([
+      h(Heading, { key: "title" }, "System lifecycle"),
+      h(
+        Text,
+        { key: "copy", wrap: "wrap" },
+        "Switch scans actual consumer usage and blocks unsupported literal references. It does not rewrite component structure or props. Remove is separate and refuses while active references remain.",
+      ),
+      project?.packageName &&
+        keyValue("CURRENT", `${project.packageName}@${project.version}`, {
+          compact,
+          key: "current",
+        }),
+      !project?.packageName &&
+        h(
+          Text,
+          { key: "empty", dimColor: true, wrap: "wrap" },
+          "No single installed system is selected. Connect or resolve the project state first.",
+        ),
+      h(
+        Text,
+        { key: "retained", dimColor: true, wrap: "wrap" },
+        "Switch retains the old dependency. Removal is never bundled into a switch. CSS cleanup is only considered when you explicitly name a CSS file.",
+      ),
+      lifecycleCssPath && keyValue("EXPLICIT CSS", lifecycleCssPath, { compact, key: "css" }),
+    ]);
+
+  const renderSkillsHome = () => {
+    const catalog = Array.isArray(skillsResult?.catalog) ? skillsResult.catalog : [];
+    const entries = catalog.filter((entry) => entry.type === skillSection);
+    const selected = entries.find((entry) => entry.id === selectedSkillId) ?? entries[0] ?? null;
+    const installed = selected
+      ? ((Array.isArray(skillsResult?.installed) ? skillsResult.installed : []).find(
+          (item) => item.catalogId === selected.id && item.scope === skillScope,
+        ) ?? null)
+      : null;
+    const agents = Array.isArray(services.skillAgentIds)
+      ? services.skillAgentIds
+      : ["claude-code", "codex", "cursor", "opencode"];
+    const items = entries.map((entry) => {
+      const present = (Array.isArray(skillsResult?.installed) ? skillsResult.installed : []).find(
+        (item) => item.catalogId === entry.id && item.scope === skillScope,
+      );
+      const state = present
+        ? present.modified
+          ? "MODIFIED"
+          : present.drift
+            ? "DRIFTED"
+            : present.managed
+              ? "INSTALLED"
+              : "EXTERNAL"
+        : "NOT INSTALLED";
+      return {
+        id: entry.id,
+        label: `${state}  ${entry.skill}`,
+        description: [entry.role, entry.reviewStatus, entry.description]
+          .filter(Boolean)
+          .join(" · "),
+      };
+    });
+    return paragraph([
+      h(Heading, { key: "title" }, `${skillSection === "prism" ? "Prism" : "Design"} skills`),
+      h(
+        Text,
+        { key: "copy", wrap: "wrap" },
+        "Instructions only. Skill installation does not execute prompts or install product dependencies. Select a scope and one supported agent explicitly.",
+      ),
+      skillsLoading && statusBadge("info", "Reading installed files offline", "loading"),
+      skillsResult &&
+        !skillsResult.ok &&
+        line(
+          [
+            statusBadge("warning", "Inventory incomplete", "inventory-status"),
+            h(Text, { key: "failure", wrap: "wrap" }, failuresOf(skillsResult).join(" ")),
+          ],
+          { key: "inventory-warning", flexWrap: "wrap" },
+        ),
+      h(
+        Text,
+        { key: "selection", color: "cyan", bold: true, wrap: "wrap" },
+        `SCOPE  ${skillScope.toUpperCase()}   ·   AGENT  ${selectedSkillAgent ?? "not selected"}`,
+      ),
+      h(
+        Text,
+        { key: "count", dimColor: true },
+        `${entries.length} catalog skills · ${Array.isArray(skillsResult?.installed) ? skillsResult.installed.filter((item) => item.scope === skillScope).length : 0} observed in this scope`,
+      ),
+      entries.length > 0 &&
+        h(List, {
+          key: `skill-list-${skillSection}`,
+          items,
+          selectedId: selectedSkillId ?? undefined,
+          onSelect: setSelectedSkillId,
+          maxVisible: Math.max(2, Math.min(9, rows - 17)),
+        }),
+      entries.length === 0 &&
+        h(
+          Text,
+          { key: "none", dimColor: true },
+          skillsLoading ? "Loading catalog…" : "No skills are listed in this section.",
+        ),
+      selected &&
+        paragraph(
+          [
+            rule("SELECTED SKILL", "selected-skill-rule"),
+            h(Heading, { key: "name", compact: true }, selected.skill),
+            catalogDetail("ID / TYPE", `${selected.id} · ${selected.type}`, "id-type"),
+            catalogDetail("ROLE", selected.role, "role"),
+            catalogDetail("REVIEW", selected.reviewStatus, "review"),
+            catalogDetail(
+              "TAGS",
+              Array.isArray(selected.tags) ? selected.tags.join(", ") : null,
+              "tags",
+            ),
+            catalogDetail(
+              "THIS SCOPE",
+              installed
+                ? `${installed.managed ? "managed" : "external"}${installed.modified ? " · modified" : ""}${installed.drift ? " · drift" : ""} · ${installed.relativePath}`
+                : "not installed",
+              "scope-state",
+            ),
+          ],
+          { key: "selected-skill", marginTop: 1 },
+        ),
+      h(
+        Text,
+        { key: "sharing", dimColor: true, wrap: "wrap" },
+        "Universal agents share the canonical .agents/skills placement; the inventory reports actual shared files rather than promising per-agent isolation.",
+      ),
+      h(
+        Text,
+        { key: "agent-options", dimColor: true, wrap: "wrap" },
+        agents.map((agent, index) => `${index + 1} ${agent}`).join(" · "),
+      ),
+    ]);
+  };
+
+  const renderSelfUpdateHome = () => {
+    const result = startupUpdate?.result;
+    const installation = isRecord(result?.installation) ? result.installation : {};
+    const updateStatus = startupUpdate?.loading
+      ? statusBadge("info", "Checking in background", "check")
+      : result?.available
+        ? statusBadge("warning", "Update available", "check")
+        : result?.ok
+          ? statusBadge("success", "Up to date", "check")
+          : statusBadge("neutral", result?.skipped ? "Check skipped" : "Not checked", "check");
+    return paragraph([
+      h(Heading, { key: "title" }, "Update prism-ds"),
+      h(
+        Text,
+        { key: "scope", wrap: "wrap" },
+        "This updates the CLI package only. It does not upgrade the connected design system. The startup check is read-only and can be disabled with PRISM_DS_UPDATE_CHECK=0.",
+      ),
+      line(
+        [
+          updateStatus,
+          h(
+            Text,
+            { key: "versions", wrap: "wrap" },
+            `  ${displayValue(result?.current)} → ${displayValue(result?.latest)}`,
+          ),
+        ],
+        { key: "update-status", flexWrap: "wrap" },
+      ),
+      keyValue("INSTALLATION", installation.kind ?? "unknown", { compact, key: "installation" }),
+      keyValue("DETECTED MANAGER", installation.manager ?? "not identified", {
+        compact,
+        key: "manager",
+      }),
+      keyValue("VERIFIED", installation.verified === true ? "yes" : "no", {
+        compact,
+        key: "verified",
+      }),
+      h(
+        Text,
+        { key: "advice", wrap: "wrap" },
+        result?.advice ?? "Run a read-only check. No update is installed automatically.",
+      ),
+      h(
+        Text,
+        { key: "explicit", dimColor: true, wrap: "wrap" },
+        `Global manager selection: ${updateManager ?? "none"}. Choose npm or pnpm before previewing an explicit global update.`,
+      ),
+    ]);
+  };
+
+  const renderRecoveryHome = () => {
+    const report = recoveryResult?.report;
+    const issues = Array.isArray(report?.issues) ? report.issues : [];
+    const suggestions = Array.isArray(recoveryResult?.suggestions)
+      ? recoveryResult.suggestions
+      : [];
+    const items = suggestions.map((suggestion, index) => ({
+      id: suggestion.id,
+      label: `${index + 1}  ${suggestion.executable === true ? "REPAIR" : "GUIDANCE"}  ${suggestion.label}`,
+      description: suggestion.reason ?? "No explanation was returned.",
+    }));
+    const selected = suggestions.find((item) => item.id === recoveryActionId) ?? null;
+    return paragraph([
+      h(Heading, { key: "title" }, "Project recovery"),
+      h(
+        Text,
+        { key: "copy", wrap: "wrap" },
+        "Diagnosis is offline and read-only. Only applicable, executable repairs can be previewed; guidance stays guidance. A completed repair does not mean the whole project is healthy.",
+      ),
+      recoveryLoading && statusBadge("info", "Diagnosing project state", "loading"),
+      report &&
+        line(
+          [
+            statusBadge(
+              report.ok ? "success" : "warning",
+              report.ok
+                ? "Healthy report"
+                : `${issues.length} issue${issues.length === 1 ? "" : "s"}`,
+              "health",
+            ),
+            h(
+              Text,
+              { key: "summary", wrap: "wrap" },
+              report.summary ?? "Recovery diagnosis completed.",
+            ),
+          ],
+          { key: "recovery-summary", flexWrap: "wrap" },
+        ),
+      recoveryResult &&
+        !recoveryResult.ok &&
+        h(
+          Text,
+          { key: "report-failure", color: "yellow", wrap: "wrap" },
+          failuresOf(recoveryResult).join(" "),
+        ),
+      issues.length > 0 &&
+        paragraph(
+          [
+            h(Text, { key: "title", color: "cyan", bold: true }, "ISSUES FOUND"),
+            ...issues
+              .slice(0, compact ? 2 : 4)
+              .map((issue, index) =>
+                h(
+                  Text,
+                  { key: `issue-${index}`, wrap: "wrap" },
+                  `• ${issue.label ?? issue.id ?? "Issue"}: ${issue.detail ?? "No detail returned."}`,
+                ),
+              ),
+          ],
+          { key: "issue-list", marginTop: 1 },
+        ),
+      recoveryCssPath && keyValue("EXPLICIT CSS", recoveryCssPath, { compact, key: "css" }),
+      recoveryEntry && keyValue("EXPLICIT ENTRY", recoveryEntry, { compact, key: "entry" }),
+      suggestions.length > 0 &&
+        h(List, {
+          key: "recovery-suggestions",
+          items,
+          selectedId: recoveryActionId ?? undefined,
+          onSelect: setRecoveryActionId,
+          maxVisible: Math.max(2, Math.min(7, rows - 16)),
+        }),
+      suggestions.length === 0 &&
+        report &&
+        h(
+          Text,
+          { key: "no-actions", dimColor: true },
+          "No repair actions are currently suggested.",
+        ),
+      suggestions.length > 0 &&
+        h(
+          Text,
+          { key: "recovery-selection-hint", dimColor: true, wrap: "wrap" },
+          "Press a number to select a suggestion. Enter previews only an applicable repair.",
+        ),
+      selected &&
+        h(
+          Text,
+          { key: "selected-kind", dimColor: true, wrap: "wrap" },
+          selected.executable === true
+            ? "Enter to preview this repair. It will not run until you confirm its plan."
+            : "Guidance only. No change will be run from this suggestion.",
+        ),
+    ]);
+  };
+
   const submitSearch = (value = searchDraft) => void searchCatalog(value);
   const applyTokenFilter = (value = tokenDraft) => {
     setTokenQuery(value);
@@ -1842,6 +3021,11 @@ function TuiApp({ services }) {
     if (!cssPath) return;
     setView("main");
     void runCheckAction("tailwind", cssPath);
+  };
+  const submitLifecycleCss = (value = cssDraft) => {
+    setLifecycleCssPath(value.trim());
+    setView("lifecycle-home");
+    setNotice(null);
   };
 
   const renderConnectedSystem = () =>
@@ -1866,13 +3050,177 @@ function TuiApp({ services }) {
     const pending = pendingConfirmation;
     if (!pending) return h(Text, { dimColor: true }, "No change is waiting for confirmation.");
     const { action, preview } = pending;
+    const type = pending.type ?? "mutation";
+    if (type === "skill") {
+      const plan = isRecord(preview.result) ? preview.result : preview;
+      const expected = isRecord(plan.expectedPlan) ? plan.expectedPlan : {};
+      const targetRows =
+        Array.isArray(expected.targets) && expected.targets.length > 0
+          ? expected.targets
+          : Array.isArray(plan.targets)
+            ? plan.targets
+            : [];
+      const command = skillCommandText(plan.command ?? preview.command);
+      const warnings = Array.isArray(plan.warnings) ? plan.warnings : [];
+      return paragraph([
+        h(Heading, { key: "title" }, `Confirm skill ${action.action}`),
+        h(
+          Text,
+          { key: "warning", wrap: "wrap" },
+          "This installs or removes instruction files only. It never runs a skill or installs product dependencies.",
+        ),
+        rule("SELECTED SKILL", "skill-target-rule"),
+        keyValue("ACTION", action.action, { key: "action" }),
+        keyValue("SKILL", action.skillId, { key: "skill" }),
+        keyValue("SCOPE", action.scope, { key: "scope" }),
+        keyValue("AGENTS", action.agents.join(", "), { key: "agents" }),
+        keyValue("SOURCE REVISION", expected.revision ?? "not reported", { key: "revision" }),
+        keyValue("COMMAND", command ?? "not returned", { key: "command" }),
+        targetRows.length > 0 &&
+          paragraph(
+            [
+              h(
+                Text,
+                { key: "targets-title", color: "cyan", bold: true },
+                "Planned skill placements",
+              ),
+              ...targetRows.map((target, index) =>
+                h(
+                  Text,
+                  { key: `target-${index}`, wrap: "wrap" },
+                  `• ${target.path ?? target.relativePath ?? "path not returned"} · ${target.selected ? "selected" : "observed"} · ${target.exists ? "present" : "missing"}`,
+                ),
+              ),
+            ],
+            { key: "skill-targets" },
+          ),
+        warnings.length > 0 &&
+          paragraph(
+            [
+              h(Text, { key: "warnings-title", color: "yellow", bold: true }, "Review notes"),
+              ...warnings.map((warning, index) =>
+                h(
+                  Text,
+                  { key: `warning-${index}`, wrap: "wrap" },
+                  `• ${typeof warning === "string" ? warning : (warning.message ?? JSON.stringify(warning))}`,
+                ),
+              ),
+            ],
+            { key: "skill-warnings" },
+          ),
+        h(
+          Text,
+          { key: "shared", dimColor: true, wrap: "wrap" },
+          "Universal agents may share the canonical placement. Modified or unverifiable existing skills are never silently replaced.",
+        ),
+      ]);
+    }
+    if (type === "self-update") {
+      const plan = isRecord(preview.plan) ? preview.plan : {};
+      const command = commandText(plan.command);
+      return paragraph([
+        h(Heading, { key: "title" }, "Confirm prism-ds CLI update"),
+        h(
+          Text,
+          { key: "warning", wrap: "wrap" },
+          "This changes @prism-system/tools only. The update is not part of a design-system upgrade, and no rollback is promised if the package manager partially changes the installation.",
+        ),
+        rule("EXACT TARGET", "cli-target-rule"),
+        keyValue("PACKAGE", plan.packageName ?? "@prism-system/tools", { key: "package" }),
+        keyValue(
+          "INSTALLATION",
+          `${plan.scope ?? "unknown"} · ${plan.installation?.kind ?? "unknown context"}`,
+          { key: "scope" },
+        ),
+        keyValue("CURRENT VERSION", plan.currentVersion, { key: "current" }),
+        keyValue("TARGET VERSION", plan.targetVersion, { key: "target" }),
+        keyValue("MANAGER", plan.command?.manager ?? "not reported", { key: "manager" }),
+        keyValue("COMMAND", command ?? "not available", { key: "command" }),
+        keyValue("POST-CHECK", plan.postVerifySupported ? "supported" : "may be unverifiable", {
+          key: "verify",
+        }),
+        h(
+          Text,
+          { key: "advice", dimColor: true, wrap: "wrap" },
+          plan.advice ?? "Review the exact package manager command before applying.",
+        ),
+      ]);
+    }
+    if (type === "recovery") {
+      const suggestion = isRecord(preview.suggestion) ? preview.suggestion : {};
+      const plan = isRecord(preview.plan) ? preview.plan : {};
+      const command = isRecord(suggestion.command)
+        ? [
+            suggestion.command.bin,
+            ...(Array.isArray(suggestion.command.args) ? suggestion.command.args : []),
+          ]
+            .filter((part) => typeof part === "string" && part !== "")
+            .join(" ")
+        : null;
+      const planFiles = Array.isArray(plan.files) ? plan.files : [];
+      return paragraph([
+        h(Heading, { key: "title" }, "Confirm targeted recovery action"),
+        h(
+          Text,
+          { key: "warning", wrap: "wrap" },
+          "Only this selected repair will run. The project is diagnosed again afterward; action completion and overall project health are reported separately.",
+        ),
+        rule("TARGETED ISSUE", "recovery-target-rule"),
+        keyValue("ACTION", suggestion.label ?? preview.actionId, { key: "action" }),
+        keyValue("REASON", suggestion.reason ?? "not returned", { key: "reason" }),
+        keyValue("REPAIR TYPE", preview.kind ?? suggestion.kind ?? "not returned", { key: "kind" }),
+        keyValue("COMMAND", command ?? "not returned", { key: "command" }),
+        plan.cssPath && keyValue("EXPLICIT CSS", plan.cssPath, { key: "css" }),
+        plan.packageName &&
+          keyValue("SYSTEM", `${plan.packageName}@${displayValue(plan.version)}`, {
+            key: "system",
+          }),
+        planFiles.length > 0 &&
+          paragraph(
+            [
+              h(Text, { key: "files-title", color: "cyan", bold: true }, "Planned file effects"),
+              ...planFiles.map((file, index) =>
+                h(
+                  Text,
+                  { key: `file-${index}`, wrap: "wrap" },
+                  `• ${file.path ?? "path not returned"} · ${file.before === file.after ? "unchanged" : "update"}`,
+                ),
+              ),
+            ],
+            { key: "recovery-files" },
+          ),
+        h(
+          Text,
+          { key: "note", dimColor: true, wrap: "wrap" },
+          "If the state changes after review, the backend refuses stale writes and reports remaining issues.",
+        ),
+      ]);
+    }
     const targetVersion = preview.version ?? action.version ?? project?.version;
     const effectRows = Array.isArray(preview.plannedChanges) ? preview.plannedChanges : [];
-    const managedFiles = managedFileEffectsOf(preview);
+    const managedFiles = fileReviewEffectsOf(pending);
     const upgradeLines = action.kind === "upgrade" ? getUpgradeDiffLines(preview.diff) : [];
     const command = commandText(preview.command);
-    const isDependencyChange =
-      action.kind === "install" || action.kind === "use" || action.kind === "upgrade";
+    const compatibility = isRecord(preview.compatibility) ? preview.compatibility : {};
+    const compatibilityWarnings = Array.isArray(compatibility.warnings)
+      ? compatibility.warnings
+      : Array.isArray(preview.warnings)
+        ? preview.warnings
+        : [];
+    const coverage = isRecord(compatibility.coverage) ? compatibility.coverage : null;
+    const preserved = Array.isArray(preview.preserved) ? preview.preserved : [];
+    const previewResult = isRecord(preview.result) ? preview.result : {};
+    const previewMaterial = isRecord(preview.material) ? preview.material : {};
+    const autoSelectedEntryLines = Array.isArray(previewResult.autoSelectedEntries)
+      ? previewResult.autoSelectedEntries.map(switchAutoSelectedEntryLine).filter(Boolean)
+      : [];
+    const selectedPeerActionLines = Array.isArray(previewMaterial.peers)
+      ? previewMaterial.peers.map(switchPeerActionLine).filter(Boolean)
+      : [];
+    const switchReviewLimit = compact ? 1 : Math.max(2, Math.min(5, Math.floor((rows - 12) / 4)));
+    const isDependencyChange = ["install", "use", "upgrade", "switch", "remove"].includes(
+      action.kind,
+    );
 
     return paragraph([
       h(Heading, { key: "title" }, "Confirm planned change"),
@@ -1911,6 +3259,13 @@ function TuiApp({ services }) {
           Text,
           { key: "use-scope", wrap: "wrap" },
           `Use installs and connects. Strict usage check: ${action.checkUsage ? "included" : "not included"}. CSS changes: ${action.tailwind ? `included for ${action.cssPath}` : "not included"}.`,
+        ),
+      action.kind === "use" &&
+        action.skills === true &&
+        h(
+          Text,
+          { key: "use-skill-scope", wrap: "wrap" },
+          `Consumer skill setup: ${preview.skillSetup?.status ?? "pending agent selection"}. Agents: ${Array.isArray(preview.skillSetup?.agents) && preview.skillSetup.agents.length > 0 ? preview.skillSetup.agents.join(", ") : "not selected"}. ${preview.skillSetup?.guidance ?? "A reliably detected agent may be used; unresolved selection remains pending and does not block system setup."}`,
         ),
       effectRows.length > 0 &&
         paragraph(
@@ -1958,6 +3313,118 @@ function TuiApp({ services }) {
           ],
           { key: "manifest-diff" },
         ),
+      action.kind === "switch" &&
+        paragraph(
+          [
+            h(Text, { key: "review-title", color: "cyan", bold: true }, "Compatibility review"),
+            h(
+              Text,
+              { key: "from-to", wrap: "wrap" },
+              `From ${displayValue(preview.from?.package)}@${displayValue(preview.from?.version)} → ${displayValue(preview.to?.package)}@${displayValue(preview.to?.version)}`,
+            ),
+            h(
+              Text,
+              { key: "blockers", wrap: "wrap" },
+              `Blockers: ${Array.isArray(compatibility.blockers) && compatibility.blockers.length > 0 ? compatibility.blockers.map((item) => item.message ?? item).join(" · ") : "none reported; an incompatible plan is refused before confirmation."}`,
+            ),
+            action.kind === "switch" &&
+              autoSelectedEntryLines.length > 0 &&
+              paragraph(
+                [
+                  h(
+                    Text,
+                    { key: "auto-entries-title", color: "cyan", bold: true },
+                    "Automatically selected from usage",
+                  ),
+                  ...autoSelectedEntryLines
+                    .slice(0, switchReviewLimit)
+                    .map((entry, index) =>
+                      h(Text, { key: `auto-entry-${index}`, wrap: "wrap" }, entry),
+                    ),
+                  autoSelectedEntryLines.length > switchReviewLimit &&
+                    h(
+                      Text,
+                      { key: "auto-entries-more", dimColor: true, wrap: "wrap" },
+                      `• +${autoSelectedEntryLines.length - switchReviewLimit} more auto-selected entries not shown`,
+                    ),
+                ],
+                { key: "switch-auto-selected-entries" },
+              ),
+            action.kind === "switch" &&
+              selectedPeerActionLines.length > 0 &&
+              paragraph(
+                [
+                  h(
+                    Text,
+                    { key: "peer-actions-title", color: "cyan", bold: true },
+                    "Selected peer actions",
+                  ),
+                  ...selectedPeerActionLines
+                    .slice(0, switchReviewLimit)
+                    .map((peer, index) =>
+                      h(Text, { key: `peer-action-${index}`, wrap: "wrap" }, peer),
+                    ),
+                  selectedPeerActionLines.length > switchReviewLimit &&
+                    h(
+                      Text,
+                      { key: "peer-actions-more", dimColor: true, wrap: "wrap" },
+                      `• +${selectedPeerActionLines.length - switchReviewLimit} more peer actions not shown`,
+                    ),
+                ],
+                { key: "switch-peer-actions" },
+              ),
+            coverage &&
+              h(
+                Text,
+                { key: "coverage", wrap: "wrap" },
+                `Coverage: ${displayValue(coverage.filesScanned)} files · ${displayValue(coverage.components)} components · ${displayValue(coverage.extensions)} extensions · ${displayValue(coverage.tokenReferences)} token references · ${displayValue(coverage.unverified)} unverified · ${displayValue(coverage.skippedFiles)} skipped.`,
+              ),
+            ...compatibilityWarnings.map((warning, index) =>
+              h(
+                Text,
+                { key: `compat-warning-${index}`, wrap: "wrap" },
+                `Warning: ${typeof warning === "string" ? warning : (warning.message ?? JSON.stringify(warning))}`,
+              ),
+            ),
+            coverage &&
+              Array.isArray(coverage.limitations) &&
+              coverage.limitations.length > 0 &&
+              h(
+                Text,
+                { key: "coverage-limitations", dimColor: true, wrap: "wrap" },
+                `Coverage limits: ${coverage.limitations.join(" · ")}`,
+              ),
+          ],
+          { key: "switch-compatibility" },
+        ),
+      action.kind === "remove" &&
+        paragraph(
+          [
+            h(Text, { key: "remove-review-title", color: "cyan", bold: true }, "Removal review"),
+            h(
+              Text,
+              { key: "remove-coverage", wrap: "wrap" },
+              coverage
+                ? `Usage scan: ${displayValue(coverage.filesScanned)} files · ${displayValue(coverage.components)} components · ${displayValue(coverage.extensions)} extensions · ${displayValue(coverage.tokenReferences)} token references · ${displayValue(coverage.unverified)} unverified · ${displayValue(coverage.skippedFiles)} skipped.`
+                : "Removal proceeds only after the active-usage scan reports no blocking references.",
+            ),
+            ...compatibilityWarnings.map((warning, index) =>
+              h(
+                Text,
+                { key: `remove-warning-${index}`, wrap: "wrap" },
+                `Preservation note: ${typeof warning === "string" ? warning : (warning.message ?? JSON.stringify(warning))}`,
+              ),
+            ),
+            ...preserved.map((item, index) =>
+              h(
+                Text,
+                { key: `preserved-${index}`, wrap: "wrap" },
+                `Preserved: ${item.path ?? "path not returned"} · ${item.reason ?? "manual cleanup may be needed"}`,
+              ),
+            ),
+          ],
+          { key: "remove-review" },
+        ),
     ]);
   };
 
@@ -1987,7 +3454,7 @@ function TuiApp({ services }) {
           placeholder: "Search supported systems",
           onChange: setSearchDraft,
           onSubmit: submitSearch,
-          onCancel: () => setView("main"),
+          onCancel: () => setView(searchContext === "switch" ? "switch-search" : "main"),
           maxLength: 120,
         }),
       ]);
@@ -2058,10 +3525,134 @@ function TuiApp({ services }) {
         }),
       ]);
     }
+    if (view === "use-agent-input") {
+      const allowed = Array.isArray(services.skillAgentIds)
+        ? services.skillAgentIds
+        : ["claude-code", "codex", "cursor", "opencode"];
+      return paragraph([
+        h(Heading, { key: "title" }, "Choose an agent for the use skill"),
+        h(
+          Text,
+          { key: "copy", wrap: "wrap" },
+          "Choose one supported agent explicitly. The skill is project-scoped and contains instructions only; no provider is guessed and no instructions are executed.",
+        ),
+        h(
+          Text,
+          { key: "agents", dimColor: true, wrap: "wrap" },
+          `Supported: ${allowed.join(", ")}`,
+        ),
+        h(TextInputCompat, {
+          key: "input",
+          value: skillAgentDraft,
+          placeholder: "codex",
+          onChange: setSkillAgentDraft,
+          onSubmit: submitUseAgent,
+          onCancel: () => setView("details"),
+          validate: (value) =>
+            allowed.includes(value.trim()) ? null : `Choose one of: ${allowed.join(", ")}.`,
+          maxLength: 40,
+        }),
+      ]);
+    }
+    if (view === "skill-agent-input") {
+      const allowed = Array.isArray(services.skillAgentIds)
+        ? services.skillAgentIds
+        : ["claude-code", "codex", "cursor", "opencode"];
+      return paragraph([
+        h(Heading, { key: "title" }, "Choose a skill agent"),
+        h(
+          Text,
+          { key: "copy", wrap: "wrap" },
+          "This only selects the destination for a later, separately reviewed skill action. No agent is inferred and no files are changed here.",
+        ),
+        h(
+          Text,
+          { key: "agents", dimColor: true, wrap: "wrap" },
+          `Supported: ${allowed.join(", ")}`,
+        ),
+        h(TextInputCompat, {
+          key: "input",
+          value: skillAgentDraft,
+          placeholder: "codex",
+          onChange: setSkillAgentDraft,
+          onSubmit: submitSkillAgent,
+          onCancel: () => setView("skills-home"),
+          validate: (value) =>
+            allowed.includes(value.trim()) ? null : `Choose one of: ${allowed.join(", ")}.`,
+          maxLength: 40,
+        }),
+      ]);
+    }
+    if (view === "lifecycle-css-input") {
+      return paragraph([
+        h(Heading, { key: "title" }, "Choose an explicit CSS file"),
+        h(
+          Text,
+          { key: "copy", wrap: "wrap" },
+          "Switch or remove will inspect only this consumer-relative CSS path for attributable bridge imports. Leave it empty to clear the optional CSS target; no file is guessed.",
+        ),
+        h(TextInputCompat, {
+          key: "input",
+          value: cssDraft,
+          placeholder: "src/app.css",
+          onChange: setCssDraft,
+          onSubmit: submitLifecycleCss,
+          onCancel: () => setView("lifecycle-home"),
+          maxLength: 240,
+        }),
+      ]);
+    }
+    if (view === "recovery-css-input" || view === "recovery-entry-input") {
+      const cssMode = view === "recovery-css-input";
+      return paragraph([
+        h(
+          Heading,
+          { key: "title" },
+          cssMode ? "Choose an explicit CSS file" : "Choose an explicit entry",
+        ),
+        h(
+          Text,
+          { key: "copy", wrap: "wrap" },
+          cssMode
+            ? "Recovery will inspect only this consumer-relative CSS path. Leave it empty to clear the optional CSS target; it never searches for a file."
+            : "Recovery will scan only this named entry, extension, or file. Leave it empty to remove the optional entry target; it never guesses one.",
+        ),
+        h(TextInputCompat, {
+          key: "input",
+          value: cssDraft,
+          placeholder: cssMode ? "src/app.css" : "KeyboardScene or src/app.tsx",
+          onChange: setCssDraft,
+          onSubmit: (value) => {
+            const clean = value.trim();
+            if (cssMode) {
+              setRecoveryCssPath(clean);
+              setView("recovery-home");
+              void loadRecovery({ cssPath: clean });
+            } else {
+              setRecoveryEntry(clean);
+              setView("recovery-home");
+              void loadRecovery({ entry: clean });
+            }
+          },
+          onCancel: () => setView("recovery-home"),
+          maxLength: 240,
+        }),
+      ]);
+    }
     return null;
   };
 
-  const isInputView = ["search-input", "token-search", "upgrade-input", "css-input"].includes(view);
+  const isInputView = [
+    "search-input",
+    "token-search",
+    "upgrade-input",
+    "css-input",
+    "use-agent-input",
+    "skill-agent-input",
+    "recovery-css-input",
+    "recovery-entry-input",
+    "lifecycle-css-input",
+  ].includes(view);
   const isDetailView = view === "details" || view === "detail-loading";
   const content =
     view === "confirm"
@@ -2075,7 +3666,19 @@ function TuiApp({ services }) {
                 h(Text, { key: "detail", dimColor: true }, "Read-only registry request…"),
               ])
             : renderSystemDetails()
-          : renderBody();
+          : view === "manage-home"
+            ? renderManageHome()
+            : view === "lifecycle-home"
+              ? renderLifecycleHome()
+              : view === "switch-search"
+                ? renderSwitchSearch()
+                : view === "skills-home"
+                  ? renderSkillsHome()
+                  : view === "self-update-home"
+                    ? renderSelfUpdateHome()
+                    : view === "recovery-home"
+                      ? renderRecoveryHome()
+                      : renderBody();
 
   const tabsVisible = !projectLoading && project?.status === "connected" && view === "main";
   const operationTone = operation?.status === "loading" ? "info" : operation?.status;
@@ -2097,9 +3700,12 @@ function TuiApp({ services }) {
     : null;
   const currentStatus = projectBanner(project, services.cwd, compact);
   const inlineOperation = operation?.status === "neutral" && view !== "confirm";
+  const hideCompletedSwitchSearch = view === "switch-search" && operation?.status === "success";
   const confirmationHasManagedFiles =
-    view === "confirm" && managedFileEffectsOf(pendingConfirmation?.preview).length > 0;
-  const showActivity = Boolean(notice || (operation && view !== "confirm" && !inlineOperation));
+    view === "confirm" && fileReviewEffectsOf(pendingConfirmation).length > 0;
+  const showActivity = Boolean(
+    notice || (operation && view !== "confirm" && !inlineOperation && !hideCompletedSwitchSearch),
+  );
   const showNotice = notice && notice.message !== operation?.detail;
   const footerBusy = operation?.status === "loading";
   const footerCompact = compact || rows < 30;
@@ -2140,6 +3746,46 @@ function TuiApp({ services }) {
     "refresh-catalog": "Refresh",
     "footer-prev-page": "Back",
     "footer-next-page": "More",
+    "cancel-input": "Cancel",
+    "choose-use-agent": "Select agent",
+    "choose-skill-agent": "Select agent",
+    "save-lifecycle-css": "Save CSS",
+    "save-recovery-css": "Diagnose CSS",
+    "save-recovery-entry": "Diagnose entry",
+    "preview-switch": "Switch",
+    "manage-lifecycle": "Lifecycle",
+    "manage-skills": "Skills",
+    "manage-update": "Update CLI",
+    "manage-recovery": "Recovery",
+    "manage-back": "Back",
+    "switch-system": "Switch",
+    "remove-system": "Remove",
+    "lifecycle-css": "CSS target",
+    "lifecycle-back": "Back",
+    "inspect-switch-target": "Inspect",
+    "search-switch-target": "Search",
+    "refresh-switch-targets": "Refresh",
+    "switch-search-back": "Back",
+    "skills-prism": "Prism",
+    "skills-design": "Design",
+    "skills-agent": "Agent",
+    "skills-scope": "Scope",
+    "skills-reload": "Reload",
+    "skills-add": "Add",
+    "skills-update": "Update",
+    "skills-remove": "Remove",
+    "skills-back": "Back",
+    "check-cli-update": "Check",
+    "select-npm-manager": "npm",
+    "select-pnpm-manager": "pnpm",
+    "update-local-cli": "Local update",
+    "update-global-cli": "Global update",
+    "update-back": "Back",
+    "refresh-recovery": "Refresh",
+    "recovery-css": "CSS target",
+    "recovery-entry": "Entry target",
+    "preview-recovery": "Preview",
+    "recovery-back": "Back",
   };
   const footerActions = [];
   const addFooterAction = (key, shortcut, label, onActivate, options = {}) => {
@@ -2173,25 +3819,103 @@ function TuiApp({ services }) {
         variant: "primary",
         disabled: !EXACT_VERSION.test(upgradeVersion.trim()),
       });
-    } else {
+    } else if (view === "css-input") {
       addFooterAction("check-css", "Enter", "Check this path", () => submitCssCheck(), {
         variant: "primary",
         disabled: !cssDraft.trim(),
       });
+    } else if (view === "use-agent-input") {
+      addFooterAction("choose-use-agent", "Enter", "Use with this agent", () => submitUseAgent(), {
+        variant: "primary",
+        disabled: !skillAgentDraft.trim(),
+      });
+    } else if (view === "skill-agent-input") {
+      addFooterAction("choose-skill-agent", "Enter", "Select agent", () => submitSkillAgent(), {
+        variant: "primary",
+        disabled: !skillAgentDraft.trim(),
+      });
+    } else if (view === "lifecycle-css-input") {
+      addFooterAction(
+        "save-lifecycle-css",
+        "Enter",
+        "Use this CSS target",
+        () => submitLifecycleCss(),
+        {
+          variant: "primary",
+        },
+      );
+    } else if (view === "recovery-css-input") {
+      addFooterAction(
+        "save-recovery-css",
+        "Enter",
+        "Diagnose this CSS target",
+        () => {
+          const cssPath = cssDraft.trim();
+          setRecoveryCssPath(cssPath);
+          setView("recovery-home");
+          void loadRecovery({ cssPath });
+        },
+        { variant: "primary" },
+      );
+    } else if (view === "recovery-entry-input") {
+      addFooterAction(
+        "save-recovery-entry",
+        "Enter",
+        "Diagnose this entry",
+        () => {
+          const entry = cssDraft.trim();
+          setRecoveryEntry(entry);
+          setView("recovery-home");
+          void loadRecovery({ entry });
+        },
+        { variant: "primary" },
+      );
     }
     addFooterAction("cancel-input", "Esc", "Cancel", () => {
-      if (view === "upgrade-input") setNotice(null);
-      if (view === "css-input") setCssDraft("");
-      setView("main");
+      if (view === "upgrade-input" || view === "css-input") setNotice(null);
+      if (view === "css-input" || view === "lifecycle-css-input") setCssDraft("");
+      if (view === "use-agent-input") setView("details");
+      else if (view === "skill-agent-input") setView("skills-home");
+      else if (view === "lifecycle-css-input") setView("lifecycle-home");
+      else if (view === "recovery-css-input" || view === "recovery-entry-input")
+        setView("recovery-home");
+      else if (view === "search-input")
+        setView(searchContext === "switch" ? "switch-search" : "main");
+      else setView("main");
     });
   } else if (isDetailView) {
     if (view === "details" && project?.status === "empty") {
       addFooterAction("install", "i", "Install only", () => void beginMutation("install"), {
         variant: "primary",
       });
-      addFooterAction("use", "u", "Use & connect", () => void beginMutation("use"));
+      addFooterAction(
+        "use",
+        "u",
+        "Use & connect",
+        () => void beginMutation("use", undefined, { skills: true }),
+      );
+      addFooterAction(
+        "use-no-skills",
+        "n",
+        "Use without skill setup",
+        () => void beginMutation("use", undefined, { skills: false }),
+      );
+      addFooterAction("use-agent", "a", "Choose skill agent", openUseAgentInput);
     }
-    addFooterAction("back-from-details", "Esc", "Back", () => setView("main"));
+    if (
+      view === "details" &&
+      (project?.status === "connected" || project?.status === "installed") &&
+      searchContext === "switch"
+    ) {
+      addFooterAction(
+        "preview-switch",
+        "w",
+        "Preview switch",
+        () => void beginMutation("switch", undefined, { returnView: "details" }),
+        { variant: "primary", disabled: !inspection?.manifest },
+      );
+    }
+    addFooterAction("back-from-details", "Esc / b", "Back", () => setView(detailReturnView));
   } else if (!projectLoading && view === "main") {
     if (project?.status === "error") {
       addFooterAction("retry-project", "p", "Retry project check", readProjectState, {
@@ -2369,6 +4093,144 @@ function TuiApp({ services }) {
         setView("search-input");
       });
     }
+  } else if (view === "manage-home") {
+    addFooterAction("manage-lifecycle", "s", "System lifecycle", () => setView("lifecycle-home"), {
+      variant: "primary",
+    });
+    addFooterAction("manage-skills", "k", "Skills", openSkills);
+    addFooterAction("manage-update", "u", "Update prism-ds", () => setView("self-update-home"));
+    addFooterAction("manage-recovery", "r", "Project recovery", openRecovery);
+    addFooterAction("manage-back", "Esc", "Back", () => setView("main"));
+  } else if (view === "lifecycle-home") {
+    addFooterAction("switch-system", "w", "Switch system", beginSwitchSearch, {
+      variant: "primary",
+      disabled: !project?.packageName,
+    });
+    addFooterAction("remove-system", "x", "Remove system", () => void beginMutation("remove"), {
+      disabled: !project?.packageName,
+    });
+    addFooterAction("lifecycle-css", "c", "Set CSS target", () => {
+      setCssDraft(lifecycleCssPath);
+      setView("lifecycle-css-input");
+    });
+    addFooterAction("lifecycle-back", "Esc", "Back to Manage", () => setView("manage-home"));
+  } else if (view === "switch-search") {
+    const selected =
+      catalogResults.find((item) => `${item.name}@${item.version}` === selectedSystemId) ??
+      catalogResults[0];
+    addFooterAction(
+      "inspect-switch-target",
+      "Enter",
+      "Inspect target",
+      () => selected && openInspection(selected.name, selected.version, "lifecycle-home"),
+      { variant: "primary", disabled: !selected || operationLock.current },
+    );
+    addFooterAction("search-switch-target", "/", "Search targets", () => {
+      setSearchDraft(searchQuery);
+      setView("search-input");
+    });
+    addFooterAction(
+      "refresh-switch-targets",
+      "r",
+      "Refresh",
+      () => void searchCatalog(searchQuery, { refresh: true, context: "switch" }),
+    );
+    addFooterAction("switch-search-back", "Esc", "Back", () => setView("lifecycle-home"));
+  } else if (view === "skills-home") {
+    addFooterAction(
+      "skills-prism",
+      "p",
+      "Prism skills",
+      () => {
+        setSkillSection("prism");
+        const first = skillsResult?.catalog?.find((entry) => entry.type === "prism");
+        if (first) setSelectedSkillId(first.id);
+      },
+      { active: skillSection === "prism" },
+    );
+    addFooterAction(
+      "skills-design",
+      "d",
+      "Design skills",
+      () => {
+        setSkillSection("design");
+        const first = skillsResult?.catalog?.find((entry) => entry.type === "design");
+        if (first) setSelectedSkillId(first.id);
+      },
+      { active: skillSection === "design" },
+    );
+    addFooterAction("skills-agent", "a", "Choose agent", openSkillAgentInput);
+    addFooterAction(
+      "skills-scope",
+      "g",
+      `${skillScope === "project" ? "Project" : "Global"} scope`,
+      () => setSkillScope((scope) => (scope === "project" ? "global" : "project")),
+    );
+    addFooterAction("skills-reload", "l", "Reload inventory", () => void loadSkills("all"));
+    addFooterAction("skills-add", "Enter", "Add skill", () => void beginSkillMutation("add"), {
+      variant: "primary",
+    });
+    addFooterAction("skills-update", "u", "Update skill", () => void beginSkillMutation("update"));
+    addFooterAction("skills-remove", "x", "Remove skill", () => void beginSkillMutation("remove"));
+    addFooterAction("skills-back", "Esc", "Back to Manage", () => setView("manage-home"));
+  } else if (view === "self-update-home") {
+    addFooterAction("check-cli-update", "c", "Check now", () => void checkCliUpdateNow(), {
+      variant: "primary",
+    });
+    addFooterAction("select-npm-manager", "n", "Use npm", () => setUpdateManager("npm"), {
+      active: updateManager === "npm",
+    });
+    addFooterAction("select-pnpm-manager", "p", "Use pnpm", () => setUpdateManager("pnpm"), {
+      active: updateManager === "pnpm",
+    });
+    addFooterAction(
+      "update-local-cli",
+      "l",
+      "Preview local update",
+      () => void beginCliUpdate({ ...(updateManager ? { manager: updateManager } : {}) }),
+    );
+    addFooterAction(
+      "update-global-cli",
+      "g",
+      "Preview global update",
+      () => {
+        if (!updateManager) {
+          setNotice({
+            type: "warning",
+            message: "Choose npm or pnpm first; global update context is never guessed.",
+          });
+          return;
+        }
+        void beginCliUpdate({ global: true, manager: updateManager });
+      },
+      { disabled: !updateManager },
+    );
+    addFooterAction("update-back", "Esc", "Back to Manage", () => setView("manage-home"));
+  } else if (view === "recovery-home") {
+    const selected = recoveryResult?.suggestions?.find((item) => item.id === recoveryActionId);
+    addFooterAction("refresh-recovery", "r", "Refresh diagnosis", () => void loadRecovery(), {
+      variant: "primary",
+    });
+    addFooterAction("recovery-css", "c", "Set CSS target", () => {
+      setCssDraft(recoveryCssPath);
+      setView("recovery-css-input");
+    });
+    addFooterAction("recovery-entry", "e", "Set entry target", () => {
+      setCssDraft(recoveryEntry);
+      setView("recovery-entry-input");
+    });
+    addFooterAction(
+      "preview-recovery",
+      "1-9 / Enter",
+      "Preview selected repair",
+      () => selected && void beginRecoveryAction(selected),
+      { disabled: !selected },
+    );
+    addFooterAction("recovery-back", "Esc", "Back to Manage", () => setView("manage-home"));
+  }
+
+  if (!projectLoading && view === "main") {
+    addFooterAction("open-manage", "m", "Manage", openManage);
   }
 
   const actionsPerFooterPage = footerShortLabels ? 1 : Math.max(1, footerActions.length);
@@ -2405,30 +4267,33 @@ function TuiApp({ services }) {
 
   const footer = h(MouseLayout, { key: "footer", flexDirection: "column", width: "100%" }, [
     footerActions.length > 0 &&
-      h(MouseLayout, {
-        key: "action-buttons",
-        flexDirection: "row",
-        flexWrap: "wrap",
-        width: "100%",
-      }, [
-        !footerShortLabels && h(Heading, { key: "actions-heading", compact: true }, "Actions"),
-        ...footerActionsWithPaging.map((action) =>
-          h(KeyButton, {
-            key: action.key,
-            shortcut: action.shortcut,
-            label:
-              footerShortLabels
+      h(
+        MouseLayout,
+        {
+          key: "action-buttons",
+          flexDirection: "row",
+          flexWrap: "wrap",
+          width: "100%",
+        },
+        [
+          !footerShortLabels && h(Heading, { key: "actions-heading", compact: true }, "Actions"),
+          ...footerActionsWithPaging.map((action) =>
+            h(KeyButton, {
+              key: action.key,
+              shortcut: action.shortcut,
+              label: footerShortLabels
                 ? (compactFooterLabels[action.key] ?? action.label)
                 : action.label,
-            onActivate: action.onActivate,
-            variant: action.variant,
-            active: action.active,
-            disabled: footerBusy || action.disabled,
-            outlined: true,
-            compact: footerCompact,
-          }),
-        ),
-      ]),
+              onActivate: action.onActivate,
+              variant: action.variant,
+              active: action.active,
+              disabled: footerBusy || action.disabled,
+              outlined: true,
+              compact: footerCompact,
+            }),
+          ),
+        ],
+      ),
     h(
       Text,
       { key: "exit-hint", dimColor: true, wrap: "wrap" },
@@ -2449,11 +4314,7 @@ function TuiApp({ services }) {
     [
       h(Heading, { key: "brand" }, "PRISM DS  /  CONSUMER TERMINAL"),
       !compact &&
-        h(
-          Text,
-          { key: "target-label", dimColor: true, wrap: "wrap" },
-          `TARGET  ${services.cwd}`,
-        ),
+        h(Text, { key: "target-label", dimColor: true, wrap: "wrap" }, `TARGET  ${services.cwd}`),
     ],
   );
   const statusAndTabs = tabsVisible
@@ -2486,7 +4347,8 @@ function TuiApp({ services }) {
       : null;
   const topBar = h(MouseLayout, { flexDirection: "column", width: "100%" }, [
     masthead,
-    compact && !shortTerminal &&
+    compact &&
+      !shortTerminal &&
       h(Text, { key: "target-compact", dimColor: true, wrap: "wrap" }, `TARGET  ${services.cwd}`),
     !shortTerminal && rule(undefined, "top-rule"),
     !shortTerminal && statusAndTabs,
@@ -2503,7 +4365,6 @@ function TuiApp({ services }) {
     tokenQuery,
     operation?.status ?? "",
     operation?.label ?? "",
-    notice?.message ?? "",
   ].join("-");
   const mainContent = h(MouseLayout, { flexDirection: "column" }, [
     shortTerminal &&
@@ -2512,7 +4373,7 @@ function TuiApp({ services }) {
     inlineOperation && operationText,
     view === "confirm" ? h(MouseLayout, { key: "confirm-title" }, rule("CHANGE PREVIEW")) : null,
     showActivity && rule("ACTIVITY", "activity-rule"),
-    view !== "confirm" && !inlineOperation && operationText,
+    view !== "confirm" && !inlineOperation && !hideCompletedSwitchSearch && operationText,
     showNotice &&
       line(
         [

@@ -20,6 +20,16 @@
  *   prism-ds setup-tailwind --cwd <root> --css <file> [--dry-run] [--check] [--json]
  *   prism-ds upgrade <package-or-id> <exact-version> --cwd <root>
  *     [--dry-run] [--json] [--registry <url>] [--strict|--no-strict]
+ *   prism-ds switch <target> [version] --cwd <root> [--registry <url>] [--css <file>]
+ *     [--with-entry <value>] [--peer <name@version>] [--dry-run] [--yes] [--json]
+ *   prism-ds remove [package] --cwd <root> [--css <file>] [--dry-run] [--yes] [--json]
+ *   prism-ds skills list --cwd <root> [--global] [--json]
+ *   prism-ds skills add|update|remove <catalog-id> --cwd <root> --agent <id>
+ *     [--global] [--dry-run] [--yes] [--json]
+ *   prism-ds self-update [--check] [--cwd <root>] [--global]
+ *     [--manager npm|pnpm] [--registry <url>] [--dry-run] [--yes] [--json]
+ *   prism-ds recover [package] --cwd <root> [--css <file>] [--entry <entry>]
+ *     [--action <id>] [--dry-run] [--yes] [--json]
  *
  * Bare `prism-ds` (no arguments) dynamically starts the inline interactive TUI
  * (`./tui.mjs`) in the current process; every argument invocation, including
@@ -33,6 +43,23 @@
  * `--dry-run`/`--check`). No postinstall, no source copying, no publishing, and
  * no hidden package selection. TypeScript is lazy-loaded only for `check-usage`
  * and `check` (which invokes the usage checker).
+ *
+ * `self-update` updates only the prism-ds tooling package itself
+ * (`@prism-system/tools`), never a design system: `--check` is read-only, and a
+ * real update requires `--yes` and runs only the fixed npm/pnpm command for an
+ * identified or explicitly selected installation (never an assumed global or
+ * source/workspace update). `recover` is read-only by default and executes only
+ * a reviewed, suggested connect/setup-tailwind repair with `--action <id>
+ * --yes`; `--dry-run` never writes.
+ *
+ * `switch`/`remove` preview the exact plan without `--yes` and apply it only
+ * with `--yes`, reusing the previewed plan material as the execution
+ * precondition and freezing the exact target version. `skills list` is offline;
+ * `skills add/update/remove` preview the frozen catalog plan and run only the
+ * pinned upstream CLI with `--yes`. The default `use` skill setup installs only
+ * the consumer `use-design-system` skill at project scope when an agent is
+ * explicitly selected or exactly one is detected; `--no-skills` restores the
+ * previous `use` behavior.
  */
 
 import { readFileSync } from "node:fs";
@@ -71,6 +98,14 @@ export function helpText() {
     `  ${CLI_NAME} check --cwd <root> [--css <file>] [--json]`,
     `  ${CLI_NAME} setup-tailwind --cwd <root> --css <file> [--dry-run] [--check] [--json]`,
     `  ${CLI_NAME} upgrade <package-or-id> <exact-version> --cwd <root> [options]`,
+    `  ${CLI_NAME} switch <target> [version] --cwd <root> [options]`,
+    `  ${CLI_NAME} remove [package] --cwd <root> [--css <file>] [--dry-run] [--yes] [--json]`,
+    `  ${CLI_NAME} skills list --cwd <root> [--global] [--json]`,
+    `  ${CLI_NAME} skills add|update|remove <catalog-id> --cwd <root> --agent <id> [options]`,
+    `  ${CLI_NAME} self-update [--check] [--cwd <root>] [--global] [--manager npm|pnpm]`,
+    `                       [--registry <url>] [--dry-run] [--yes] [--json]`,
+    `  ${CLI_NAME} recover [package] --cwd <root> [--css <file>] [--entry <entry>]`,
+    `                    [--action <id>] [--dry-run] [--yes] [--json]`,
     `  ${CLI_NAME} --help`,
     "",
     "Commands:",
@@ -86,18 +121,45 @@ export function helpText() {
     "  check           One offline read-only health report for a connected consumer.",
     "  setup-tailwind  Write the Tailwind v4 bridge imports into one explicit CSS file.",
     "  upgrade         Explicitly upgrade an installed style to an exact version.",
+    "  switch          Preview/apply an exact, usage-checked design-system switch.",
+    "  remove          Explicitly remove one selected design system and its unchanged",
+    "                  generated integration.",
+    "  skills          Offline catalog/inventory plus consent-gated instruction installs.",
+    "  self-update     Check for and explicitly update the prism-ds tooling itself",
+    "                  (@prism-system/tools), never a design system.",
+    "  recover         Diagnose project state read-only; run one explicit, suggested",
+    "                  connect/setup-tailwind repair only with --action <id> --yes.",
     "",
     "Boundaries:",
     "  search/info                      explicit network, read-only.",
     "  install/use/upgrade              mutate consumer dependencies via a fixed npm/pnpm",
     "                                   command with --ignore-scripts; upgrade does so only",
     "                                   when explicitly invoked.",
+    "  switch/remove                    also mutate consumer dependencies via a fixed",
+    "                                   npm/pnpm command; switch retains the previous",
+    "                                   dependency, remove is a separate explicit operation,",
+    "                                   and both print an exact preview without --yes.",
+    "  use (skill setup)                may install the consumer use-design-system skill",
+    "                                   (project scope) through the pinned npx skills@1.7.0",
+    "                                   when exactly one agent is resolved; --no-skills opts",
+    "                                   out and zero/multiple detections stay pending.",
+    "  skills list                      offline read-only catalog plus actual inventory.",
+    "  skills add/update/remove         explicit network through the pinned npx skills@1.7.0",
+    "                                   (Node >= 22.20), preview + --yes only; installs",
+    "                                   instructions only, never dependencies.",
     "  connect/check-usage/doctor/      offline and never edit dependencies (connect writes",
     "  components/tokens/check/         only its consumer config/AGENTS files; the others",
     "                                   are read-only).",
     "  setup-tailwind                   offline; the only command that edits its explicitly",
     "                                   named --css file, and it writes nothing in --dry-run",
     "                                   or --check.",
+    "  self-update                      explicit network; read-only with --check. A real",
+    "                                   update mutates only the prism-ds tooling via a fixed",
+    "                                   npm/pnpm command with --ignore-scripts, requires",
+    "                                   --yes, and never updates a design system.",
+    "  recover                          offline read-only by default; --action with --yes",
+    "                                   writes only through the reviewed connect or",
+    "                                   setup-tailwind repair; --dry-run never writes.",
     "  No postinstall, no source copying, no publishing, no hidden package selection.",
     "",
     "Run a command with --help for its options.",
@@ -235,12 +297,20 @@ export function helpTextForUse() {
     "                        entry's declared peer requirements are planned too.",
     "  --peer <name@version> Exact version for a missing selected peer (repeatable;",
     "                        must satisfy the declared requirement range).",
+    "  --skill-agent <id>    Install the consumer use-design-system skill for this agent",
+    "                        (repeatable; claude-code, codex, cursor, opencode). When",
+    "                        omitted, exactly one detected agent is used; zero/multiple",
+    "                        detections leave the skill pending with guidance.",
+    "  --no-skills           Skip the default consumer skill setup entirely (exactly the",
+    "                        previous use behavior).",
     "  --dry-run             Resolve and plan without spawning or writing.",
     "  --json                Emit the stable structured result.",
     "  -h, --help            Show this help.",
     "",
     "A failed package-manager install or verification stops before connect; a",
-    "completed package-manager mutation is never rolled back automatically.",
+    "completed package-manager mutation is never rolled back automatically. The",
+    "design-system setup and the instruction setup are not atomic: a skill failure",
+    "is reported as a partial result with a rerun command, never as full success.",
     "",
   ].join("\n");
 }
@@ -381,6 +451,192 @@ export function upgradeHelpText() {
   ].join("\n");
 }
 
+export function switchHelpText() {
+  return [
+    `Usage: ${CLI_NAME} switch <target> [version] --cwd <consumer-root> [options]`,
+    "",
+    "Switch a consumer to an exact, registry-validated design system version. The",
+    "current system is discovered from the consumer; the target is never guessed.",
+    "Missing component/extension/variant/token support and unverifiable dynamic",
+    "usage are reported as blockers. Only literal module/CSS import substitutions",
+    "and the generated connect files are planned; product source is never rewritten.",
+    "The previous dependency is retained (removal is a separate `remove`).",
+    "",
+    "Arguments:",
+    "  <target>              A supported @prism-system/ui-* name or lower-kebab id.",
+    "  [version]             Optional exact semver; defaults to dist-tags.latest and",
+    "                        is frozen to the exact previewed release before apply.",
+    "",
+    "Options:",
+    "  --cwd <path>          Consumer root (required; never defaults to a repo root).",
+    "  --registry <url>      Registry base URL used for resolution and install.",
+    "  --css <file>          Optional explicit CSS file whose literal imports are planned.",
+    "  --with-entry <value>  Select a target extension, declared entrypoint, or",
+    "                        consumer-relative source file (repeatable).",
+    "  --peer <name@version> Exact version for a missing selected peer (repeatable;",
+    "                        must satisfy the declared requirement range).",
+    "  --dry-run             Resolve and print the exact plan; never spawns or writes.",
+    "  --yes                 Explicit confirmation for the real switch.",
+    "  --json                Emit the stable structured result.",
+    "  -h, --help            Show this help.",
+    "",
+    "Without --yes the exact plan is printed and nothing is changed (exit 1). A",
+    "confirmed switch reuses the previewed plan and freezes the exact target version.",
+    "",
+  ].join("\n");
+}
+
+export function removeHelpText() {
+  return [
+    `Usage: ${CLI_NAME} remove [package] --cwd <consumer-root> [--css <file>]`,
+    `                      [--dry-run] [--yes] [--json]`,
+    "",
+    "Explicitly remove one selected design system from a consumer. Removal is",
+    "refused while active source imports or token references remain. Only the",
+    "selected dependency and unchanged generated integration (config, AGENTS block)",
+    "are removed; user-edited files, malformed markers, unrelated dependencies/peers,",
+    "and consumer CSS are preserved and reported.",
+    "",
+    "An explicitly named --css file is checked for unmarked package bridge imports.",
+    "When --css is omitted, CSS is not inspected: no CSS file is scanned or guessed,",
+    "a css-not-inspected coverage warning is reported, CSS is left unchanged, and",
+    "removal is not blocked.",
+    "",
+    'Exact @import "<package>/tailwind.css" and "<package>/styles.css" lines are',
+    "never deleted or rewritten: setup-tailwind records no ownership marker, so they",
+    "cannot be proven tool-managed. When the --css file contains them, the plan fails",
+    "closed before any uninstall or write (--dry-run reports the same blocker and no",
+    "planned changes) and the file is left byte-identical for manual cleanup. A --css",
+    "file without such imports is left unchanged and does not block removal.",
+    "",
+    "Arguments:",
+    "  [package]             Optional explicit package or system id; otherwise the",
+    "                        connected/discovered system is used.",
+    "",
+    "Options:",
+    "  --cwd <path>          Consumer root (required; never defaults to a repo root).",
+    "  --css <file>          Optional explicit CSS file checked for unmarked bridge",
+    "                        imports (never deleted or rewritten); when omitted, no",
+    "                        CSS file is inspected.",
+    "  --dry-run             Print the exact plan; never spawns or writes.",
+    "  --yes                 Explicit confirmation for the real removal.",
+    "  --json                Emit the stable structured result.",
+    "  -h, --help            Show this help.",
+    "",
+    "Without --yes the exact plan is printed and nothing is changed (exit 1).",
+    "",
+  ].join("\n");
+}
+
+export function skillsHelpText() {
+  return [
+    `Usage: ${CLI_NAME} skills list --cwd <consumer-root> [--global] [--json]`,
+    `       ${CLI_NAME} skills add|update|remove <catalog-id> --cwd <consumer-root>`,
+    `                    --agent <id> [--global] [--dry-run] [--yes] [--json]`,
+    "",
+    "Manage official Prism skills and curated general-design skills. Catalog and",
+    "inventory are offline and read-only; `list` shows the static catalog plus the",
+    "actual installed inventory (both scopes by default) and reports external or",
+    "unmanaged installs and shared canonical placements honestly.",
+    "",
+    "Mutations run only the pinned `npx --yes --ignore-scripts skills@1.7.0`",
+    "(Node >= 22.20) after an explicit preview and --yes. They install instructions",
+    "only: never product dependencies, never a guessed source/skill/agent, and",
+    "never a destructive replace of an unmanaged or modified install.",
+    "",
+    "Arguments:",
+    "  list                  Show the catalog and the actual installed inventory.",
+    "  add|update|remove     Preview (and with --yes, execute) one catalog skill.",
+    "  <catalog-id>          An allowlisted catalog id (for example use-design-system).",
+    "",
+    "Options:",
+    "  --cwd <path>          Consumer root (required; never defaults to a repo root).",
+    "  --agent <id>          Agent selection (repeatable; claude-code, codex, cursor,",
+    "                        opencode). Required for add/update/remove.",
+    "  --global              List/install at global scope instead of project scope.",
+    "  --dry-run             Preview the frozen plan; never spawns or writes.",
+    "  --yes                 Explicit confirmation for the mutation.",
+    "  --json                Emit the stable structured result.",
+    "  -h, --help            Show this help.",
+    "",
+  ].join("\n");
+}
+
+export function selfUpdateHelpText() {
+  return [
+    `Usage: ${CLI_NAME} self-update [--check] [--cwd <consumer-root>] [--global]`,
+    `                       [--manager npm|pnpm] [--registry <url>] [--dry-run]`,
+    `                       [--yes] [--json]`,
+    "",
+    "Check for and explicitly update the prism-ds tooling package itself",
+    "(@prism-system/tools). This is not `upgrade`, which updates a design-system",
+    "package: self-update never touches a design system, and it never assumes a",
+    "global or source/workspace installation.",
+    "",
+    "Modes:",
+    "  (default)             Resolve the exact target and, only with --yes, run the",
+    "                        fixed npm/pnpm command for the detected or explicitly",
+    "                        selected installation.",
+    "  --check               Read-only update check; never writes or spawns. Reports",
+    "                        the running version, the latest version, the detected",
+    "                        installation, and safe advice; it exits non-zero only",
+    "                        when the check itself failed (for example offline).",
+    "  --dry-run             Resolve and print the fixed command without spawning or",
+    "                        writing; never spawns even when --yes is also given.",
+    "",
+    "Options:",
+    "  --cwd <path>          Consumer root for a local dependency update. When",
+    "                        omitted, the running package root is used; a source or",
+    "                        workspace checkout is never updated as a global install.",
+    "  --global              Authorize a global update (requires --manager when the",
+    "                        global root cannot be verified).",
+    "  --manager <npm|pnpm>  Explicit package manager; never guessed.",
+    "  --registry <url>      Registry base URL for the version read.",
+    "  --yes                 Explicit confirmation for the real update.",
+    "  --json                Emit the stable structured result.",
+    "  -h, --help            Show this help.",
+    "",
+    "--check cannot be combined with --dry-run or --yes. A completed package-manager",
+    "mutation is never rolled back automatically.",
+    "",
+  ].join("\n");
+}
+
+export function recoverHelpText() {
+  return [
+    `Usage: ${CLI_NAME} recover [package] --cwd <consumer-root> [--css <file>]`,
+    `                    [--entry <entry>] [--action <id>] [--dry-run] [--yes]`,
+    `                    [--json]`,
+    "",
+    "Read-only project-health recovery: collect a structured report and list only",
+    "the suggestions that are valid for the observed state. Nothing is written by",
+    "default.",
+    "",
+    "Arguments:",
+    "  [package]             Optional explicit design-system package or system id.",
+    "",
+    "Options:",
+    "  --cwd <path>          Consumer root (required; never defaults to a repo root).",
+    "  --package <name>      Optional explicit design-system package or system id",
+    "                        (same as the positional; do not pass both).",
+    "  --css <file>          Optional explicit CSS file to inspect (never guessed).",
+    "  --entry <path-or-extension>  Optional explicit entry to scan (never guessed).",
+    "  --action <id>         Preview one exact suggested action; only executable",
+    "                        suggestions can run. Without --yes nothing is written.",
+    "  --dry-run             Preview the selected action and write nothing.",
+    "  --yes                 Execute the previewed action through the reviewed",
+    "                        connect or setup-tailwind repair. Requires --action.",
+    "  --json                Emit the stable structured result.",
+    "  -h, --help            Show this help.",
+    "",
+    "Only connect and setup-tailwind repairs are executable, and only for a known",
+    "installed package or an explicit CSS file. Everything else is guidance with an",
+    "exact safe command. A successful repair never implies the whole project is",
+    "healthy; the targeted state is rechecked and remaining issues are reported.",
+    "",
+  ].join("\n");
+}
+
 function toCamelFlag(key) {
   return key.replace(/-([a-z])/g, (_, char) => char.toUpperCase());
 }
@@ -412,6 +668,8 @@ function parseOptions(
     entry: undefined,
     withEntry: [],
     peer: [],
+    agent: [],
+    skillAgent: [],
   };
   const booleanSet = new Set(booleans);
   const valueSet = new Set(values);
@@ -650,6 +908,10 @@ export function runDoctorCommand(argv) {
   } else {
     const count = report.checks.filter((check) => !check.ok).length;
     process.stdout.write(`Doctor found ${count} problem(s).\n`);
+    const root = report.consumerRoot ?? parsed.options.cwd ?? "<consumer-root>";
+    process.stdout.write(
+      `\nRun "${CLI_NAME} recover --cwd ${root}" for applicable recovery suggestions.\n`,
+    );
     process.exitCode = 1;
   }
 }
@@ -786,15 +1048,31 @@ function reportInstallFailure(result) {
 }
 
 /** Write the selected entry's peer plan as human-readable lines. */
-function writePeerPlan(peers) {
+function writePeerPlan(peers, label = "peer plan") {
   if (!Array.isArray(peers) || peers.length === 0) return;
-  process.stdout.write("  peer plan:\n");
+  process.stdout.write(`  ${label}:\n`);
   for (const peer of peers) {
     process.stdout.write(
       `    ${peer.name} [${peer.kind}] ${peer.range}${peer.optional ? " optional" : ""} -> ` +
         `${peer.action}${peer.version ? ` ${peer.version}` : ""}` +
         `${peer.installed ? ` (installed ${peer.installed})` : ""}\n`,
     );
+  }
+}
+
+/**
+ * Report the extensions the bounded active-usage scan auto-selected for
+ * `switch` (and, on failure, why a peer is required). Uses the literal usage
+ * entrypoint metadata when the scan attributed one, falling back to the name.
+ */
+function writeAutoSelectedEntries(autoSelectedEntries) {
+  if (!Array.isArray(autoSelectedEntries) || autoSelectedEntries.length === 0) return;
+  for (const entry of autoSelectedEntries) {
+    if (entry === null || typeof entry !== "object") continue;
+    const name = typeof entry.name === "string" && entry.name !== "" ? entry.name : "(unnamed)";
+    const entrypoint =
+      typeof entry.entrypoint === "string" && entry.entrypoint !== "" ? entry.entrypoint : name;
+    process.stdout.write(`  automatically selected from usage: ${name} (${entrypoint})\n`);
   }
 }
 
@@ -910,6 +1188,23 @@ function reportUseDryRun(result) {
   process.stdout.write("\nDry run: nothing was installed, connected, or written.\n");
 }
 
+function reportUseSkills(result) {
+  const setup = result.skillSetup;
+  if (setup === null || setup === undefined || setup.enabled !== true) return;
+  process.stdout.write(`  skills: ${setup.status} (${setup.skillId}, ${setup.scope} scope)\n`);
+  if (setup.agents.length > 0) process.stdout.write(`    agents: ${setup.agents.join(", ")}\n`);
+  if (setup.revision) process.stdout.write(`    revision: ${setup.revision}\n`);
+  if (setup.command) {
+    process.stdout.write(
+      `    command: ${setup.command.executable} ${setup.command.args.join(" ")}\n`,
+    );
+  }
+  for (const warning of setup.warnings) process.stdout.write(`    warning: ${warning}\n`);
+  for (const failure of setup.failures) process.stdout.write(`    failure: ${failure}\n`);
+  if (setup.guidance) process.stdout.write(`    guidance: ${setup.guidance}\n`);
+  if (setup.nextCommand) process.stdout.write(`    next: ${setup.nextCommand}\n`);
+}
+
 export async function runUseCommand(argv) {
   let parsed;
   try {
@@ -924,9 +1219,10 @@ export async function runUseCommand(argv) {
         "tailwind",
         "dry-run",
         "json",
+        "no-skills",
       ],
       values: ["cwd", "registry", "css"],
-      repeatable: ["ignore", "with-entry", "peer"],
+      repeatable: ["ignore", "with-entry", "peer", "skill-agent"],
     });
   } catch (error) {
     process.stderr.write(`${error.message}\n`);
@@ -948,8 +1244,12 @@ export async function runUseCommand(argv) {
     process.exitCode = 1;
     return;
   }
-  const { runUseDesignSystem } = await import("./catalog.mjs");
-  const result = await runUseDesignSystem({
+  if (parsed.options.noSkills && parsed.options.skillAgent.length > 0) {
+    process.stderr.write("--no-skills cannot be combined with --skill-agent.\n");
+    process.exitCode = 1;
+    return;
+  }
+  const useOptions = {
     cwd: parsed.options.cwd,
     package: target,
     version: parsed.positionals[1],
@@ -964,7 +1264,25 @@ export async function runUseCommand(argv) {
     cssPath: parsed.options.css,
     withEntry: parsed.options.withEntry,
     peers: parsed.options.peer,
-  });
+  };
+  let result;
+  if (parsed.options.noSkills) {
+    // `--no-skills` is exactly the previous `use` behavior: the design-system
+    // lifecycle only, with no skill resolver, read, or spawn.
+    const { runUseDesignSystem } = await import("./catalog.mjs");
+    result = await runUseDesignSystem(useOptions);
+  } else {
+    // The shared wrapper previews the exact design-system target/connect plan
+    // and the frozen skill plan before any mutation, then reuses them on the
+    // confirmed run. The explicit `use` invocation is the confirmation.
+    const { runUseWithSkills } = await import("./use-skills.mjs");
+    result = await runUseWithSkills({
+      ...useOptions,
+      skills: true,
+      skillAgents: parsed.options.skillAgent,
+      confirmed: parsed.options.dryRun !== true,
+    });
+  }
   if (parsed.options.json) {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     if (!result.ok) process.exitCode = 1;
@@ -972,10 +1290,12 @@ export async function runUseCommand(argv) {
   }
   if (!result.ok) {
     reportUseFailure(result);
+    reportUseSkills(result);
     return;
   }
   if (result.dryRun) {
     reportUseDryRun(result);
+    reportUseSkills(result);
     return;
   }
   process.stdout.write(
@@ -997,6 +1317,7 @@ export async function runUseCommand(argv) {
         : "  tailwind: imports already up to date\n",
     );
   }
+  reportUseSkills(result);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1218,6 +1539,10 @@ export async function runCheckCommand(argv) {
     process.stdout.write("Check passed.\n");
   } else {
     process.stdout.write("Check failed.\n");
+    const root = result.cwd ?? parsed.options.cwd ?? "<consumer-root>";
+    process.stdout.write(
+      `Run "${CLI_NAME} recover --cwd ${root}" for applicable recovery suggestions.\n`,
+    );
     process.exitCode = 1;
   }
 }
@@ -1407,6 +1732,985 @@ export async function runUpgradeCommand(argv) {
 }
 
 /* -------------------------------------------------------------------------- */
+/* switch / remove                                                            */
+/* -------------------------------------------------------------------------- */
+
+function writeLifecycleChanges(changes) {
+  if (!Array.isArray(changes) || changes.length === 0) {
+    process.stdout.write("  (no changes)\n");
+    return;
+  }
+  for (const change of changes) {
+    if (change.kind === "dependency") {
+      process.stdout.write(`  dependency: ${[change.manager, ...change.command.args].join(" ")}\n`);
+      continue;
+    }
+    const label =
+      change.kind === "file" && change.fileKind ? `file (${change.fileKind})` : change.kind;
+    const site = change.path ?? change.directory ?? "";
+    process.stdout.write(`  ${label}: ${site}${change.changed === false ? " (unchanged)" : ""}\n`);
+  }
+}
+
+function writeCompatibility(compatibility) {
+  if (compatibility === null || compatibility === undefined) return;
+  const coverage = compatibility.coverage ?? {};
+  process.stdout.write(
+    `  usage coverage: ${coverage.filesScanned ?? 0} file(s), ` +
+      `${coverage.moduleReferences ?? 0} module reference(s), ` +
+      `${coverage.components ?? 0} component(s), ${coverage.variants ?? 0} variant(s), ` +
+      `${coverage.tokenReferences ?? 0} token reference(s), ` +
+      `${coverage.unverified ?? 0} unverified case(s)\n`,
+  );
+  if (coverage.cssFile) process.stdout.write(`  css file: ${coverage.cssFile}\n`);
+  for (const blocker of compatibility.blockers ?? []) {
+    const site = blocker.file ? ` (${blocker.file}${blocker.line ? `:${blocker.line}` : ""})` : "";
+    process.stdout.write(`  blocker [${blocker.code}]${site}: ${blocker.message}\n`);
+  }
+  for (const warning of compatibility.warnings ?? []) {
+    process.stdout.write(`  warning [${warning.code}]: ${warning.message}\n`);
+  }
+}
+
+function reportLifecycleFailure(verb, result) {
+  process.stdout.write(
+    `${verb} failed (boundary: ${result.boundary ?? "unknown"}` +
+      `${result.reason ? `, reason: ${result.reason}` : ""})\n\n`,
+  );
+  for (const failure of result.failures ?? []) process.stdout.write(`  ${failure}\n`);
+  writeAutoSelectedEntries(result.autoSelectedEntries);
+  writeCompatibility(result.compatibility);
+  if (result.note) process.stdout.write(`\n  ${result.note}\n`);
+  process.stdout.write("\nNo rollback was attempted.\n");
+  process.exitCode = 1;
+}
+
+function reportSwitchOutcome(result) {
+  const from = result.from ?? null;
+  const to = result.to ?? null;
+  const consent = result.boundary === "confirmation-required";
+  const label = result.dryRun
+    ? "Switch dry run"
+    : consent
+      ? "Switch preview (confirmation required)"
+      : "Switch";
+  process.stdout.write(
+    `${label}: ${from?.package ?? "?"}@${from?.version ?? "?"} -> ` +
+      `${to?.package ?? "?"}@${to?.version ?? "?"}\n\n`,
+  );
+  if (result.manager) {
+    process.stdout.write(
+      `  manager: ${result.manager}${result.managerSource ? ` (${result.managerSource})` : ""}\n`,
+    );
+  }
+  if (result.command) {
+    process.stdout.write(
+      `  command: ${[result.command.manager, ...result.command.args].join(" ")}\n`,
+    );
+  }
+  process.stdout.write("  planned changes:\n");
+  writeLifecycleChanges(result.plannedChanges ?? []);
+  writeAutoSelectedEntries(result.autoSelectedEntries);
+  writePeerPlan(result.peers, "peer actions");
+  writeCompatibility(result.compatibility);
+  if (result.dryRun) {
+    process.stdout.write("\nDry run: nothing was installed, spawned, or written.\n");
+  } else if (consent) {
+    process.stdout.write(
+      `\nSwitch requires --yes; nothing was changed. Re-run with --yes to apply this exact plan.\n`,
+    );
+  } else if (result.ok) {
+    process.stdout.write(
+      `\nSwitched to ${to?.package}@${to?.version}; the previous dependency was retained.\n`,
+    );
+  }
+}
+
+export async function runSwitchCommand(argv) {
+  let parsed;
+  try {
+    parsed = parseOptions(argv, {
+      maxPositionals: 2,
+      booleans: ["dry-run", "yes", "json"],
+      values: ["cwd", "registry", "css"],
+      repeatable: ["with-entry", "peer"],
+    });
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  if (parsed.options.help) {
+    process.stdout.write(switchHelpText());
+    return;
+  }
+  const target = parsed.positionals[0];
+  if (target === undefined || target.trim() === "") {
+    process.stderr.write("switch requires a target package or system id.\n");
+    process.exitCode = 1;
+    return;
+  }
+  if (parsed.options.cwd === undefined || String(parsed.options.cwd).trim() === "") {
+    process.stderr.write("switch requires an explicit --cwd <consumer-root>.\n");
+    process.exitCode = 1;
+    return;
+  }
+  const { switchDesignSystem } = await import("./lifecycle.mjs");
+  const base = {
+    cwd: parsed.options.cwd,
+    package: target,
+    version: parsed.positionals[1],
+    registry: parsed.options.registry,
+    cssPath: parsed.options.css,
+    withEntry: parsed.options.withEntry,
+    peers: parsed.options.peer,
+  };
+  let result;
+  if (parsed.options.dryRun) {
+    result = await switchDesignSystem({ ...base, dryRun: true });
+  } else if (!parsed.options.yes) {
+    // No consent: the backend returns the full exact plan with
+    // `boundary: "confirmation-required"`; nothing is spawned or written.
+    result = await switchDesignSystem(base);
+  } else {
+    // Preview first so the exact target version and the plan material are
+    // frozen, then apply that same plan as the execution precondition.
+    const preview = await switchDesignSystem({ ...base, dryRun: true });
+    if (!preview.ok) {
+      if (parsed.options.json) {
+        process.stdout.write(`${JSON.stringify(preview, null, 2)}\n`);
+        process.exitCode = 1;
+        return;
+      }
+      reportLifecycleFailure("Switch", preview);
+      return;
+    }
+    result = await switchDesignSystem({
+      ...base,
+      version: preview.to.version,
+      confirmed: true,
+      expectedPlan: preview,
+    });
+  }
+  if (parsed.options.json) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    if (!result.ok) process.exitCode = 1;
+    return;
+  }
+  if (!result.ok && result.boundary !== "confirmation-required") {
+    reportLifecycleFailure("Switch", result);
+    return;
+  }
+  reportSwitchOutcome(result);
+  if (!result.ok) process.exitCode = 1;
+}
+
+function reportRemoveOutcome(result) {
+  const consent = result.boundary === "confirmation-required";
+  const label = result.dryRun
+    ? "Remove dry run"
+    : consent
+      ? "Remove preview (confirmation required)"
+      : "Remove";
+  process.stdout.write(
+    `${label}: ${result.package ?? "?"}@${result.version ?? "?"} from ${result.consumerRoot ?? "?"}\n\n`,
+  );
+  if (result.manager) {
+    process.stdout.write(
+      `  manager: ${result.manager}${result.managerSource ? ` (${result.managerSource})` : ""}\n`,
+    );
+  }
+  if (result.command) {
+    process.stdout.write(
+      `  command: ${[result.command.manager, ...result.command.args].join(" ")}\n`,
+    );
+  }
+  process.stdout.write("  planned changes:\n");
+  writeLifecycleChanges(result.plannedChanges ?? []);
+  writeCompatibility(result.compatibility);
+  if (Array.isArray(result.preserved) && result.preserved.length > 0) {
+    for (const preserved of result.preserved) {
+      process.stdout.write(
+        `  preserved: ${preserved.path ?? preserved}${preserved.reason ? ` (${preserved.reason})` : ""}\n`,
+      );
+    }
+  }
+  if (result.dryRun) {
+    process.stdout.write("\nDry run: nothing was removed, spawned, or written.\n");
+  } else if (consent) {
+    process.stdout.write(
+      "\nRemove requires --yes; nothing was changed. Re-run with --yes to apply this exact plan.\n",
+    );
+  } else if (result.ok) {
+    process.stdout.write(`\nRemoved ${result.package}; unrelated content was preserved.\n`);
+  }
+}
+
+export async function runRemoveCommand(argv) {
+  let parsed;
+  try {
+    parsed = parseOptions(argv, {
+      maxPositionals: 1,
+      booleans: ["dry-run", "yes", "json"],
+      values: ["cwd", "css"],
+    });
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  if (parsed.options.help) {
+    process.stdout.write(removeHelpText());
+    return;
+  }
+  if (parsed.options.cwd === undefined || String(parsed.options.cwd).trim() === "") {
+    process.stderr.write("remove requires an explicit --cwd <consumer-root>.\n");
+    process.exitCode = 1;
+    return;
+  }
+  const { removeDesignSystem } = await import("./lifecycle.mjs");
+  const base = {
+    cwd: parsed.options.cwd,
+    package: parsed.positionals[0],
+    cssPath: parsed.options.css,
+  };
+  let result;
+  if (parsed.options.dryRun) {
+    result = removeDesignSystem({ ...base, dryRun: true });
+  } else if (!parsed.options.yes) {
+    result = removeDesignSystem(base);
+  } else {
+    const preview = removeDesignSystem({ ...base, dryRun: true });
+    if (!preview.ok) {
+      if (parsed.options.json) {
+        process.stdout.write(`${JSON.stringify(preview, null, 2)}\n`);
+        process.exitCode = 1;
+        return;
+      }
+      reportLifecycleFailure("Remove", preview);
+      return;
+    }
+    result = removeDesignSystem({ ...base, confirmed: true, expectedPlan: preview });
+  }
+  if (parsed.options.json) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    if (!result.ok) process.exitCode = 1;
+    return;
+  }
+  if (!result.ok && result.boundary !== "confirmation-required") {
+    reportLifecycleFailure("Remove", result);
+    return;
+  }
+  reportRemoveOutcome(result);
+  if (!result.ok) process.exitCode = 1;
+}
+
+/* -------------------------------------------------------------------------- */
+/* skills                                                                     */
+/* -------------------------------------------------------------------------- */
+
+function summarizeInstalledSkill(skill) {
+  return {
+    name: skill.name,
+    scope: skill.scope,
+    catalogId: skill.catalogId ?? null,
+    managed: skill.managed === true,
+    external: skill.external === true,
+    modified: skill.modified === true,
+    drift: skill.drift === true,
+    shared: skill.shared === true,
+    sharedAgents: skill.sharedAgents ?? [],
+    agents: skill.agents ?? [],
+    revision: skill.revision ?? null,
+    version: skill.version ?? null,
+    relativePath: skill.relativePath,
+    path: skill.path,
+  };
+}
+
+function reportSkillsList(result) {
+  process.stdout.write(`prism-ds skills — inventory scope: ${result.scope}\n\n`);
+  process.stdout.write(`Catalog (${result.catalog.length}):\n`);
+  for (const entry of result.catalog) {
+    process.stdout.write(`  ${entry.id}  [${entry.type}; ${entry.reviewStatus}; ${entry.role}]\n`);
+    if (entry.installed.length === 0) {
+      process.stdout.write("    not installed\n");
+      continue;
+    }
+    for (const placement of entry.installed) {
+      const flags = [placement.scope, placement.managed ? "managed" : "external/unmanaged"];
+      if (placement.modified) flags.push("modified");
+      if (placement.drift) flags.push("unrecorded placements");
+      if (placement.shared) flags.push("shared canonical placement");
+      process.stdout.write(
+        `    ${flags.join("; ")}` +
+          `${placement.agents.length > 0 ? `; agents: ${placement.agents.join(", ")}` : ""}` +
+          `${placement.revision ? `; revision: ${placement.revision}` : ""}\n`,
+      );
+    }
+  }
+  if (result.external.length > 0) {
+    process.stdout.write(`\nInstalled skills outside the catalog (${result.external.length}):\n`);
+    for (const skill of result.external) {
+      const flags = [skill.scope, skill.managed ? "managed" : "external/unmanaged"];
+      if (skill.shared) flags.push("shared canonical placement");
+      process.stdout.write(
+        `  ${skill.name}  [${flags.join("; ")}]` +
+          `${skill.agents.length > 0 ? ` agents: ${skill.agents.join(", ")}` : ""}\n`,
+      );
+    }
+  }
+  if (result.failures.length > 0) {
+    process.stdout.write("\nInventory failures:\n");
+    for (const failure of result.failures) process.stdout.write(`  ${failure}\n`);
+  }
+}
+
+async function runSkillsListCommand(argv) {
+  let parsed;
+  try {
+    parsed = parseOptions(argv, {
+      maxPositionals: 0,
+      booleans: ["global", "json"],
+      values: ["cwd"],
+    });
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  if (parsed.options.help) {
+    process.stdout.write(skillsHelpText());
+    return;
+  }
+  if (parsed.options.cwd === undefined || String(parsed.options.cwd).trim() === "") {
+    process.stderr.write("skills list requires an explicit --cwd <consumer-root>.\n");
+    process.exitCode = 1;
+    return;
+  }
+  const { collectSkillCatalogFailures, listSkillCatalog } = await import("./skill-catalog.mjs");
+  const { listInstalledSkills } = await import("./skill-inventory.mjs");
+  const scope = parsed.options.global ? "global" : "all";
+  const inventory = await listInstalledSkills({ cwd: parsed.options.cwd, scope });
+  const catalog = listSkillCatalog();
+  const catalogFailures = collectSkillCatalogFailures();
+  const installed = inventory.skills ?? [];
+  const catalogView = catalog.map((entry) => ({
+    ...entry,
+    installed: installed
+      .filter((skill) => skill.catalogId === entry.id)
+      .map(summarizeInstalledSkill),
+  }));
+  const external = installed
+    .filter((skill) => skill.catalogId === null)
+    .map(summarizeInstalledSkill);
+  const result = {
+    ok: inventory.ok === true && catalogFailures.length === 0,
+    scope,
+    catalog: catalogView,
+    installed: installed.map(summarizeInstalledSkill),
+    external,
+    failures: [...catalogFailures, ...(inventory.failures ?? [])],
+  };
+  if (parsed.options.json) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    if (!result.ok) process.exitCode = 1;
+    return;
+  }
+  reportSkillsList(result);
+  if (!result.ok) process.exitCode = 1;
+}
+
+function reportSkillsPlan(plan) {
+  process.stdout.write(
+    `Skills ${plan.action}: ${plan.skillId} (${plan.skill?.skill ?? "?"}) at ${plan.scope} scope\n`,
+  );
+  process.stdout.write(`  agents: ${plan.agents.join(", ")}\n`);
+  process.stdout.write(`  revision: ${plan.expectedPlan?.revision ?? "(none)"}\n`);
+  if (plan.command) {
+    process.stdout.write(`  command: ${plan.command.executable} ${plan.command.args.join(" ")}\n`);
+  }
+  const selected = (plan.targets ?? []).filter((target) => target.selected);
+  process.stdout.write(
+    `  targets: ${selected.map((target) => target.relativePath).join(", ") || "(none)"}\n`,
+  );
+  for (const warning of plan.warnings ?? []) process.stdout.write(`  warning: ${warning}\n`);
+}
+
+function reportSkillsPlanFailure(action, plan, skillId, cwd, agents, minNodeVersion) {
+  process.stdout.write(`Skills ${action} blocked for ${skillId}\n\n`);
+  for (const failure of plan.failures ?? []) process.stdout.write(`  ${failure}\n`);
+  const agentFlags = agents.map((agent) => ` --agent ${agent}`).join("");
+  let remedy;
+  if ((plan.failures ?? []).some((failure) => failure.includes(`Node >= ${minNodeVersion}`))) {
+    remedy = `Upgrade Node to >= ${minNodeVersion} to run the pinned skills CLI.`;
+  } else if ((plan.failures ?? []).some((failure) => /use the update action/.test(failure))) {
+    remedy = `Run "prism-ds skills update ${skillId} --cwd ${cwd}${agentFlags} --yes".`;
+  } else if (
+    (plan.failures ?? []).some((failure) => /unmanaged|refusing to replace/i.test(failure))
+  ) {
+    remedy =
+      "Resolve the existing unmanaged placement first; prism-ds never overwrites an " +
+      "unmanaged skill.";
+  } else {
+    remedy = "Review the failures and re-run when resolved.";
+  }
+  process.stdout.write(`\nRemedy: ${remedy}\nNothing was spawned or written.\n`);
+  process.exitCode = 1;
+}
+
+async function runSkillsMutationCommand(action, argv) {
+  let parsed;
+  try {
+    parsed = parseOptions(argv, {
+      maxPositionals: 1,
+      booleans: ["global", "dry-run", "yes", "json"],
+      values: ["cwd"],
+      repeatable: ["agent"],
+    });
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  if (parsed.options.help) {
+    process.stdout.write(skillsHelpText());
+    return;
+  }
+  const skillId = parsed.positionals[0];
+  if (skillId === undefined || skillId.trim() === "") {
+    process.stderr.write(`skills ${action} requires a <catalog-id>.\n`);
+    process.exitCode = 1;
+    return;
+  }
+  if (parsed.options.cwd === undefined || String(parsed.options.cwd).trim() === "") {
+    process.stderr.write(`skills ${action} requires an explicit --cwd <consumer-root>.\n`);
+    process.exitCode = 1;
+    return;
+  }
+  const agents = parsed.options.agent;
+  if (agents.length === 0) {
+    process.stderr.write(`skills ${action} requires at least one --agent <id>.\n`);
+    process.exitCode = 1;
+    return;
+  }
+  const { MIN_SKILLS_NODE_VERSION, SKILL_AGENT_IDS, executeSkillOperation, planSkillOperation } =
+    await import("./skills.mjs");
+  const invalid = [...new Set(agents.filter((agent) => !SKILL_AGENT_IDS.includes(agent)))];
+  if (invalid.length > 0) {
+    process.stderr.write(
+      `Unsupported skill agent(s): ${invalid.join(", ")}. Allowed agents: ` +
+        `${SKILL_AGENT_IDS.join(", ")}.\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+  const scope = parsed.options.global ? "global" : "project";
+  const plan = await planSkillOperation({
+    action,
+    skillId,
+    cwd: parsed.options.cwd,
+    scope,
+    agents,
+  });
+  if (!plan.ok) {
+    if (parsed.options.json) {
+      process.stdout.write(`${JSON.stringify({ mode: "preview", ...plan }, null, 2)}\n`);
+      process.exitCode = 1;
+      return;
+    }
+    reportSkillsPlanFailure(
+      action,
+      plan,
+      skillId,
+      parsed.options.cwd,
+      agents,
+      MIN_SKILLS_NODE_VERSION,
+    );
+    return;
+  }
+  if (parsed.options.dryRun) {
+    if (parsed.options.json) {
+      process.stdout.write(`${JSON.stringify({ mode: "dry-run", ...plan }, null, 2)}\n`);
+      return;
+    }
+    reportSkillsPlan(plan);
+    process.stdout.write("\nDry run: nothing was spawned or written.\n");
+    return;
+  }
+  if (!parsed.options.yes) {
+    if (parsed.options.json) {
+      process.stdout.write(`${JSON.stringify({ mode: "preview", ...plan }, null, 2)}\n`);
+      process.exitCode = 1;
+      return;
+    }
+    reportSkillsPlan(plan);
+    process.stdout.write(
+      `\nSkills ${action} requires --yes; nothing was spawned or written.\n` +
+        `  next: prism-ds skills ${action} ${skillId} --cwd ${parsed.options.cwd}` +
+        `${agents.map((agent) => ` --agent ${agent}`).join("")} --yes\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+  const result = await executeSkillOperation({
+    action,
+    skillId,
+    cwd: parsed.options.cwd,
+    scope,
+    agents,
+    plan,
+    confirmed: true,
+  });
+  if (parsed.options.json) {
+    process.stdout.write(`${JSON.stringify({ mode: "execute", ...result }, null, 2)}\n`);
+    if (!result.ok) process.exitCode = 1;
+    return;
+  }
+  if (!result.ok) {
+    process.stdout.write(`Skills ${action} failed for ${skillId}\n\n`);
+    for (const failure of result.failures ?? []) process.stdout.write(`  ${failure}\n`);
+    process.stdout.write("\nThe upstream CLI may have run; no automatic rollback was attempted.\n");
+    process.exitCode = 1;
+    return;
+  }
+  process.stdout.write(
+    result.executed === true
+      ? `Skills ${action} completed for ${skillId} (${scope} scope, ${result.revision ?? "unknown revision"}).\n`
+      : `Skills ${action} verified no-op for ${skillId} (${scope} scope).\n`,
+  );
+  if (result.storePath) process.stdout.write(`  store: ${result.storePath}\n`);
+}
+
+export async function runSkillsCommand(argv) {
+  const [subcommand, ...rest] = argv;
+  if (
+    subcommand === undefined ||
+    subcommand === "--help" ||
+    subcommand === "-h" ||
+    subcommand === "help"
+  ) {
+    process.stdout.write(skillsHelpText());
+    return;
+  }
+  if (subcommand === "list") {
+    await runSkillsListCommand(rest);
+    return;
+  }
+  if (subcommand === "add" || subcommand === "update" || subcommand === "remove") {
+    await runSkillsMutationCommand(subcommand, rest);
+    return;
+  }
+  process.stderr.write(
+    `Unknown skills subcommand: ${subcommand}. Run "${CLI_NAME} skills --help".\n`,
+  );
+  process.exitCode = 1;
+}
+
+/* -------------------------------------------------------------------------- */
+/* self-update                                                                */
+/* -------------------------------------------------------------------------- */
+
+function reportSelfUpdateCheck(result) {
+  if (result.skipped) {
+    process.stdout.write(`prism-ds update check skipped (${result.reason}).\n\n`);
+    process.stdout.write(`${result.advice}\n`);
+    return;
+  }
+  if (!result.ok) {
+    process.stdout.write("prism-ds update check failed\n\n");
+    process.stdout.write(`  ${result.error}\n`);
+    process.stdout.write(`\n${result.advice}\n`);
+    process.stdout.write("\nRead-only check: nothing was written or spawned.\n");
+    process.exitCode = 1;
+    return;
+  }
+  const installation = result.installation ?? {};
+  process.stdout.write(
+    `prism-ds ${result.current} (installation: ${installation.kind ?? "unknown"}` +
+      `${installation.manager ? `, ${installation.manager}` : ""})\n`,
+  );
+  process.stdout.write(`  latest: ${result.latest}\n`);
+  process.stdout.write(
+    result.available
+      ? `  update available: ${result.latest}\n`
+      : "  up to date: no update is needed.\n",
+  );
+  process.stdout.write(`\n${result.advice}\n`);
+  process.stdout.write("\nRead-only check: nothing was written or spawned.\n");
+}
+
+function reportSelfUpdateFailure(result) {
+  const plan = result.plan ?? null;
+  // `manager`/`verify` failures happen after the fixed command was started; the
+  // others fail before any spawn.
+  const started = result.boundary === "manager" || result.boundary === "verify";
+  const label =
+    result.boundary === "consent"
+      ? "Self-update requires explicit confirmation"
+      : started
+        ? "Self-update did not complete"
+        : "Self-update cannot proceed";
+  process.stdout.write(`${label} (boundary: ${result.boundary ?? "plan"})\n\n`);
+  const failures = result.failures.length > 0 ? result.failures : (plan?.failures ?? []);
+  for (const failure of failures) process.stdout.write(`  ${failure}\n`);
+  if (plan?.advice) process.stdout.write(`\n${plan.advice}\n`);
+  if (plan?.command) {
+    process.stdout.write(
+      `\n  planned command: ${[plan.command.manager, ...plan.command.args].join(" ")}\n`,
+    );
+  }
+  if (result.boundary === "consent") {
+    process.stdout.write(
+      "\nRe-run with --yes to execute it, or --dry-run to preview it without spawning.\n",
+    );
+  }
+  process.stdout.write(
+    started
+      ? "\nThe package-manager command was started; no rollback was attempted.\n"
+      : "\nNothing was spawned or written.\n",
+  );
+  process.exitCode = 1;
+}
+
+function reportSelfUpdateResult(result, packageName) {
+  const plan = result.plan;
+  if (result.state === "up-to-date") {
+    process.stdout.write(
+      `prism-ds ${result.currentVersion} is already the latest (${result.targetVersion}); ` +
+        "nothing to do.\n",
+    );
+    return;
+  }
+  if (result.state === "dry-run") {
+    process.stdout.write(
+      `Self-update dry run: ${packageName} ${plan.currentVersion} -> ${plan.targetVersion} ` +
+        `(${plan.scope})\n\n`,
+    );
+    process.stdout.write(`  command: ${[plan.command.manager, ...plan.command.args].join(" ")}\n`);
+    process.stdout.write("\nDry run: nothing was spawned or written.\n");
+    return;
+  }
+  if (result.state === "unverified") {
+    process.stdout.write(
+      `prism-ds ${result.currentVersion} -> ${result.targetVersion}: the ` +
+        `${result.command.manager} command exited 0, but the installed version could not ` +
+        "be verified from here.\n",
+    );
+    process.stdout.write(`  ${result.note}\n`);
+    return;
+  }
+  process.stdout.write(
+    `Updated ${packageName} ${result.currentVersion} -> ${result.installedVersion} ` +
+      `(${plan.scope}, ${result.command.manager}).\n`,
+  );
+  if (result.postVerify?.root) process.stdout.write(`  verified: ${result.postVerify.root}\n`);
+}
+
+export async function runSelfUpdateCommand(argv) {
+  let parsed;
+  try {
+    parsed = parseOptions(argv, {
+      maxPositionals: 0,
+      booleans: ["check", "global", "dry-run", "yes", "json"],
+      values: ["cwd", "manager", "registry"],
+    });
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  if (parsed.options.help) {
+    process.stdout.write(selfUpdateHelpText());
+    return;
+  }
+  // `--check` is read-only. Mutation consent flags are contradictory here, so
+  // fail closed before any detection, registry read, or spawn.
+  if (parsed.options.check && (parsed.options.dryRun || parsed.options.yes)) {
+    process.stderr.write("--check is read-only and cannot be combined with --dry-run or --yes.\n");
+    process.exitCode = 1;
+    return;
+  }
+  // The backend is loaded lazily so help and flag validation never pull the
+  // package-manager or registry machinery into the eager CLI graph.
+  const { CLI_PACKAGE_NAME, checkCliUpdate, selfUpdate } = await import("./self-update.mjs");
+  try {
+    if (parsed.options.check) {
+      const result = await checkCliUpdate({
+        cwd: parsed.options.cwd,
+        global: parsed.options.global,
+        manager: parsed.options.manager,
+        registryUrl: parsed.options.registry,
+      });
+      if (parsed.options.json) {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        if (!result.ok) process.exitCode = 1;
+        return;
+      }
+      reportSelfUpdateCheck(result);
+      return;
+    }
+    const result = await selfUpdate({
+      cwd: parsed.options.cwd,
+      global: parsed.options.global,
+      manager: parsed.options.manager,
+      registryUrl: parsed.options.registry,
+      dryRun: parsed.options.dryRun,
+      confirmed: parsed.options.yes,
+    });
+    if (parsed.options.json) {
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      if (!result.ok) process.exitCode = 1;
+      return;
+    }
+    if (!result.ok) {
+      reportSelfUpdateFailure(result);
+      return;
+    }
+    reportSelfUpdateResult(result, CLI_PACKAGE_NAME);
+  } catch (error) {
+    // Both backends report expected failures structurally; this is a last-resort
+    // guard so an unexpected error can never throw a stack trace or imply success.
+    process.stdout.write(`Self-update failed\n\n  ${error.message}\n`);
+    process.stdout.write("\nNo self-update was reported as completed.\n");
+    process.exitCode = 1;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* recover                                                                    */
+/* -------------------------------------------------------------------------- */
+
+function writeRecoverySuggestions(suggestions) {
+  for (const item of suggestions) {
+    const flags = [item.executable ? "executable" : "guidance"];
+    if (item.requiresConfirmation) flags.push("requires --yes");
+    process.stdout.write(`  ${item.id}  [${flags.join("; ")}]\n`);
+    process.stdout.write(`    ${item.label}\n`);
+    process.stdout.write(`    reason: ${item.reason}\n`);
+    process.stdout.write(`    command: ${item.command.bin} ${item.command.args.join(" ")}\n`);
+  }
+}
+
+function reportRecoveryReport(report, suggestions) {
+  process.stdout.write(`${report.summary}\n\n`);
+  for (const state of report.states) {
+    process.stdout.write(`  [${state.status}] ${state.id}: ${state.detail}\n`);
+  }
+  process.stdout.write("\n");
+  if (suggestions.length === 0) {
+    process.stdout.write("No issues found; no recovery actions are needed.\n");
+  } else {
+    process.stdout.write("Suggestions:\n");
+    writeRecoverySuggestions(suggestions);
+    if (suggestions.some((item) => item.executable)) {
+      process.stdout.write(
+        `\nRun "${CLI_NAME} recover --cwd <consumer-root> --action <id> --yes" to ` +
+          "execute one suggested repair.\n",
+      );
+    }
+  }
+  if (!report.ok) process.exitCode = 1;
+}
+
+function reportRecoveryActionFailure(preview, suggestions) {
+  process.stdout.write(
+    `Recovery action ${JSON.stringify(preview.actionId ?? null)} cannot be executed ` +
+      `(boundary: ${preview.boundary ?? "action"}).\n\n`,
+  );
+  for (const failure of preview.failures) process.stdout.write(`  ${failure}\n`);
+  if (suggestions.length > 0) {
+    process.stdout.write("\nApplicable suggestions for the current state:\n");
+    writeRecoverySuggestions(suggestions);
+  }
+  process.stdout.write("\nNothing was written.\n");
+  process.exitCode = 1;
+}
+
+function reportRecoveryPreview(preview, { consentRequired }) {
+  process.stdout.write(`Recovery action "${preview.actionId}" (${preview.kind})\n`);
+  process.stdout.write(`  risk: ${preview.risk}\n`);
+  if (preview.changes.length === 0) {
+    process.stdout.write("  changes: none (the targeted state is already satisfied)\n");
+  } else {
+    for (const change of preview.changes) {
+      process.stdout.write(`  would write ${change.kind}: ${change.path}\n`);
+    }
+  }
+  if (consentRequired) {
+    process.stdout.write(
+      `\nRecovery action "${preview.actionId}" requires --yes; nothing was written.\n`,
+    );
+    process.stdout.write(
+      `  next: ${CLI_NAME} recover --cwd ${preview.plan?.consumerRoot ?? "<consumer-root>"} ` +
+        `--action ${preview.actionId} --yes\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+  process.stdout.write("\nDry run: nothing was written.\n");
+}
+
+function reportRecoveryExecution(result) {
+  process.stdout.write(`Recovery action "${result.actionId}" (${result.kind})\n`);
+  process.stdout.write(`  actionCompleted: ${result.actionCompleted}\n`);
+  process.stdout.write(`  repaired: ${result.repaired}\n`);
+  process.stdout.write(`  healthy: ${result.healthy}\n`);
+  if (result.stillRemaining.length > 0) {
+    process.stdout.write(`  remaining issues: ${result.stillRemaining.join(", ")}\n`);
+  }
+  for (const failure of result.failures) process.stdout.write(`  failure: ${failure}\n`);
+  process.stdout.write("\n");
+  if (!result.actionCompleted) {
+    process.stdout.write(
+      "The repair action did not complete; the targeted state was not repaired.\n",
+    );
+  } else if (!result.repaired) {
+    process.stdout.write(
+      "The action completed, but the targeted state is still failing after the recheck.\n",
+    );
+  } else {
+    process.stdout.write("The targeted issue was repaired and the recheck passed for it.\n");
+  }
+  if (!result.healthy) {
+    process.stdout.write(
+      "The project is not fully healthy; the remaining issues are listed above.\n",
+    );
+  }
+}
+
+export async function runRecoverCommand(argv) {
+  let parsed;
+  try {
+    parsed = parseOptions(argv, {
+      maxPositionals: 1,
+      booleans: ["dry-run", "yes", "json"],
+      values: ["cwd", "css", "entry", "action", "package"],
+    });
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  if (parsed.options.help) {
+    process.stdout.write(recoverHelpText());
+    return;
+  }
+  const cwd = parsed.options.cwd;
+  if (cwd === undefined || String(cwd).trim() === "") {
+    process.stderr.write("recover requires an explicit --cwd <consumer-root>.\n");
+    process.exitCode = 1;
+    return;
+  }
+  const positional = parsed.positionals[0];
+  if (
+    positional !== undefined &&
+    parsed.options.package !== undefined &&
+    positional !== parsed.options.package
+  ) {
+    process.stderr.write("Pass the package either positionally or with --package, not both.\n");
+    process.exitCode = 1;
+    return;
+  }
+  const packageName = parsed.options.package ?? positional;
+  const actionId = parsed.options.action;
+  const hasAction = actionId !== undefined && String(actionId).trim() !== "";
+  if (actionId !== undefined && !hasAction) {
+    process.stderr.write("recover --action requires a non-empty action id.\n");
+    process.exitCode = 1;
+    return;
+  }
+  if (!hasAction && (parsed.options.yes || parsed.options.dryRun)) {
+    process.stderr.write("recover --yes and --dry-run require --action <id>.\n");
+    process.exitCode = 1;
+    return;
+  }
+
+  // Lazily loaded so the read-only help/flag paths never pull in the diagnosis
+  // and repair backends.
+  const {
+    buildRecoverySuggestions,
+    collectRecoveryReport,
+    executeRecoveryAction,
+    previewRecoveryAction,
+  } = await import("./recovery.mjs");
+  const context = { packageName, css: parsed.options.css, entry: parsed.options.entry };
+  const json = parsed.options.json;
+
+  if (!hasAction) {
+    const report = collectRecoveryReport({ cwd, ...context });
+    const suggestions = buildRecoverySuggestions(report, context);
+    if (json) {
+      process.stdout.write(`${JSON.stringify({ ...report, suggestions }, null, 2)}\n`);
+      if (!report.ok) process.exitCode = 1;
+      return;
+    }
+    reportRecoveryReport(report, suggestions);
+    return;
+  }
+
+  if (parsed.options.dryRun) {
+    const preview = previewRecoveryAction({ cwd, actionId, ...context });
+    if (json) {
+      process.stdout.write(`${JSON.stringify({ mode: "dry-run", ...preview }, null, 2)}\n`);
+      if (!preview.ok) process.exitCode = 1;
+      return;
+    }
+    if (!preview.ok) {
+      reportRecoveryActionFailure(preview, buildRecoverySuggestions(preview.report, context));
+      return;
+    }
+    reportRecoveryPreview(preview, { consentRequired: false });
+    return;
+  }
+
+  const preview = previewRecoveryAction({ cwd, actionId, ...context });
+  if (!preview.ok) {
+    const suggestions = buildRecoverySuggestions(preview.report, context);
+    if (json) {
+      process.stdout.write(
+        `${JSON.stringify({ mode: "preview", ...preview, suggestions }, null, 2)}\n`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+    reportRecoveryActionFailure(preview, suggestions);
+    return;
+  }
+
+  if (!parsed.options.yes) {
+    if (json) {
+      process.stdout.write(`${JSON.stringify({ mode: "preview", ...preview }, null, 2)}\n`);
+      process.exitCode = 1;
+      return;
+    }
+    reportRecoveryPreview(preview, { consentRequired: true });
+    return;
+  }
+
+  // The previewed plan is enforced again by the backend before any write, so a
+  // state change between preview and execution fails closed instead of applying
+  // a stale plan.
+  const result = executeRecoveryAction({
+    cwd,
+    actionId,
+    ...context,
+    confirmed: true,
+    expectedPlan: preview.plan,
+  });
+  // Exit 0 only when the action completed and the targeted state actually
+  // repaired; a completed command that leaves the targeted issue is a failure.
+  const passed = result.actionCompleted === true && result.repaired === true;
+  if (json) {
+    process.stdout.write(`${JSON.stringify({ mode: "execute", ...result }, null, 2)}\n`);
+    if (!passed) process.exitCode = 1;
+    return;
+  }
+  reportRecoveryExecution(result);
+  if (!passed) process.exitCode = 1;
+}
+
+/* -------------------------------------------------------------------------- */
 /* dispatch                                                                   */
 /* -------------------------------------------------------------------------- */
 
@@ -1477,6 +2781,26 @@ export async function runCli(argv) {
   }
   if (command === "upgrade") {
     await runUpgradeCommand(rest);
+    return;
+  }
+  if (command === "switch") {
+    await runSwitchCommand(rest);
+    return;
+  }
+  if (command === "remove") {
+    await runRemoveCommand(rest);
+    return;
+  }
+  if (command === "skills") {
+    await runSkillsCommand(rest);
+    return;
+  }
+  if (command === "self-update") {
+    await runSelfUpdateCommand(rest);
+    return;
+  }
+  if (command === "recover") {
+    await runRecoverCommand(rest);
     return;
   }
   process.stderr.write(`Unknown command: ${command}. Run "${CLI_NAME} --help".\n`);

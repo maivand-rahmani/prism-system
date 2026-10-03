@@ -21,13 +21,14 @@ overwrite or revert the user's uncommitted changes. This document is English gui
 you; the questions, options, and summaries you present follow the user's language.
 
 Handoffs: this skill owns creating a new system. Evolving an existing package belongs to
-[`modify-design-system`](../modify-design-system/SKILL.md); building product screens from
-an installed package belongs to [`use-design-system`](../use-design-system/SKILL.md).
+the `modify-design-system` skill; building product screens from an installed package
+belongs to the `use-design-system` skill. Both are author-workspace skills, as is this
+one: maintainer `pnpm ds:*` commands never move into consumer tooling.
 
-For component names, contracts, and capability rules, use the canonical sources linked in
-[lifecycle guidance](../references/lifecycle.md). Do not copy a component catalog into this
-skill. In particular, `@prism-system/ui-core` and its schemas own the required/optional
-contract; do not restate or fork that catalog here.
+For component names, contracts, and capability rules, use the canonical sources named in
+the local [lifecycle reference](./references/lifecycle.md). Do not copy a component
+catalog into this skill. In particular, `@prism-system/ui-core` and its schemas own the
+required/optional contract; do not restate or fork that catalog here.
 
 ## Interview in adaptive phases
 
@@ -57,8 +58,8 @@ During direction and constraints, resolve visual treatment of existing component
 when unanswered, explicitly ask whether buttons and other relevant controls should be
 flat, have tactile depth, or use expressive animation/effects. Resolve independent
 custom-component requests separately; a dimensional or animated Button remains the
-existing Button contract. For these requests, read
-[visual effects and custom components](../references/visual-effects-and-custom-components.md)
+existing Button contract. For these requests, read the local
+[visual effects and custom components reference](./references/visual-effects-and-custom-components.md)
 before choosing dependencies or recording the brief. Skip answered/delegated choices;
 ordinary systems do not need an expanded 3D interview.
 
@@ -68,9 +69,9 @@ use it with 3-5 grounded, mutually distinctive options that each carry practical
 plus the user's own answer where the environment supports one; otherwise present the same
 options concisely as text. Ground the options in the confirmed direction, and use open
 questions for real product details. If the user delegates a choice, make a recommendation
-with its tradeoff and record it as delegated; do not pretend the user chose it. See
-[design-interview.md](../references/design-interview.md) for an optional question bank and
-branching walkthrough examples.
+with its tradeoff and record it as delegated; do not pretend the user chose it. See the
+local [design-interview reference](./references/design-interview.md) for an optional
+question bank and branching walkthrough examples.
 
 Do not ask about technical contract, export, tooling, or repository mechanics you can
 inspect yourself, and do not ask whether basic accessibility should be provided: focus,

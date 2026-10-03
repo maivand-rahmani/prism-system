@@ -10,11 +10,14 @@
  *      published `@prism-system/tools` package;
  *   2. assert the packed Tailwind bridge / stylesheet / manifest artifacts;
  *   3. drive isolated consumers from the packed artifacts: connect, doctor,
- *      components, tokens, check, setup-tailwind, check-usage, idempotency, and
- *      the declared optional capability sets;
+ *      components, tokens, check, setup-tailwind, check-usage, recover advice,
+ *      offline skills inventory, idempotency, and the declared optional sets;
  *   4. exercise the read-only registry catalog and the dependency-mutating
- *      commands (`install`/`use`/`upgrade`) against a local in-process registry
- *      serving the packed artifacts, with a fake package manager.
+ *      commands (`install`/`use`/`upgrade`) plus `switch`/`remove` dry-run
+ *      previews against a local in-process registry serving the packed
+ *      artifacts, with a fake package manager. It never invokes the real pinned
+ *      Skills CLI, never runs a real CLI self-update, and never touches user
+ *      skills.
  *
  * All pack/extract/scratch/log output lives under a fresh
  * `TEMP/lifecycle/tools-packed-<run-id>/` directory; an existing path is never
@@ -163,15 +166,23 @@ const TOOLS_COMMANDS = [
   "info",
   "install",
   "use",
+  "upgrade",
+  "switch",
+  "remove",
   "connect",
-  "check-usage",
-  "doctor",
   "components",
   "tokens",
   "check",
+  "check-usage",
+  "doctor",
   "setup-tailwind",
-  "upgrade",
+  "skills",
+  "self-update",
+  "recover",
 ];
+
+/** `skills` subcommands; they are not separate root command names. */
+const SKILLS_SUBCOMMANDS = ["list", "add", "update", "remove"];
 
 /* -------------------------------------------------------------------------- */
 /* Small helpers                                                              */
@@ -543,11 +554,12 @@ runCheck("pack and inspect the @prism-system/tools artifact", () => {
     const text = readFileSync(join(extracted, rel), "utf8");
     assert(!text.includes(ROOT), `shipped tools file ${rel} references the repository root`);
   }
-  // Stage TypeScript next to the packed tools so check-usage/check can lazy-load
-  // it without a network install.
+  // Stage TypeScript next to the packed tools so check-usage/check and the
+  // scanner-backed switch/recover steps can lazy-load it without a network
+  // install.
   // The packed checks below exercise argument-driven commands only. TypeScript
-  // is the sole runtime dependency they load (for check-usage); the inline TUI
-  // dependencies stay lazy and are installed normally by package consumers.
+  // is the sole runtime dependency they load; the inline TUI dependencies stay
+  // lazy and are installed normally by package consumers.
   stageRuntimeDependencies(join(extracted, ".."), {
     typescript: pkg.dependencies.typescript,
   });
@@ -562,9 +574,9 @@ const toolsBin = join(
   toolsPackageJson.bin["prism-ds"].replace(/^\.\//, ""),
 );
 
-function runPackedTools(args, { cwd = ROOT } = {}) {
+function runPackedTools(args, { cwd = ROOT, env = process.env } = {}) {
   assert(existsSync(toolsBin), `packed prism-ds bin is missing at ${toolsBin}`);
-  return spawnSync(process.execPath, [toolsBin, ...args], { cwd, encoding: "utf8" });
+  return spawnSync(process.execPath, [toolsBin, ...args], { cwd, env, encoding: "utf8" });
 }
 
 /** Async variant: a synchronous spawn would deadlock the in-process registry. */
@@ -589,10 +601,16 @@ runCheck("packed prism-ds exposes the full command surface", () => {
   for (const command of TOOLS_COMMANDS) {
     assert(output(help).includes(command), `prism-ds --help is missing ${command}`);
   }
-  for (const command of ["components", "tokens", "check", "setup-tailwind", "upgrade"]) {
+  for (const command of TOOLS_COMMANDS) {
     const commandHelp = runPackedTools([command, "--help"]);
     assert(commandHelp.status === 0, `prism-ds ${command} --help failed: ${output(commandHelp)}`);
   }
+  const skillsHelp = output(runPackedTools(["skills", "--help"]));
+  for (const subcommand of SKILLS_SUBCOMMANDS) {
+    assert(skillsHelp.includes(subcommand), `prism-ds skills --help is missing ${subcommand}`);
+  }
+  // `self-update` is network- and mutation-capable; this packed gate verifies
+  // only its help surface and never runs a real update.
 });
 
 /* -------------------------------------------------------------------------- */
@@ -963,9 +981,12 @@ runCheck("packed tools fail closed on unsupported metadata and exports", () => {
 /* Step 4: registry catalog and dependency-mutating commands                   */
 /* -------------------------------------------------------------------------- */
 
-/* Fake npm/pnpm shims that record their fixed arguments and exit 0. */
+/* Fake npm/pnpm shims that record their fixed arguments and exit 0, plus a fake
+ * `npx` shim with its own marker so catalog/read-only/dry-run paths can prove
+ * they never bootstrap the pinned Skills CLI. */
 const FAKE_BIN_DIR = join(REGISTRY_DIR, "fake-bin");
 const FAKE_ARGS_FILE = join(REGISTRY_DIR, "fake-args.txt");
+const FAKE_NPX_MARKER = join(REGISTRY_DIR, "fake-npx.txt");
 
 function writeFakeManager(manager) {
   mkdirSync(FAKE_BIN_DIR, { recursive: true });
@@ -981,13 +1002,66 @@ function writeFakeManager(manager) {
   chmodSync(file, 0o755);
 }
 
+/** Fake `npx` that records every invocation to its own marker file. */
+function writeFakeNpxShim() {
+  mkdirSync(FAKE_BIN_DIR, { recursive: true });
+  if (process.platform === "win32") {
+    writeFileSync(
+      join(FAKE_BIN_DIR, "npx.cmd"),
+      ["@echo off", `echo npx %* >>"%FAKE_NPX_MARKER%"`, "exit /b 0", ""].join("\r\n"),
+    );
+    return;
+  }
+  const file = join(FAKE_BIN_DIR, "npx");
+  writeFileSync(file, `#!/bin/sh\nprintf '%s\\n' "npx $*" >> "$FAKE_NPX_MARKER"\n`);
+  chmodSync(file, 0o755);
+}
+
 function withFakeManagerEnv() {
   const delimiter = process.platform === "win32" ? ";" : ":";
   return {
     ...process.env,
     PATH: `${FAKE_BIN_DIR}${delimiter}${process.env.PATH ?? ""}`,
     FAKE_ARGS_FILE,
+    FAKE_NPX_MARKER,
   };
+}
+
+/** Fixture-only home tree so offline inventory never reads the real user home. */
+const HERMETIC_HOME = join(TEMP, "hermetic-home");
+const HERMETIC_HOME_KEYS = [
+  "USERPROFILE",
+  "HOME",
+  "APPDATA",
+  "XDG_CONFIG_HOME",
+  "XDG_STATE_HOME",
+  "CLAUDE_CONFIG_DIR",
+  "CODEX_HOME",
+];
+
+function withHermeticHomeEnv() {
+  return {
+    ...withFakeManagerEnv(),
+    USERPROFILE: HERMETIC_HOME,
+    HOME: HERMETIC_HOME,
+    APPDATA: join(HERMETIC_HOME, "AppData", "Roaming"),
+    XDG_CONFIG_HOME: join(HERMETIC_HOME, ".config"),
+    XDG_STATE_HOME: join(HERMETIC_HOME, ".local", "state"),
+    CLAUDE_CONFIG_DIR: join(HERMETIC_HOME, ".claude"),
+    CODEX_HOME: join(HERMETIC_HOME, ".codex"),
+  };
+}
+
+function resetFakeNpx() {
+  rmSync(FAKE_NPX_MARKER, { force: true });
+}
+
+function readFakeNpxInvocations() {
+  if (!existsSync(FAKE_NPX_MARKER)) return [];
+  return readFileSync(FAKE_NPX_MARKER, "utf8")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
 }
 
 function readFakeArgs() {
@@ -1020,6 +1094,21 @@ let registryBase = null;
 async function startRegistryFixture() {
   writeFakeManager("npm");
   writeFakeManager("pnpm");
+  // A fake `npx` shim so catalog/read-only/dry-run paths can prove they never
+  // bootstrap the pinned Skills CLI.
+  writeFakeNpxShim();
+  // A fixture-only home tree: offline inventory must never read or write the
+  // real user home or agent directories.
+  for (const directory of [
+    [".agents", "skills"],
+    [".claude"],
+    [".codex"],
+    [".config"],
+    [".local", "state"],
+    ["AppData", "Roaming"],
+  ]) {
+    mkdirSync(join(HERMETIC_HOME, ...directory), { recursive: true });
+  }
   const entries = [];
   for (const target of targets) {
     const tarballPath = join(
@@ -1268,19 +1357,47 @@ try {
     assert(!existsSync(join(installDir, ".design-system")), "install must not connect");
 
     rmSync(FAKE_ARGS_FILE, { force: true });
+    resetFakeNpx();
     const use = await runPackedToolsAsync(
-      ["use", "system-a", "--cwd", installDir, "--registry", registryBase, "--check-usage"],
+      [
+        "use",
+        "system-a",
+        "--cwd",
+        installDir,
+        "--registry",
+        registryBase,
+        "--check-usage",
+        "--no-skills",
+      ],
       { env: withFakeManagerEnv() },
     );
     assert(use.status === 0, `use failed: ${output(use)}`);
     assert(existsSync(join(installDir, ".design-system", "config.json")), "use must connect");
     assert(/0 error\(s\), 0 warning\(s\)/.test(output(use)), "use usage summary");
+    assert(
+      readFakeNpxInvocations().length === 0,
+      "use --no-skills must not bootstrap the pinned Skills CLI",
+    );
+    resetFakeNpx();
     const useAgain = await runPackedToolsAsync(
-      ["use", "system-a", "--cwd", installDir, "--registry", registryBase, "--check-usage"],
+      [
+        "use",
+        "system-a",
+        "--cwd",
+        installDir,
+        "--registry",
+        registryBase,
+        "--check-usage",
+        "--no-skills",
+      ],
       { env: withFakeManagerEnv() },
     );
     assert(useAgain.status === 0, `repeated use failed: ${output(useAgain)}`);
     assert(/already up to date/.test(output(useAgain)), "repeated use should be idempotent");
+    assert(
+      readFakeNpxInvocations().length === 0,
+      "repeated use --no-skills must not bootstrap the pinned Skills CLI",
+    );
 
     const upgradeDry = await runPackedToolsAsync([
       "upgrade",
@@ -1301,6 +1418,95 @@ try {
     assert(upgradeReport.diff.components.added.join(",") === "Section", "upgrade added diff");
     assert(upgradeReport.diff.tokens.added.containers.join(",") === "bleed", "upgrade token diff");
     assert(upgradeReport.dryRun === true, "upgrade dry-run flag");
+  });
+
+  await runAsyncCheck("packed switch/remove previews and recover stay read-only", async () => {
+    const dir = makeConsumer("registry-switch", {
+      packageName: targets[0].packageName,
+      version: targets[0].version,
+      sourceDir: targets[0].extractedPackageDir,
+    });
+    // Keep this consumer clean for the removal-preview smoke; separate lifecycle
+    // tests exercise the expected blocker when token/component usage remains.
+    writeFile(dir, "src/clean.tsx", "export const Empty = () => null;\n");
+    const connected = runPackedTools(["connect", targets[0].packageName, "--cwd", dir]);
+    assert(connected.status === 0, `switch fixture connect failed: ${output(connected)}`);
+    const before = hashTree(dir);
+
+    // switch --dry-run: resolve the other packed system, report compatibility,
+    // and prove neither the manager nor any consumer file is touched. The
+    // hermetic home keeps the run away from real user/agent state.
+    rmSync(FAKE_ARGS_FILE, { force: true });
+    resetFakeNpx();
+    const switchDry = await runPackedToolsAsync(
+      ["switch", "system-b", "--cwd", dir, "--registry", registryBase, "--dry-run", "--json"],
+      { env: withHermeticHomeEnv() },
+    );
+    assert(switchDry.status === 0, `switch --dry-run failed: ${output(switchDry)}`);
+    const switchReport = JSON.parse(switchDry.stdout);
+    assert(typeof switchReport === "object" && switchReport !== null, "switch JSON report");
+    assert(output(switchDry).includes("system-b"), "switch --dry-run must report the target");
+    assert(hashTree(dir) === before, "switch --dry-run mutated the consumer");
+    assert(readFakeArgs().length === 0, "switch --dry-run must not spawn the manager");
+    assert(readFakeNpxInvocations().length === 0, "switch --dry-run must not bootstrap npx");
+
+    // remove --dry-run: preview attributable removal without mutation.
+    rmSync(FAKE_ARGS_FILE, { force: true });
+    resetFakeNpx();
+    const removeDry = await runPackedToolsAsync(
+      ["remove", targets[0].packageName, "--cwd", dir, "--dry-run", "--json"],
+      { env: withHermeticHomeEnv() },
+    );
+    assert(removeDry.status === 0, `remove --dry-run failed: ${output(removeDry)}`);
+    const removeReport = JSON.parse(removeDry.stdout);
+    assert(typeof removeReport === "object" && removeReport !== null, "remove JSON report");
+    assert(output(removeDry).includes("system-a"), "remove --dry-run must report the selection");
+    assert(hashTree(dir) === before, "remove --dry-run mutated the consumer");
+    assert(readFakeArgs().length === 0, "remove --dry-run must not spawn the manager");
+    assert(readFakeNpxInvocations().length === 0, "remove --dry-run must not bootstrap npx");
+
+    // recover default run: structured offline advice, nothing written.
+    resetFakeNpx();
+    const recover = runPackedTools(["recover", "--cwd", dir, "--json"], {
+      env: withHermeticHomeEnv(),
+    });
+    assert(recover.status === 0, `recover failed: ${output(recover)}`);
+    const recoverReport = JSON.parse(recover.stdout);
+    assert(typeof recoverReport === "object" && recoverReport !== null, "recover JSON report");
+    assert(hashTree(dir) === before, "recover default run mutated the consumer");
+    assert(readFakeNpxInvocations().length === 0, "recover must not bootstrap npx");
+  });
+
+  await runAsyncCheck("packed skills list is an offline inventory", async () => {
+    const dir = makeConsumer("registry-skills", {
+      packageName: targets[0].packageName,
+      version: targets[0].version,
+      sourceDir: targets[0].extractedPackageDir,
+    });
+    const before = hashTree(dir);
+    const homeBefore = hashTree(HERMETIC_HOME);
+    const env = withHermeticHomeEnv();
+    // The inventory must run against the fixture home tree, never the real
+    // user or agent directories.
+    for (const key of HERMETIC_HOME_KEYS) {
+      assert(
+        typeof env[key] === "string" && env[key].startsWith(TEMP),
+        `${key} must point into the fixture temp root`,
+      );
+    }
+    rmSync(FAKE_ARGS_FILE, { force: true });
+    resetFakeNpx();
+    const list = await runPackedToolsAsync(["skills", "list", "--cwd", dir, "--json"], { env });
+    assert(list.status === 0, `skills list failed: ${output(list)}`);
+    const inventory = JSON.parse(list.stdout);
+    assert(typeof inventory === "object" && inventory !== null, "skills inventory JSON");
+    assert(hashTree(dir) === before, "skills list mutated the consumer");
+    assert(hashTree(HERMETIC_HOME) === homeBefore, "skills list wrote to the fixture home");
+    assert(readFakeArgs().length === 0, "skills list must not spawn a package manager");
+    assert(
+      readFakeNpxInvocations().length === 0,
+      "skills list must stay offline and never bootstrap the pinned Skills CLI",
+    );
   });
 
   await runAsyncCheck("dependency-mutating commands fail closed without a manager", async () => {

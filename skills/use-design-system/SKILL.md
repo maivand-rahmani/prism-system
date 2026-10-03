@@ -12,8 +12,11 @@ and their built-in behavior, component appearance, and reusable visual patterns;
 product owns semantic composition, labels, validation, data, routes, behavior, and
 accessible use of those primitives. Work from the installed package alone — no
 design-system monorepo, package source, or `tokens.source.json` is required. To change
-the package itself, use [`modify-design-system`](../modify-design-system/SKILL.md). For
-contract rules, read [lifecycle guidance](../references/lifecycle.md).
+the package itself, use the author-workspace `modify-design-system` skill; maintainer
+commands such as `pnpm ds:create`, `ds:check`, and `ds:manifest` stay in the author
+workspace and are not consumer tooling. To move this consumer to a different released
+system, use the `switch-design-system` skill. For contract rules, read the local
+[lifecycle reference](./references/lifecycle.md).
 
 ## Start from the task and the installed system
 
@@ -119,8 +122,8 @@ name, special token setup, or direct control of a library-owned animation engine
 invent `variant="3d"` or a `/spatial` import from a visual example. Effects declared in the
 installed manifest (`features`, `rendering`, `reducedMotion`, `fallback`) describe the real
 implementation; they never add props. For effects, motion
-primitives, or an independent custom component, read
-[visual effects and custom components](../references/visual-effects-and-custom-components.md).
+primitives, or an independent custom component, read the local
+[visual effects and custom components reference](./references/visual-effects-and-custom-components.md).
 
 Discover custom exports from the exact installed release: `manifest.extensions` declares a
 custom export only when its entrypoint, docs, example, `apiVersion`, and public API are
@@ -133,26 +136,49 @@ use, and prefer the entry's documented loading, fallback, reduced-motion, and
 client-boundary behavior over guessed props. A proposed architecture document is not
 proof of installed support: trust only the installed manifest and shipped docs.
 
+## Product-owned scenes and visual flexibility
+
+The selected system owns the visual internals of its existing primitives; the consumer
+composes their documented APIs. Within that boundary, a product may own independent,
+product-specific scenes, visuals, and interactive custom displays — for example a
+product's own animated illustration or data visualization — using general design or
+3D/motion skills chosen for that product work, with explicit approval for any library
+dependency.
+
+- Use the system's public primitives and tokens where they apply; keep the scene's own
+  appearance, data, and behavior in the product.
+- Do not duplicate or restyle `Button`, `Input`, or any system primitive, fabricate a
+  system component/variant/entrypoint, drive a primitive's private DOM, invent a second
+  universal style source, or bypass the documented API.
+- A missing reusable system primitive stays a package-evolution request: compose the
+  semantic result from available primitives meanwhile, and do not ship a local clone.
+- A selected external skill provides instructions and techniques only. It does not install
+  Three.js, GSAP, or any other dependency and does not execute an effect by itself; adding
+  a dependency needs explicit user approval, and approved product code still must not wrap
+  or restyle system primitives or reach into their internals.
+
 ## Framework and setup paths
 
 Keep to the installed system's public imports and CSS. These specialist paths are
-expanded in [`consumer-workflows.md`](../references/consumer-workflows.md) — read the
-matching section before acting:
+expanded in the local [`consumer-workflows.md`](./references/consumer-workflows.md) — read
+the matching section before acting:
 
 - **Next.js App Router:** if a Server Component renders Card parts, use the flat exports
   `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, and `CardFooter`, never
   `Card.Header`; the client-boundary rules are in
-  [consumer-workflows.md § Next.js App Router](../references/consumer-workflows.md#nextjs-app-router-client-boundaries).
+  [consumer-workflows.md § Next.js App Router](./references/consumer-workflows.md#nextjs-app-router-client-boundaries).
 - **Tailwind v4:** only when the installed system ships a bridge, run setup against the
   explicitly chosen CSS file; the required order is Tailwind, the selected package
   bridge, then its ordinary styles. Command and checks:
-  [consumer-workflows.md § Tailwind v4 setup](../references/consumer-workflows.md#tailwind-v4-setup).
+  [consumer-workflows.md § Tailwind v4 setup](./references/consumer-workflows.md#tailwind-v4-setup).
   With ordinary CSS, import `<package>/styles.css` and skip Tailwind.
-- **Install, connect, switch, or upgrade:** only on explicit user intent. Before an
-  upgrade, preview the exact target with `--dry-run` and review its component, export,
-  metadata, and token-name changes; the manifest has no token values, so it cannot reveal
-  visual value changes. Details and post-upgrade rediscovery:
-  [consumer-workflows.md § Install, connect, and upgrade](../references/consumer-workflows.md#install-connect-and-upgrade).
+- **Install, connect, switch, or upgrade:** only on explicit user intent. For a move to a
+  different system, use the `switch-design-system` skill and preview with
+  `prism-ds switch --dry-run` before any `--yes`. Before an upgrade, preview the exact
+  target with `--dry-run` and review its component, export, metadata, and token-name
+  changes; the manifest has no token values, so it cannot reveal visual value changes.
+  Details and post-upgrade rediscovery:
+  [consumer-workflows.md § Install, connect, and upgrade](./references/consumer-workflows.md#install-connect-and-upgrade).
 
 ## Check and report
 

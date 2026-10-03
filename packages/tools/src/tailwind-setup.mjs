@@ -179,6 +179,42 @@ export function mergeBridgeImports(existing, { packageName } = {}) {
   return output.join("");
 }
 
+/**
+ * Find exact package Tailwind v4 bridge imports in existing CSS.
+ *
+ * `setup-tailwind` writes no ownership marker, so an exact
+ * `@import "<package>/tailwind.css";` / `@import "<package>/styles.css";` line
+ * cannot be proven tool-managed. `remove` must therefore never delete or
+ * rewrite these lines: the returned findings are blockers for the caller, and
+ * the CSS bytes are always left exactly as found. Imports of another package
+ * and `@import "tailwindcss";` are not findings.
+ *
+ * @param {string} existing CSS source.
+ * @param {{ packageName: string }} options
+ * @returns {{ imports: string[], lines: number[] }} Matching specifiers with
+ *   their 1-based line numbers, in file order.
+ */
+export function findBridgeImports(existing, { packageName } = {}) {
+  if (typeof existing !== "string") {
+    throw new Error("findBridgeImports requires the existing CSS source as a string.");
+  }
+  if (typeof packageName !== "string" || packageName.trim().length === 0) {
+    throw new Error("findBridgeImports requires a non-empty design system package name.");
+  }
+  const managed = new Set([`${packageName}/tailwind.css`, `${packageName}/styles.css`]);
+  const lines = splitLines(existing);
+  const imports = [];
+  const lineNumbers = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const specifier = importSpecifierOf(stripTerminator(lines[index]));
+    if (specifier !== null && managed.has(specifier)) {
+      imports.push(specifier);
+      lineNumbers.push(index + 1);
+    }
+  }
+  return { imports, lines: lineNumbers };
+}
+
 /** Walk up from a resolved entry to the nearest `package.json` with this name. */
 function findPackageJsonUpward(startDir, packageName) {
   let current = resolve(startDir);

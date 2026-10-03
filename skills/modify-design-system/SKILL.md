@@ -12,10 +12,11 @@ Use this skill when the task is to change an existing Prism design-system packag
 source repository: tokens or appearance, variants and states, component styles or
 behavior, optional capability additions/removals, the public API, or the package's
 shipped documentation and examples. This is package-source work, not product UI work.
-Product UI belongs to the consuming product and follows
-[`use-design-system`](../use-design-system/SKILL.md). For contract rules, read
-[lifecycle guidance](../references/lifecycle.md); rely on core types and schemas for
-component catalogs rather than maintaining a duplicate catalog here.
+Product UI belongs to the consuming product and follows the `use-design-system` skill;
+moving a consumer to another released system belongs to the `switch-design-system` skill.
+For contract rules, read the local [lifecycle reference](./references/lifecycle.md); rely
+on core types and schemas for component catalogs rather than maintaining a duplicate
+catalog here.
 
 ## Orient before editing
 
@@ -41,8 +42,8 @@ Classify what is actually being asked before touching files:
 Depth, 3D-like styling, and animation on an existing contract are component treatment
 changes. Keep the component's existing folder, public name, props, and token source.
 An independent component with its own API is a custom-component request, whether its
-rendering is ordinary DOM or 3D. For either case, read
-[visual effects and custom components](../references/visual-effects-and-custom-components.md)
+rendering is ordinary DOM or 3D. For either case, read the local
+[visual effects and custom components reference](./references/visual-effects-and-custom-components.md)
 and use the descriptor `entrypoints`/`extensions` records plus their validation rather than
 inventing catalog support. Optional internal
 `src/motion/` helpers do not move ordinary components to an extension module.

@@ -10,6 +10,8 @@ subpaths; no design-system monorepo, package source, or `tokens.source.json` is 
   installed system ships a bridge.
 - [Install, connect, and upgrade](#install-connect-and-upgrade) — when the selected
   package is missing, unconfigured, or being changed.
+- [Switch systems and remove an unused package](#switch-systems-and-remove-an-unused-package)
+  — when the product moves to a different released system or drops the previous package.
 - [Contract and version rules](#contract-and-version-rules) — the fail-closed invariants
   behind every path above.
 
@@ -54,14 +56,15 @@ selected system bridge per build; Tailwind can still handle product layout indep
 
 ## Install, connect, and upgrade
 
-Dependency-mutating commands (`install`, `use`, `upgrade`) run only on the user's explicit
-intent; never install, switch, or upgrade a design system silently. They resolve and
-validate an exact version from the registry first, detect npm/pnpm from the consumer
-(missing or ambiguous managers fail closed, never a silent npm default), and verify the
-installed package identity afterward. `install` stops at install and verification — it
-does not write the consumer config, so run `connect` explicitly afterward. `use` and
-`upgrade` reconnect the consumer after verifying (`use` can also run the usage check and
-Tailwind setup). A completed package-manager mutation is not rolled back automatically.
+Dependency-mutating commands (`install`, `use`, `upgrade`, `switch`, `remove`) run only on
+the user's explicit intent; never install, switch, upgrade, or remove a design system
+silently. They resolve and validate an exact version from the registry first, detect
+npm/pnpm from the consumer (missing or ambiguous managers fail closed, never a silent npm
+default), and verify the installed package identity afterward. `install` stops at install
+and verification — it does not write the consumer config, so run `connect` explicitly
+afterward. `use` and `upgrade` reconnect the consumer after verifying (`use` can also run
+the usage check and Tailwind setup). A completed package-manager mutation is not rolled
+back automatically.
 
 - **Package installed but no config yet:** `npx prism-ds connect [package] --cwd
 <consumer-root>` writes only `.design-system/config.json`, `.design-system/AGENTS.md`,
@@ -95,6 +98,52 @@ Tailwind setup). A completed package-manager mutation is not rolled back automat
   `doctor --entry <...>`. A missing peer of an unused extension is not a product failure.
 - **Discovery:** `search` and `info` are explicit network, read-only. Use them to ground
   options; they never write or install.
+
+## Switch systems and remove an unused package
+
+Changing the selected system is a dependency mutation with the same explicit-intent rule as
+install/upgrade, and it works from the installed and target public manifests only — no
+source checkout. The `switch-design-system` skill owns the full migration process.
+
+- **Preview:** `npx prism-ds switch <target> [version] --cwd <consumer-root> --dry-run`
+  resolves and validates the target release, compares the installed and target public
+  manifests, and reports the plan without spawning a package manager or writing anything.
+  Review component additions/removals, changed variants/sizes/compound members, extension
+  and entrypoint-requirement changes, public export targets, and token-name
+  additions/removals. Names are compared as sets; token values are absent from the
+  manifest, so the diff cannot reveal visual value changes — review the target's docs and
+  rendered screens too. Declared target extensions detected as literally imported are
+  automatically included in peer planning (deduplicated by name; compatibility already
+  proved the target declares the same name and entrypoint) and reported as auto-selected
+  entries; only literally detected usage counts, so installed-but-unused extensions and
+  arbitrary entry files are never selected. Scanner coverage is bounded to declared
+  manifest metadata, literal import/require specifiers, and the explicit CSS file;
+  dynamically composed imports, runtime lookups, and unnamed CSS files are not scanned.
+- **Apply:** `npx prism-ds switch <target> [version] --cwd <consumer-root> --yes
+[--css <file>] [--with-entry <value>] [--peer <name@version>]` only after the user has
+  confirmed the reviewed target and resolved every reported blocker. Missing target
+  support for an actively used component, variant, size, compound member, extension, or
+  token name blocks the switch; dynamic or unsupported usage stays unverified, never
+  compatible. Review the auto-selected entries and the required peer changes before
+  approving. `--with-entry` explicitly adds entries beyond detected usage, and
+  `--peer name@exact-version` resolves a missing peer with a non-exact declared range (a
+  satisfying installed peer is retained, an exact declared range is installed at that
+  exact version, and selected peers are verified against the declared ranges).
+  `--with-entry`/`--peer` can extend or resolve the plan but never bypass a compatibility
+  blocker. `--yes` authorizes the mutation; without it the command must not mutate.
+  It performs only exact literal replacements it can determine — import specifiers, the
+  explicit CSS file, and the consumer config — and never rewrites JSX, props, component
+  usage, or product UI. The previous package dependency is preserved; do not remove it in
+  the same step. A completed package-manager mutation is not rolled back automatically.
+- **Repair:** re-read the installed target manifest, declarations, README, shipped
+  `AGENTS.md`, and the shipped usage document when the manifest declares `docs.usage`;
+  repair call sites using only the target public API, then run `check` once (with an
+  explicit `--css` file in a Tailwind project).
+- **Remove the previous package once unused:** `npx prism-ds remove [package] --cwd
+<consumer-root> --dry-run` previews and `--yes` mutates. Remove only after no import,
+  CSS import, config entry, or build reference needs the package; `remove` never edits
+  product source. Removing the only selected system is a separate explicit dependency
+  decision, not part of a switch.
 
 `@prism-system/tools` is optional tooling, not a requirement to consume a released
 package. Every command above assumes `prism-ds` is already available in the consumer;

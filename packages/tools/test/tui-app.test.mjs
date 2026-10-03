@@ -4,12 +4,7 @@ import { PassThrough } from "node:stream";
 import test from "node:test";
 import React from "react";
 import { render } from "ink-testing-library";
-import {
-  FrameworkProvider,
-  MouseLayout,
-  ScreenRegistry,
-  useKeyHandler,
-} from "runeframe";
+import { FrameworkProvider, MouseLayout, ScreenRegistry, useKeyHandler } from "runeframe";
 import { createWindowsInputTransport } from "runeframe/windows-input";
 
 import TuiApp, { ChangePreviewModal } from "../src/tui-app.mjs";
@@ -29,8 +24,7 @@ registry.register({
     h(
       React.Fragment,
       null,
-      activeModalEscapeEvents &&
-        h(NormalizedEscapeProbe, { events: activeModalEscapeEvents }),
+      activeModalEscapeEvents && h(NormalizedEscapeProbe, { events: activeModalEscapeEvents }),
       h(ChangePreviewModal, props),
     ),
 });
@@ -261,7 +255,9 @@ function tree(services, { mouseEventSource, mouseDiagnostics, normalizedKeyEvent
     h(
       FrameworkProvider,
       { registry, defaultScreen: "tui-test", mouseEventSource, mouseDiagnostics },
-      h(React.Fragment, null,
+      h(
+        React.Fragment,
+        null,
         h(TuiApp, { services }),
         normalizedKeyEvents && h(NormalizedEscapeProbe, { events: normalizedKeyEvents }),
       ),
@@ -426,11 +422,21 @@ async function settle(app) {
 }
 
 async function scrollDownUntil(app, pattern, description, limit = 80) {
-  for (let index = 0; index < limit && !pattern.test(app.lastFrame() ?? ""); index += 1) {
+  const visibleText = () => (app.lastFrame() ?? "").replace(/\s+/g, " ");
+  for (let index = 0; index < limit && !pattern.test(visibleText()); index += 1) {
     await press(app, "down");
   }
-  assert.match(app.lastFrame(), pattern, `${description} should be reachable by scrolling`);
+  assert.match(visibleText(), pattern, `${description} should be reachable by scrolling`);
   return app.lastFrame();
+}
+
+async function collectScrollableFrames(app, targets) {
+  const frames = [app.lastFrame() ?? ""];
+  for (const { pattern, description } of targets) {
+    if (pattern.test((app.lastFrame() ?? "").replace(/\s+/g, " "))) continue;
+    frames.push(await scrollDownUntil(app, pattern, description));
+  }
+  return frames.join("\n");
 }
 
 function bodyFrame(frame) {
@@ -730,11 +736,7 @@ test("use preview clearly separates install-and-connect and never executes befor
   );
   assert.match(app.lastFrame(), /DIFF 1\/2/);
   assert.match(app.lastFrame().replace(/[│]/g, ""), /Esc\s+close/i);
-  for (
-    let index = 0;
-    index < 80 && !/USE_AFTER_MAR/.test(app.lastFrame() ?? "");
-    index += 1
-  ) {
+  for (let index = 0; index < 80 && !/USE_AFTER_MAR/.test(app.lastFrame() ?? ""); index += 1) {
     await press(app, "down");
   }
   assert.match(app.lastFrame(), /USE_AFTER_MAR/, "the wrapped after content is reachable");
@@ -799,7 +801,11 @@ test("preview and execution failures remain explicit and never look successful",
     () => /Published manifest details/.test(app.lastFrame() ?? ""),
     "published manifest details",
   );
-  await scrollDownUntil(app, /Manifest token groups:/, "manifest details before the install preview");
+  await scrollDownUntil(
+    app,
+    /Manifest token groups:/,
+    "manifest details before the install preview",
+  );
 
   await press(app, "i");
   await waitFor(() => /published manifest changed/.test(app.lastFrame() ?? ""), "preview failure");
@@ -936,11 +942,7 @@ test("declared extensions are a separate TUI catalog view with their import and 
   assert.doesNotMatch(app.lastFrame(), /API \/ ENTRYPOINT/);
   assert.match(footerFrame(app.lastFrame()), /↑\/↓ scroll/);
   const extensionFrames = [app.lastFrame() ?? ""];
-  for (
-    let index = 0;
-    index < 80 && !/DOCS \/ EXAMPLE/.test(app.lastFrame() ?? "");
-    index += 1
-  ) {
+  for (let index = 0; index < 80 && !/DOCS \/ EXAMPLE/.test(app.lastFrame() ?? ""); index += 1) {
     await press(app, "down");
     extensionFrames.push(app.lastFrame() ?? "");
   }
@@ -966,7 +968,11 @@ test("declared extensions are a separate TUI catalog view with their import and 
   assert.match(footerFrame(app.lastFrame()), /Required\s+\(r\)/i);
   await press(app, "r");
   await settle(app);
-  assert.match(app.lastFrame(), /AVAILABLE\s+Button/, "footer shortcuts still work after scrolling");
+  assert.match(
+    app.lastFrame(),
+    /AVAILABLE\s+Button/,
+    "footer shortcuts still work after scrolling",
+  );
   app.unmount();
 });
 
@@ -1011,13 +1017,13 @@ test("normalized mouse clicks activate a measured catalog action", async () => {
   const measuredButtons = probe.areas.filter(
     (area) => !area.wheelOnly && area.eligible && area.hasHandler && !area.disabled,
   );
-  assert.equal(measuredButtons.length, 2, "Browse and Search each have one footer hitbox");
+  assert.equal(measuredButtons.length, 3, "Browse, Search, and Manage each have one footer hitbox");
   assert.match(app.lastFrame(), /ACTIONS/i);
   const footerRow = Math.max(...measuredButtons.map((area) => area.bounds.y));
   const footerButtons = measuredButtons
     .filter((area) => area.bounds.y === footerRow)
     .sort((left, right) => left.bounds.x - right.bounds.x);
-  assert.equal(footerButtons.length, 2, "the footer keeps its two actions on a measured row");
+  assert.equal(footerButtons.length, 3, "the footer keeps its actions on a measured row");
   await publishClick(mouse, footerButtons[1].bounds);
   await waitFor(
     () => /Search the registry/.test(app.lastFrame() ?? ""),
@@ -1053,7 +1059,7 @@ test("normalized mouse clicks activate a measured catalog action", async () => {
   const refreshedButtons = refreshedProbe.areas
     .filter((area) => !area.wheelOnly && area.eligible && area.hasHandler && !area.disabled)
     .sort((left, right) => left.bounds.y - right.bounds.y || left.bounds.x - right.bounds.x);
-  assert.equal(refreshedButtons.length, 2, "the home footer returns to Browse and Search");
+  assert.equal(refreshedButtons.length, 3, "the home footer returns to Browse, Search, and Manage");
   await publishClick(mouse, refreshedButtons[0].bounds);
 
   await waitFor(
@@ -1101,8 +1107,8 @@ test("footer mouse controls change token groups and the keyboard shortcut remain
     .sort((left, right) => left.bounds.y - right.bounds.y || left.bounds.x - right.bounds.x);
   assert.equal(
     footerButtons.length,
-    5,
-    "token actions and local refresh are clickable in the footer",
+    6,
+    "token actions, local refresh, and Manage are clickable in the footer",
   );
   await publishClick(mouse, footerButtons[1].bounds);
   await waitFor(() => /spacing · 1\/1 token names/.test(app.lastFrame() ?? ""), "next token group");
@@ -1147,7 +1153,10 @@ test("token group labels are directly mouse-selectable without losing footer or 
     .sort((left, right) => left.bounds.x - right.bounds.x);
   assert.equal(groupButtons.length, 2, "each visible group name has its own measured mouse target");
   await publishClick(mouse, groupButtons[1].bounds);
-  await waitFor(() => /spacing · 1\/1 token names/.test(app.lastFrame() ?? ""), "direct group click");
+  await waitFor(
+    () => /spacing · 1\/1 token names/.test(app.lastFrame() ?? ""),
+    "direct group click",
+  );
 
   await press(app, "[");
   await settle(app);
@@ -1195,9 +1204,9 @@ test("normalized vertical wheel events scroll the measured component catalog lis
   const probe = diagnostics.at(-1);
   assert.equal(probe.action, "wheel-down");
   assert.equal(probe.targetId, null, "the measurement probe is outside the catalog viewport");
-  const measuredLists = probe.areas.filter(
-    (area) => area.wheelOnly && area.eligible && area.hasHandler,
-  ).sort((left, right) => left.bounds.height - right.bounds.height);
+  const measuredLists = probe.areas
+    .filter((area) => area.wheelOnly && area.eligible && area.hasHandler)
+    .sort((left, right) => left.bounds.height - right.bounds.height);
   assert.ok(measuredLists.length >= 1, "the catalog exposes a scrollable list viewport");
   const list = measuredLists[0];
   const target = centerOfMeasuredBounds(list.bounds);
@@ -1335,7 +1344,11 @@ test("Checks explain scope, report results, and require an explicit CSS path for
   await press(app, "c");
   await waitFor(() => calls.some(([name]) => name === "check"), "health report");
   assert.match(app.lastFrame(), /7 passed, 1 not checked/);
-  assert.doesNotMatch(app.lastFrame(), /not_checked/i, "individual status details begin below the viewport");
+  assert.doesNotMatch(
+    app.lastFrame(),
+    /not_checked/i,
+    "individual status details begin below the viewport",
+  );
   await scrollDownUntil(app, /not_checked/i, "the individual health-check status");
   assert.match(app.lastFrame(), /not_checked/i);
   assert.match(footerFrame(app.lastFrame()), /Run check\s+\(c\)/i);
@@ -1368,11 +1381,19 @@ test("Checks explain scope, report results, and require an explicit CSS path for
     ["tailwind", "src/app.css"],
   );
   assert.match(app.lastFrame(), /Tailwind bridge plan is pending/i);
-  assert.doesNotMatch(app.lastFrame(), /CSS target:/, "the exact target starts below this short viewport");
+  assert.doesNotMatch(
+    app.lastFrame(),
+    /CSS target:/,
+    "the exact target starts below this short viewport",
+  );
   await scrollDownUntil(app, /CSS target:/, "the explicit CSS bridge result");
   assert.match(app.lastFrame(), /WARNING · CSS bridge changes are pending/);
   assert.doesNotMatch(app.lastFrame(), /Read-only preview\. Nothing was written\./);
-  await scrollDownUntil(app, /Read-only preview\. Nothing was written\./, "the read-only result scope");
+  await scrollDownUntil(
+    app,
+    /Read-only preview\. Nothing was written\./,
+    "the read-only result scope",
+  );
   assert.match(app.lastFrame(), /CSS target:/);
   assert.match(app.lastFrame(), /Read-only preview|no CSS was written/i);
   assert.match(footerFrame(app.lastFrame()), /Check\s+\(c\)/i);
@@ -1646,7 +1667,10 @@ test("Windows adapter normalizes raw Escape, closes a modal, then cancels withou
     );
     for (const character of "2.0.0") await pressWindowsKey(helper, character);
     await pressWindowsKey(helper, "enter");
-    await waitFor(() => /Confirm planned change/.test(app.lastFrame() ?? ""), "upgrade confirmation");
+    await waitFor(
+      () => /Confirm planned change/.test(app.lastFrame() ?? ""),
+      "upgrade confirmation",
+    );
     await pressWindowsKey(helper, "m");
     await waitFor(() => /Manifest diff/.test(app.lastFrame() ?? ""), "manifest diff modal");
     assert.equal(executions.length, 0);
@@ -1658,11 +1682,15 @@ test("Windows adapter normalizes raw Escape, closes a modal, then cancels withou
     );
     assert.equal(executions.length, 0);
     assert.equal(translatedWindowsChunks.filter((chunk) => chunk === "\u001b").length, 1);
-    assert.deepEqual(normalizedKeyEvents.at(-1), {
-      key: "escape",
-      escape: true,
-      rawInput: "",
-    }, "Ink's Escape key flag normalizes Runeframe's non-printable input");
+    assert.deepEqual(
+      normalizedKeyEvents.at(-1),
+      {
+        key: "escape",
+        escape: true,
+        rawInput: "",
+      },
+      "Ink's Escape key flag normalizes Runeframe's non-printable input",
+    );
 
     await settle(app);
     await pressWindowsKey(helper, "escape");
@@ -1778,14 +1806,12 @@ test("short resized terminals keep the footer at the bottom with clickable actio
 
   mouse.publish(mousePacket("move", 37, 0));
   await pause();
-  const reconnect = diagnostics
-    .at(-1)
-    .areas.find((area) => {
-      if (area.wheelOnly || !area.eligible || !area.hasHandler || area.disabled) return false;
-      const row = app.lastFrame()?.split("\n")[area.bounds.y] ?? "";
-      const column = row.search(/Reconnect/i);
-      return column >= area.bounds.x && column < area.bounds.x + area.bounds.width;
-    });
+  const reconnect = diagnostics.at(-1).areas.find((area) => {
+    if (area.wheelOnly || !area.eligible || !area.hasHandler || area.disabled) return false;
+    const row = app.lastFrame()?.split("\n")[area.bounds.y] ?? "";
+    const column = row.search(/Reconnect/i);
+    return column >= area.bounds.x && column < area.bounds.x + area.bounds.width;
+  });
   assert.ok(reconnect, "the reconnect action is reachable on the next footer page");
   await publishClick(mouse, reconnect.bounds);
   await waitFor(() => /Confirm planned change/.test(app.lastFrame() ?? ""), "reconnect preview");
@@ -1793,5 +1819,679 @@ test("short resized terminals keep the footer at the bottom with clickable actio
   await press(app, "escape");
   await settle(app);
   assert.equal(executions.length, 0, "Escape cancels without mutation");
+  app.unmount();
+});
+
+test("Manage exposes lifecycle actions, an explicit CSS target, compatibility review, and cancellation", async () => {
+  const previews = [];
+  const executions = [];
+  const target = "@prism-system/ui-b";
+  const app = start(
+    makeServices({
+      getProjectState: connectedState,
+      searchSystems: async () => ({
+        ok: true,
+        results: [{ name: target, version: "2.0.0", description: "System B" }],
+      }),
+      previewMutation: async (action) => {
+        previews.push(action);
+        return {
+          ...previewFor(action),
+          from: { package: "@prism-system/ui-a", version: "1.2.3" },
+          to: { package: action.packageName, version: action.version },
+          compatibility: {
+            blockers: [],
+            warnings: [{ code: "appearance-unknown", message: "Token values cannot be compared." }],
+            coverage: {
+              filesScanned: 4,
+              components: 3,
+              extensions: 1,
+              tokenReferences: 2,
+              unverified: 0,
+              skippedFiles: 0,
+              limitations: ["Visual output is not tested."],
+            },
+          },
+          material: {
+            kind: "switch",
+            entrySelection: {
+              entries: [
+                {
+                  extension: "KeyboardScene",
+                  entrypoint: "./custom/keyboard-scene",
+                  file: "src/scene.tsx",
+                },
+              ],
+            },
+            peers: [
+              {
+                name: "three",
+                kind: "peer",
+                range: "^0.186.0",
+                optional: true,
+                action: "install",
+                version: "0.186.1",
+                installed: null,
+                source: "active-usage",
+              },
+              {
+                name: "react",
+                kind: "peer",
+                range: "^19",
+                optional: false,
+                action: "retain",
+                version: "19.0.0",
+                installed: "19.0.0",
+                source: "installed",
+              },
+            ],
+          },
+          result: {
+            ok: true,
+            autoSelectedEntries: [
+              {
+                name: "KeyboardScene",
+                entrypoint: "./custom/keyboard-scene",
+                source: "active-usage",
+                file: "src/scene.tsx",
+                line: 4,
+              },
+            ],
+          },
+          preserved:
+            action.kind === "remove"
+              ? [{ path: "/consumer/demo-app/AGENTS.md", reason: "edited content" }]
+              : [],
+        };
+      },
+      executeMutation: async (action, preview) => {
+        executions.push({ action, preview });
+        return { ok: true, applied: true, changed: true, failures: [] };
+      },
+    }),
+  );
+  await settle(app);
+  assert.match(footerFrame(app.lastFrame()), /Manage\s+\(m\)/i);
+
+  await press(app, "m");
+  assert.match(app.lastFrame(), /Manage project and tooling/);
+  assert.match(footerFrame(app.lastFrame()), /System lifecycle\s+\(s\)/i);
+  await press(app, "s");
+  assert.match(app.lastFrame(), /System lifecycle/);
+  assert.match(footerFrame(app.lastFrame()), /Switch system\s+\(w\)/i);
+  assert.match(footerFrame(app.lastFrame()), /Remove system\s+\(x\)/i);
+
+  await press(app, "c");
+  assert.match(app.lastFrame(), /Choose an explicit CSS file/);
+  await typeText(app, "src/app.css");
+  await press(app, "enter");
+  assert.match(app.lastFrame(), /EXPLICIT CSS\s+src\/app\.css/);
+
+  await press(app, "w");
+  await waitFor(() => /System B/.test(app.lastFrame() ?? ""), "switch search results");
+  await press(app, "enter");
+  await waitFor(
+    () => /Published manifest details/.test(app.lastFrame() ?? ""),
+    "switch target details",
+  );
+  assert.match(footerFrame(app.lastFrame()), /Preview switch\s+\(w\)/i);
+  await press(app, "w");
+  await waitFor(() => /Confirm planned change/.test(app.lastFrame() ?? ""), "switch preview");
+  assert.equal(previews[0].kind, "switch");
+  assert.equal(previews[0].packageName, target);
+  assert.equal(previews[0].version, "2.0.0");
+  assert.equal(previews[0].cssPath, "src/app.css");
+  const switchFrame = (
+    await collectScrollableFrames(app, [
+      { pattern: /Compatibility review/, description: "switch compatibility review" },
+      { pattern: /Coverage: 4 files/, description: "switch usage coverage" },
+      { pattern: /Token values cannot be compared/, description: "switch compatibility warning" },
+      { pattern: /Visual output is not tested/, description: "switch coverage limitation" },
+      { pattern: /Automatically selected from usage/, description: "auto-selected entries" },
+      {
+        pattern: /KeyboardScene \(\.\/custom\/keyboard-scene\)/,
+        description: "selected entry details",
+      },
+      { pattern: /Selected peer actions/, description: "selected peer actions" },
+      { pattern: /react \[peer\]/, description: "retained peer action" },
+    ])
+  ).replace(/\s+/g, " ");
+  assert.match(switchFrame, /Compatibility review/);
+  assert.match(switchFrame, /Coverage: 4 files/);
+  assert.match(switchFrame, /Token values cannot be compared/);
+  assert.match(switchFrame, /Visual output is not tested/);
+  assert.match(switchFrame, /Automatically selected from usage/);
+  assert.match(switchFrame, /KeyboardScene \(\.\/custom\/keyboard-scene\) · src\/scene\.tsx/);
+  assert.match(switchFrame, /Selected peer actions/);
+  assert.match(switchFrame, /three \[peer\] · \^0\.186\.0 · optional · install 0\.186\.1/);
+  assert.match(switchFrame, /react \[peer\] · \^19 · required · retain installed 19\.0\.0/);
+  assert.equal(executions.length, 0);
+  await press(app, "escape");
+  await settle(app);
+  assert.equal(executions.length, 0, "canceling the reviewed switch never executes it");
+
+  await press(app, "b");
+  await settle(app);
+  assert.match(app.lastFrame(), /System lifecycle/);
+  await press(app, "x");
+  await waitFor(() => /Confirm planned change/.test(app.lastFrame() ?? ""), "remove preview");
+  assert.equal(previews.at(-1).kind, "remove");
+  const removalReview = await collectScrollableFrames(app, [
+    { pattern: /Removal review/, description: "removal review" },
+    {
+      pattern: /Preserved: \/consumer\/demo-app\/AGENTS\.md/,
+      description: "preserved managed file",
+    },
+  ]);
+  assert.match(removalReview, /Removal review/);
+  assert.match(removalReview, /Preserved: \/consumer\/demo-app\/AGENTS\.md/);
+  await press(app, "n");
+  assert.equal(executions.length, 0, "canceling removal never executes it");
+  app.unmount();
+});
+
+test("compact switch review bounds long detected-entry and peer lists without hiding confirmation", async () => {
+  const executions = [];
+  const target = "@prism-system/ui-b";
+  const app = start(
+    makeServices({
+      getProjectState: connectedState,
+      searchSystems: async () => ({
+        ok: true,
+        results: [{ name: target, version: "2.0.0", description: "System B" }],
+      }),
+      previewMutation: async (action) => ({
+        ...previewFor(action),
+        from: { package: "@prism-system/ui-a", version: "1.2.3" },
+        to: { package: action.packageName, version: action.version },
+        compatibility: { blockers: [], warnings: [], coverage: {} },
+        material: {
+          peers: [
+            {
+              name: "three",
+              kind: "peer",
+              range: "^0.186.0",
+              optional: true,
+              action: "install",
+              version: "0.186.1",
+            },
+            {
+              name: "react",
+              kind: "peer",
+              range: "^19",
+              optional: false,
+              action: "retain",
+              installed: "19.0.0",
+            },
+            {
+              name: "vite",
+              kind: "peer",
+              range: "^6",
+              optional: true,
+              action: "retain",
+              installed: "6.0.0",
+            },
+            {
+              name: "motion",
+              kind: "peer",
+              range: "^12",
+              optional: true,
+              action: "install",
+              version: "12.0.0",
+            },
+          ],
+        },
+        result: {
+          autoSelectedEntries: [
+            { name: "KeyboardScene", entrypoint: "./custom/keyboard-scene", file: "src/scene.tsx" },
+            { name: "WorkflowMap", entrypoint: "./custom/workflow-map", file: "src/workflow.tsx" },
+            { name: "CanvasScene", entrypoint: "./custom/canvas-scene", file: "src/canvas.tsx" },
+          ],
+        },
+      }),
+      executeMutation: async (action) => {
+        executions.push(action);
+        return { ok: true, applied: true, failures: [] };
+      },
+    }),
+    { columns: 46, rows: 15 },
+  );
+
+  await settle(app);
+  await press(app, "m");
+  await press(app, "s");
+  await press(app, "w");
+  await waitFor(() => /System B/.test(app.lastFrame() ?? ""), "compact switch results");
+  await press(app, "enter");
+  await waitFor(
+    () => /Published manifest details/.test(app.lastFrame() ?? ""),
+    "compact switch target details",
+  );
+  await press(app, "w");
+  await waitFor(
+    () => /Confirm planned change/.test(app.lastFrame() ?? ""),
+    "compact switch preview",
+  );
+
+  const frame = (
+    await collectScrollableFrames(app, [
+      {
+        pattern: /KeyboardScene \(\.\/custom\/keyboard-scene\)/,
+        description: "first auto-selected entry",
+      },
+      {
+        pattern: /\+2 more auto-selected entries not shown/,
+        description: "remaining auto-selected entry count",
+      },
+      { pattern: /Selected peer actions/, description: "compact selected peer actions" },
+      { pattern: /three \[peer\]/, description: "first compact peer action" },
+      { pattern: /\+3 more peer actions not shown/, description: "remaining peer action count" },
+    ])
+  ).replace(/\s+/g, " ");
+  assert.match(frame, /Confirm planned change/);
+  assert.match(frame, /@prism-system\/ui-b@2\.0\.0/);
+  assert.match(frame, /KeyboardScene \(\.\/custom\/keyboard-scene\)/);
+  assert.match(frame, /\+2 more auto-selected entries not shown/);
+  assert.match(frame, /three \[peer\] · \^0\.186\.0 · optional · install 0\.186\.1/);
+  assert.match(frame, /\+3 more peer actions not shown/);
+  assert.match(footerFrame(app.lastFrame()), /Apply\s+\(y \/ Enter\)/i);
+  assert.equal(executions.length, 0);
+  await press(app, "escape");
+  assert.equal(executions.length, 0, "canceling a compact preview does not mutate the project");
+  app.unmount();
+});
+
+test("Use offers pending automatic skill setup, an explicit agent, and a clear no-skill opt-out", async () => {
+  const actions = [];
+  const executions = [];
+  const services = makeServices({
+    searchSystems: async () => ({
+      ok: true,
+      results: [{ name: "@prism-system/ui-a", version: "1.2.3", description: "System A" }],
+    }),
+    previewMutation: async (action) => {
+      actions.push(action);
+      return {
+        ...previewFor(action),
+        ...(action.skills
+          ? {
+              skillSetup: {
+                enabled: true,
+                status: action.skillAgents?.length ? "planned" : "pending",
+                agents: action.skillAgents ?? [],
+                guidance: action.skillAgents?.length
+                  ? "The selected agent is explicit."
+                  : "No agent was detected; skill setup remains pending and does not block system setup.",
+              },
+            }
+          : {}),
+      };
+    },
+    executeMutation: async (action) => {
+      executions.push(action);
+      return { ok: true, applied: true, failures: [] };
+    },
+  });
+  const app = start(services);
+  await settle(app);
+  await press(app, "b");
+  await settle(app);
+  await press(app, "enter");
+  await waitFor(() => /Published manifest details/.test(app.lastFrame() ?? ""), "catalog details");
+  assert.match(footerFrame(app.lastFrame()), /Use without skill setup\s+\(n\)/i);
+  assert.match(footerFrame(app.lastFrame()), /Choose skill agent\s+\(a\)/i);
+
+  await press(app, "u");
+  await waitFor(
+    () => /Confirm planned change/.test(app.lastFrame() ?? ""),
+    "automatic use preview",
+  );
+  assert.equal(actions.at(-1).skills, true);
+  assert.deepEqual(actions.at(-1).skillAgents, []);
+  const usePreview = await collectScrollableFrames(app, [
+    { pattern: /Consumer skill setup: pending/, description: "pending consumer skill setup" },
+    {
+      pattern: /remains pending and does not block system setup/,
+      description: "pending skill setup guidance",
+    },
+  ]);
+  assert.match(usePreview, /Consumer skill setup: pending/);
+  assert.match(usePreview.replace(/\s+/g, " "), /remains pending and does not block system setup/);
+  await press(app, "escape");
+  await settle(app);
+  assert.equal(executions.length, 0);
+
+  await press(app, "n");
+  await waitFor(
+    () => /Confirm planned change/.test(app.lastFrame() ?? ""),
+    "use without skill preview",
+  );
+  assert.equal(actions.at(-1).skills, false);
+  assert.doesNotMatch(app.lastFrame(), /Consumer skill setup:/);
+  await press(app, "escape");
+  await settle(app);
+
+  await press(app, "a");
+  assert.match(app.lastFrame(), /Choose an agent for the use skill/);
+  assert.match(app.lastFrame().replace(/\s+/g, " "), /no provider is guessed/i);
+  await typeText(app, "codex");
+  await press(app, "enter");
+  await waitFor(
+    () => /Confirm planned change/.test(app.lastFrame() ?? ""),
+    "explicit-agent use preview",
+  );
+  assert.equal(actions.at(-1).skills, true);
+  assert.deepEqual(actions.at(-1).skillAgents, ["codex"]);
+  const explicitUsePreview = await collectScrollableFrames(app, [
+    { pattern: /Agents: codex/, description: "explicit use skill agent" },
+  ]);
+  assert.match(explicitUsePreview, /Agents: codex/);
+  assert.equal(executions.length, 0, "use previews never install until the user confirms");
+  app.unmount();
+});
+
+test("skills screen observes inventory offline, requires an agent, and cancellation never installs", async () => {
+  let inventoryCalls = 0;
+  const previews = [];
+  const executions = [];
+  const catalog = [
+    {
+      id: "use-design-system",
+      skill: "use-design-system",
+      type: "prism",
+      role: "consumer",
+      reviewStatus: "firstparty",
+      description: "Consumer setup instructions.",
+      tags: ["consumer"],
+    },
+    {
+      id: "frontend-design",
+      skill: "frontend-design",
+      type: "design",
+      role: "design-craft",
+      reviewStatus: "reviewed",
+      description: "UI craft guidance.",
+      tags: ["ui"],
+    },
+  ];
+  const app = start(
+    makeServices({
+      getProjectState: connectedState,
+      skillAgentIds: ["claude-code", "codex", "cursor", "opencode"],
+      listSkills: async ({ scope }) => {
+        inventoryCalls += 1;
+        return {
+          ok: true,
+          catalog,
+          installed: [
+            {
+              catalogId: "use-design-system",
+              scope: "project",
+              managed: true,
+              relativePath: ".agents/skills/use-design-system",
+            },
+          ],
+          scope,
+        };
+      },
+      previewSkillMutation: async (action) => {
+        previews.push(action);
+        return {
+          ok: true,
+          dryRun: true,
+          kind: "skill",
+          material: { ...action, revision: "a".repeat(40) },
+          result: {
+            ok: true,
+            expectedPlan: { revision: "a".repeat(40), targets: [] },
+            command: { executable: "npx", package: "skills@1.7.0", args: ["--yes", "add"] },
+            targets: [
+              {
+                path: "/consumer/demo-app/.agents/skills/use-design-system",
+                selected: true,
+                exists: false,
+              },
+            ],
+            warnings: [],
+          },
+        };
+      },
+      executeSkillMutation: async (action, preview) => {
+        executions.push({ action, preview });
+        return { ok: true, applied: true, changed: true, failures: [] };
+      },
+    }),
+  );
+  await settle(app);
+  await press(app, "m");
+  await press(app, "k");
+  await waitFor(() => /Prism skills/.test(app.lastFrame() ?? ""), "skill inventory");
+  assert.equal(inventoryCalls, 1);
+  assert.match(app.lastFrame(), /AGENT\s+not selected/);
+  assert.match(app.lastFrame(), /Instructions only/);
+  assert.match(footerFrame(app.lastFrame()), /Choose agent\s+\(a\)/i);
+  assert.match(footerFrame(app.lastFrame()), /Add skill\s+\(Enter\)/i);
+
+  await press(app, "enter");
+  assert.equal(previews.length, 0, "an absent agent selection never produces a plan");
+  assert.match(app.lastFrame(), /Choose a catalog skill and one supported agent/i);
+  await press(app, "1");
+  assert.match(app.lastFrame(), /AGENT\s+claude-code/);
+  await press(app, "enter");
+  await waitFor(() => /Confirm skill add/.test(app.lastFrame() ?? ""), "skill add confirmation");
+  assert.deepEqual(previews[0].agents, ["claude-code"]);
+  const skillPreview = await collectScrollableFrames(app, [
+    { pattern: /SOURCE REVISION/, description: "skill source revision" },
+    { pattern: /Planned skill placements/, description: "planned skill placement" },
+    {
+      pattern: /Universal agents may share the canonical placement/,
+      description: "shared skill placement guidance",
+    },
+  ]);
+  assert.match(skillPreview, /SOURCE REVISION/);
+  assert.match(skillPreview, /Planned skill placements/);
+  assert.match(skillPreview, /Universal agents may share the canonical placement/);
+  assert.equal(executions.length, 0);
+  await press(app, "escape");
+  assert.equal(executions.length, 0, "cancellation does not call the skill installer");
+
+  await settle(app);
+  await press(app, "g");
+  assert.match(app.lastFrame(), /SCOPE\s+GLOBAL/);
+  await press(app, "a");
+  assert.match(app.lastFrame(), /Choose a skill agent/);
+  await typeText(app, "codex");
+  await press(app, "enter");
+  assert.match(app.lastFrame(), /AGENT\s+codex/);
+  app.unmount();
+});
+
+test("slow startup update check does not block the connected screen; global update needs a selected manager", async () => {
+  let resolveCheck;
+  const checkCalls = [];
+  const previews = [];
+  const executions = [];
+  const plan = {
+    packageName: "@prism-system/tools",
+    currentVersion: "2.9.0",
+    targetVersion: "3.0.0",
+    scope: "global",
+    installation: { kind: "global", manager: "npm", verified: true },
+    command: {
+      manager: "npm",
+      verb: "install",
+      args: ["install", "-g", "@prism-system/tools@3.0.0"],
+    },
+    postVerifySupported: true,
+  };
+  const app = start(
+    makeServices({
+      getProjectState: connectedState,
+      checkCliUpdate: (options) => {
+        checkCalls.push(options);
+        return new Promise((resolve) => {
+          resolveCheck = resolve;
+        });
+      },
+      previewCliUpdate: async (options) => {
+        previews.push(options);
+        return {
+          ok: true,
+          dryRun: true,
+          kind: "self-update",
+          updateAvailable: true,
+          plan: { ...plan, scope: options.global ? "global" : "local" },
+          material: { plan, plannedChanges: [] },
+        };
+      },
+      executeCliUpdate: async (options, preview) => {
+        executions.push({ options, preview });
+        return { ok: true, applied: true, changed: true, failures: [] };
+      },
+    }),
+  );
+  await waitFor(() => checkCalls.length === 1, "nonblocking startup update check");
+  assert.match(
+    app.lastFrame(),
+    /CONNECTED/i,
+    "local project state renders while the registry request is pending",
+  );
+  assert.deepEqual(checkCalls[0], { timeoutMs: 2500 });
+
+  await press(app, "m");
+  await press(app, "u");
+  assert.match(app.lastFrame(), /Checking in background/i);
+  assert.match(app.lastFrame(), /This updates the CLI package only/);
+  resolveCheck({
+    ok: true,
+    available: true,
+    current: "2.9.0",
+    latest: "3.0.0",
+    installation: { kind: "unknown", manager: null, verified: false },
+    advice: "A newer release is available; installation context is unknown.",
+  });
+  await waitFor(() => /UPDATE AVAILABLE/i.test(app.lastFrame() ?? ""), "startup update result");
+  assert.equal(executions.length, 0, "startup only checks; it never installs");
+
+  await press(app, "g");
+  assert.match(app.lastFrame(), /Choose npm or pnpm first/);
+  assert.equal(previews.length, 0, "global scope is never guessed");
+  await press(app, "n");
+  await settle(app);
+  await press(app, "g");
+  await waitFor(
+    () => /Confirm prism-ds CLI update/.test(app.lastFrame() ?? ""),
+    "explicit global update preview",
+  );
+  assert.deepEqual(previews[0], { global: true, manager: "npm" });
+  const updatePreview = await collectScrollableFrames(app, [
+    { pattern: /npm install -g/, description: "explicit global CLI update command" },
+  ]);
+  assert.match(updatePreview, /PACKAGE\s+@prism-system\/tools/);
+  assert.match(updatePreview, /TARGET VERSION\s+3\.0\.0/);
+  assert.match(updatePreview, /npm install -g/);
+  assert.equal(executions.length, 0);
+  await press(app, "escape");
+  assert.equal(executions.length, 0, "canceling the CLI update leaves the installation untouched");
+  app.unmount();
+});
+
+test("recovery keeps guidance separate and requires confirmation for an applicable repair", async () => {
+  const previews = [];
+  const executions = [];
+  const suggestions = [
+    {
+      id: "repair-config",
+      label: "Repair the consumer config",
+      reason: "The config is malformed; manual editing is required.",
+      executable: false,
+    },
+    {
+      id: "connect",
+      label: "Reconnect the consumer contract",
+      reason: "The installed package is not connected.",
+      executable: true,
+      kind: "connect",
+      command: { bin: "prism-ds", args: ["connect"] },
+    },
+  ];
+  const app = start(
+    makeServices({
+      getProjectState: connectedState,
+      runRecovery: () => ({
+        ok: false,
+        report: {
+          ok: false,
+          summary: "2 issues at /consumer/demo-app",
+          issues: [
+            { id: "consumer-config", label: "Consumer config", detail: "Malformed JSON." },
+            { id: "connection", label: "Connection", detail: "Not connected." },
+          ],
+        },
+        suggestions,
+        failures: [],
+      }),
+      previewRecoveryAction: (action) => {
+        previews.push(action);
+        return {
+          ok: true,
+          dryRun: true,
+          actionId: "connect",
+          kind: "connect",
+          suggestion: suggestions[1],
+          plan: {
+            packageName: "@prism-system/ui-a",
+            version: "1.2.3",
+            files: [
+              { path: "/consumer/demo-app/.design-system/config.json", before: null, after: "{}" },
+            ],
+          },
+          material: { actionId: "connect" },
+        };
+      },
+      executeRecoveryAction: async (action, preview) => {
+        executions.push({ action, preview });
+        return {
+          ok: true,
+          actionCompleted: true,
+          repaired: false,
+          healthy: false,
+          stillRemaining: ["consumer-config"],
+          failures: ["A malformed file still needs manual repair."],
+        };
+      },
+    }),
+  );
+  await settle(app);
+  await press(app, "m");
+  await press(app, "r");
+  await waitFor(() => /2 issues at/.test(app.lastFrame() ?? ""), "recovery diagnosis");
+  assert.match(app.lastFrame(), /GUIDANCE\s+Repair the consumer config/);
+  assert.match(app.lastFrame(), /REPAIR\s+Reconnect the consumer contract/);
+
+  await press(app, "enter");
+  assert.equal(previews.length, 0, "guidance-only recommendations never invoke a planner");
+  assert.match(app.lastFrame(), /Guidance only/);
+  await scrollDownUntil(
+    app,
+    /2\s+REPAIR\s+Reconnect the consumer contract/,
+    "the applicable recovery repair choice",
+  );
+  await press(app, "2");
+  await press(app, "enter");
+  await waitFor(
+    () => /Confirm targeted recovery action/.test(app.lastFrame() ?? ""),
+    "recovery action preview",
+  );
+  assert.equal(previews.length, 1);
+  assert.equal(previews[0].actionId, "connect");
+  const recoveryPreview = await collectScrollableFrames(app, [
+    { pattern: /Planned file effects/, description: "targeted recovery file effects" },
+  ]);
+  assert.match(recoveryPreview, /Confirm targeted recovery action/);
+  assert.match(recoveryPreview, /Planned file effects/);
+  assert.equal(executions.length, 0);
+  await press(app, "escape");
+  assert.equal(executions.length, 0, "canceling recovery never applies the repair");
   app.unmount();
 });

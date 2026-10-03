@@ -43,7 +43,7 @@ design-systems/
 │   └── tools/             # @prism-system/tools — инструмент потребителя (prism-ds)
 ├── templates/design-system/   # шаблон для новых дизайн-систем
 ├── fixtures/consumer-product/ # пример продукта-потребителя
-├── skills/                # инструкции для coding-агентов (create/use/modify)
+├── skills/                # инструкции для coding-агентов (create/modify/use/switch)
 ├── scripts/               # детерминированные команды (ds:*)
 ├── config/                # реестр дизайн-систем
 ├── schemas/               # JSON-схемы манифестов и конфигов
@@ -180,22 +180,62 @@ npx prism-ds doctor --cwd .
 
 # обновление до точной версии с диффом манифеста
 npx prism-ds upgrade @prism-system/ui-system-a <exact-version> --cwd . --dry-run
+
+# переход на другую систему: сначала предпросмотр совместимости, затем подтверждение
+npx prism-ds switch @prism-system/ui-system-b --cwd . --dry-run
+
+# удаление прежней системы отдельным явным действием, когда она больше не используется
+npx prism-ds remove @prism-system/ui-system-a --cwd . --dry-run
+
+# инструкции для агентов: официальные Prism и курированные design-скиллы
+npx prism-ds skills list --cwd .
+npx prism-ds skills add use-design-system --cwd . --agent opencode --dry-run
+
+# обновление самого CLI (отдельно от upgrade дизайн-системы)
+npx prism-ds self-update --check
+
+# восстановление состояния проекта: офлайн-советы, действие только по подтверждению
+npx prism-ds recover --cwd .
+npx prism-ds recover --cwd . --action <id> --dry-run
 ```
+
+Запуск `npx prism-ds` без аргументов из корня продукта открывает встроенный
+интерактивный TUI: он работает с текущим каталогом (без `--cwd`) и не запускает
+дочерний терминал. Главный экран показывает состояние проекта, каталог и проверки, а
+раздел `m` Manage группирует смену и удаление системы, скиллы, обновление самого CLI и
+восстановление. Подсказки действий и клавиш — в нижней строке; `Esc` — назад или
+отмена, `q`/`Ctrl+C` — выход. Любое изменение выполняется только после предпросмотра
+только для чтения (точная версия, команда менеджера, планируемые файлы) и явного
+подтверждения `y`/Enter; `Esc`/`n` отменяет план.
 
 Границы возможностей `prism-ds`:
 
 - `search` и `info` — **явная сеть, только чтение**: они ничего не устанавливают, не
   пишут в продукт и не трогают этот репозиторий;
-- `install`, `use` и `upgrade` — **единственные команды, которые меняют зависимости
-  продукта**; они сначала проверяют точную версию в реестре, затем запускают
-  фиксированную команду npm/pnpm с `--ignore-scripts` и без пользовательских
+- `install`, `use`, `upgrade`, `switch` и `remove` — **единственные команды, которые
+  меняют зависимости продукта**. Они сначала проверяют точную версию в реестре, затем
+  запускают фиксированную команду npm/pnpm с `--ignore-scripts` и без пользовательских
   аргументов, после чего проверяют установленный пакет (у `upgrade` — ещё и
-  сравнивают манифесты);
-- `connect`, `components`, `tokens`, `check`, `check-usage`, `doctor` и
-  `setup-tailwind` — **офлайн**: не устанавливают пакеты, не меняют зависимости и не
-  копируют исходники. `connect` пишет только consumer-конфиг и инструкции,
-  `setup-tailwind` меняет только явно указанный CSS-файл, `check`/`doctor`/каталоги
-  ничего не пишут.
+  сравнивают манифесты). `switch` сохраняет прежнюю зависимость и применяет только
+  проверенные буквальные замены импортов/CSS; `remove` удаляет её отдельным явным
+  действием и только когда активных ссылок не осталось;
+- `connect`, `components`, `tokens`, `check`, `check-usage`, `doctor`, `setup-tailwind`
+  и `recover` без `--action` — **офлайн**: не устанавливают пакеты, не меняют
+  зависимости и не копируют исходники. `connect` пишет только consumer-конфиг и
+  инструкции, `setup-tailwind` меняет только явно указанный CSS-файл, `check`/`doctor`/
+  каталоги ничего не пишут, `recover` по умолчанию только читает состояние и предлагает
+  подходящие действия;
+- объявленные сетевые исключения: стартовый проверочный запрос TUI (однократный, только
+  чтение, не блокирует запуск, отключается `PRISM_DS_UPDATE_CHECK=0`), `self-update`
+  (проверка или явная установка самого CLI отдельно от `upgrade`) и
+  `skills add/update/remove` (могут загрузить закреплённый `npx skills@1.7.0`);
+  `skills list` остаётся офлайн;
+- `skills` управляет двумя независимыми типами инструкций: официальные Prism
+  (`use`, `switch`, `create`, `modify`) и курированные design-скиллы. Область
+  (проект/глобально) и агент выбираются явно; установка скилла — это только инструкции,
+  она не выполняет их и не ставит Three.js/GSAP или другие зависимости продукта;
+- `self-update` обновляет только сам `prism-ds`; `recover` превращает диагностику в
+  применимые действия, а завершение действия не означает, что проблема уже устранена.
 
 Публичный контракт для продукта — это `.design-system/config.json`, манифест
 `<package>/manifest` и `AGENTS.md` установленного пакета. Команды `pnpm ds:connect`
@@ -233,8 +273,9 @@ npx prism-ds upgrade @prism-system/ui-system-a <exact-version> --cwd . --dry-run
 - **Приложения:** [`apps/showcase/README.md`](apps/showcase/README.md),
   [`apps/reference-app/README.md`](apps/reference-app/README.md)
 - **Skills:** [`skills/create-design-system/SKILL.md`](skills/create-design-system/SKILL.md),
+  [`skills/modify-design-system/SKILL.md`](skills/modify-design-system/SKILL.md),
   [`skills/use-design-system/SKILL.md`](skills/use-design-system/SKILL.md),
-  [`skills/modify-design-system/SKILL.md`](skills/modify-design-system/SKILL.md)
+  [`skills/switch-design-system/SKILL.md`](skills/switch-design-system/SKILL.md)
 - **Архив истории:** [`docs/archive/README.md`](docs/archive/README.md)
 - **Пример продукта-потребителя:**
   [`fixtures/consumer-product/README.md`](fixtures/consumer-product/README.md)

@@ -877,6 +877,7 @@ test("use --dry-run --json plans dependency and connect changes", async (t) => {
     root,
     "--registry",
     registry.registry,
+    "--no-skills",
     "--dry-run",
     "--json",
   ]);
@@ -913,6 +914,7 @@ test("use --tailwind --dry-run --json forwards the CSS import plan", async (t) =
     "--tailwind",
     "--css",
     "src/app.css",
+    "--no-skills",
     "--dry-run",
     "--json",
   ]);

@@ -4,8 +4,10 @@
  * Run: node --test scripts/check-skills.test.mjs
  *
  * Covers SKILL.md entrypoints/frontmatter, local links/anchors under skills/**,
- * the design-brief schema and every brief-shaped JSON example, and
- * normalizeBrief/dry-run compatibility with the optional interview notes.
+ * standalone reference copies (drift against the canonical references and
+ * resolution inside a temp copy outside the repository), the design-brief
+ * schema and every brief-shaped JSON example, and normalizeBrief/dry-run
+ * compatibility with the optional interview notes.
  * Limits: frontmatter parsing is a bounded subset (flat scalar keys plus
  * indented folded/literal `>`/`|` block scalars with chomping markers), not a
  * YAML engine. The brief validator is a subset validator for the keywords the
@@ -16,20 +18,30 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { normalizeBrief } from "./create-design-system.mjs";
+import { SKILL_REFERENCE_SOURCES, syncSkillReferences } from "./sync-skill-references.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const skillsRoot = join(repoRoot, "skills");
 const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
 const briefSchema = readJson(join(skillsRoot, "create-design-system", "design-brief.schema.json"));
 
-const EXPECTED_SKILLS = "create-design-system modify-design-system use-design-system".split(" ");
+const EXPECTED_SKILLS =
+  "create-design-system modify-design-system switch-design-system use-design-system".split(" ");
 // Canonical required contract, compared as sets so schema field order is free.
 const REQUIRED_BRIEF_FIELDS =
   "project product audience platform interfaceType dataDensity direction references foundations components avoid".split(
@@ -353,14 +365,14 @@ function collectSkillBriefExamples() {
   return examples;
 }
 
-test("the three skill entrypoints are the only SKILL.md files with frontmatter", () => {
+test("the four skill entrypoints are the only SKILL.md files with frontmatter", () => {
   const skillFiles = collectFiles(skillsRoot, (path) => path.endsWith("SKILL.md"))
     .map(repoRelative)
     .sort();
   assert.deepEqual(
     skillFiles,
     EXPECTED_SKILLS.map((id) => `skills/${id}/SKILL.md`),
-    "skills/ must contain exactly the three lifecycle SKILL.md entrypoints",
+    "skills/ must contain exactly the four lifecycle SKILL.md entrypoints",
   );
   assert.ok(
     !skillFiles.some((file) => file.startsWith("skills/references/")),
@@ -496,6 +508,82 @@ test("every relative Markdown link in skills/** resolves inside the repository",
     }
   }
   assert.deepEqual(failures, [], failures.join("\n"));
+});
+
+test("every skill folder ships its own reference copies with no drift", () => {
+  assert.deepEqual(
+    sorted(Object.keys(SKILL_REFERENCE_SOURCES)),
+    sorted(EXPECTED_SKILLS),
+    "every skill entrypoint must declare its standalone reference copies.",
+  );
+
+  const result = syncSkillReferences({ root: repoRoot, write: false });
+  const refresh = "run node scripts/sync-skill-references.mjs --write";
+  assert.deepEqual(
+    result.missing,
+    [],
+    `missing standalone reference copies (${refresh}):\n${result.missing.join("\n")}`,
+  );
+  assert.deepEqual(
+    result.stale,
+    [],
+    `stale standalone reference copies (${refresh}):\n${result.stale.join("\n")}`,
+  );
+  assert.deepEqual(
+    result.unexpected,
+    [],
+    `unexpected files under skills/*/references:\n${result.unexpected.join("\n")}`,
+  );
+});
+
+test("a copied skill folder resolves all local Markdown references outside the repository", (t) => {
+  const approved = process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, "Temp", "opencode");
+  const tempRoot = mkdtempSync(
+    join(approved && existsSync(approved) ? approved : tmpdir(), "prism-skill-copy-"),
+  );
+  t.after(() => rmSync(tempRoot, { recursive: true, force: true }));
+
+  for (const skillId of EXPECTED_SKILLS) {
+    const copy = join(tempRoot, skillId);
+    cpSync(join(skillsRoot, skillId), copy, { recursive: true });
+    const markdownFiles = collectFiles(copy, (path) => /\.md$/i.test(path));
+    assert.ok(markdownFiles.length > 0, `${skillId}: the copied skill must keep Markdown files.`);
+
+    const failures = [];
+    for (const absolute of markdownFiles) {
+      const relPath = toPosix(relative(copy, absolute));
+      for (const link of extractLinks(readFileSync(absolute, "utf8"))) {
+        const target = parseLinkTarget(link.raw);
+        if (!target) continue;
+        if (target.absolute) {
+          failures.push(`${relPath}:${link.line}: root-absolute link "${link.raw}" is not local.`);
+          continue;
+        }
+
+        const resolved = target.file === "" ? absolute : resolve(dirname(absolute), target.file);
+        const inside = relative(copy, resolved);
+        if (inside.startsWith("..") || isAbsolute(inside)) {
+          failures.push(`${relPath}:${link.line}: link "${link.raw}" escapes the copied skill.`);
+          continue;
+        }
+        if (!existsSync(resolved)) {
+          failures.push(
+            `${relPath}:${link.line}: link "${link.raw}" does not resolve in the copy.`,
+          );
+          continue;
+        }
+        if (target.fragment && /\.md$/i.test(resolved)) {
+          const slugs = headingSlugs(readFileSync(resolved, "utf8"));
+          if (!slugs.has(target.fragment.toLowerCase())) {
+            failures.push(
+              `${relPath}:${link.line}: anchor "#${target.fragment}" not found in the copy.`,
+            );
+          }
+        }
+      }
+    }
+    assert.deepEqual(failures, [], failures.join("\n"));
+  }
 });
 
 test("the brief schema keeps the canonical contract and declares the optional notes", () => {
