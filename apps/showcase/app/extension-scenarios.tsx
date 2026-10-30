@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { InteractiveWorkflowMapProps } from "@prism-system/ui-system-b/custom/interactive-workflow-map";
 import type { KeyboardSceneProps } from "@prism-system/ui-system-b/custom/keyboard-scene";
 import type { ExtensionModule } from "./extension-loaders";
+import { getRegisteredSystem } from "./registry";
 
 export type ExtensionScenarioContext = {
   systemId: string;
@@ -48,35 +49,41 @@ const workflowStages = [
 
 function KeyboardSceneShowcase({
   Extension,
+  systemId,
 }: {
   Extension: React.ComponentType<KeyboardSceneProps>;
+  systemId: string;
 }) {
   const [selectedKey, setSelectedKey] = useState<string | null>("letter-g");
   const [narrow, setNarrow] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const { Button, Switch } = getRegisteredSystem(systemId).components;
 
   return (
     <div className="extension-scenario extension-keyboard-scenario">
-      <p>
-        The scene stays procedural. Use a narrow preview or request its still pose; real system
-        reduced-motion settings are honored automatically too.
-      </p>
       <div
         className="extension-scenario-controls"
         role="group"
         aria-label="Keyboard scene preview options"
       >
-        <button type="button" aria-pressed={narrow} onClick={() => setNarrow((value) => !value)}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          aria-pressed={narrow}
+          onClick={() => setNarrow((value) => !value)}
+        >
           {narrow ? "Use full width" : "Preview at 375 px"}
-        </button>
-        <label>
-          <input
-            type="checkbox"
+        </Button>
+        <span className="extension-scenario-toggle">
+          <Switch
+            size="sm"
             checked={reducedMotion}
-            onChange={(event) => setReducedMotion(event.currentTarget.checked)}
+            onCheckedChange={setReducedMotion}
+            aria-label="Preview reduced motion"
           />
-          Preview reduced motion
-        </label>
+          <span>Preview reduced motion</span>
+        </span>
       </div>
       <div className={`extension-scenario-viewport${narrow ? " is-narrow" : ""}`}>
         <Extension
@@ -98,10 +105,6 @@ function WorkflowMapShowcase({
 
   return (
     <div className="extension-scenario">
-      <p>
-        These sample stages belong to the Showcase. The extension displays them without owning a
-        product workflow.
-      </p>
       <Extension
         label="Showcase sample workflow"
         nodes={workflowStages}
@@ -114,7 +117,7 @@ function WorkflowMapShowcase({
 
 const keyboardSceneAdapter = createExtensionScenarioAdapter<KeyboardSceneProps>(
   "KeyboardScene",
-  (Extension) => <KeyboardSceneShowcase Extension={Extension} />,
+  (Extension, context) => <KeyboardSceneShowcase Extension={Extension} systemId={context.systemId} />,
 );
 
 const workflowMapAdapter = createExtensionScenarioAdapter<InteractiveWorkflowMapProps>(
