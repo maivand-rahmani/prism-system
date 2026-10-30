@@ -34,6 +34,12 @@
     "version-packages-and-sync": "pnpm version-packages && pnpm ds:sync-versions",
     "release": "node scripts/sync-design-system-versions.mjs --check && turbo run build && changeset publish"
   },
+  "pnpm": {
+    "overrides": {
+      "@types/react": "19.3.0",
+      "@types/react-dom": "19.3.0"
+    }
+  },
   "devDependencies": {
     "@changesets/cli": "2.31.1",
     "@eslint/js": "9.39.5",
