@@ -6,7 +6,7 @@
   "id": "system-plr",
   "name": "Plan Like Rahmani",
   "package": "@prism-system/ui-system-plr",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
