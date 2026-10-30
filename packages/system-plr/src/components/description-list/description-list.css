@@ -1,0 +1,97 @@
+:where(.maivand-plr-ui).maivand-plr-description-list {
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  border-block-start: 2px solid var(--maivand-plr-color-border-strong);
+  border-inline-start: 1px solid var(--maivand-plr-color-border-default);
+  display: grid;
+  gap: 0;
+  margin: 0;
+  min-width: 0;
+}
+:where(.maivand-plr-ui) .maivand-plr-description-list-item {
+  display: grid;
+  border-block-end: 1px solid var(--maivand-plr-color-border-default);
+  gap: var(--maivand-plr-spacing-scale-1) var(--maivand-plr-spacing-semantic-inline);
+  grid-template-columns: minmax(7rem, 0.8fr) minmax(0, 1.8fr);
+  min-width: 0;
+  padding-block: var(--maivand-plr-spacing-scale-3);
+  padding-inline: var(--maivand-plr-spacing-scale-3);
+  transition:
+    background-color var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard),
+    border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard);
+}
+:where(.maivand-plr-ui) .maivand-plr-description-list-item:hover,
+:where(.maivand-plr-ui) .maivand-plr-description-list-item:focus-within {
+  background-color: color-mix(
+    in srgb,
+    var(--maivand-plr-color-action-secondary) 32%,
+    var(--maivand-plr-color-surface-raised)
+  );
+  border-block-end-color: var(--maivand-plr-color-border-strong);
+}
+:where(.maivand-plr-ui) .maivand-plr-description-list-term {
+  color: var(--maivand-plr-color-action-primary-hover);
+  display: flex;
+  align-items: baseline;
+  gap: var(--maivand-plr-spacing-scale-2);
+  font-size: var(--maivand-plr-typography-size-sm);
+  font-weight: var(--maivand-plr-typography-weight-medium);
+  grid-column: 1;
+  grid-row: 1;
+  line-height: var(--maivand-plr-typography-line-height-normal);
+}
+:where(.maivand-plr-ui) .maivand-plr-description-list-term::before {
+  background: var(--maivand-plr-color-action-primary);
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--maivand-plr-color-action-primary-text) 46%,
+      var(--maivand-plr-color-action-primary)
+    );
+  border-radius: 0 100% 0 100%;
+  content: "";
+  flex: 0 0 0.7rem;
+  height: 0.45rem;
+  transform: rotate(-28deg) scale(0.88);
+  transform-origin: center;
+  transition:
+    background-color var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard),
+    transform var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-entrance);
+  width: 0.7rem;
+}
+:where(.maivand-plr-ui)
+  .maivand-plr-description-list-item:hover
+  .maivand-plr-description-list-term::before,
+:where(.maivand-plr-ui)
+  .maivand-plr-description-list-item:focus-within
+  .maivand-plr-description-list-term::before {
+  transform: rotate(-10deg) scale(1);
+}
+:where(.maivand-plr-ui) .maivand-plr-description-list-description {
+  color: var(--maivand-plr-color-text-primary);
+  grid-column: 2;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: var(--maivand-plr-typography-line-height-relaxed);
+}
+@media (max-width: 40rem) {
+  :where(.maivand-plr-ui) .maivand-plr-description-list-item {
+    gap: var(--maivand-plr-spacing-scale-1) var(--maivand-plr-spacing-semantic-inline);
+    grid-template-columns: 1fr;
+    padding-block: var(--maivand-plr-spacing-scale-3);
+    padding-inline: var(--maivand-plr-spacing-scale-2);
+  }
+  :where(.maivand-plr-ui) .maivand-plr-description-list-term,
+  :where(.maivand-plr-ui) .maivand-plr-description-list-description {
+    grid-column: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui) .maivand-plr-description-list-item,
+  :where(.maivand-plr-ui) .maivand-plr-description-list-term::before {
+    transition-duration: var(--maivand-plr-motion-duration-reduced);
+  }
+}

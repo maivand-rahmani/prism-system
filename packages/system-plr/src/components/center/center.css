@@ -1,0 +1,54 @@
+:where(.maivand-plr-ui).maivand-plr-center {
+  background-image:
+    linear-gradient(
+      139deg,
+      transparent 47%,
+      color-mix(in srgb, var(--maivand-plr-color-action-primary) 48%, transparent) 48% 53%,
+      transparent 54%
+    ),
+    radial-gradient(
+      ellipse at center,
+      color-mix(in srgb, var(--maivand-plr-color-action-secondary) 70%, transparent) 0 54%,
+      transparent 57%
+    );
+  background-position:
+    left var(--maivand-plr-spacing-scale-1) top var(--maivand-plr-spacing-scale-4),
+    left calc(var(--maivand-plr-spacing-scale-1) + 2px) top var(--maivand-plr-spacing-scale-4);
+  background-repeat: no-repeat;
+  background-size: var(--maivand-plr-spacing-scale-3) var(--maivand-plr-spacing-scale-3);
+  margin-inline: auto;
+  max-width: var(--maivand-plr-containers-narrow);
+  padding-inline: var(--maivand-plr-spacing-semantic-inset);
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(.maivand-plr-ui).maivand-plr-center {
+    transition: background-position var(--maivand-plr-motion-duration-normal)
+      var(--maivand-plr-motion-easing-entrance);
+  }
+
+  :where(.maivand-plr-ui).maivand-plr-center:is(:hover, :focus-within) {
+    background-position:
+      left var(--maivand-plr-spacing-scale-1) top
+        calc(var(--maivand-plr-spacing-scale-4) - var(--maivand-plr-spacing-scale-1)),
+      left calc(var(--maivand-plr-spacing-scale-1) + 2px) top
+        calc(var(--maivand-plr-spacing-scale-4) - var(--maivand-plr-spacing-scale-1));
+  }
+}
+
+:where(.maivand-plr-ui).maivand-plr-center:dir(rtl) {
+  background-position:
+    right var(--maivand-plr-spacing-scale-1) top var(--maivand-plr-spacing-scale-4),
+    right calc(var(--maivand-plr-spacing-scale-1) + 2px) top var(--maivand-plr-spacing-scale-4);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(.maivand-plr-ui).maivand-plr-center:dir(rtl):is(:hover, :focus-within) {
+    background-position:
+      right var(--maivand-plr-spacing-scale-1) top
+        calc(var(--maivand-plr-spacing-scale-4) - var(--maivand-plr-spacing-scale-1)),
+      right calc(var(--maivand-plr-spacing-scale-1) + 2px) top
+        calc(var(--maivand-plr-spacing-scale-4) - var(--maivand-plr-spacing-scale-1));
+  }
+}

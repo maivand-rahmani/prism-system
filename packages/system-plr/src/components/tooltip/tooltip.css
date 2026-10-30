@@ -1,0 +1,63 @@
+:where(.maivand-plr-ui).maivand-plr-tooltip-trigger:focus-visible {
+  outline: 3px solid var(--maivand-plr-color-border-focus);
+  outline-offset: 2px;
+}
+:where(.maivand-plr-ui).maivand-plr-tooltip-trigger[data-state="open"] {
+  background: var(--maivand-plr-color-action-secondary);
+  color: var(--maivand-plr-color-action-secondary-text);
+}
+:where(.maivand-plr-ui).maivand-plr-tooltip-content {
+  animation: maivand-plr-tooltip-field-note var(--maivand-plr-motion-duration-normal)
+    var(--maivand-plr-motion-easing-entrance);
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  border: 1px solid var(--maivand-plr-color-border-strong);
+  border-inline-start: 3px double var(--maivand-plr-color-action-primary);
+  border-radius: var(--maivand-plr-radius-sm);
+  box-shadow: var(--maivand-plr-shadow-sm);
+  color: var(--maivand-plr-color-text-primary);
+  font-family: Literata, Georgia, serif;
+  font-size: var(--maivand-plr-typography-size-xs);
+  line-height: 1.35;
+  max-width: min(260px, calc(100vw - 24px));
+  overflow-wrap: anywhere;
+  padding: var(--maivand-plr-spacing-scale-2) var(--maivand-plr-spacing-scale-6)
+    var(--maivand-plr-spacing-scale-2) var(--maivand-plr-spacing-scale-3);
+  position: relative;
+  z-index: var(--maivand-plr-layers-tooltip);
+}
+:where(.maivand-plr-ui).maivand-plr-tooltip-content::before {
+  background: var(--maivand-plr-color-action-primary);
+  border-radius: 100% 0;
+  box-shadow: inset 1px -1px 0 var(--maivand-plr-color-action-primary-text);
+  content: "";
+  height: 7px;
+  inset-block-start: var(--maivand-plr-spacing-scale-2);
+  inset-inline-end: var(--maivand-plr-spacing-scale-2);
+  position: absolute;
+  transform: rotate(-35deg);
+  width: 11px;
+}
+:where(.maivand-plr-ui).maivand-plr-tooltip-content[data-state="closed"] {
+  pointer-events: none;
+}
+:where(.maivand-plr-ui) .maivand-plr-tooltip-arrow {
+  fill: var(--maivand-plr-color-surface-raised);
+}
+@keyframes maivand-plr-tooltip-field-note {
+  from {
+    opacity: 0;
+    transform: translateY(5px) rotate(-1deg) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui).maivand-plr-tooltip-content {
+    animation-duration: var(--maivand-plr-motion-duration-reduced) !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: var(--maivand-plr-motion-duration-reduced) !important;
+  }
+}

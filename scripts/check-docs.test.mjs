@@ -119,10 +119,29 @@ function copySystem(root, id) {
 test("the current repository documentation and contracts pass", () => {
   const result = runDocsCheck({ root: repoRoot });
   assert.equal(result.ok, true, result.failures.join("\n"));
-  assert.deepEqual(result.stats.systems, ["system-a", "system-b"]);
-  assert.deepEqual(result.stats.contracts, ["system-a", "system-b"]);
+
+  // Read the registry independently of the checker so a skipped, duplicated, or
+  // invented system is still caught, while a validly registered V4 system needs
+  // no test edit. Entries for older contract versions are out of scope.
+  const registry = JSON.parse(
+    readFileSync(join(repoRoot, "config", "design-systems.json"), "utf8"),
+  );
+  const registered = registry.designSystems.filter((entry) => entry.contractVersion === 4);
+  const registeredIds = registered.map((entry) => entry.id);
+  assert.deepEqual(result.stats.systems, registeredIds);
+  assert.deepEqual(result.stats.contracts, registeredIds);
+  for (const entry of registered) {
+    const packagePath =
+      typeof entry.packagePath === "string" && entry.packagePath.length > 0
+        ? entry.packagePath
+        : `packages/${entry.id}`;
+    assert.ok(
+      result.documents.includes(`${packagePath}/README.md`),
+      `registered system ${entry.id} README is among the checked documents`,
+    );
+  }
+
   assert.ok(result.documents.includes("README.md"));
-  assert.ok(result.documents.includes("packages/system-a/README.md"));
   assert.ok(result.documents.includes("packages/system-b/AGENTS.md"));
   assert.ok(result.documents.includes("templates/design-system/README.md.template"));
   assert.ok(result.documents.includes("templates/design-system/USAGE.md.template"));

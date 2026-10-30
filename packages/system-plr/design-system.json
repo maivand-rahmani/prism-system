@@ -1,0 +1,874 @@
+{
+  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/design-system.schema.json",
+  "schemaVersion": 5,
+  "generated": "prism-system/design-system-manifest",
+  "contractVersion": 4,
+  "id": "system-plr",
+  "name": "Plan Like Rahmani",
+  "package": "@prism-system/ui-system-plr",
+  "version": "0.1.0",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./styles.css": "./dist/index.css",
+    "./tailwind.css": "./dist/tailwind.css",
+    "./tokens": {
+      "types": "./dist/tokens/index.d.ts",
+      "import": "./dist/tokens/index.mjs",
+      "require": "./dist/tokens/index.js"
+    },
+    "./manifest": "./design-system.json"
+  },
+  "publicApi": {
+    ".": [
+      "Button",
+      "Input",
+      "Textarea",
+      "Card",
+      "Badge",
+      "Checkbox",
+      "RadioGroup",
+      "Switch",
+      "Select",
+      "Tabs",
+      "Dialog",
+      "DropdownMenu",
+      "Tooltip",
+      "Separator",
+      "Heading",
+      "Text",
+      "Link",
+      "Container",
+      "Stack",
+      "FormField",
+      "Center",
+      "Cluster",
+      "Sidebar",
+      "AspectRatio",
+      "Combobox",
+      "DatePicker",
+      "NumberField",
+      "Slider",
+      "FileUpload",
+      "Grid",
+      "Section",
+      "Fieldset",
+      "Alert",
+      "Progress",
+      "Skeleton",
+      "Toast",
+      "Accordion",
+      "Avatar",
+      "Breadcrumbs",
+      "Pagination",
+      "Table",
+      "Metric",
+      "DescriptionList",
+      "Timeline",
+      "Meter",
+      "EmptyState",
+      "DesignSystem",
+      "systemPlrTokens"
+    ],
+    "./tokens": ["systemPlrTokens"]
+  },
+  "entrypoints": {
+    ".": {
+      "requirements": []
+    },
+    "./tokens": {
+      "requirements": []
+    }
+  },
+  "components": {
+    "Button": {
+      "variants": ["primary", "secondary", "outline", "ghost", "destructive", "link"],
+      "sizes": ["sm", "md", "lg", "icon"],
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A tactile action with clear primary, secondary, and destructive treatments.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Input": {
+      "variants": [],
+      "sizes": ["sm", "md", "lg"],
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A recessed paper-like single-line field with clear validation and focus states.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Textarea": {
+      "variants": [],
+      "sizes": ["sm", "md", "lg"],
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A spacious, editorial writing surface for notes and evening reflections.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Card": {
+      "variants": ["default", "muted", "outline", "elevated", "interactive"],
+      "sizes": [],
+      "members": ["Header", "Title", "Description", "Content", "Footer"],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A layered paper surface for related content, summaries, and actions.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Badge": {
+      "variants": ["default", "secondary", "success", "warning", "danger", "info", "outline"],
+      "sizes": ["sm", "md"],
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A compact text-led status marker in botanical and earthy tones.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Checkbox": {
+      "variants": [],
+      "sizes": ["sm", "md", "lg"],
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A keyboard-operable check control suited to marking planned tasks complete.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "RadioGroup": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Item", "Indicator"],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "An accessible choice group with visible selection and focus states.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Switch": {
+      "variants": [],
+      "sizes": ["sm", "md", "lg"],
+      "members": ["Thumb"],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A tactile binary control with clear, non-color-only state feedback.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Select": {
+      "variants": [],
+      "sizes": ["sm", "md", "lg"],
+      "members": ["Trigger", "Value", "Content", "Group", "Label", "Item", "Separator"],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A keyboard-accessible menu for choosing one value from a list.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Tabs": {
+      "variants": [],
+      "sizes": [],
+      "members": ["List", "Trigger", "Content"],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A compact keyboard-navigable switch between related views.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Dialog": {
+      "variants": [],
+      "sizes": [],
+      "members": [
+        "Trigger",
+        "Portal",
+        "Overlay",
+        "Content",
+        "Header",
+        "Footer",
+        "Title",
+        "Description",
+        "Close"
+      ],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A focus-managed overlay for a focused task or decision.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "DropdownMenu": {
+      "variants": [],
+      "sizes": [],
+      "members": [
+        "Trigger",
+        "Portal",
+        "Content",
+        "Group",
+        "Label",
+        "Item",
+        "CheckboxItem",
+        "RadioGroup",
+        "RadioItem",
+        "ItemIndicator",
+        "Separator",
+        "Arrow",
+        "Sub",
+        "SubTrigger",
+        "SubContent"
+      ],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A keyboard-accessible action menu with clear selected and disabled states.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Tooltip": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Provider", "Trigger", "Portal", "Content", "Arrow"],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A brief supplementary hint available to pointer and keyboard users.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Separator": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A quiet divider for grouping related content.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Heading": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "An editorial heading with a clear semantic level and hierarchy.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Text": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "Readable supporting copy for labels, descriptions, and longer notes.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Link": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A visible, keyboard-accessible route or resource link.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Container": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A token-sized content boundary for responsive product layouts.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Stack": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A consistent one-dimensional layout primitive with responsive wrapping.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "FormField": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Label", "Control", "Description", "Error"],
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A labeled field group that connects help and error text accessibly.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Center": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A layout primitive for centering a focused empty or loading surface.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Cluster": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A wrapping group for related controls and compact actions.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Sidebar": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A structural navigation region with responsive layout behavior.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "AspectRatio": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A stable media frame that preserves its intended proportions.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Combobox": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Input", "Content", "Item"],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "An accessible text input and selectable suggestion list.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "DatePicker": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A native date field with consistent labels, validation, and focus styling.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "NumberField": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A numeric input with native form behavior and tactile step controls.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Slider": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A keyboard-accessible range control with a tactile thumb and track.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "FileUpload": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A native file input with a clear paper drop-target appearance and state feedback.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Grid": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "An adaptive grid for cards and summaries that reflows on narrow screens.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Section": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Header", "Title", "Description", "Content", "Footer"],
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A semantic content section with a consistent heading and supporting copy structure.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Fieldset": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Legend"],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A semantic group for related form controls with an accessible legend.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Alert": {
+      "variants": ["info", "success", "warning", "danger"],
+      "sizes": [],
+      "members": ["Title", "Description"],
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A text-led inline status message for important feedback and errors.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Progress": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "An accessible progress indicator with a readable current value.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Skeleton": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A decorative loading placeholder hidden from assistive technology.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Toast": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Provider", "Viewport", "Root", "Title", "Description", "Action", "Close"],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A temporary status message that pauses dismissal while hovered or focused.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Accordion": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Item", "Header", "Trigger", "Content"],
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A keyboard-accessible disclosure for secondary planning details.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Avatar": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Image", "Fallback"],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A compact image and fallback surface for a profile or collaborator.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Breadcrumbs": {
+      "variants": [],
+      "sizes": [],
+      "members": ["List", "Item", "Link", "Current"],
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A wrapping, semantic location trail with a clear current page.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Pagination": {
+      "variants": [],
+      "sizes": [],
+      "members": ["List", "Item", "Link", "Previous", "Next", "Current", "Ellipsis"],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A keyboard-accessible page navigator with a distinct current item.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Table": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Caption", "Header", "Body", "Footer", "Row", "Head", "Cell"],
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A semantic, horizontally adaptable table for report data.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Metric": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Label", "Value", "Description"],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A labeled report value with aligned tabular numerals.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "DescriptionList": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Item", "Term", "Description"],
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A semantic term-and-description pair for report details.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Timeline": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Item", "Title", "Time", "Description"],
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A chronological list for completed and upcoming planning events.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Meter": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A native meter with a tokenized, high-contrast appearance.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "EmptyState": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Title", "Description", "Action"],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A quiet first-use or no-results surface with one clear next action.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    }
+  },
+  "capabilities": {
+    "categories": {
+      "composition": {
+        "required": ["Container", "Stack", "Center", "Cluster", "Sidebar", "AspectRatio"],
+        "optional": ["Grid", "Section"]
+      },
+      "forms": {
+        "required": ["FormField", "Combobox", "DatePicker", "NumberField", "Slider", "FileUpload"],
+        "optional": []
+      },
+      "data-display": {
+        "required": [],
+        "optional": [
+          "Table",
+          "Pagination",
+          "Progress",
+          "Metric",
+          "DescriptionList",
+          "Timeline",
+          "Meter",
+          "EmptyState"
+        ]
+      }
+    }
+  },
+  "design": {
+    "density": "comfortable",
+    "theme": "dual",
+    "radius": "medium",
+    "keywords": [
+      "paper",
+      "oak",
+      "botanical green",
+      "editorial",
+      "tactile",
+      "readable",
+      "responsive",
+      "reduced motion"
+    ]
+  },
+  "rules": {
+    "allowArbitraryColors": false,
+    "allowArbitraryRadius": false,
+    "allowArbitraryShadows": false,
+    "allowPrimitiveDuplication": false
+  },
+  "tokens": {
+    "groups": {
+      "themes": [
+        "light.color.text.primary",
+        "light.color.text.secondary",
+        "light.color.text.muted",
+        "light.color.text.inverse",
+        "light.color.surface.canvas",
+        "light.color.surface.raised",
+        "light.color.surface.sunken",
+        "light.color.surface.inverse",
+        "light.color.border.default",
+        "light.color.border.strong",
+        "light.color.border.focus",
+        "light.color.action.primary",
+        "light.color.action.primaryHover",
+        "light.color.action.primaryText",
+        "light.color.action.secondary",
+        "light.color.action.secondaryHover",
+        "light.color.action.secondaryText",
+        "light.color.status.info",
+        "light.color.status.success",
+        "light.color.status.warning",
+        "light.color.status.danger",
+        "dark.color.text.primary",
+        "dark.color.text.secondary",
+        "dark.color.text.muted",
+        "dark.color.text.inverse",
+        "dark.color.surface.canvas",
+        "dark.color.surface.raised",
+        "dark.color.surface.sunken",
+        "dark.color.surface.inverse",
+        "dark.color.border.default",
+        "dark.color.border.strong",
+        "dark.color.border.focus",
+        "dark.color.action.primary",
+        "dark.color.action.primaryHover",
+        "dark.color.action.primaryText",
+        "dark.color.action.secondary",
+        "dark.color.action.secondaryHover",
+        "dark.color.action.secondaryText",
+        "dark.color.status.info",
+        "dark.color.status.success",
+        "dark.color.status.warning",
+        "dark.color.status.danger"
+      ],
+      "typography": [
+        "family.sans",
+        "family.mono",
+        "size.xs",
+        "size.sm",
+        "size.md",
+        "size.lg",
+        "size.xl",
+        "size.2xl",
+        "size.3xl",
+        "size.4xl",
+        "weight.light",
+        "weight.normal",
+        "weight.medium",
+        "weight.semibold",
+        "weight.bold",
+        "lineHeight.tight",
+        "lineHeight.normal",
+        "lineHeight.relaxed",
+        "letterSpacing.tight",
+        "letterSpacing.normal",
+        "letterSpacing.wide"
+      ],
+      "spacing": [
+        "scale.0",
+        "scale.1",
+        "scale.2",
+        "scale.3",
+        "scale.4",
+        "scale.6",
+        "scale.8",
+        "scale.12",
+        "scale.16",
+        "scale.24",
+        "semantic.inline",
+        "semantic.inset",
+        "semantic.stack",
+        "semantic.section"
+      ],
+      "containers": ["narrow", "content", "wide", "full"],
+      "breakpoints": ["sm", "md", "lg", "xl"],
+      "layers": ["base", "dropdown", "sticky", "overlay", "modal", "toast", "tooltip"],
+      "radius": ["none", "sm", "md", "lg", "full"],
+      "shadow": ["sm", "md", "lg", "focus"],
+      "motion": [
+        "duration.fast",
+        "duration.normal",
+        "duration.slow",
+        "duration.reduced",
+        "easing.standard",
+        "easing.entrance",
+        "easing.exit"
+      ]
+    },
+    "artifacts": {
+      "typescript": "./tokens",
+      "css": "./styles.css",
+      "tailwind": "./tailwind.css"
+    },
+    "names": {
+      "cssVariablePrefix": "maivand-plr",
+      "tailwindUtilityPrefix": "prism"
+    }
+  },
+  "docs": {
+    "readme": "./README.md",
+    "agents": "./AGENTS.md",
+    "usage": "./USAGE.md",
+    "components": "./docs/components.md"
+  }
+}

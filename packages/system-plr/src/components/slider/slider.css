@@ -1,0 +1,209 @@
+:where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-slider {
+  accent-color: var(--maivand-plr-color-action-primary);
+  appearance: none;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  cursor: pointer;
+  min-height: 44px;
+  padding: 16px 2px;
+  touch-action: pan-y;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-slider:focus-visible {
+  outline: 3px solid var(--maivand-plr-color-border-focus);
+  outline-offset: 2px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-slider:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-slider::-webkit-slider-runnable-track {
+  background-color: var(--maivand-plr-color-surface-sunken);
+  background-image:
+    linear-gradient(var(--maivand-plr-color-border-strong), var(--maivand-plr-color-border-strong)),
+    linear-gradient(var(--maivand-plr-color-border-strong), var(--maivand-plr-color-border-strong)),
+    linear-gradient(var(--maivand-plr-color-border-strong), var(--maivand-plr-color-border-strong)),
+    linear-gradient(var(--maivand-plr-color-border-strong), var(--maivand-plr-color-border-strong)),
+    linear-gradient(var(--maivand-plr-color-border-strong), var(--maivand-plr-color-border-strong)),
+    linear-gradient(
+      to right,
+      var(--maivand-plr-color-action-primary) 0 var(--maivand-plr-slider-progress),
+      var(--maivand-plr-color-surface-sunken) var(--maivand-plr-slider-progress) 100%
+    ),
+    var(--maivand-plr-material-oak-grain);
+  background-position:
+    0 50%,
+    25% 50%,
+    50% 50%,
+    75% 50%,
+    100% 50%,
+    center,
+    center;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, repeat;
+  background-size:
+    1px 6px,
+    1px 5px,
+    1px 7px,
+    1px 5px,
+    1px 6px,
+    100% 100%,
+    auto;
+  border: 1px solid var(--maivand-plr-color-border-strong);
+  border-radius: var(--maivand-plr-radius-full);
+  height: 8px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-slider::-webkit-slider-thumb {
+  appearance: none;
+  background-color: var(--maivand-plr-color-action-primary);
+  background-image:
+    linear-gradient(
+      135deg,
+      transparent 46%,
+      var(--maivand-plr-color-action-primary-text) 48% 53%,
+      transparent 55%
+    ),
+    var(--maivand-plr-material-paper-fiber);
+  background-repeat: no-repeat, repeat;
+  border: 1px solid var(--maivand-plr-color-action-primary-hover);
+  border-radius: 100% 0 100% 0;
+  box-shadow: var(--maivand-plr-shadow-sm);
+  height: 20px;
+  margin-top: -6px;
+  transform: rotate(-45deg);
+  transform-origin: center;
+  transition:
+    transform var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-entrance),
+    border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard);
+  width: 20px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-slider::-moz-range-track {
+  background-color: var(--maivand-plr-color-surface-sunken);
+  background-image:
+    linear-gradient(var(--maivand-plr-color-border-strong), var(--maivand-plr-color-border-strong)),
+    linear-gradient(var(--maivand-plr-color-border-strong), var(--maivand-plr-color-border-strong)),
+    linear-gradient(var(--maivand-plr-color-border-strong), var(--maivand-plr-color-border-strong)),
+    linear-gradient(var(--maivand-plr-color-border-strong), var(--maivand-plr-color-border-strong)),
+    linear-gradient(var(--maivand-plr-color-border-strong), var(--maivand-plr-color-border-strong)),
+    linear-gradient(
+      to right,
+      var(--maivand-plr-color-action-primary) 0 var(--maivand-plr-slider-progress),
+      var(--maivand-plr-color-surface-sunken) var(--maivand-plr-slider-progress) 100%
+    ),
+    var(--maivand-plr-material-oak-grain);
+  background-position:
+    0 50%,
+    25% 50%,
+    50% 50%,
+    75% 50%,
+    100% 50%,
+    center,
+    center;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, repeat;
+  background-size:
+    1px 6px,
+    1px 5px,
+    1px 7px,
+    1px 5px,
+    1px 6px,
+    100% 100%,
+    auto;
+  border: 1px solid var(--maivand-plr-color-border-strong);
+  border-radius: var(--maivand-plr-radius-full);
+  height: 8px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-slider::-moz-range-progress {
+  background-color: transparent;
+  border-radius: var(--maivand-plr-radius-full);
+  height: 8px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-slider::-moz-range-thumb {
+  background-color: var(--maivand-plr-color-action-primary);
+  background-image:
+    linear-gradient(
+      135deg,
+      transparent 46%,
+      var(--maivand-plr-color-action-primary-text) 48% 53%,
+      transparent 55%
+    ),
+    var(--maivand-plr-material-paper-fiber);
+  background-repeat: no-repeat, repeat;
+  border: 1px solid var(--maivand-plr-color-action-primary-hover);
+  border-radius: 100% 0 100% 0;
+  box-shadow: var(--maivand-plr-shadow-sm);
+  height: 20px;
+  transform: rotate(-45deg);
+  transform-origin: center;
+  transition:
+    transform var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-entrance),
+    border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard);
+  width: 20px;
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-slider:dir(rtl)::-webkit-slider-runnable-track,
+:where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-slider:dir(rtl)::-moz-range-track {
+  background-image:
+    linear-gradient(var(--maivand-plr-color-border-strong), var(--maivand-plr-color-border-strong)),
+    linear-gradient(var(--maivand-plr-color-border-strong), var(--maivand-plr-color-border-strong)),
+    linear-gradient(var(--maivand-plr-color-border-strong), var(--maivand-plr-color-border-strong)),
+    linear-gradient(var(--maivand-plr-color-border-strong), var(--maivand-plr-color-border-strong)),
+    linear-gradient(var(--maivand-plr-color-border-strong), var(--maivand-plr-color-border-strong)),
+    linear-gradient(
+      to left,
+      var(--maivand-plr-color-action-primary) 0 var(--maivand-plr-slider-progress),
+      var(--maivand-plr-color-surface-sunken) var(--maivand-plr-slider-progress) 100%
+    ),
+    var(--maivand-plr-material-oak-grain);
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-slider:hover:not(:disabled)::-webkit-slider-thumb,
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-slider:hover:not(:disabled)::-moz-range-thumb {
+  transform: rotate(-45deg) scale(1.12);
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-slider:focus-visible::-webkit-slider-thumb,
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-slider:focus-visible::-moz-range-thumb {
+  border-color: var(--maivand-plr-color-border-focus);
+  transform: rotate(-45deg) scale(1.18);
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-slider:active:not(:disabled)::-webkit-slider-thumb,
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-slider:active:not(:disabled)::-moz-range-thumb {
+  transform: rotate(-28deg) scale(0.84);
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-slider[aria-invalid="true"]::-webkit-slider-runnable-track,
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-slider[aria-invalid="true"]::-moz-range-track {
+  border-color: var(--maivand-plr-color-status-danger);
+  border-style: dashed;
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-slider[aria-invalid="true"]::-webkit-slider-thumb,
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-slider[aria-invalid="true"]::-moz-range-thumb {
+  border-color: var(--maivand-plr-color-status-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-slider::-webkit-slider-thumb,
+  :where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-slider::-moz-range-thumb {
+    transition-duration: var(--maivand-plr-motion-duration-reduced);
+  }
+}

@@ -1,0 +1,176 @@
+{
+  "$schema": "https://github.com/maivand-rahmani/prism-system/schemas/tokens.source.schema.json",
+  "schemaVersion": 1,
+  "themes": {
+    "light": {
+      "color": {
+        "text": {
+          "primary": "#2d261d",
+          "secondary": "#514431",
+          "muted": "#72624d",
+          "inverse": "#faf3e7"
+        },
+        "surface": {
+          "canvas": "#ece1d0",
+          "raised": "#f7f0e4",
+          "sunken": "#e0cfb7",
+          "inverse": "#2d261d"
+        },
+        "border": {
+          "default": "#cbb99c",
+          "strong": "#907650",
+          "focus": "#31583a"
+        },
+        "action": {
+          "primary": "#415d3c",
+          "primaryHover": "#334b31",
+          "primaryText": "#ffffff",
+          "secondary": "#dce3d3",
+          "secondaryHover": "#cbd8c1",
+          "secondaryText": "#2f442f"
+        },
+        "status": {
+          "info": "#426477",
+          "success": "#426c49",
+          "warning": "#86591f",
+          "danger": "#a74436"
+        }
+      }
+    },
+    "dark": {
+      "color": {
+        "text": {
+          "primary": "#f1e5d2",
+          "secondary": "#d2bea0",
+          "muted": "#ad9675",
+          "inverse": "#1d1711"
+        },
+        "surface": {
+          "canvas": "#201810",
+          "raised": "#2c2117",
+          "sunken": "#19120c",
+          "inverse": "#f1e5d2"
+        },
+        "border": {
+          "default": "#58432d",
+          "strong": "#856949",
+          "focus": "#c5d9a0"
+        },
+        "action": {
+          "primary": "#b5cc92",
+          "primaryHover": "#c5d9a2",
+          "primaryText": "#29341e",
+          "secondary": "#403326",
+          "secondaryHover": "#51412d",
+          "secondaryText": "#efe3d0"
+        },
+        "status": {
+          "info": "#a6c7d8",
+          "success": "#a7c99a",
+          "warning": "#e4c18b",
+          "danger": "#ef9c8c"
+        }
+      }
+    }
+  },
+  "typography": {
+    "family": {
+      "sans": "Manrope, ui-sans-serif, system-ui, sans-serif",
+      "mono": "ui-monospace, SFMono-Regular, monospace"
+    },
+    "size": {
+      "xs": "0.75rem",
+      "sm": "0.8125rem",
+      "md": "0.9375rem",
+      "lg": "1.0625rem",
+      "xl": "1.25rem",
+      "2xl": "1.625rem",
+      "3xl": "2.125rem",
+      "4xl": "2.75rem"
+    },
+    "weight": {
+      "light": 300,
+      "normal": 400,
+      "medium": 500,
+      "semibold": 600,
+      "bold": 700
+    },
+    "lineHeight": {
+      "tight": 1.15,
+      "normal": 1.45,
+      "relaxed": 1.65
+    },
+    "letterSpacing": {
+      "tight": "-0.025em",
+      "normal": "0em",
+      "wide": "0.04em"
+    }
+  },
+  "spacing": {
+    "scale": {
+      "0": "0px",
+      "1": "0.25rem",
+      "2": "0.5rem",
+      "3": "0.75rem",
+      "4": "1rem",
+      "6": "1.5rem",
+      "8": "2rem",
+      "12": "3rem",
+      "16": "4rem",
+      "24": "6rem"
+    },
+    "semantic": {
+      "inline": "0.75rem",
+      "inset": "1.25rem",
+      "stack": "1rem",
+      "section": "3rem"
+    }
+  },
+  "containers": {
+    "narrow": "40rem",
+    "content": "68rem",
+    "wide": "80rem",
+    "full": "100%"
+  },
+  "breakpoints": {
+    "sm": "40rem",
+    "md": "48rem",
+    "lg": "64rem",
+    "xl": "80rem"
+  },
+  "layers": {
+    "base": 0,
+    "dropdown": 60,
+    "sticky": 30,
+    "overlay": 40,
+    "modal": 50,
+    "toast": 60,
+    "tooltip": 70
+  },
+  "radius": {
+    "none": "0px",
+      "sm": "0.5rem",
+      "md": "0.75rem",
+      "lg": "0.875rem",
+    "full": "999px"
+  },
+  "shadow": {
+    "sm": "0 2px 5px rgb(54 40 25 / 10%)",
+    "md": "0 10px 24px rgb(54 40 25 / 13%)",
+    "lg": "0 18px 36px rgb(54 40 25 / 16%)",
+    "focus": "0 0 0 3px rgb(87 119 67 / 28%)"
+  },
+  "motion": {
+    "duration": {
+      "fast": "140ms",
+      "normal": "190ms",
+      "slow": "280ms",
+      "reduced": "0ms"
+    },
+    "easing": {
+      "standard": "cubic-bezier(0.2, 0.7, 0.2, 1)",
+      "entrance": "cubic-bezier(0.16, 1, 0.3, 1)",
+      "exit": "cubic-bezier(0.4, 0, 1, 1)"
+    }
+  }
+}

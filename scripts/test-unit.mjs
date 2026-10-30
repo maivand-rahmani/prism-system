@@ -13,6 +13,7 @@ const directories = [
   "packages/core/src/primitives",
   "packages/system-a",
   "packages/system-b",
+  "packages/system-plr",
   "packages/tools/test",
 ];
 const files = directories.flatMap((directory) =>

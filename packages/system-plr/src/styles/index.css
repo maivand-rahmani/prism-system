@@ -1,0 +1,172 @@
+@import url("https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400..700&family=Manrope:wght@400;500;600;700&display=swap");
+@import "./tokens.css";
+@import "../components/button/button.css";
+@import "../components/input/input.css";
+@import "../components/textarea/textarea.css";
+@import "../components/card/card.css";
+@import "../components/badge/badge.css";
+@import "../components/checkbox/checkbox.css";
+@import "../components/radio-group/radio-group.css";
+@import "../components/switch/switch.css";
+@import "../components/select/select.css";
+@import "../components/tabs/tabs.css";
+@import "../components/dialog/dialog.css";
+@import "../components/dropdown-menu/dropdown-menu.css";
+@import "../components/tooltip/tooltip.css";
+@import "../components/separator/separator.css";
+@import "../components/heading/heading.css";
+@import "../components/text/text.css";
+@import "../components/link/link.css";
+@import "../components/container/container.css";
+@import "../components/stack/stack.css";
+@import "../components/form-field/form-field.css";
+@import "../components/center/center.css";
+@import "../components/cluster/cluster.css";
+@import "../components/sidebar/sidebar.css";
+@import "../components/aspect-ratio/aspect-ratio.css";
+@import "../components/combobox/combobox.css";
+@import "../components/date-picker/date-picker.css";
+@import "../components/number-field/number-field.css";
+@import "../components/slider/slider.css";
+@import "../components/file-upload/file-upload.css";
+@import "../components/grid/grid.css";
+@import "../components/section/section.css";
+@import "../components/fieldset/fieldset.css";
+@import "../components/alert/alert.css";
+@import "../components/progress/progress.css";
+@import "../components/skeleton/skeleton.css";
+@import "../components/toast/toast.css";
+@import "../components/accordion/accordion.css";
+@import "../components/avatar/avatar.css";
+@import "../components/breadcrumbs/breadcrumbs.css";
+@import "../components/pagination/pagination.css";
+@import "../components/table/table.css";
+@import "../components/metric/metric.css";
+@import "../components/description-list/description-list.css";
+@import "../components/timeline/timeline.css";
+@import "../components/meter/meter.css";
+@import "../components/empty-state/empty-state.css";
+
+/* The system is scoped: products own composition; this package owns its ink and materials. */
+:where(.maivand-plr-ui) {
+  --maivand-plr-material-paper-fiber:
+    repeating-linear-gradient(
+      176deg,
+      transparent 0 33px,
+      color-mix(in srgb, var(--maivand-plr-color-text-primary) 1%, transparent) 33px 34px,
+      transparent 34px 81px
+    );
+  --maivand-plr-material-oak-grain: repeating-linear-gradient(
+    173deg,
+    color-mix(in srgb, var(--maivand-plr-color-surface-raised) 13%, transparent) 0 1px,
+    transparent 1px 8px
+  );
+  box-sizing: border-box;
+  color: var(--maivand-plr-color-text-primary);
+  color-scheme: light;
+  font-family: var(--maivand-plr-typography-family-sans);
+  font-size: var(--maivand-plr-typography-size-md);
+  line-height: var(--maivand-plr-typography-line-height-normal);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+:root[data-prism-theme="dark"] :where(.maivand-plr-ui) {
+  color-scheme: dark;
+}
+
+:where(.maivand-plr-ui) *,
+:where(.maivand-plr-ui) *::before,
+:where(.maivand-plr-ui) *::after {
+  box-sizing: inherit;
+}
+
+:where(.maivand-plr-ui) button,
+:where(.maivand-plr-ui) input,
+:where(.maivand-plr-ui) select,
+:where(.maivand-plr-ui) textarea {
+  font: inherit;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-native-control {
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  border: 1px solid var(--maivand-plr-color-border-default);
+  border-radius: var(--maivand-plr-radius-sm);
+  color: var(--maivand-plr-color-text-primary);
+  font: inherit;
+  min-height: 40px;
+  min-width: 0;
+  outline: 0;
+  padding: 9px 12px;
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--maivand-plr-color-text-primary) 7%, transparent);
+  transition:
+    border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    box-shadow var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard);
+  width: 100%;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-native-control:hover:not(:disabled) {
+  border-color: var(--maivand-plr-color-border-strong);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-native-control:focus-visible {
+  border-color: var(--maivand-plr-color-border-focus);
+  box-shadow: var(--maivand-plr-shadow-focus);
+  outline: 0;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-native-control-error,
+:where(.maivand-plr-ui) .maivand-plr-native-control[aria-invalid="true"] {
+  border-color: var(--maivand-plr-color-status-danger);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-native-control:disabled {
+  background: var(--maivand-plr-color-surface-sunken);
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-native-control[type="file"] {
+  cursor: pointer;
+  padding: 6px;
+}
+
+:where(.maivand-plr-ui).maivand-plr-native-field .maivand-plr-label {
+  display: inline-block;
+  transform-origin: left center;
+  transition:
+    color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    transform var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-entrance);
+}
+
+:where(.maivand-plr-ui).maivand-plr-native-field:focus-within .maivand-plr-label {
+  color: var(--maivand-plr-color-action-primary-hover);
+  transform: translateX(3px);
+}
+
+:where(.maivand-plr-ui).maivand-plr-native-field:has(.maivand-plr-native-control[aria-invalid="true"])
+  .maivand-plr-label {
+  color: var(--maivand-plr-color-status-danger);
+}
+
+:where(.maivand-plr-ui) :is(button, a, input, select, textarea, [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 3px solid var(--maivand-plr-color-border-focus);
+  outline-offset: 2px;
+}
+
+:where(.maivand-plr-ui) ::selection {
+  background: color-mix(in srgb, var(--maivand-plr-color-action-primary) 30%, transparent);
+  color: var(--maivand-plr-color-text-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui) *,
+  :where(.maivand-plr-ui) *::before,
+  :where(.maivand-plr-ui) *::after {
+    animation-duration: var(--maivand-plr-motion-duration-reduced) !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: var(--maivand-plr-motion-duration-reduced) !important;
+  }
+}

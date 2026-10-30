@@ -1,0 +1,238 @@
+:where(.maivand-plr-ui).maivand-plr-combobox-field {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-combobox-root {
+  min-width: 0;
+  position: relative;
+}
+
+/* A pressed leaf works as the living index tab for this searchable field. */
+:where(.maivand-plr-ui) .maivand-plr-combobox-root::before {
+  background: var(--maivand-plr-color-action-primary);
+  border-radius: 0 var(--maivand-plr-radius-full) 0 var(--maivand-plr-radius-full);
+  content: "";
+  height: 9px;
+  inset-inline-start: 14px;
+  pointer-events: none;
+  position: absolute;
+  top: 16px;
+  transform: rotate(-35deg) scale(0.88);
+  transform-origin: center;
+  transition:
+    background-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    transform var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-entrance);
+  width: 12px;
+  z-index: 1;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-combobox-root::after {
+  background: color-mix(in srgb, var(--maivand-plr-color-action-primary-text) 65%, transparent);
+  content: "";
+  height: 1px;
+  inset-inline-start: 18px;
+  pointer-events: none;
+  position: absolute;
+  top: 19px;
+  transform: rotate(-35deg) scaleX(0.6);
+  transform-origin: left center;
+  transition: transform var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-entrance);
+  width: 6px;
+  z-index: 2;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-combobox-root:focus-within::before {
+  transform: rotate(-22deg) scale(1.08);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-combobox-root:focus-within::after {
+  transform: rotate(-22deg) scaleX(1);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-combobox-input {
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  border: 1px solid var(--maivand-plr-color-border-default);
+  border-radius: var(--maivand-plr-radius-sm);
+  color: var(--maivand-plr-color-text-primary);
+  font: inherit;
+  min-height: 42px;
+  min-width: 0;
+  outline: 0;
+  padding-block: 9px;
+  padding-inline: 36px 12px;
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--maivand-plr-color-text-primary) 7%, transparent);
+  transition:
+    border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    box-shadow var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    transform var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-entrance);
+  width: 100%;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-combobox-input:hover:not(:disabled) {
+  border-color: var(--maivand-plr-color-border-strong);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-combobox-input:focus-visible {
+  border-color: var(--maivand-plr-color-border-focus);
+  box-shadow: var(--maivand-plr-shadow-focus);
+  transform: translateY(-1px);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-combobox-input[aria-invalid="true"] {
+  border-color: var(--maivand-plr-color-status-danger);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-combobox-root:has(.maivand-plr-combobox-input[aria-invalid="true"])::before {
+  background: var(--maivand-plr-color-status-danger);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-combobox-input:disabled {
+  background-color: var(--maivand-plr-color-surface-sunken);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-combobox-root:has(.maivand-plr-combobox-input:disabled)::before,
+:where(.maivand-plr-ui) .maivand-plr-combobox-root:has(.maivand-plr-combobox-input:disabled)::after {
+  opacity: 0.4;
+}
+
+:where(.maivand-plr-ui).maivand-plr-combobox-content {
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  border: 1px solid var(--maivand-plr-color-border-default);
+  border-radius: var(--maivand-plr-radius-md);
+  box-shadow: var(--maivand-plr-shadow-md);
+  max-height: min(22rem, 60vh);
+  min-width: min(12rem, 100%);
+  overflow: auto;
+  padding: 11px 5px 5px;
+  position: absolute;
+  inset-block-start: calc(100% + 5px);
+  inset-inline: 0;
+  width: 100%;
+  z-index: var(--maivand-plr-layers-dropdown);
+  transform-origin: top center;
+}
+
+:where(.maivand-plr-ui).maivand-plr-combobox-content::before {
+  background-color: var(--maivand-plr-color-surface-sunken);
+  background-image: var(--maivand-plr-material-oak-grain);
+  content: "";
+  height: 4px;
+  inset-block-start: 0;
+  inset-inline: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+:where(.maivand-plr-ui).maivand-plr-combobox-content[hidden] {
+  display: none;
+}
+
+:where(.maivand-plr-ui).maivand-plr-combobox-content[data-state="open"] {
+  animation: maivand-plr-combobox-folio-slip var(--maivand-plr-motion-duration-normal)
+    var(--maivand-plr-motion-easing-entrance) both;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-combobox-item {
+  align-items: center;
+  border-radius: var(--maivand-plr-radius-sm);
+  cursor: pointer;
+  display: flex;
+  min-height: 38px;
+  min-width: 0;
+  outline: 0;
+  padding-block: 8px;
+  padding-inline: 28px 10px;
+  overflow-wrap: anywhere;
+  position: relative;
+  transition:
+    background-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    box-shadow var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    transform var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-entrance);
+}
+
+/* As keyboard/typeahead focus moves, the index leaf opens beside the result. */
+:where(.maivand-plr-ui) .maivand-plr-combobox-item::before {
+  background: var(--maivand-plr-color-action-primary);
+  border-radius: 0 var(--maivand-plr-radius-full) 0 var(--maivand-plr-radius-full);
+  content: "";
+  height: 7px;
+  inset-inline-start: 10px;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transform: rotate(-35deg) scale(0.45);
+  transform-origin: center;
+  transition:
+    opacity var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    transform var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-entrance);
+  width: 9px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-combobox-item::after {
+  background: color-mix(in srgb, var(--maivand-plr-color-action-primary-text) 65%, transparent);
+  content: "";
+  height: 1px;
+  inset-inline-start: 13px;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transform: rotate(-35deg) scaleX(0);
+  transform-origin: left center;
+  transition:
+    opacity var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    transform var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-entrance);
+  width: 5px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-combobox-item[data-active],
+:where(.maivand-plr-ui) .maivand-plr-combobox-item[data-highlighted],
+:where(.maivand-plr-ui) .maivand-plr-combobox-item[aria-selected="true"] {
+  background: var(--maivand-plr-color-action-secondary);
+  color: var(--maivand-plr-color-action-secondary-text);
+  box-shadow: inset 2px 0 var(--maivand-plr-color-action-primary);
+  transform: translateX(2px);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-combobox-item[data-active]::before,
+:where(.maivand-plr-ui) .maivand-plr-combobox-item[data-highlighted]::before,
+:where(.maivand-plr-ui) .maivand-plr-combobox-item[aria-selected="true"]::before {
+  opacity: 1;
+  transform: rotate(-35deg) scale(1);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-combobox-item[data-active]::after,
+:where(.maivand-plr-ui) .maivand-plr-combobox-item[data-highlighted]::after,
+:where(.maivand-plr-ui) .maivand-plr-combobox-item[aria-selected="true"]::after {
+  opacity: 1;
+  transform: rotate(-35deg) scaleX(1);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-combobox-item[data-disabled],
+:where(.maivand-plr-ui) .maivand-plr-combobox-item[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui).maivand-plr-combobox-content[data-state="open"] {
+    animation-duration: var(--maivand-plr-motion-duration-reduced);
+  }
+}
+
+@keyframes maivand-plr-combobox-folio-slip {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

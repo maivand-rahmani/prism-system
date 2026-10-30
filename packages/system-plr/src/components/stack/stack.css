@@ -1,0 +1,74 @@
+:where(.maivand-plr-ui).maivand-plr-stack {
+  display: flex;
+  gap: var(--maivand-plr-spacing-semantic-stack);
+  min-width: 0;
+}
+:where(.maivand-plr-ui).maivand-plr-stack-vertical {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--maivand-plr-color-border-strong) 32%, transparent) 0 2px,
+    transparent 2px var(--maivand-plr-spacing-scale-3)
+  );
+  background-position: right top;
+  background-repeat: no-repeat;
+  background-size: 2px 100%;
+  flex-direction: column;
+  gap: var(--maivand-plr-spacing-semantic-stack);
+}
+:where(.maivand-plr-ui).maivand-plr-stack-horizontal {
+  align-items: center;
+  background-image: repeating-linear-gradient(
+    to right,
+    color-mix(in srgb, var(--maivand-plr-color-border-strong) 32%, transparent) 0 2px,
+    transparent 2px var(--maivand-plr-spacing-scale-3)
+  );
+  background-position: right bottom;
+  background-repeat: no-repeat;
+  background-size: var(--maivand-plr-spacing-scale-8) 2px;
+  flex-direction: row;
+  gap: var(--maivand-plr-spacing-semantic-inline);
+}
+:where(.maivand-plr-ui).maivand-plr-stack-wrap {
+  flex-wrap: wrap;
+}
+:where(.maivand-plr-ui).maivand-plr-stack:is(ul, ol) {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(.maivand-plr-ui).maivand-plr-stack-vertical,
+  :where(.maivand-plr-ui).maivand-plr-stack-horizontal {
+    transition: background-position var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard);
+  }
+
+  :where(.maivand-plr-ui).maivand-plr-stack-vertical:is(:hover, :focus-within) {
+    background-position: right var(--maivand-plr-spacing-scale-1) top;
+  }
+
+  :where(.maivand-plr-ui).maivand-plr-stack-horizontal:is(:hover, :focus-within) {
+    background-position: right var(--maivand-plr-spacing-scale-2) bottom;
+  }
+}
+
+:where(.maivand-plr-ui).maivand-plr-stack-vertical:dir(rtl) {
+  background-position: left top;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(.maivand-plr-ui).maivand-plr-stack-vertical:dir(rtl):is(:hover, :focus-within) {
+    background-position: left var(--maivand-plr-spacing-scale-1) top;
+  }
+}
+
+:where(.maivand-plr-ui).maivand-plr-stack-horizontal:dir(rtl) {
+  background-position: left bottom;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(.maivand-plr-ui).maivand-plr-stack-horizontal:dir(rtl):is(:hover, :focus-within) {
+    background-position: left var(--maivand-plr-spacing-scale-2) bottom;
+  }
+}

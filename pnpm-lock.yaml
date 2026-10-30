@@ -56,6 +56,9 @@ importers:
       '@prism-system/ui-system-b':
         specifier: workspace:*
         version: link:../../packages/system-b
+      '@prism-system/ui-system-plr':
+        specifier: workspace:*
+        version: link:../../packages/system-plr
       next:
         specifier: 15.5.7
         version: 15.5.7(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -90,6 +93,9 @@ importers:
       '@prism-system/ui-system-b':
         specifier: workspace:*
         version: link:../../packages/system-b
+      '@prism-system/ui-system-plr':
+        specifier: workspace:*
+        version: link:../../packages/system-plr
       '@react-three/fiber':
         specifier: 9.8.1
         version: 9.8.1(@types/react@18.3.12)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(three@0.186.1)
@@ -223,6 +229,31 @@ importers:
       three:
         specifier: 0.186.1
         version: 0.186.1
+      tsup:
+        specifier: ^8.3.0
+        version: 8.5.1(postcss@8.4.31)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/system-plr:
+    dependencies:
+      '@prism-system/ui-core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@types/react':
+        specifier: ^18.3.0
+        version: 18.3.12
+      '@types/react-dom':
+        specifier: ^18.3.0
+        version: 18.3.7(@types/react@18.3.12)
+      react:
+        specifier: ^18.3.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.3.0
+        version: 18.3.1(react@18.3.1)
       tsup:
         specifier: ^8.3.0
         version: 8.5.1(postcss@8.4.31)(typescript@5.9.3)

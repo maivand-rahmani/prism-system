@@ -1,0 +1,59 @@
+:where(.maivand-plr-ui).maivand-plr-skeleton {
+  background-color: var(--maivand-plr-color-surface-sunken);
+  background-image:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--maivand-plr-color-action-primary) 24%, transparent) 0 3px,
+      transparent 3px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 1.1rem,
+      color-mix(in srgb, var(--maivand-plr-color-border-default) 58%, transparent) 1.1rem 1.16rem
+    ),
+    var(--maivand-plr-material-oak-grain);
+  border: 1px solid var(--maivand-plr-color-border-default);
+  border-radius: var(--maivand-plr-radius-sm);
+  display: block;
+  height: 1em;
+  isolation: isolate;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+:where(.maivand-plr-ui).maivand-plr-skeleton::after {
+  animation: maivand-plr-skeleton-paper-glint 900ms 100ms var(--maivand-plr-motion-easing-entrance)
+    both;
+  background-image: linear-gradient(
+    105deg,
+    transparent 34%,
+    color-mix(in srgb, var(--maivand-plr-color-surface-raised) 72%, transparent) 49%,
+    transparent 64%
+  );
+  background-size: 240% 100%;
+  background-repeat: no-repeat;
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+@keyframes maivand-plr-skeleton-paper-glint {
+  from {
+    background-position: 100% 0;
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.78;
+  }
+  to {
+    background-position: -100% 0;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui).maivand-plr-skeleton::after {
+    animation-duration: var(--maivand-plr-motion-duration-reduced);
+    animation-delay: 0ms;
+  }
+}

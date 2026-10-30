@@ -1,0 +1,127 @@
+:where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-number-field {
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image:
+    var(--maivand-plr-material-paper-fiber),
+    linear-gradient(
+      var(--maivand-plr-color-border-default),
+      var(--maivand-plr-color-border-default)
+    ),
+    linear-gradient(
+      var(--maivand-plr-color-action-primary),
+      var(--maivand-plr-color-action-primary)
+    );
+  background-position:
+    center,
+    8px center,
+    left bottom;
+  background-repeat: repeat, no-repeat, no-repeat;
+  background-size:
+    auto,
+    1px 64%,
+    0% 2px;
+  font-variant-numeric: lining-nums tabular-nums;
+  min-height: 44px;
+  transition:
+    background-size var(--maivand-plr-motion-duration-normal)
+      var(--maivand-plr-motion-easing-entrance),
+    border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    box-shadow var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-number-field:focus-visible {
+  background-size:
+    auto,
+    1px 64%,
+    100% 2px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-number-field[aria-invalid="true"],
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-number-field.maivand-plr-native-control-error {
+  background-image:
+    var(--maivand-plr-material-paper-fiber),
+    linear-gradient(var(--maivand-plr-color-status-danger), var(--maivand-plr-color-status-danger)),
+    linear-gradient(var(--maivand-plr-color-status-danger), var(--maivand-plr-color-status-danger));
+  background-size:
+    auto,
+    1px 64%,
+    100% 2px;
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-number-field[aria-invalid="true"]:focus-visible {
+  background-size:
+    auto,
+    1px 64%,
+    100% 2px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-number-field:disabled {
+  background-color: var(--maivand-plr-color-surface-sunken);
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-number-field::-webkit-inner-spin-button,
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-number-field::-webkit-outer-spin-button {
+  opacity: 0.78;
+  transform-origin: center;
+  transition:
+    opacity var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    transform var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-entrance);
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-number-field:hover:not(
+    :disabled
+  )::-webkit-inner-spin-button,
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-number-field:hover:not(
+    :disabled
+  )::-webkit-outer-spin-button {
+  opacity: 1;
+  transform: rotate(5deg);
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-number-field:focus-visible::-webkit-inner-spin-button,
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-number-field:focus-visible::-webkit-outer-spin-button {
+  animation: maivand-plr-number-tally var(--maivand-plr-motion-duration-normal)
+    var(--maivand-plr-motion-easing-entrance) both;
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-number-field:active:not(
+    :disabled
+  )::-webkit-inner-spin-button,
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-number-field:active:not(
+    :disabled
+  )::-webkit-outer-spin-button {
+  transform: scale(0.9) rotate(-8deg);
+}
+
+@keyframes maivand-plr-number-tally {
+  0% {
+    transform: rotate(-14deg) scale(0.82);
+  }
+  62% {
+    transform: rotate(9deg) scale(1.08);
+  }
+  100% {
+    transform: rotate(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui)
+    .maivand-plr-native-control.maivand-plr-number-field::-webkit-inner-spin-button,
+  :where(.maivand-plr-ui)
+    .maivand-plr-native-control.maivand-plr-number-field::-webkit-outer-spin-button {
+    animation: none;
+    transition-duration: var(--maivand-plr-motion-duration-reduced);
+  }
+}

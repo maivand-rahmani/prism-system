@@ -1,0 +1,32 @@
+:where(.maivand-plr-ui).maivand-plr-grid {
+  background-image: repeating-radial-gradient(
+    ellipse at 100% 0%,
+    transparent 0 calc(var(--maivand-plr-spacing-scale-2) - 1px),
+    color-mix(in srgb, var(--maivand-plr-color-border-strong) 24%, transparent)
+      var(--maivand-plr-spacing-scale-2) calc(var(--maivand-plr-spacing-scale-2) + 1px),
+    transparent calc(var(--maivand-plr-spacing-scale-2) + 2px) var(--maivand-plr-spacing-scale-4)
+  );
+  background-position: right top;
+  background-repeat: no-repeat;
+  background-size: var(--maivand-plr-spacing-scale-16) var(--maivand-plr-spacing-scale-16);
+  column-gap: var(--maivand-plr-spacing-scale-6);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
+  min-width: 0;
+  row-gap: var(--maivand-plr-spacing-semantic-stack);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(.maivand-plr-ui).maivand-plr-grid {
+    transition: background-size var(--maivand-plr-motion-duration-slow)
+      var(--maivand-plr-motion-easing-entrance);
+  }
+
+  :where(.maivand-plr-ui).maivand-plr-grid:is(:hover, :focus-within) {
+    background-size: var(--maivand-plr-spacing-scale-24) var(--maivand-plr-spacing-scale-24);
+  }
+}
+
+:where(.maivand-plr-ui).maivand-plr-grid:dir(rtl) {
+  background-position: left top;
+}

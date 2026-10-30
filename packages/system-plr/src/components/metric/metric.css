@@ -1,0 +1,119 @@
+:where(.maivand-plr-ui).maivand-plr-metric {
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  border: 1px solid var(--maivand-plr-color-border-default);
+  border-radius: var(--maivand-plr-radius-sm);
+  border-block-start: 3px solid var(--maivand-plr-color-action-primary);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--maivand-plr-color-text-inverse) 22%, transparent),
+    var(--maivand-plr-shadow-sm);
+  display: grid;
+  gap: var(--maivand-plr-spacing-scale-2);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  isolation: isolate;
+  margin: 0;
+  min-width: 0;
+  padding-block: var(--maivand-plr-spacing-semantic-inset);
+  padding-inline: calc(
+    var(--maivand-plr-spacing-semantic-inset) + var(--maivand-plr-spacing-scale-4)
+  );
+  position: relative;
+  transition:
+    border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    box-shadow var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard);
+}
+:where(.maivand-plr-ui).maivand-plr-metric::before {
+  background-color: var(--maivand-plr-color-surface-sunken);
+  background-image:
+    repeating-radial-gradient(
+      ellipse at 50% 1.25rem,
+      transparent 0 0.23rem,
+      color-mix(in srgb, var(--maivand-plr-color-border-strong) 76%, transparent) 0.25rem 0.28rem,
+      transparent 0.3rem 0.42rem
+    ),
+    var(--maivand-plr-material-oak-grain);
+  border-inline-end: 1px solid var(--maivand-plr-color-border-strong);
+  content: "";
+  inset-block: 0;
+  inset-inline-start: 0;
+  position: absolute;
+  transform: scaleX(1);
+  transform-origin: left center;
+  transition:
+    background-color var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard),
+    transform var(--maivand-plr-motion-duration-normal) var(--maivand-plr-motion-easing-entrance);
+  width: var(--maivand-plr-spacing-scale-4);
+}
+:where(.maivand-plr-ui).maivand-plr-metric:hover,
+:where(.maivand-plr-ui).maivand-plr-metric:focus-within {
+  border-color: var(--maivand-plr-color-border-strong);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--maivand-plr-color-text-inverse) 22%, transparent),
+    var(--maivand-plr-shadow-md);
+}
+:where(.maivand-plr-ui).maivand-plr-metric:hover::before,
+:where(.maivand-plr-ui).maivand-plr-metric:focus-within::before {
+  background-color: color-mix(
+    in srgb,
+    var(--maivand-plr-color-action-secondary) 42%,
+    var(--maivand-plr-color-surface-sunken)
+  );
+  transform: scaleX(1.18);
+}
+:where(.maivand-plr-ui).maivand-plr-metric .maivand-plr-metric-value {
+  color: var(--maivand-plr-color-action-primary-hover);
+  font-size: clamp(
+    var(--maivand-plr-typography-size-2xl),
+    4vw,
+    var(--maivand-plr-typography-size-4xl)
+  );
+  font-variant-numeric: tabular-nums;
+  font-family: var(--maivand-plr-typography-family-sans);
+  font-weight: var(--maivand-plr-typography-weight-semibold);
+  letter-spacing: var(--maivand-plr-typography-letter-spacing-tight);
+  line-height: var(--maivand-plr-typography-line-height-tight);
+  align-self: center;
+  grid-column: 2;
+  grid-row: 1;
+  margin: 0;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: end;
+}
+:where(.maivand-plr-ui).maivand-plr-metric .maivand-plr-metric-label {
+  align-self: center;
+  color: var(--maivand-plr-color-text-primary);
+  font-size: var(--maivand-plr-typography-size-sm);
+  font-weight: var(--maivand-plr-typography-weight-medium);
+  grid-column: 1;
+  grid-row: 1;
+  line-height: var(--maivand-plr-typography-line-height-normal);
+}
+:where(.maivand-plr-ui).maivand-plr-metric .maivand-plr-metric-description {
+  grid-column: 1 / -1;
+  color: var(--maivand-plr-color-text-muted);
+  font-size: var(--maivand-plr-typography-size-sm);
+  line-height: var(--maivand-plr-typography-line-height-normal);
+  margin: 0;
+}
+@media (max-width: 40rem) {
+  :where(.maivand-plr-ui).maivand-plr-metric {
+    padding-block: var(--maivand-plr-spacing-scale-3);
+    padding-inline: calc(var(--maivand-plr-spacing-scale-3) + var(--maivand-plr-spacing-scale-4));
+  }
+  :where(.maivand-plr-ui).maivand-plr-metric .maivand-plr-metric-value {
+    font-size: clamp(
+      var(--maivand-plr-typography-size-xl),
+      8vw,
+      var(--maivand-plr-typography-size-3xl)
+    );
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui).maivand-plr-metric,
+  :where(.maivand-plr-ui).maivand-plr-metric::before {
+    transition-duration: var(--maivand-plr-motion-duration-reduced);
+  }
+}

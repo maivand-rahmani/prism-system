@@ -1,0 +1,196 @@
+:where(.maivand-plr-ui).maivand-plr-radio-group {
+  align-items: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--maivand-plr-spacing-scale-2);
+}
+
+:where(.maivand-plr-ui).maivand-plr-radio-group[data-orientation="vertical"] {
+  display: grid;
+  gap: var(--maivand-plr-spacing-scale-2);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-radio-item {
+  align-items: center;
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  border: 1px solid var(--maivand-plr-color-border-default);
+  border-inline-start: 2px solid transparent;
+  border-radius: var(--maivand-plr-radius-md);
+  box-shadow: inset 0 -2px 0
+    color-mix(in srgb, var(--maivand-plr-color-border-strong) 30%, transparent);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 1 1 180px;
+  gap: 10px;
+  min-height: 48px;
+  min-width: 0;
+  padding-block: 9px;
+  padding-inline: 38px 12px;
+  position: relative;
+  text-align: start;
+  transition:
+    background-color var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard),
+    border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    box-shadow var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-radio-item::before {
+  background-color: var(--maivand-plr-color-surface-sunken);
+  background-image: var(--maivand-plr-material-oak-grain), var(--maivand-plr-material-paper-fiber);
+  border: 1px solid var(--maivand-plr-color-border-strong);
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 2px var(--maivand-plr-color-surface-raised),
+    inset 0 0 0 3px var(--maivand-plr-color-border-default);
+  content: "";
+  height: 18px;
+  inset-inline-start: 11px;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  transition:
+    background-color var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard),
+    border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    box-shadow var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard);
+  width: 18px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-radio-item::after {
+  background-color: var(--maivand-plr-color-action-primary);
+  content: "";
+  inset-block: 8px;
+  inset-inline-start: 0;
+  opacity: 0;
+  position: absolute;
+  transform: scaleY(0);
+  transform-origin: top;
+  width: 2px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-radio-item:focus-visible {
+  outline: 3px solid var(--maivand-plr-color-border-focus);
+  outline-offset: 2px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-radio-item:hover:not(:disabled):not([data-disabled]) {
+  background-color: var(--maivand-plr-color-surface-sunken);
+  border-color: var(--maivand-plr-color-border-strong);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-radio-item[data-state="checked"] {
+  background-color: var(--maivand-plr-color-action-secondary);
+  border-color: var(--maivand-plr-color-action-primary);
+  border-inline-start-color: var(--maivand-plr-color-action-primary);
+  box-shadow: inset 0 -2px 0 var(--maivand-plr-color-action-primary);
+  color: var(--maivand-plr-color-action-secondary-text);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-radio-item[data-state="checked"]::before {
+  background-color: color-mix(
+    in srgb,
+    var(--maivand-plr-color-action-secondary) 68%,
+    var(--maivand-plr-color-surface-raised)
+  );
+  border-color: var(--maivand-plr-color-action-primary);
+  box-shadow:
+    inset 0 0 0 2px var(--maivand-plr-color-surface-raised),
+    inset 0 0 0 3px var(--maivand-plr-color-action-primary);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-radio-item[data-state="checked"]::after {
+  animation: maivand-plr-radio-sap-rise var(--maivand-plr-motion-duration-normal)
+    var(--maivand-plr-motion-easing-entrance) both;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-radio-item:active:not(:disabled):not([data-disabled]) {
+  box-shadow: inset 0 2px 3px
+    color-mix(in srgb, var(--maivand-plr-color-text-primary) 14%, transparent);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-radio-item[data-invalid="true"],
+:where(.maivand-plr-ui) .maivand-plr-radio-item[aria-invalid="true"],
+:where(.maivand-plr-ui).maivand-plr-radio-group[aria-invalid="true"] .maivand-plr-radio-item {
+  border-color: var(--maivand-plr-color-status-danger);
+  border-style: dashed;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-radio-item[data-invalid="true"]::before,
+:where(.maivand-plr-ui) .maivand-plr-radio-item[aria-invalid="true"]::before,
+:where(.maivand-plr-ui).maivand-plr-radio-group[aria-invalid="true"]
+  .maivand-plr-radio-item::before {
+  border-color: var(--maivand-plr-color-status-danger);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-radio-item:disabled,
+:where(.maivand-plr-ui) .maivand-plr-radio-item[data-disabled] {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-radio-indicator {
+  animation: maivand-plr-radio-seed-settle var(--maivand-plr-motion-duration-normal)
+    var(--maivand-plr-motion-easing-entrance) both;
+  background-color: var(--maivand-plr-color-action-primary);
+  border: 1px solid var(--maivand-plr-color-action-primary-hover);
+  border-radius: 58% 58% 46% 46%;
+  display: block;
+  height: 9px;
+  inset-inline-start: 16px;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%) rotate(45deg);
+  width: 7px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-radio-indicator::before {
+  background-color: var(--maivand-plr-color-action-primary-text);
+  border-radius: var(--maivand-plr-radius-full);
+  content: "";
+  height: 5px;
+  inset-inline-start: 2px;
+  opacity: 0.78;
+  position: absolute;
+  top: 1px;
+  width: 1px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-radio-copy {
+  display: grid;
+  flex: 1;
+  line-height: 1.35;
+  min-width: 0;
+}
+
+@keyframes maivand-plr-radio-seed-settle {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.18) rotate(-34deg);
+  }
+  64% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1.22) rotate(56deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1) rotate(45deg);
+  }
+}
+
+@keyframes maivand-plr-radio-sap-rise {
+  0% {
+    opacity: 0;
+    transform: scaleY(0);
+  }
+  58% {
+    opacity: 1;
+    transform: scaleY(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}

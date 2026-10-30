@@ -1,0 +1,57 @@
+:where(.maivand-plr-ui) .maivand-plr-native-control-track {
+  display: block;
+  padding-block-end: var(--maivand-plr-spacing-scale-1);
+  position: relative;
+}
+:where(.maivand-plr-ui) .maivand-plr-native-control-track::after {
+  background-color: var(--maivand-plr-color-border-strong);
+  background-image: var(--maivand-plr-material-oak-grain);
+  border-radius: var(--maivand-plr-radius-none);
+  block-size: 2px;
+  content: "";
+  inset-block-end: 1px;
+  inset-inline: var(--maivand-plr-spacing-scale-3);
+  opacity: 0.62;
+  pointer-events: none;
+  position: absolute;
+  transform: scaleX(0.24);
+  transform-origin: center;
+  transition:
+    background-color var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard),
+    opacity var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    transform var(--maivand-plr-motion-duration-normal) var(--maivand-plr-motion-easing-entrance);
+}
+:where(.maivand-plr-ui).maivand-plr-native-field:focus-within
+  .maivand-plr-native-control-track::after {
+  background-color: var(--maivand-plr-color-action-primary);
+  opacity: 1;
+  transform: scaleX(1);
+}
+:where(.maivand-plr-ui).maivand-plr-native-field[data-native-input-type="range"]
+  .maivand-plr-native-control-track {
+  padding-block-end: 0;
+}
+:where(.maivand-plr-ui).maivand-plr-native-field[data-native-input-type="range"]
+  .maivand-plr-native-control-track::after {
+  display: none;
+}
+:where(.maivand-plr-ui).maivand-plr-native-field .maivand-plr-label {
+  transition: color var(--maivand-plr-motion-duration-fast)
+    var(--maivand-plr-motion-easing-standard);
+}
+:where(.maivand-plr-ui).maivand-plr-native-field:focus-within .maivand-plr-label {
+  color: var(--maivand-plr-color-action-primary-hover);
+}
+:where(.maivand-plr-ui).maivand-plr-native-field:has(
+    .maivand-plr-native-control[aria-invalid="true"]
+  )
+  .maivand-plr-label {
+  color: var(--maivand-plr-color-status-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui) .maivand-plr-native-control-track::after {
+    transition-duration: var(--maivand-plr-motion-duration-reduced) !important;
+  }
+}

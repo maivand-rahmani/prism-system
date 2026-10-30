@@ -1,0 +1,133 @@
+{
+  "audience": "Russian- and English-speaking people who plan focused work on desktop and check or update their plans on mobile.",
+  "avoid": [
+    "generic SaaS dashboard styling",
+    "decorative historical ornament that competes with writing or actions",
+    "low-contrast text or focus indicators",
+    "heavy shadows, glass effects, or glossy wood imitation",
+    "pill-heavy controls and overly rounded cards",
+    "page-level zoom transitions or application-specific compositions in the package",
+    "color-only status communication",
+    "language-specific layouts that fail with Russian or English content"
+  ],
+  "componentTreatments": {
+    "Button": "Tactile paper-and-oak depth with a clear, short pressed response; retain clear hover, focus, disabled, and loading states.",
+    "Card": "Layered paper surfaces and restrained oak-like shadow; interactive cards lift subtly and press clearly.",
+    "Checkbox": "Distinctive tactile state change with an unmistakable checked mark and keyboard focus.",
+    "Dialog": "Layered paper surface with restrained entrance feedback and reliable focus handling.",
+    "FileUpload": "A tactile native file-selection surface with clear hover, focus, disabled, and error states; preserve browser file semantics.",
+    "Input": "Paper-like inset surface, legible placeholder and value, and a strong accessible focus ring.",
+    "Select": "Tactile trigger and readable menu surfaces with a clear active and focused option.",
+    "Slider": "Readable track, tactile thumb, and strong keyboard and focus feedback.",
+    "Switch": "Clear thumb movement and state contrast without relying on motion or color alone.",
+    "Tabs": "A quiet, physical-feeling selected state with direct keyboard navigation.",
+    "Textarea": "Warm writing surface with a calm tactile edge and a highly visible focus state."
+  },
+  "components": [
+    "day plan with time blocks, tasks, and completion states",
+    "evening review with reflective writing and daily highlights",
+    "weekly goals and progress report"
+  ],
+  "dataDensity": "comfortable, moderate density",
+  "decisionNotes": [
+    {
+      "note": "The system serves a Russian- and English-language responsive planning diary across day planning, evening reflection, and weekly goals.",
+      "status": "confirmed",
+      "topic": "product context and language"
+    },
+    {
+      "note": "The user approved warm paper, oak, muted green, tactile depth, and dark wood in dark mode, while requiring modern, readable actions.",
+      "status": "confirmed",
+      "topic": "material direction"
+    },
+    {
+      "note": "The user delegated the precise shade selection within the approved warm paper, oak, muted green, and dark-wood direction; contrast and focus remain mandatory.",
+      "status": "delegated",
+      "topic": "palette refinement"
+    },
+    {
+      "note": "The user selected Literata for diary character and Manrope for interface and numbers, both with Cyrillic support.",
+      "status": "confirmed",
+      "topic": "typography"
+    },
+    {
+      "note": "Tactile feedback belongs to component implementations, while zooming section transitions and page composition remain application-owned.",
+      "status": "confirmed",
+      "topic": "motion ownership"
+    },
+    {
+      "note": "Implement all required and optional shared contracts in one visual language and do not add custom extensions.",
+      "status": "confirmed",
+      "topic": "capability scope"
+    }
+  ],
+  "direction": [
+    "warm and editorial",
+    "grounded in nature, history, paper, and oak",
+    "tactile and quietly dimensional",
+    "clear modern actions",
+    "calm, readable, and reflective"
+  ],
+  "foundations": {
+    "accentDirection": "muted leafy green for primary actions, supported by warm oak and paper; dark wood in dark theme",
+    "borders": "quiet, warm hairlines with stronger edges for focus and state",
+    "colorTemperature": "warm",
+    "contrast": "legible, high-contrast text and clear keyboard focus against nuanced paper and wood surfaces",
+    "dominantRadius": "small-to-medium, natural corners without pill-heavy styling",
+    "elevation": "soft tactile separation, pressed depth on controls, and no heavy floating shadows",
+    "motionIntensity": "short, restrained tactile interaction feedback; reduced-motion aware",
+    "surfaceModel": "layered paper and oak surfaces with restrained material grain and a dark-wood counterpart in dark theme",
+    "typographyCharacter": "Literata for diary-like editorial headings and reflective copy; Manrope for interface controls, labels, and numerals; both with Cyrillic support"
+  },
+  "interfaceType": "personal planning diary",
+  "motionScenarios": [
+    "Short physical feedback for interactive controls, selection, completion, and surface hover/press states.",
+    "Do not implement zooming transitions between page sections in the design system; section reveals and page composition belong to the application.",
+    "All motion respects prefers-reduced-motion and preserves immediate, understandable state changes."
+  ],
+  "platform": "responsive web for desktop and mobile",
+  "product": "A responsive planning diary for shaping each day, reflecting each evening, and setting weekly goals with progress reports.",
+  "productCompositions": [
+    "A responsive day-planning page with time blocks, quick task entry, completion, and an empty-day state.",
+    "An evening review with a generous writing area, daily highlights, and saved/error feedback.",
+    "A weekly goals and report view with progress, a readable summary, and a no-activity state."
+  ],
+  "project": "Plan Like Rahmani",
+  "references": [],
+  "requestedCapabilities": [
+    "Grid",
+    "Section",
+    "Fieldset",
+    "Alert",
+    "Progress",
+    "Skeleton",
+    "Toast",
+    "Accordion",
+    "Avatar",
+    "Breadcrumbs",
+    "Pagination",
+    "Table",
+    "Metric",
+    "DescriptionList",
+    "Timeline",
+    "Meter",
+    "EmptyState"
+  ],
+  "requestedCustomComponents": [],
+  "responsiveRequirements": [
+    "Keep primary planning actions easy to reach on narrow mobile screens without horizontal scrolling.",
+    "Reflow weekly summaries and tables for mobile while preserving clear labels and values.",
+    "Maintain readable writing areas, control targets, and keyboard access at every width."
+  ],
+  "stateScenarios": [
+    "An empty day before the user adds a plan.",
+    "Saving a plan or review, including successful confirmation and retryable failure.",
+    "Completed, in-progress, and overdue tasks with distinguishable non-color-only states.",
+    "A week with no goals yet and a populated weekly report."
+  ],
+  "typographyRequirements": [
+    "Use Literata for distinctive journal-like headings while preserving clear line lengths and hierarchy.",
+    "Use Manrope for controls, labels, utility copy, and aligned tabular numerals.",
+    "Support Russian and English text, including Cyrillic glyphs and natural wrapping."
+  ]
+}

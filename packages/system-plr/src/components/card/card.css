@@ -1,0 +1,145 @@
+:where(.maivand-plr-ui).maivand-plr-card {
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  border: 1px solid var(--maivand-plr-color-border-default);
+  border-radius: var(--maivand-plr-radius-lg);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--maivand-plr-color-text-inverse) 28%, transparent),
+    0 2px 0 color-mix(in srgb, var(--maivand-plr-color-border-strong) 22%, transparent);
+  color: var(--maivand-plr-color-text-primary);
+  display: grid;
+  gap: var(--maivand-plr-spacing-scale-4);
+  isolation: isolate;
+  position: relative;
+}
+:where(.maivand-plr-ui).maivand-plr-card::before {
+  background-color: var(--maivand-plr-color-border-strong);
+  background-image:
+    var(--maivand-plr-material-oak-grain),
+    linear-gradient(
+      to right,
+      color-mix(in srgb, var(--maivand-plr-color-text-primary) 22%, transparent),
+      transparent
+    );
+  background-position:
+    0 0,
+    0 0;
+  content: "";
+  inset-block: var(--maivand-plr-spacing-scale-2);
+  inset-inline-start: 0;
+  opacity: 0.88;
+  pointer-events: none;
+  position: absolute;
+  width: var(--maivand-plr-spacing-scale-1);
+}
+:where(.maivand-plr-ui).maivand-plr-card-elevated {
+  border-color: transparent;
+  box-shadow: var(--maivand-plr-shadow-sm);
+}
+:where(.maivand-plr-ui).maivand-plr-card-muted {
+  background-color: var(--maivand-plr-color-surface-sunken);
+}
+:where(.maivand-plr-ui).maivand-plr-card-outline {
+  background-color: transparent;
+  background-image: none;
+}
+:where(.maivand-plr-ui).maivand-plr-card-interactive {
+  cursor: pointer;
+  transition:
+    box-shadow var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    background-color var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard),
+    border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    transform var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-entrance);
+}
+:where(.maivand-plr-ui).maivand-plr-card-interactive::before {
+  transition:
+    background-position var(--maivand-plr-motion-duration-slow)
+      var(--maivand-plr-motion-easing-standard),
+    opacity var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard);
+}
+@media (hover: hover) {
+  :where(.maivand-plr-ui).maivand-plr-card-interactive:hover {
+    border-color: var(--maivand-plr-color-border-strong);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--maivand-plr-color-text-inverse) 28%, transparent),
+      var(--maivand-plr-shadow-sm);
+    transform: translateY(-2px);
+  }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  :where(.maivand-plr-ui).maivand-plr-card-interactive:hover::before {
+    background-position:
+      3px 7px,
+      0 0;
+    opacity: 1;
+  }
+}
+:where(.maivand-plr-ui).maivand-plr-card-interactive:focus-visible {
+  border-color: var(--maivand-plr-color-border-focus);
+  outline: 3px solid var(--maivand-plr-color-border-focus);
+  outline-offset: 3px;
+}
+:where(.maivand-plr-ui).maivand-plr-card-interactive:active {
+  background-color: var(--maivand-plr-color-surface-sunken);
+  box-shadow:
+    inset 0 2px 3px color-mix(in srgb, var(--maivand-plr-color-text-primary) 12%, transparent),
+    0 1px 0 color-mix(in srgb, var(--maivand-plr-color-border-strong) 20%, transparent);
+  transform: translateY(1px);
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui).maivand-plr-card-interactive {
+    transition-duration: var(--maivand-plr-motion-duration-reduced);
+  }
+  :where(.maivand-plr-ui).maivand-plr-card-interactive:hover,
+  :where(.maivand-plr-ui).maivand-plr-card-interactive:active {
+    transform: none;
+  }
+  :where(.maivand-plr-ui).maivand-plr-card-interactive::before {
+    transition-duration: var(--maivand-plr-motion-duration-reduced);
+  }
+}
+:where(.maivand-plr-ui).maivand-plr-card-padding-none {
+  padding: 0;
+}
+:where(.maivand-plr-ui).maivand-plr-card-padding-none::before {
+  display: none;
+}
+:where(.maivand-plr-ui).maivand-plr-card-padding-sm {
+  padding: var(--maivand-plr-spacing-scale-2);
+}
+:where(.maivand-plr-ui).maivand-plr-card-padding-md {
+  padding: var(--maivand-plr-spacing-scale-4);
+}
+:where(.maivand-plr-ui).maivand-plr-card-padding-lg {
+  padding: var(--maivand-plr-spacing-scale-6);
+}
+:where(.maivand-plr-ui) .maivand-plr-card-header {
+  display: grid;
+  gap: var(--maivand-plr-spacing-scale-1);
+}
+:where(.maivand-plr-ui) .maivand-plr-card-content {
+  min-width: 0;
+}
+:where(.maivand-plr-ui) .maivand-plr-card-footer {
+  align-items: center;
+  border-top: 1px solid var(--maivand-plr-color-border-default);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--maivand-plr-spacing-scale-2);
+  justify-content: flex-end;
+  padding-top: var(--maivand-plr-spacing-scale-3);
+}
+:where(.maivand-plr-ui) .maivand-plr-card-title {
+  font-family: Literata, Georgia, serif;
+  font-size: var(--maivand-plr-typography-size-lg);
+  font-weight: var(--maivand-plr-typography-weight-semibold);
+  letter-spacing: var(--maivand-plr-typography-letter-spacing-tight);
+  line-height: var(--maivand-plr-typography-line-height-tight);
+  margin: 0;
+}
+:where(.maivand-plr-ui) .maivand-plr-card-description {
+  color: var(--maivand-plr-color-text-muted);
+  font-size: var(--maivand-plr-typography-size-sm);
+  margin: 0;
+}

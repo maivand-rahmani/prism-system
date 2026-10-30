@@ -1,0 +1,102 @@
+:where(.maivand-plr-ui).maivand-plr-table {
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  border-collapse: separate;
+  border-spacing: 0;
+  border-block-start: 3px solid var(--maivand-plr-color-border-strong);
+  border-inline-start: 1px solid var(--maivand-plr-color-border-default);
+  color: var(--maivand-plr-color-text-primary);
+  font-size: var(--maivand-plr-typography-size-sm);
+  max-width: 100%;
+  table-layout: auto;
+  width: 100%;
+}
+:where(.maivand-plr-ui) .maivand-plr-table-caption {
+  color: var(--maivand-plr-color-text-secondary);
+  font-family: var(--maivand-plr-typography-family-sans);
+  font-size: var(--maivand-plr-typography-size-sm);
+  font-weight: var(--maivand-plr-typography-weight-medium);
+  line-height: var(--maivand-plr-typography-line-height-normal);
+  padding-block: 0 var(--maivand-plr-spacing-scale-3);
+  text-align: start;
+}
+:where(.maivand-plr-ui) .maivand-plr-table-head {
+  background-color: var(--maivand-plr-color-surface-sunken);
+  background-image: var(--maivand-plr-material-oak-grain);
+  color: var(--maivand-plr-color-text-primary);
+  font-weight: var(--maivand-plr-typography-weight-semibold);
+  text-align: start;
+}
+:where(.maivand-plr-ui) .maivand-plr-table-head,
+:where(.maivand-plr-ui) .maivand-plr-table-cell {
+  border-bottom: 1px solid var(--maivand-plr-color-border-default);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  padding: var(--maivand-plr-spacing-scale-3) var(--maivand-plr-spacing-scale-3);
+  vertical-align: top;
+}
+:where(.maivand-plr-ui) .maivand-plr-table-head {
+  border-block-end: 2px solid var(--maivand-plr-color-border-strong);
+}
+:where(.maivand-plr-ui) .maivand-plr-table-footer .maivand-plr-table-cell {
+  background: color-mix(
+    in srgb,
+    var(--maivand-plr-color-action-secondary) 30%,
+    var(--maivand-plr-color-surface-raised)
+  );
+  border-bottom: 0;
+  border-top: 1px solid var(--maivand-plr-color-border-strong);
+  color: var(--maivand-plr-color-text-secondary);
+  font-weight: var(--maivand-plr-typography-weight-medium);
+}
+:where(.maivand-plr-ui) .maivand-plr-table-body .maivand-plr-table-row {
+  transition: background-color var(--maivand-plr-motion-duration-fast)
+    var(--maivand-plr-motion-easing-standard);
+}
+:where(.maivand-plr-ui) .maivand-plr-table-body .maivand-plr-table-row > :first-child {
+  transition: box-shadow var(--maivand-plr-motion-duration-fast)
+    var(--maivand-plr-motion-easing-standard);
+}
+:where(.maivand-plr-ui) .maivand-plr-table-body .maivand-plr-table-row:nth-child(even) {
+  background-color: color-mix(
+    in srgb,
+    var(--maivand-plr-color-surface-sunken) 30%,
+    var(--maivand-plr-color-surface-raised)
+  );
+}
+:where(.maivand-plr-ui) .maivand-plr-table-body .maivand-plr-table-row:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--maivand-plr-color-action-secondary) 58%,
+    var(--maivand-plr-color-surface-raised)
+  );
+}
+:where(.maivand-plr-ui) .maivand-plr-table-body .maivand-plr-table-row:hover > :first-child {
+  box-shadow: inset 3px 0 0 var(--maivand-plr-color-action-primary);
+}
+:where(.maivand-plr-ui) .maivand-plr-table-body .maivand-plr-table-row:focus-within {
+  background-color: color-mix(
+    in srgb,
+    var(--maivand-plr-color-action-secondary) 68%,
+    var(--maivand-plr-color-surface-raised)
+  );
+}
+:where(.maivand-plr-ui) .maivand-plr-table-body .maivand-plr-table-row:focus-within > :first-child {
+  box-shadow: inset 3px 0 0 var(--maivand-plr-color-border-focus);
+}
+@media (max-width: 40rem) {
+  :where(.maivand-plr-ui).maivand-plr-table {
+    font-size: var(--maivand-plr-typography-size-xs);
+    table-layout: fixed;
+  }
+  :where(.maivand-plr-ui) .maivand-plr-table-head,
+  :where(.maivand-plr-ui) .maivand-plr-table-cell {
+    padding: var(--maivand-plr-spacing-scale-2);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui) .maivand-plr-table-body .maivand-plr-table-row,
+  :where(.maivand-plr-ui) .maivand-plr-table-body .maivand-plr-table-row > :first-child {
+    transition-duration: var(--maivand-plr-motion-duration-reduced);
+  }
+}

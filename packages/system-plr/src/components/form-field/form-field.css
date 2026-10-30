@@ -1,0 +1,68 @@
+:where(.maivand-plr-ui).maivand-plr-form-field {
+  display: grid;
+  gap: var(--maivand-plr-spacing-scale-2);
+  min-width: 0;
+}
+:where(.maivand-plr-ui) .maivand-plr-form-field-label {
+  align-items: center;
+  color: var(--maivand-plr-color-text-primary);
+  display: inline-flex;
+  font-size: var(--maivand-plr-typography-size-sm);
+  gap: var(--maivand-plr-spacing-scale-2);
+  font-weight: var(--maivand-plr-typography-weight-semibold);
+  transition: color var(--maivand-plr-motion-duration-fast)
+    var(--maivand-plr-motion-easing-standard);
+}
+:where(.maivand-plr-ui) .maivand-plr-form-field-label::before {
+  background:
+    linear-gradient(138deg, transparent 46%, currentColor 47% 51%, transparent 52%),
+    color-mix(in srgb, currentColor 12%, transparent);
+  border: 1px solid currentColor;
+  border-radius: 0 var(--maivand-plr-radius-full) 0 var(--maivand-plr-radius-full);
+  color: var(--maivand-plr-color-action-primary);
+  content: "";
+  flex: 0 0 auto;
+  block-size: calc(var(--maivand-plr-spacing-scale-2) * 1.25);
+  inline-size: var(--maivand-plr-spacing-scale-2);
+  opacity: 0.82;
+  transform: rotate(-42deg) scale(0.9);
+  transition:
+    opacity var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    transform var(--maivand-plr-motion-duration-normal) var(--maivand-plr-motion-easing-entrance);
+}
+:where(.maivand-plr-ui).maivand-plr-form-field:focus-within .maivand-plr-form-field-label {
+  color: var(--maivand-plr-color-action-primary-hover);
+}
+:where(.maivand-plr-ui).maivand-plr-form-field:focus-within .maivand-plr-form-field-label::before {
+  opacity: 1;
+  transform: rotate(-27deg) scale(1.08);
+}
+:where(.maivand-plr-ui) .maivand-plr-form-field-description,
+:where(.maivand-plr-ui) .maivand-plr-form-field-error {
+  font-size: var(--maivand-plr-typography-size-xs);
+  line-height: 1.4;
+  margin: 0;
+}
+:where(.maivand-plr-ui) .maivand-plr-form-field-description {
+  color: var(--maivand-plr-color-text-muted);
+}
+:where(.maivand-plr-ui) .maivand-plr-form-field-error {
+  animation: maivand-plr-form-error-in var(--maivand-plr-motion-duration-fast)
+    var(--maivand-plr-motion-easing-entrance);
+  border-inline-start: 2px solid var(--maivand-plr-color-status-danger);
+  color: var(--maivand-plr-color-status-danger);
+  padding-inline-start: var(--maivand-plr-spacing-scale-2);
+}
+@keyframes maivand-plr-form-error-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+:where(.maivand-plr-ui) .maivand-plr-form-field-control {
+  min-width: 0;
+}

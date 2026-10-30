@@ -1,0 +1,114 @@
+:where(.maivand-plr-ui).maivand-plr-field {
+  display: grid;
+  gap: 7px;
+}
+:where(.maivand-plr-ui) .maivand-plr-label {
+  color: var(--maivand-plr-color-text-primary);
+  font-size: var(--maivand-plr-typography-size-sm);
+  font-weight: var(--maivand-plr-typography-weight-semibold);
+}
+:where(.maivand-plr-ui) .maivand-plr-hint,
+:where(.maivand-plr-ui) .maivand-plr-error {
+  font-size: var(--maivand-plr-typography-size-xs);
+  line-height: 1.4;
+}
+:where(.maivand-plr-ui) .maivand-plr-hint {
+  color: var(--maivand-plr-color-text-muted);
+}
+:where(.maivand-plr-ui) .maivand-plr-error {
+  color: var(--maivand-plr-color-status-danger);
+}
+:where(.maivand-plr-ui) .maivand-plr-input-shell {
+  align-items: center;
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  border: 1px solid var(--maivand-plr-color-border-default);
+  border-radius: var(--maivand-plr-radius-sm);
+  display: flex;
+  min-height: 40px;
+  position: relative;
+  box-shadow: inset 0 1px 2px
+    color-mix(in srgb, var(--maivand-plr-color-text-primary) 7%, transparent);
+  transition:
+    border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    box-shadow var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard);
+}
+:where(.maivand-plr-ui) .maivand-plr-input-shell::before {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--maivand-plr-color-border-strong) 76%, transparent) 0 2px,
+    transparent 2px 6px
+  );
+  content: "";
+  inline-size: 1px;
+  inset-block: 8px;
+  inset-inline-start: 7px;
+  opacity: 0.72;
+  pointer-events: none;
+  position: absolute;
+  transform: scaleY(0.72);
+  transform-origin: center;
+  transition:
+    opacity var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    transform var(--maivand-plr-motion-duration-normal) var(--maivand-plr-motion-easing-entrance);
+}
+:where(.maivand-plr-ui) .maivand-plr-input-shell:hover:not(:has(:disabled)) {
+  border-color: var(--maivand-plr-color-border-strong);
+}
+:where(.maivand-plr-ui) .maivand-plr-input-shell:focus-within {
+  border-color: var(--maivand-plr-color-border-focus);
+  box-shadow:
+    inset 0 1px 2px color-mix(in srgb, var(--maivand-plr-color-text-primary) 9%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--maivand-plr-color-border-focus) 44%, transparent);
+}
+:where(.maivand-plr-ui) .maivand-plr-input-shell:focus-within::before {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--maivand-plr-color-action-primary) 82%, transparent) 0 2px,
+    transparent 2px 6px
+  );
+  opacity: 1;
+  transform: scaleY(1);
+}
+:where(.maivand-plr-ui) .maivand-plr-input-shell:has(.maivand-plr-input:focus-visible) {
+  outline: 3px solid var(--maivand-plr-color-border-focus);
+  outline-offset: 2px;
+}
+:where(.maivand-plr-ui) .maivand-plr-input-shell-error {
+  border-color: var(--maivand-plr-color-status-danger);
+}
+:where(.maivand-plr-ui) .maivand-plr-input-shell:has(.maivand-plr-input:active) {
+  box-shadow: inset 0 2px 3px
+    color-mix(in srgb, var(--maivand-plr-color-text-primary) 12%, transparent);
+}
+:where(.maivand-plr-ui) .maivand-plr-input {
+  background: transparent;
+  border: 0;
+  color: var(--maivand-plr-color-text-primary);
+  flex: 1;
+  font-variant-numeric: lining-nums;
+  min-width: 0;
+  outline: 0;
+  padding: 10px 12px;
+}
+:where(.maivand-plr-ui) .maivand-plr-input::placeholder {
+  color: var(--maivand-plr-color-text-muted);
+}
+:where(.maivand-plr-ui) .maivand-plr-adornment {
+  color: var(--maivand-plr-color-text-muted);
+  display: flex;
+  padding: 0 11px;
+}
+:where(.maivand-plr-ui) .maivand-plr-input-sm {
+  min-height: 34px;
+}
+:where(.maivand-plr-ui) .maivand-plr-input-sm .maivand-plr-input {
+  padding: 7px 10px;
+  font-size: var(--maivand-plr-typography-size-sm);
+}
+:where(.maivand-plr-ui) .maivand-plr-input-lg {
+  min-height: 48px;
+}
+:where(.maivand-plr-ui) .maivand-plr-input-lg .maivand-plr-input {
+  padding: 13px 14px;
+}

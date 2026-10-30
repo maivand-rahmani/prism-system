@@ -5,6 +5,7 @@ const nextConfig = {
     "@prism-system/ui-core",
     "@prism-system/ui-system-a",
     "@prism-system/ui-system-b",
+    "@prism-system/ui-system-plr",
     // @prism-system:transpile:end
   ],
 };

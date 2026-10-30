@@ -11,6 +11,8 @@ import { DesignSystem as SystemA, systemATokens } from "@prism-system/ui-system-
 import systemAManifest from "@prism-system/ui-system-a/manifest";
 import { DesignSystem as SystemB, systemBTokens } from "@prism-system/ui-system-b";
 import systemBManifest from "@prism-system/ui-system-b/manifest";
+import { DesignSystem as SystemPlr, systemPlrTokens } from "@prism-system/ui-system-plr";
+import systemPlrManifest from "@prism-system/ui-system-plr/manifest";
 
 /** A group of related token values, for example the color or motion scale. */
 export type TokenGroup = Record<string, string>;
@@ -138,6 +140,7 @@ export type RegisteredSystem = Omit<DesignSystem, "components"> & {
 export const registeredSystems = [
   { ...SystemA, uiClass: "maivand-a-ui", tokens: systemATokens, manifest: systemAManifest },
   { ...SystemB, uiClass: "maivand-b-ui", tokens: systemBTokens, manifest: systemBManifest },
+  { ...SystemPlr, uiClass: "maivand-plr-ui", tokens: systemPlrTokens, manifest: systemPlrManifest },
 ] as unknown as readonly RegisteredSystem[];
 
 export const systemRegistry = createDesignSystemRegistry(

@@ -1,0 +1,291 @@
+:where(.maivand-plr-ui).maivand-plr-checkbox {
+  align-items: flex-start;
+  border: 1px solid transparent;
+  border-inline-start: 2px solid transparent;
+  border-radius: var(--maivand-plr-radius-md);
+  display: flex;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 10px;
+  transition:
+    background-color var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard),
+    border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard);
+  width: 100%;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-input {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  display: flex;
+  flex: none;
+  height: 28px;
+  justify-content: center;
+  margin: -1px 0 0 -2px;
+  padding: 0;
+  width: 28px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-input:focus-visible {
+  outline: 3px solid var(--maivand-plr-color-border-focus);
+  outline-offset: 2px;
+}
+
+:where(.maivand-plr-ui).maivand-plr-checkbox:has(.maivand-plr-checkbox-input:hover:not(:disabled)) {
+  background-color: var(--maivand-plr-color-surface-sunken);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  border-color: var(--maivand-plr-color-border-default);
+}
+
+:where(.maivand-plr-ui).maivand-plr-checkbox:has(.maivand-plr-checkbox-input:focus-visible) {
+  border-color: var(--maivand-plr-color-border-focus);
+}
+
+:where(.maivand-plr-ui).maivand-plr-checkbox:has(.maivand-plr-checkbox-input[aria-checked="true"]) {
+  background-color: color-mix(
+    in srgb,
+    var(--maivand-plr-color-action-secondary) 48%,
+    var(--maivand-plr-color-surface-raised)
+  );
+  border-inline-start-color: var(--maivand-plr-color-action-primary);
+}
+
+:where(.maivand-plr-ui).maivand-plr-checkbox:has(.maivand-plr-checkbox-input[aria-invalid="true"]) {
+  border-color: var(--maivand-plr-color-status-danger);
+  border-inline-start-color: var(--maivand-plr-color-status-danger);
+}
+
+:where(.maivand-plr-ui).maivand-plr-checkbox:has(.maivand-plr-checkbox-input:disabled)
+  .maivand-plr-checkbox-copy {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-box {
+  align-items: center;
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  border: 1px solid var(--maivand-plr-color-border-strong);
+  border-radius: var(--maivand-plr-radius-sm);
+  box-shadow: inset 0 1px 2px
+    color-mix(in srgb, var(--maivand-plr-color-text-primary) 12%, transparent);
+  display: flex;
+  flex: none;
+  height: 19px;
+  justify-content: center;
+  margin-top: 1px;
+  overflow: hidden;
+  position: relative;
+  transition:
+    background-color var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard),
+    border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    box-shadow var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard);
+  width: 19px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-box::after {
+  background: color-mix(in srgb, var(--maivand-plr-color-action-primary-text) 28%, transparent);
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  content: "";
+  height: 6px;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  opacity: 0;
+  position: absolute;
+  width: 6px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-input:hover:not(:disabled) .maivand-plr-checkbox-box {
+  border-color: var(--maivand-plr-color-action-primary);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-input[aria-checked="true"] .maivand-plr-checkbox-box,
+:where(.maivand-plr-ui)
+  .maivand-plr-checkbox-input[aria-checked="mixed"]
+  .maivand-plr-checkbox-box {
+  background-color: var(--maivand-plr-color-action-primary);
+  background-image:
+    linear-gradient(
+      135deg,
+      transparent 0 68%,
+      color-mix(in srgb, var(--maivand-plr-color-action-primary-text) 18%, transparent) 69% 100%
+    ),
+    var(--maivand-plr-material-paper-fiber);
+  background-position:
+    right top,
+    center;
+  background-repeat: no-repeat, repeat;
+  background-size:
+    7px 7px,
+    auto;
+  border-color: var(--maivand-plr-color-action-primary-hover);
+  box-shadow: inset 0 1px 1px
+    color-mix(in srgb, var(--maivand-plr-color-text-primary) 16%, transparent);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-input[data-state="checked"] .maivand-plr-checkbox-box,
+:where(.maivand-plr-ui)
+  .maivand-plr-checkbox-input[data-state="indeterminate"]
+  .maivand-plr-checkbox-box {
+  animation: maivand-plr-checkbox-stamp var(--maivand-plr-motion-duration-normal)
+    var(--maivand-plr-motion-easing-entrance) both;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-input[aria-invalid="true"] .maivand-plr-checkbox-box {
+  border-color: var(--maivand-plr-color-status-danger);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--maivand-plr-color-status-danger) 60%, transparent);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-mark {
+  display: block;
+  height: 15px;
+  opacity: 0;
+  overflow: visible;
+  position: absolute;
+  transform: scale(0.72) rotate(-24deg);
+  transition:
+    opacity var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    transform var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-entrance);
+  visibility: hidden;
+  width: 15px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-mark path {
+  fill: none;
+  stroke: var(--maivand-plr-color-action-primary-text);
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-check {
+  stroke-width: 2.2;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-vein {
+  opacity: 0.72;
+  stroke-width: 1.1;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-mixed {
+  color: var(--maivand-plr-color-action-primary-text);
+  font-size: var(--maivand-plr-typography-size-sm);
+  font-weight: var(--maivand-plr-typography-weight-bold);
+  line-height: 1;
+  opacity: 0;
+  position: absolute;
+  visibility: hidden;
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-checkbox-input[data-state="checked"]
+  .maivand-plr-checkbox-mark,
+:where(.maivand-plr-ui)
+  .maivand-plr-checkbox-input[aria-checked="true"]
+  .maivand-plr-checkbox-mark {
+  animation: maivand-plr-leaf-unfurl var(--maivand-plr-motion-duration-normal)
+    var(--maivand-plr-motion-easing-entrance) both;
+  visibility: visible;
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-checkbox-input[data-state="checked"]
+  .maivand-plr-checkbox-check,
+:where(.maivand-plr-ui)
+  .maivand-plr-checkbox-input[aria-checked="true"]
+  .maivand-plr-checkbox-check {
+  animation: maivand-plr-ink-draw var(--maivand-plr-motion-duration-fast)
+    var(--maivand-plr-motion-easing-entrance) 35ms both;
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-checkbox-input[data-state="checked"]
+  .maivand-plr-checkbox-vein,
+:where(.maivand-plr-ui)
+  .maivand-plr-checkbox-input[aria-checked="true"]
+  .maivand-plr-checkbox-vein {
+  animation: maivand-plr-ink-draw var(--maivand-plr-motion-duration-fast)
+    var(--maivand-plr-motion-easing-entrance) 105ms both;
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-checkbox-input[data-state="indeterminate"]
+  .maivand-plr-checkbox-mixed,
+:where(.maivand-plr-ui)
+  .maivand-plr-checkbox-input[aria-checked="mixed"]
+  .maivand-plr-checkbox-mixed {
+  opacity: 1;
+  visibility: visible;
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-checkbox-input[data-state="indeterminate"]
+  .maivand-plr-checkbox-mark,
+:where(.maivand-plr-ui)
+  .maivand-plr-checkbox-input[aria-checked="mixed"]
+  .maivand-plr-checkbox-mark {
+  display: none;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-copy {
+  cursor: pointer;
+  display: grid;
+  flex: 1;
+  gap: 3px;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-label {
+  font-size: var(--maivand-plr-typography-size-md);
+  line-height: 1.3;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-description {
+  color: var(--maivand-plr-color-text-muted);
+  font-size: var(--maivand-plr-typography-size-xs);
+  line-height: 1.4;
+}
+
+@keyframes maivand-plr-checkbox-stamp {
+  0% {
+    transform: scale(0.78) rotate(-5deg);
+  }
+  58% {
+    transform: scale(1.12) rotate(2deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes maivand-plr-leaf-unfurl {
+  0% {
+    opacity: 0;
+    transform: scale(0.42) rotate(-38deg);
+  }
+  72% {
+    opacity: 1;
+    transform: scale(1.12) rotate(5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes maivand-plr-ink-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}

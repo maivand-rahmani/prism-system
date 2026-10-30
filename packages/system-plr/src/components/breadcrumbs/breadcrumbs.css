@@ -1,0 +1,71 @@
+:where(.maivand-plr-ui).maivand-plr-breadcrumbs {
+  color: var(--maivand-plr-color-text-muted);
+  display: block;
+  font-family: var(--maivand-plr-typography-family-sans);
+  font-size: var(--maivand-plr-typography-size-sm);
+  max-width: 100%;
+}
+:where(.maivand-plr-ui) .maivand-plr-breadcrumbs-list {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--maivand-plr-spacing-scale-2);
+  list-style: none;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+:where(.maivand-plr-ui) .maivand-plr-breadcrumbs-item {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--maivand-plr-spacing-scale-2);
+  min-width: 0;
+  max-width: 100%;
+}
+:where(.maivand-plr-ui) .maivand-plr-breadcrumbs-item + .maivand-plr-breadcrumbs-item::before {
+  background: var(--maivand-plr-color-action-primary);
+  border-radius: 100% 0;
+  content: "";
+  flex: 0 0 auto;
+  height: 7px;
+  transform: rotate(-35deg);
+  transition: transform var(--maivand-plr-motion-duration-normal)
+    var(--maivand-plr-motion-easing-entrance);
+  width: 10px;
+}
+:where(.maivand-plr-ui) .maivand-plr-breadcrumbs-item:hover::before {
+  transform: rotate(25deg) scale(1.16);
+}
+:where(.maivand-plr-ui) .maivand-plr-breadcrumbs-link {
+  color: var(--maivand-plr-color-action-primary-hover);
+  overflow-wrap: anywhere;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  transition:
+    color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    text-decoration-thickness var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard),
+    text-underline-offset var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard);
+}
+:where(.maivand-plr-ui) .maivand-plr-breadcrumbs-link:hover {
+  color: var(--maivand-plr-color-action-primary);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.28em;
+}
+:where(.maivand-plr-ui) .maivand-plr-breadcrumbs-link:focus-visible {
+  border-radius: var(--maivand-plr-radius-sm);
+  outline: 3px solid var(--maivand-plr-color-border-focus);
+  outline-offset: 2px;
+}
+:where(.maivand-plr-ui) .maivand-plr-breadcrumbs-current {
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  border-bottom: 1px solid var(--maivand-plr-color-action-primary);
+  border-radius: var(--maivand-plr-radius-sm) var(--maivand-plr-radius-sm) 0 0;
+  color: var(--maivand-plr-color-text-primary);
+  font-family: Literata, Georgia, serif;
+  font-weight: var(--maivand-plr-typography-weight-semibold);
+  padding-inline: var(--maivand-plr-spacing-scale-1);
+  overflow-wrap: anywhere;
+}

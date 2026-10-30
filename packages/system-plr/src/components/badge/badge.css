@@ -1,0 +1,207 @@
+:where(.maivand-plr-ui).maivand-plr-badge {
+  align-items: center;
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  border: 1px solid var(--maivand-plr-color-border-default);
+  border-radius: var(--maivand-plr-radius-sm);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--maivand-plr-color-text-inverse) 30%, transparent),
+    0 1px 0 color-mix(in srgb, var(--maivand-plr-color-text-primary) 8%, transparent);
+  display: inline-flex;
+  font-size: var(--maivand-plr-typography-size-xs);
+  font-weight: var(--maivand-plr-typography-weight-semibold);
+  gap: 6px;
+  line-height: var(--maivand-plr-typography-line-height-normal);
+  max-width: 100%;
+  vertical-align: middle;
+  overflow-wrap: normal;
+  position: relative;
+  white-space: normal;
+  transition:
+    border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    box-shadow var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    transform var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-entrance);
+}
+:where(.maivand-plr-ui).maivand-plr-badge-sm {
+  min-height: 24px;
+  padding: 4px 8px;
+}
+:where(.maivand-plr-ui).maivand-plr-badge-md {
+  min-height: 28px;
+  padding: 5px 10px;
+}
+:where(.maivand-plr-ui).maivand-plr-badge-neutral {
+  background: var(--maivand-plr-color-surface-sunken);
+  background-image:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--maivand-plr-color-border-strong) 17%, transparent) 1px,
+      transparent 1px
+    ),
+    var(--maivand-plr-material-paper-fiber);
+  background-size:
+    7px 100%,
+    auto;
+  color: var(--maivand-plr-color-text-secondary);
+}
+:where(.maivand-plr-ui).maivand-plr-badge-success {
+  background: var(--maivand-plr-color-action-secondary);
+  background-image: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--maivand-plr-color-text-inverse) 20%, transparent),
+    transparent 58%
+  );
+  border-color: color-mix(in srgb, var(--maivand-plr-color-status-success) 42%, transparent);
+  color: var(--maivand-plr-color-action-secondary-text);
+}
+:where(.maivand-plr-ui).maivand-plr-badge-secondary {
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0 5px,
+    color-mix(in srgb, var(--maivand-plr-color-border-default) 42%, transparent) 5px 6px
+  );
+  border-color: var(--maivand-plr-color-border-strong);
+  color: var(--maivand-plr-color-text-secondary);
+}
+:where(.maivand-plr-ui).maivand-plr-badge-info {
+  background-color: color-mix(
+    in srgb,
+    var(--maivand-plr-color-status-info) 10%,
+    var(--maivand-plr-color-surface-raised)
+  );
+  background-image: radial-gradient(
+    circle at 4px 4px,
+    color-mix(in srgb, var(--maivand-plr-color-status-info) 18%, transparent) 1px,
+    transparent 1.5px
+  );
+  background-size: 9px 9px;
+  border-color: color-mix(in srgb, var(--maivand-plr-color-status-info) 42%, transparent);
+  color: var(--maivand-plr-color-text-primary);
+}
+:where(.maivand-plr-ui).maivand-plr-badge-warning {
+  background-color: color-mix(
+    in srgb,
+    var(--maivand-plr-color-status-warning) 14%,
+    var(--maivand-plr-color-surface-raised)
+  );
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 7px,
+    color-mix(in srgb, var(--maivand-plr-color-status-warning) 9%, transparent) 7px 8px
+  );
+  border-color: var(--maivand-plr-color-status-warning);
+  border-style: dashed;
+  color: var(--maivand-plr-color-text-primary);
+}
+:where(.maivand-plr-ui).maivand-plr-badge-danger {
+  background-color: color-mix(
+    in srgb,
+    var(--maivand-plr-color-status-danger) 12%,
+    var(--maivand-plr-color-surface-raised)
+  );
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0 8px,
+    color-mix(in srgb, var(--maivand-plr-color-status-danger) 10%, transparent) 8px 9px
+  );
+  border-inline-start: 3px double var(--maivand-plr-color-status-danger);
+  color: var(--maivand-plr-color-text-primary);
+}
+:where(.maivand-plr-ui).maivand-plr-badge-outline {
+  background-color: transparent;
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent 0 5px,
+    color-mix(in srgb, var(--maivand-plr-color-border-default) 46%, transparent) 5px 6px
+  );
+  border-style: dashed;
+  color: var(--maivand-plr-color-text-primary);
+}
+:where(.maivand-plr-ui) .maivand-plr-badge-status-mark {
+  align-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  display: inline-flex;
+  flex: none;
+  font-size: 0.75em;
+  height: 1.25em;
+  justify-content: center;
+  line-height: 1;
+  width: 1.25em;
+}
+:where(.maivand-plr-ui).maivand-plr-badge-info .maivand-plr-badge-status-mark {
+  color: var(--maivand-plr-color-status-info);
+  font-family: Literata, Georgia, serif;
+  font-style: italic;
+  outline: 1px dotted currentColor;
+  outline-offset: 1px;
+}
+:where(.maivand-plr-ui).maivand-plr-badge-success .maivand-plr-badge-status-mark {
+  background: color-mix(in srgb, var(--maivand-plr-color-status-success) 10%, transparent);
+  border-radius: 0 70% 0 70%;
+  color: var(--maivand-plr-color-status-success);
+  transform: rotate(-12deg);
+}
+:where(.maivand-plr-ui).maivand-plr-badge-warning .maivand-plr-badge-status-mark {
+  border-radius: 2px;
+  border-style: dashed;
+  color: var(--maivand-plr-color-status-warning);
+}
+:where(.maivand-plr-ui).maivand-plr-badge-danger .maivand-plr-badge-status-mark {
+  border-radius: 2px;
+  border-style: double;
+  color: var(--maivand-plr-color-status-danger);
+}
+:where(.maivand-plr-ui) .maivand-plr-badge-dot {
+  background: currentColor;
+  border: 1px solid var(--maivand-plr-color-surface-raised);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px currentColor;
+  flex: none;
+  height: 7px;
+  width: 7px;
+}
+:where(.maivand-plr-ui).maivand-plr-badge-success .maivand-plr-badge-dot {
+  border-radius: 0 70% 0 70%;
+  transform: rotate(-24deg);
+}
+:where(.maivand-plr-ui).maivand-plr-badge-info .maivand-plr-badge-dot {
+  background: transparent;
+  border: 2px double currentColor;
+  box-shadow: none;
+}
+:where(.maivand-plr-ui).maivand-plr-badge-warning .maivand-plr-badge-dot {
+  border-radius: 1px;
+  transform: rotate(45deg) scale(0.82);
+}
+:where(.maivand-plr-ui).maivand-plr-badge-danger .maivand-plr-badge-dot {
+  border-radius: 1px;
+  clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%);
+}
+:where(.maivand-plr-ui).maivand-plr-badge:is(a, button) {
+  cursor: pointer;
+  text-decoration: none;
+}
+:where(.maivand-plr-ui).maivand-plr-badge:is(a, button):hover {
+  border-color: var(--maivand-plr-color-border-strong);
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--maivand-plr-color-text-primary) 12%, transparent);
+  transform: translateY(-1px) rotate(-0.35deg);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+:where(.maivand-plr-ui).maivand-plr-badge:is(a, button):active {
+  box-shadow: inset 0 1px 2px
+    color-mix(in srgb, var(--maivand-plr-color-text-primary) 14%, transparent);
+  transform: translateY(1px);
+}
+:where(.maivand-plr-ui).maivand-plr-badge:is(a, button):focus-visible {
+  outline: 3px solid var(--maivand-plr-color-border-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui).maivand-plr-badge {
+    transition-duration: var(--maivand-plr-motion-duration-reduced);
+  }
+}

@@ -1,0 +1,80 @@
+:where(.maivand-plr-ui).maivand-plr-cluster {
+  align-items: center;
+  background-image:
+    linear-gradient(
+      145deg,
+      transparent 46%,
+      color-mix(in srgb, var(--maivand-plr-color-border-strong) 66%, transparent) 48% 52%,
+      transparent 54%
+    ),
+    radial-gradient(
+      ellipse at center,
+      color-mix(in srgb, var(--maivand-plr-color-action-primary) 34%, transparent) 0 52%,
+      transparent 56%
+    ),
+    radial-gradient(
+      ellipse at center,
+      color-mix(in srgb, var(--maivand-plr-color-status-warning) 34%, transparent) 0 52%,
+      transparent 56%
+    );
+  background-position:
+    right var(--maivand-plr-spacing-scale-4) bottom var(--maivand-plr-spacing-scale-1),
+    right calc(var(--maivand-plr-spacing-scale-4) + var(--maivand-plr-spacing-scale-2)) bottom
+      var(--maivand-plr-spacing-scale-3),
+    right var(--maivand-plr-spacing-scale-3) bottom var(--maivand-plr-spacing-scale-2);
+  background-repeat: no-repeat;
+  background-size:
+    var(--maivand-plr-spacing-scale-8) var(--maivand-plr-spacing-scale-4),
+    var(--maivand-plr-spacing-scale-3) var(--maivand-plr-spacing-scale-2),
+    var(--maivand-plr-spacing-scale-2) var(--maivand-plr-spacing-scale-2);
+  column-gap: var(--maivand-plr-spacing-semantic-inline);
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  row-gap: var(--maivand-plr-spacing-scale-2);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(.maivand-plr-ui).maivand-plr-cluster {
+    transition: background-position var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard);
+  }
+
+  :where(.maivand-plr-ui).maivand-plr-cluster:is(:hover, :focus-within) {
+    background-position:
+      right calc(var(--maivand-plr-spacing-scale-4) - var(--maivand-plr-spacing-scale-1)) bottom
+        var(--maivand-plr-spacing-scale-1),
+      right
+        calc(
+          var(--maivand-plr-spacing-scale-4) + var(--maivand-plr-spacing-scale-2) -
+            var(--maivand-plr-spacing-scale-1)
+        )
+        bottom var(--maivand-plr-spacing-scale-3),
+      right calc(var(--maivand-plr-spacing-scale-3) - var(--maivand-plr-spacing-scale-1)) bottom
+        var(--maivand-plr-spacing-scale-2);
+  }
+}
+
+:where(.maivand-plr-ui).maivand-plr-cluster:dir(rtl) {
+  background-position:
+    left var(--maivand-plr-spacing-scale-4) bottom var(--maivand-plr-spacing-scale-1),
+    left calc(var(--maivand-plr-spacing-scale-4) + var(--maivand-plr-spacing-scale-2)) bottom
+      var(--maivand-plr-spacing-scale-3),
+    left var(--maivand-plr-spacing-scale-3) bottom var(--maivand-plr-spacing-scale-2);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(.maivand-plr-ui).maivand-plr-cluster:dir(rtl):is(:hover, :focus-within) {
+    background-position:
+      left calc(var(--maivand-plr-spacing-scale-4) - var(--maivand-plr-spacing-scale-1)) bottom
+        var(--maivand-plr-spacing-scale-1),
+      left
+        calc(
+          var(--maivand-plr-spacing-scale-4) + var(--maivand-plr-spacing-scale-2) -
+            var(--maivand-plr-spacing-scale-1)
+        )
+        bottom var(--maivand-plr-spacing-scale-3),
+      left calc(var(--maivand-plr-spacing-scale-3) - var(--maivand-plr-spacing-scale-1)) bottom
+        var(--maivand-plr-spacing-scale-2);
+  }
+}

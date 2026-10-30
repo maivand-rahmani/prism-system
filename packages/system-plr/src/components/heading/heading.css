@@ -1,0 +1,83 @@
+:where(.maivand-plr-ui).maivand-plr-heading {
+  color: var(--maivand-plr-color-text-primary);
+  font-family: Literata, Georgia, serif;
+  font-weight: var(--maivand-plr-typography-weight-semibold);
+  line-height: var(--maivand-plr-typography-line-height-tight);
+  margin: 0;
+  text-wrap: balance;
+}
+:where(.maivand-plr-ui).maivand-plr-heading::after {
+  background-image:
+    radial-gradient(
+      circle,
+      var(--maivand-plr-color-action-primary) 0 2px,
+      transparent 2.5px
+    ),
+    linear-gradient(
+      to right,
+      var(--maivand-plr-color-border-strong),
+      var(--maivand-plr-color-border-default)
+    );
+  background-position:
+    0 0,
+    6px 3px;
+  background-repeat: no-repeat;
+  background-size:
+    8px 8px,
+    calc(100% - 6px) 1px;
+  content: "";
+  display: block;
+  height: var(--maivand-plr-spacing-scale-2);
+  margin-block-start: var(--maivand-plr-spacing-scale-2);
+  transform-origin: left center;
+  width: var(--maivand-plr-spacing-scale-12);
+}
+:where(.maivand-plr-ui).maivand-plr-heading-1 {
+  font-size: var(--maivand-plr-typography-size-4xl);
+  letter-spacing: var(--maivand-plr-typography-letter-spacing-tight);
+}
+:where(.maivand-plr-ui).maivand-plr-heading-1::after {
+  width: var(--maivand-plr-spacing-scale-16);
+}
+:where(.maivand-plr-ui).maivand-plr-heading-2 {
+  font-size: var(--maivand-plr-typography-size-3xl);
+  letter-spacing: var(--maivand-plr-typography-letter-spacing-tight);
+}
+:where(.maivand-plr-ui).maivand-plr-heading-2::after {
+  width: var(--maivand-plr-spacing-scale-12);
+}
+:where(.maivand-plr-ui).maivand-plr-heading-3 {
+  font-size: var(--maivand-plr-typography-size-2xl);
+}
+:where(.maivand-plr-ui).maivand-plr-heading-3::after {
+  width: var(--maivand-plr-spacing-scale-8);
+}
+:where(.maivand-plr-ui).maivand-plr-heading-4 {
+  font-size: var(--maivand-plr-typography-size-xl);
+}
+:where(.maivand-plr-ui).maivand-plr-heading-4::after {
+  width: var(--maivand-plr-spacing-scale-6);
+}
+:where(.maivand-plr-ui).maivand-plr-heading-5 {
+  font-size: var(--maivand-plr-typography-size-lg);
+}
+:where(.maivand-plr-ui).maivand-plr-heading-5::after,
+:where(.maivand-plr-ui).maivand-plr-heading-6::after {
+  width: var(--maivand-plr-spacing-scale-3);
+}
+:where(.maivand-plr-ui).maivand-plr-heading-6 {
+  font-size: var(--maivand-plr-typography-size-md);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :where(.maivand-plr-ui).maivand-plr-heading::after {
+    animation: maivand-plr-heading-daybreak 480ms var(--maivand-plr-motion-easing-entrance) both;
+  }
+}
+@keyframes maivand-plr-heading-daybreak {
+  from {
+    transform: scaleX(0.12);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}

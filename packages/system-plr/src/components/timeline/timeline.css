@@ -1,0 +1,91 @@
+:where(.maivand-plr-ui).maivand-plr-timeline {
+  list-style: none;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+:where(.maivand-plr-ui) .maivand-plr-timeline-item {
+  border-inline-start: 1px solid var(--maivand-plr-color-border-strong);
+  margin-inline-start: 8px;
+  min-width: 0;
+  padding-block-end: var(--maivand-plr-spacing-scale-6);
+  padding-inline-start: var(--maivand-plr-spacing-semantic-inset);
+  position: relative;
+  transition: border-color var(--maivand-plr-motion-duration-fast)
+    var(--maivand-plr-motion-easing-standard);
+}
+:where(.maivand-plr-ui) .maivand-plr-timeline-item::before {
+  background: var(--maivand-plr-color-action-primary);
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--maivand-plr-color-action-primary-text) 48%,
+      var(--maivand-plr-color-action-primary)
+    );
+  border-radius: 0 100% 0 100%;
+  box-shadow: 0 0 0 3px var(--maivand-plr-color-surface-raised);
+  content: "";
+  height: 0.62rem;
+  inset-block-start: 0.55em;
+  inset-inline-start: -0.42rem;
+  position: absolute;
+  transform: rotate(-34deg) scale(0.9);
+  transform-origin: center;
+  transition:
+    background-color var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard),
+    transform var(--maivand-plr-motion-duration-normal) var(--maivand-plr-motion-easing-entrance);
+  width: 0.82rem;
+}
+:where(.maivand-plr-ui) .maivand-plr-timeline-item::after {
+  background: var(--maivand-plr-color-action-primary-text);
+  content: "";
+  height: 1px;
+  inset-block-start: calc(0.55em + 0.31rem);
+  inset-inline-start: -0.28rem;
+  position: absolute;
+  transform: rotate(-34deg);
+  transform-origin: center;
+  width: 0.42rem;
+  pointer-events: none;
+}
+:where(.maivand-plr-ui) .maivand-plr-timeline-item:hover,
+:where(.maivand-plr-ui) .maivand-plr-timeline-item:focus-within {
+  border-inline-start-color: var(--maivand-plr-color-action-primary);
+}
+:where(.maivand-plr-ui) .maivand-plr-timeline-item:hover::before,
+:where(.maivand-plr-ui) .maivand-plr-timeline-item:focus-within::before {
+  transform: rotate(-12deg) scale(1.08);
+}
+:where(.maivand-plr-ui) .maivand-plr-timeline-item:last-child {
+  border-inline-start-color: transparent;
+  padding-block-end: 0;
+}
+:where(.maivand-plr-ui) .maivand-plr-timeline-title {
+  color: var(--maivand-plr-color-text-primary);
+  font-family: Literata, Georgia, serif;
+  font-size: var(--maivand-plr-typography-size-md);
+  font-weight: var(--maivand-plr-typography-weight-semibold);
+  line-height: var(--maivand-plr-typography-line-height-normal);
+  margin: 0;
+}
+:where(.maivand-plr-ui) .maivand-plr-timeline-time {
+  color: var(--maivand-plr-color-action-primary-hover);
+  display: block;
+  font-size: var(--maivand-plr-typography-size-xs);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--maivand-plr-typography-weight-semibold);
+  margin-block-end: var(--maivand-plr-spacing-scale-1);
+}
+:where(.maivand-plr-ui) .maivand-plr-timeline-description {
+  color: var(--maivand-plr-color-text-secondary);
+  font-size: var(--maivand-plr-typography-size-sm);
+  line-height: var(--maivand-plr-typography-line-height-relaxed);
+  margin-block-start: var(--maivand-plr-spacing-scale-1);
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui) .maivand-plr-timeline-item,
+  :where(.maivand-plr-ui) .maivand-plr-timeline-item::before {
+    transition-duration: var(--maivand-plr-motion-duration-reduced);
+  }
+}

@@ -20,6 +20,16 @@
       "uiClass": "maivand-b-ui",
       "tokensExport": "systemBTokens",
       "contractVersion": 4
+    },
+    {
+      "id": "system-plr",
+      "name": "Plan Like Rahmani",
+      "packageName": "@prism-system/ui-system-plr",
+      "packagePath": "packages/system-plr",
+      "version": "0.1.0",
+      "uiClass": "maivand-plr-ui",
+      "tokensExport": "systemPlrTokens",
+      "contractVersion": 4
     }
   ]
 }

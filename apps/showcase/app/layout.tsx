@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 // @prism-system:styles:begin
 import "@prism-system/ui-system-a/styles.css";
 import "@prism-system/ui-system-b/styles.css";
+import "@prism-system/ui-system-plr/styles.css";
 // @prism-system:styles:end
 import "./showcase.css";
 

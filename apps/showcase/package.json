@@ -15,6 +15,7 @@
     "@prism-system/ui-core": "workspace:*",
     "@prism-system/ui-system-a": "workspace:*",
     "@prism-system/ui-system-b": "workspace:*",
+    "@prism-system/ui-system-plr": "workspace:*",
     "@react-three/fiber": "9.8.1",
     "next": "15.5.7",
     "react": "19.3.0",

@@ -1,0 +1,86 @@
+:where(.maivand-plr-ui) .maivand-plr-textarea-sheet {
+  position: relative;
+}
+:where(.maivand-plr-ui) .maivand-plr-textarea-sheet::before {
+  background-color: color-mix(in srgb, var(--maivand-plr-color-border-strong) 54%, transparent);
+  content: "";
+  inline-size: 1px;
+  inset-block: 12px;
+  inset-inline-start: 22px;
+  pointer-events: none;
+  position: absolute;
+  transform: scaleY(0.68);
+  transform-origin: center;
+  transition:
+    background-color var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard),
+    transform var(--maivand-plr-motion-duration-normal) var(--maivand-plr-motion-easing-entrance);
+}
+:where(.maivand-plr-ui) .maivand-plr-textarea-sheet:focus-within::before {
+  background-color: color-mix(in srgb, var(--maivand-plr-color-action-primary) 72%, transparent);
+  transform: scaleY(1);
+}
+:where(.maivand-plr-ui) .maivand-plr-textarea {
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image:
+    var(--maivand-plr-material-paper-fiber),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0 calc(1.65em - 1px),
+      color-mix(in srgb, var(--maivand-plr-color-border-default) 64%, transparent)
+        calc(1.65em - 1px) 1.65em
+    );
+  background-repeat: repeat, repeat;
+  border: 1px solid var(--maivand-plr-color-border-default);
+  border-radius: var(--maivand-plr-radius-sm);
+  color: var(--maivand-plr-color-text-primary);
+  font-family: Literata, Georgia, serif;
+  font-size: var(--maivand-plr-typography-size-md);
+  line-height: var(--maivand-plr-typography-line-height-relaxed);
+  min-height: 104px;
+  outline: 0;
+  padding: 10px 12px 10px 34px;
+  resize: vertical;
+  box-shadow: inset 0 2px 4px
+    color-mix(in srgb, var(--maivand-plr-color-text-primary) 8%, transparent);
+  transition:
+    border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    box-shadow var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard);
+  width: 100%;
+}
+:where(.maivand-plr-ui) .maivand-plr-textarea:focus {
+  border-color: var(--maivand-plr-color-border-focus);
+  box-shadow:
+    inset 0 2px 4px color-mix(in srgb, var(--maivand-plr-color-text-primary) 8%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--maivand-plr-color-border-focus) 44%, transparent);
+}
+:where(.maivand-plr-ui) .maivand-plr-textarea:active {
+  box-shadow: inset 0 3px 5px
+    color-mix(in srgb, var(--maivand-plr-color-text-primary) 12%, transparent);
+}
+:where(.maivand-plr-ui) .maivand-plr-textarea:hover:not(:disabled) {
+  border-color: var(--maivand-plr-color-border-strong);
+}
+:where(.maivand-plr-ui) .maivand-plr-textarea:focus-visible {
+  outline: 3px solid var(--maivand-plr-color-border-focus);
+  outline-offset: 2px;
+}
+:where(.maivand-plr-ui) .maivand-plr-textarea[data-invalid="true"],
+:where(.maivand-plr-ui) .maivand-plr-textarea[aria-invalid="true"] {
+  border-color: var(--maivand-plr-color-status-danger);
+}
+:where(.maivand-plr-ui) .maivand-plr-textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+:where(.maivand-plr-ui) .maivand-plr-textarea::placeholder {
+  color: var(--maivand-plr-color-text-muted);
+}
+:where(.maivand-plr-ui) .maivand-plr-textarea[data-size="sm"] {
+  min-height: 76px;
+  padding: 8px 10px 8px 32px;
+}
+:where(.maivand-plr-ui) .maivand-plr-textarea[data-size="lg"] {
+  min-height: 132px;
+  padding: 13px 14px 13px 36px;
+}

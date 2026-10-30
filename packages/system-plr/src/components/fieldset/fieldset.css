@@ -1,0 +1,158 @@
+:where(.maivand-plr-ui).maivand-plr-fieldset {
+  position: relative;
+  display: grid;
+  gap: var(--maivand-plr-spacing-scale-4);
+  align-content: start;
+  min-width: 0;
+  margin: 0;
+  padding-block: var(--maivand-plr-spacing-scale-4);
+  padding-inline: var(--maivand-plr-spacing-scale-6) var(--maivand-plr-spacing-scale-4);
+  border: 1px solid var(--maivand-plr-color-border-default);
+  border-inline-start: 3px solid var(--maivand-plr-color-border-strong);
+  border-radius: var(--maivand-plr-radius-sm);
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  box-shadow: var(--maivand-plr-shadow-sm);
+}
+
+/* A row of tiny growth rings turns the binding edge into an oak-pressed margin. */
+:where(.maivand-plr-ui).maivand-plr-fieldset::before {
+  position: absolute;
+  inset-block: var(--maivand-plr-spacing-scale-3);
+  inset-inline-start: var(--maivand-plr-spacing-scale-3);
+  width: var(--maivand-plr-spacing-scale-3);
+  background-image: radial-gradient(
+    ellipse at center,
+    transparent 34%,
+    color-mix(in srgb, var(--maivand-plr-color-border-strong) 58%, transparent) 37% 48%,
+    transparent 51%
+  );
+  background-position: center top;
+  background-repeat: repeat-y;
+  background-size: 9px 18px;
+  content: "";
+  opacity: 0.66;
+  pointer-events: none;
+  transform: scaleY(0.96);
+  transform-origin: center;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-fieldset-legend {
+  max-width: 100%;
+  padding-inline: var(--maivand-plr-spacing-scale-2);
+  color: var(--maivand-plr-color-text-primary);
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  font-family: Literata, Georgia, serif;
+  font-size: var(--maivand-plr-typography-size-sm);
+  font-weight: var(--maivand-plr-typography-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+/* The legend's leaf is a quiet living mark, not an icon that replaces its name. */
+:where(.maivand-plr-ui) .maivand-plr-fieldset-legend::before {
+  display: inline-block;
+  width: 0.72rem;
+  height: 0.46rem;
+  margin-inline-end: var(--maivand-plr-spacing-scale-2);
+  border-radius: 100% 0 100% 0;
+  background-color: var(--maivand-plr-color-action-primary);
+  background-image: linear-gradient(
+    137deg,
+    transparent 46%,
+    color-mix(in srgb, var(--maivand-plr-color-action-primary-text) 66%, transparent) 48% 53%,
+    transparent 55%
+  );
+  content: "";
+  vertical-align: 0.05em;
+  transform: rotate(-28deg);
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(.maivand-plr-ui).maivand-plr-fieldset {
+    transition:
+      border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+      box-shadow var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+      background-color var(--maivand-plr-motion-duration-fast)
+        var(--maivand-plr-motion-easing-standard);
+  }
+
+  :where(.maivand-plr-ui).maivand-plr-fieldset::before {
+    transition:
+      opacity var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+      transform var(--maivand-plr-motion-duration-normal) var(--maivand-plr-motion-easing-entrance);
+  }
+
+  :where(.maivand-plr-ui) .maivand-plr-fieldset-legend {
+    transition: color var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard);
+  }
+
+  :where(.maivand-plr-ui) .maivand-plr-fieldset-legend::before {
+    transition: transform var(--maivand-plr-motion-duration-normal)
+      var(--maivand-plr-motion-easing-entrance);
+  }
+}
+
+:where(.maivand-plr-ui).maivand-plr-fieldset:focus-within {
+  border-color: var(--maivand-plr-color-border-focus);
+  box-shadow: var(--maivand-plr-shadow-focus);
+}
+
+:where(.maivand-plr-ui).maivand-plr-fieldset:focus-within::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+:where(.maivand-plr-ui).maivand-plr-fieldset:focus-within .maivand-plr-fieldset-legend {
+  color: var(--maivand-plr-color-action-primary-hover);
+}
+
+:where(.maivand-plr-ui).maivand-plr-fieldset:focus-within .maivand-plr-fieldset-legend::before {
+  transform: rotate(-12deg) scale(1.12);
+}
+
+:where(.maivand-plr-ui).maivand-plr-fieldset:is(
+    [aria-invalid="true"],
+    :has([aria-invalid="true"]),
+    :has(:user-invalid:not(:disabled))
+  ) {
+  border-color: var(--maivand-plr-color-status-danger);
+  border-inline-start-width: 5px;
+}
+
+:where(.maivand-plr-ui).maivand-plr-fieldset:is(
+    [aria-invalid="true"],
+    :has([aria-invalid="true"]),
+    :has(:user-invalid:not(:disabled))
+  )
+  .maivand-plr-fieldset-legend {
+  color: var(--maivand-plr-color-status-danger);
+}
+
+:where(.maivand-plr-ui).maivand-plr-fieldset:is(
+    [aria-invalid="true"],
+    :has([aria-invalid="true"]),
+    :has(:user-invalid:not(:disabled))
+  )
+  .maivand-plr-fieldset-legend::before {
+  background-color: var(--maivand-plr-color-status-danger);
+}
+
+:where(.maivand-plr-ui).maivand-plr-fieldset:disabled {
+  border-color: var(--maivand-plr-color-border-default);
+  border-inline-start-color: var(--maivand-plr-color-border-default);
+  border-inline-start-width: 3px;
+  background-color: var(--maivand-plr-color-surface-sunken);
+  box-shadow: none;
+}
+
+:where(.maivand-plr-ui).maivand-plr-fieldset:disabled::before {
+  opacity: 0.3;
+}
+
+:where(.maivand-plr-ui).maivand-plr-fieldset:disabled .maivand-plr-fieldset-legend {
+  color: var(--maivand-plr-color-text-muted);
+  background-color: var(--maivand-plr-color-surface-sunken);
+}

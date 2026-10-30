@@ -1,0 +1,109 @@
+:where(.maivand-plr-ui).maivand-plr-empty-state {
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  border: 1px solid var(--maivand-plr-color-border-default);
+  border-inline-start: 3px solid var(--maivand-plr-color-action-primary);
+  border-radius: var(--maivand-plr-radius-sm);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--maivand-plr-color-text-inverse) 30%, transparent),
+    var(--maivand-plr-shadow-sm);
+  display: grid;
+  gap: var(--maivand-plr-spacing-scale-2);
+  justify-items: start;
+  padding: var(--maivand-plr-spacing-scale-6);
+  position: relative;
+}
+:where(.maivand-plr-ui) .maivand-plr-empty-state-illustration {
+  display: block;
+  height: 3.5rem;
+  overflow: visible;
+  width: 3.75rem;
+}
+:where(.maivand-plr-ui) .maivand-plr-empty-state-page {
+  fill: var(--maivand-plr-color-surface-sunken);
+  stroke: var(--maivand-plr-color-border-strong);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+:where(.maivand-plr-ui) .maivand-plr-empty-state-page-fold {
+  fill: none;
+  stroke: var(--maivand-plr-color-border-strong);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+:where(.maivand-plr-ui) .maivand-plr-empty-state-rule {
+  fill: none;
+  stroke: var(--maivand-plr-color-border-default);
+  stroke-width: 1.3;
+  stroke-linecap: round;
+}
+:where(.maivand-plr-ui) .maivand-plr-empty-state-stem {
+  fill: none;
+  stroke: var(--maivand-plr-color-action-primary);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+:where(.maivand-plr-ui) .maivand-plr-empty-state-leaf {
+  fill: var(--maivand-plr-color-action-secondary);
+  stroke: var(--maivand-plr-color-action-primary);
+  stroke-width: 1.1;
+  stroke-linejoin: round;
+  transform-box: fill-box;
+  transform-origin: bottom center;
+  animation: maivand-plr-empty-state-sprout var(--maivand-plr-motion-duration-slow)
+    var(--maivand-plr-motion-easing-entrance) both;
+}
+:where(.maivand-plr-ui) .maivand-plr-empty-state-leaf-right {
+  animation-delay: 70ms;
+}
+:where(.maivand-plr-ui) .maivand-plr-empty-state-leaf-vein {
+  fill: none;
+  stroke: var(--maivand-plr-color-action-primary);
+  stroke-width: 0.9;
+  stroke-linecap: round;
+}
+@keyframes maivand-plr-empty-state-sprout {
+  from {
+    opacity: 0.45;
+    transform: scale(0.38) rotate(-16deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+:where(.maivand-plr-ui) .maivand-plr-empty-state-title {
+  color: var(--maivand-plr-color-text-primary);
+  font-family: Literata, Georgia, serif;
+  font-size: var(--maivand-plr-typography-size-xl);
+  font-weight: var(--maivand-plr-typography-weight-semibold);
+  letter-spacing: var(--maivand-plr-typography-letter-spacing-tight);
+  line-height: var(--maivand-plr-typography-line-height-tight);
+  margin: 0;
+}
+:where(.maivand-plr-ui) .maivand-plr-empty-state-description {
+  color: var(--maivand-plr-color-text-secondary);
+  font-size: var(--maivand-plr-typography-size-sm);
+  line-height: var(--maivand-plr-typography-line-height-relaxed);
+  margin: var(--maivand-plr-spacing-scale-2) 0 0;
+  max-width: 40rem;
+}
+:where(.maivand-plr-ui) .maivand-plr-empty-state-action {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--maivand-plr-spacing-scale-2);
+  margin-top: var(--maivand-plr-spacing-scale-2);
+}
+@media (max-width: 40rem) {
+  :where(.maivand-plr-ui).maivand-plr-empty-state {
+    padding: var(--maivand-plr-spacing-scale-4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui) .maivand-plr-empty-state-leaf {
+    animation-duration: var(--maivand-plr-motion-duration-reduced);
+    animation-delay: 0ms;
+  }
+}

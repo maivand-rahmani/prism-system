@@ -1,0 +1,33 @@
+:where(.maivand-plr-ui).maivand-plr-link {
+  color: var(--maivand-plr-color-action-primary);
+  font: inherit;
+  text-decoration-line: underline;
+  text-decoration-color: var(--maivand-plr-color-action-primary);
+  text-decoration-style: wavy;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  transition:
+    color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    text-decoration-color var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard),
+    text-decoration-thickness var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard),
+    text-underline-offset var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard);
+}
+:where(.maivand-plr-ui).maivand-plr-link:hover {
+  color: var(--maivand-plr-color-action-primary-hover);
+  text-decoration-color: var(--maivand-plr-color-action-primary-hover);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.28em;
+}
+:where(.maivand-plr-ui).maivand-plr-link:focus-visible {
+  outline: 3px solid var(--maivand-plr-color-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--maivand-plr-radius-sm);
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui).maivand-plr-link {
+    transition-duration: var(--maivand-plr-motion-duration-reduced) !important;
+  }
+}
