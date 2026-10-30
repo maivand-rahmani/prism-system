@@ -1,0 +1,299 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/maivand-rahmani/prism-system/skills/create-design-system/design-brief.schema.json",
+  "title": "Design Brief",
+  "description": "Structured outcome of the create-design-system Design Interview. It is the visual contract for a generated design-system package. `pnpm ds:create --brief <path>` reads this file, normalizes only the fields it uses, preserves unknown extra fields, and writes a copy to the generated package as design-brief.json; the generator does not perform full schema validation. Unknown extra fields are allowed so the interview can record decisions this schema does not yet enumerate. The written design-brief.json ships in the package tarball: keep only sanitized product and visual intent, with no secrets, customer-sensitive data, private reference URLs, personal details, or interview transcripts.",
+  "type": "object",
+  "required": [
+    "project",
+    "product",
+    "audience",
+    "platform",
+    "interfaceType",
+    "dataDensity",
+    "direction",
+    "references",
+    "foundations",
+    "components",
+    "avoid"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "project": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-facing name of the product or project the design system serves. The generator uses it as the package display name when --name is omitted and writes it into README.md and AGENTS.md.",
+      "examples": ["Pulse"]
+    },
+    "product": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One-sentence description of what the product is.",
+      "examples": ["Developer productivity application for inspecting CI pipelines"]
+    },
+    "audience": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Primary users of the product and the context in which they use it.",
+      "examples": ["Professional developers working long sessions on desktop"]
+    },
+    "platform": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Primary platform(s) the interface targets.",
+      "examples": ["responsive web", "desktop app", "mobile web", "cross-platform"]
+    },
+    "interfaceType": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The kind of interface being designed.",
+      "examples": ["data console", "editor", "dashboard", "settings surface"]
+    },
+    "dataDensity": {
+      "type": "string",
+      "minLength": 1,
+      "description": "How information-dense the interface is expected to be. Drives spacing, control height, and typography scale decisions.",
+      "examples": ["low", "medium", "high"]
+    },
+    "direction": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Short adjectives describing the intended feel, such as compact, technical, dark-first, restrained, low visual noise. The generator joins these into the package visual direction.",
+      "examples": [["compact", "technical", "dark-first", "restrained", "low visual noise"]]
+    },
+    "references": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Existing products or interfaces the user likes visually, used as shared vocabulary for the visual direction.",
+      "examples": [["Linear", "Raycast"]]
+    },
+    "foundations": {
+      "type": "object",
+      "description": "Concrete visual foundation decisions for the system. Extra fields are allowed so the interview can record decisions this schema does not yet enumerate.",
+      "additionalProperties": true,
+      "required": [
+        "accentDirection",
+        "colorTemperature",
+        "contrast",
+        "typographyCharacter",
+        "dominantRadius",
+        "surfaceModel",
+        "borders",
+        "elevation",
+        "motionIntensity"
+      ],
+      "properties": {
+        "accentDirection": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Intended accent hue and how much it is used.",
+          "examples": [
+            "cool blue",
+            "warm amber, used sparingly",
+            "monochrome with one signal accent"
+          ]
+        },
+        "colorTemperature": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Overall temperature of the palette.",
+          "examples": ["cool", "neutral", "warm"]
+        },
+        "contrast": {
+          "type": "string",
+          "minLength": 1,
+          "description": "How much contrast surfaces and text should carry.",
+          "examples": ["low-contrast surfaces, strong text", "high contrast, crisp lines"]
+        },
+        "typographyCharacter": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Personality and hierarchy of the type system.",
+          "examples": ["neutral grotesk with strong hierarchy and dense body text"]
+        },
+        "dominantRadius": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Typical corner radius of controls and surfaces.",
+          "examples": ["compact (4-6px)", "medium (8-10px)", "pill-heavy"]
+        },
+        "surfaceModel": {
+          "type": "string",
+          "minLength": 1,
+          "description": "How surfaces stack and separate from each other.",
+          "examples": ["flat surfaces with subtle elevation", "layered cards with visible borders"]
+        },
+        "borders": {
+          "type": "string",
+          "minLength": 1,
+          "description": "How visible borders should be.",
+          "examples": ["visible 1px hairlines", "minimal borders, rely on surface separation"]
+        },
+        "elevation": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Shadow and elevation approach.",
+          "examples": ["subtle elevation, no heavy shadows", "flat, borders only"]
+        },
+        "motionIntensity": {
+          "type": "string",
+          "minLength": 1,
+          "description": "How much motion the system should use.",
+          "examples": ["minimal 120-180ms transitions", "expressive with spring easing"]
+        }
+      }
+    },
+    "components": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Legacy-compatible mixed notes about components and scenarios. Keep existing briefs valid; new briefs should classify reusable capability requests and product compositions in the optional fields below instead of treating every note as a component request.",
+      "examples": [["CommandBar", "MetricCard", "StatusIndicator", "dense data table toolbar"]]
+    },
+    "requestedCapabilities": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Optional requests for reusable capabilities, especially optional core contracts. Requests are intent only: the package descriptor and generated public manifest define actual available capabilities.",
+      "examples": [["Alert", "Table"]]
+    },
+    "componentTreatments": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Z][A-Za-z0-9]*$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Optional requested appearance and interaction effects on existing shared-contract components. Authors resolve keys against the canonical core names; no catalog is duplicated here. A dimensional or animated Button remains Button with its existing API, folder, and token source. These requests do not prove implementation and are not independent custom-component requests.",
+      "examples": [
+        {
+          "Button": "Tactile depth with a short press effect; retain native button behavior",
+          "Dialog": "Restrained entrance and exit transitions with reduced-motion support"
+        }
+      ]
+    },
+    "motionScenarios": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Optional broader animation scenarios beyond foundations.motionIntensity, such as interaction feedback, coordinated entrances, or scroll sequences. Record intent rather than engine-specific API. Significant dependency choices and authorization belong in decisionNotes; versions remain in package metadata.",
+      "examples": [["Reveal onboarding steps as they become active"]]
+    },
+    "requestedCustomComponents": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Optional independent component/API requests outside the shared core catalog, regardless of whether their rendering is DOM, animated, or 3D. These are requests only. Current canonical components maps and registry reject arbitrary names; record any integration gap and do not treat this field as installed or implemented support.",
+      "examples": [["KeyboardScene with key selection", "InteractiveWorkflowMap"]]
+    },
+    "productCompositions": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Optional whole-product page, form, workflow, and domain-specific composition scenarios to guide the visual system. These do not become component contracts merely by appearing here.",
+      "examples": [
+        ["Responsive project overview with activity table", "Invite members form with validation"]
+      ]
+    },
+    "responsiveRequirements": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Optional concrete behavior expected across target viewport sizes, such as navigation changes, content reflow, and dense-table treatment.",
+      "examples": [
+        [
+          "At narrow widths, stack filters above results",
+          "Keep primary actions reachable without horizontal scrolling"
+        ]
+      ]
+    },
+    "typographyRequirements": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Optional hierarchy and legibility requirements for headings, body copy, labels, metadata, and dense data. Older briefs may omit this; the interview can derive it from foundations.typographyCharacter.",
+      "examples": [
+        ["Clear page-to-section heading hierarchy", "Tabular numerals for aligned metrics"]
+      ]
+    },
+    "stateScenarios": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Optional complete-page or form loading, error, empty, success, and validation scenarios to design and review.",
+      "examples": [
+        ["Loading project activity", "Empty search results", "Inline invalid invite email"]
+      ]
+    },
+    "referenceNotes": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Optional notes about specific references, naming the traits to take and the traits not to copy, for example \"Linear - take: compact density and restrained accent; avoid: copying its exact palette\". Do not repeat a value already listed in references; the two fields together record the reference name and what it means.",
+      "examples": [
+        [
+          "Linear - take: compact density and restrained accent; avoid: copying its exact palette",
+          "Raycast - take: command-palette hierarchy; avoid: dark-only assumption"
+        ]
+      ]
+    },
+    "decisionNotes": {
+      "type": "array",
+      "description": "Optional significant decisions and choices from the interview. Record only decisions that matter to the visual system, not every microdecision, and do not repeat values another field already owns: a note carries the decision and its rationale. Status meanings: confirmed = the user provided or approved the decision; delegated = the user explicitly let the agent decide; proposed = the agent proposed it and the user has not decided yet. A generator-ready brief contains no material proposed decision.",
+      "items": {
+        "$ref": "#/$defs/decisionNote"
+      },
+      "examples": [
+        [
+          {
+            "topic": "accent color",
+            "status": "confirmed",
+            "note": "The user chose a cool blue accent used only for primary actions."
+          },
+          {
+            "topic": "foundation bundle",
+            "status": "delegated",
+            "note": "The user delegated the foundations; the agent chose restrained contrast and minimal elevation to fit the confirmed direction."
+          }
+        ]
+      ]
+    },
+    "openQuestions": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Optional open questions from the interview. In a draft brief, a pending material question is a reason the brief is not generator-ready. In an approved generator-ready brief, only nonblocking follow-ups that do not change approved decisions may remain.",
+      "examples": [
+        ["Illustration style for a future marketing surface, outside the approved console scope"]
+      ]
+    },
+    "avoid": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Visual decisions that must be avoided. The generator joins these into the package avoid list in README.md and AGENTS.md.",
+      "examples": [
+        [
+          "oversized cards",
+          "heavy gradients",
+          "excessive glass",
+          "pill-heavy UI",
+          "generic SaaS dashboard"
+        ]
+      ]
+    }
+  },
+  "$defs": {
+    "stringArray": {
+      "type": "array",
+      "description": "Ordered list of non-empty strings.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "decisionNote": {
+      "type": "object",
+      "description": "One significant design decision. `status` distinguishes an answer the user gave or approved (confirmed), explicit permission for the agent to decide (delegated), and a choice still awaiting the user (proposed).",
+      "additionalProperties": false,
+      "required": ["topic", "status", "note"],
+      "properties": {
+        "topic": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Short name of the decision area, for example \"accent color\" or \"density\"."
+        },
+        "status": {
+          "enum": ["confirmed", "delegated", "proposed"],
+          "description": "confirmed = the user provided or approved the decision; delegated = the user explicitly let the agent decide; proposed = the agent proposed it and the user has not decided yet. A generator-ready brief must contain no material proposed decision."
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The decision and its reason, in one sentence. Do not repeat a value owned by another field; record the choice and rationale instead."
+        }
+      }
+    }
+  }
+}
