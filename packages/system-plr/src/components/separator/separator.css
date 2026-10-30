@@ -76,8 +76,7 @@
     animation: maivand-plr-separator-grain 480ms var(--maivand-plr-motion-easing-entrance) both;
   }
   :where(.maivand-plr-ui).maivand-plr-separator::after {
-    animation: maivand-plr-separator-seed 360ms var(--maivand-plr-motion-easing-entrance) 160ms
-      both;
+    animation: maivand-plr-separator-seed 360ms var(--maivand-plr-motion-easing-entrance) 160ms both;
   }
   :where(.maivand-plr-ui).maivand-plr-separator[data-orientation="vertical"]::before {
     animation-name: maivand-plr-separator-grain-vertical;

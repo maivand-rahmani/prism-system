@@ -5,26 +5,11 @@
   "name": "Plan Like Rahmani",
   "components": {
     "Button": {
-      "variants": [
-        "primary",
-        "secondary",
-        "outline",
-        "ghost",
-        "destructive",
-        "link"
-      ],
-      "sizes": [
-        "sm",
-        "md",
-        "lg",
-        "icon"
-      ],
+      "variants": ["primary", "secondary", "outline", "ghost", "destructive", "link"],
+      "sizes": ["sm", "md", "lg", "icon"],
       "members": [],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -34,17 +19,10 @@
     },
     "Input": {
       "variants": [],
-      "sizes": [
-        "sm",
-        "md",
-        "lg"
-      ],
+      "sizes": ["sm", "md", "lg"],
       "members": [],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -54,17 +32,10 @@
     },
     "Textarea": {
       "variants": [],
-      "sizes": [
-        "sm",
-        "md",
-        "lg"
-      ],
+      "sizes": ["sm", "md", "lg"],
       "members": [],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -73,26 +44,11 @@
       "example": "./examples/diary-compositions.md"
     },
     "Card": {
-      "variants": [
-        "default",
-        "muted",
-        "outline",
-        "elevated",
-        "interactive"
-      ],
+      "variants": ["default", "muted", "outline", "elevated", "interactive"],
       "sizes": [],
-      "members": [
-        "Header",
-        "Title",
-        "Description",
-        "Content",
-        "Footer"
-      ],
+      "members": ["Header", "Title", "Description", "Content", "Footer"],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -101,25 +57,11 @@
       "example": "./examples/diary-compositions.md"
     },
     "Badge": {
-      "variants": [
-        "default",
-        "secondary",
-        "success",
-        "warning",
-        "danger",
-        "info",
-        "outline"
-      ],
-      "sizes": [
-        "sm",
-        "md"
-      ],
+      "variants": ["default", "secondary", "success", "warning", "danger", "info", "outline"],
+      "sizes": ["sm", "md"],
       "members": [],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -129,17 +71,10 @@
     },
     "Checkbox": {
       "variants": [],
-      "sizes": [
-        "sm",
-        "md",
-        "lg"
-      ],
+      "sizes": ["sm", "md", "lg"],
       "members": [],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -150,15 +85,9 @@
     "RadioGroup": {
       "variants": [],
       "sizes": [],
-      "members": [
-        "Item",
-        "Indicator"
-      ],
+      "members": ["Item", "Indicator"],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -168,19 +97,10 @@
     },
     "Switch": {
       "variants": [],
-      "sizes": [
-        "sm",
-        "md",
-        "lg"
-      ],
-      "members": [
-        "Thumb"
-      ],
+      "sizes": ["sm", "md", "lg"],
+      "members": ["Thumb"],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -190,25 +110,10 @@
     },
     "Select": {
       "variants": [],
-      "sizes": [
-        "sm",
-        "md",
-        "lg"
-      ],
-      "members": [
-        "Trigger",
-        "Value",
-        "Content",
-        "Group",
-        "Label",
-        "Item",
-        "Separator"
-      ],
+      "sizes": ["sm", "md", "lg"],
+      "members": ["Trigger", "Value", "Content", "Group", "Label", "Item", "Separator"],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -219,16 +124,9 @@
     "Tabs": {
       "variants": [],
       "sizes": [],
-      "members": [
-        "List",
-        "Trigger",
-        "Content"
-      ],
+      "members": ["List", "Trigger", "Content"],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -251,10 +149,7 @@
         "Close"
       ],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -283,10 +178,7 @@
         "SubContent"
       ],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -297,18 +189,9 @@
     "Tooltip": {
       "variants": [],
       "sizes": [],
-      "members": [
-        "Provider",
-        "Trigger",
-        "Portal",
-        "Content",
-        "Arrow"
-      ],
+      "members": ["Provider", "Trigger", "Portal", "Content", "Arrow"],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -321,9 +204,7 @@
       "sizes": [],
       "members": [],
       "effects": {
-        "features": [
-          "motion"
-        ],
+        "features": ["motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -336,9 +217,7 @@
       "sizes": [],
       "members": [],
       "effects": {
-        "features": [
-          "motion"
-        ],
+        "features": ["motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -351,9 +230,7 @@
       "sizes": [],
       "members": [],
       "effects": {
-        "features": [
-          "motion"
-        ],
+        "features": ["motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -366,9 +243,7 @@
       "sizes": [],
       "members": [],
       "effects": {
-        "features": [
-          "motion"
-        ],
+        "features": ["motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -381,10 +256,7 @@
       "sizes": [],
       "members": [],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -397,9 +269,7 @@
       "sizes": [],
       "members": [],
       "effects": {
-        "features": [
-          "motion"
-        ],
+        "features": ["motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -410,16 +280,9 @@
     "FormField": {
       "variants": [],
       "sizes": [],
-      "members": [
-        "Label",
-        "Control",
-        "Description",
-        "Error"
-      ],
+      "members": ["Label", "Control", "Description", "Error"],
       "effects": {
-        "features": [
-          "motion"
-        ],
+        "features": ["motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -432,9 +295,7 @@
       "sizes": [],
       "members": [],
       "effects": {
-        "features": [
-          "motion"
-        ],
+        "features": ["motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -447,9 +308,7 @@
       "sizes": [],
       "members": [],
       "effects": {
-        "features": [
-          "motion"
-        ],
+        "features": ["motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -462,9 +321,7 @@
       "sizes": [],
       "members": [],
       "effects": {
-        "features": [
-          "motion"
-        ],
+        "features": ["motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -477,10 +334,7 @@
       "sizes": [],
       "members": [],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -491,16 +345,9 @@
     "Combobox": {
       "variants": [],
       "sizes": [],
-      "members": [
-        "Input",
-        "Content",
-        "Item"
-      ],
+      "members": ["Input", "Content", "Item"],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -513,10 +360,7 @@
       "sizes": [],
       "members": [],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -529,10 +373,7 @@
       "sizes": [],
       "members": [],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -545,10 +386,7 @@
       "sizes": [],
       "members": [],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -561,10 +399,7 @@
       "sizes": [],
       "members": [],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -577,9 +412,7 @@
       "sizes": [],
       "members": [],
       "effects": {
-        "features": [
-          "motion"
-        ],
+        "features": ["motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -590,17 +423,9 @@
     "Section": {
       "variants": [],
       "sizes": [],
-      "members": [
-        "Header",
-        "Title",
-        "Description",
-        "Content",
-        "Footer"
-      ],
+      "members": ["Header", "Title", "Description", "Content", "Footer"],
       "effects": {
-        "features": [
-          "motion"
-        ],
+        "features": ["motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -611,14 +436,9 @@
     "Fieldset": {
       "variants": [],
       "sizes": [],
-      "members": [
-        "Legend"
-      ],
+      "members": ["Legend"],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -627,21 +447,11 @@
       "example": "./examples/diary-compositions.md"
     },
     "Alert": {
-      "variants": [
-        "info",
-        "success",
-        "warning",
-        "danger"
-      ],
+      "variants": ["info", "success", "warning", "danger"],
       "sizes": [],
-      "members": [
-        "Title",
-        "Description"
-      ],
+      "members": ["Title", "Description"],
       "effects": {
-        "features": [
-          "motion"
-        ],
+        "features": ["motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -654,10 +464,7 @@
       "sizes": [],
       "members": [],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -670,9 +477,7 @@
       "sizes": [],
       "members": [],
       "effects": {
-        "features": [
-          "motion"
-        ],
+        "features": ["motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -683,20 +488,9 @@
     "Toast": {
       "variants": [],
       "sizes": [],
-      "members": [
-        "Provider",
-        "Viewport",
-        "Root",
-        "Title",
-        "Description",
-        "Action",
-        "Close"
-      ],
+      "members": ["Provider", "Viewport", "Root", "Title", "Description", "Action", "Close"],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -707,16 +501,9 @@
     "Accordion": {
       "variants": [],
       "sizes": [],
-      "members": [
-        "Item",
-        "Header",
-        "Trigger",
-        "Content"
-      ],
+      "members": ["Item", "Header", "Trigger", "Content"],
       "effects": {
-        "features": [
-          "motion"
-        ],
+        "features": ["motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -727,15 +514,9 @@
     "Avatar": {
       "variants": [],
       "sizes": [],
-      "members": [
-        "Image",
-        "Fallback"
-      ],
+      "members": ["Image", "Fallback"],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -746,16 +527,9 @@
     "Breadcrumbs": {
       "variants": [],
       "sizes": [],
-      "members": [
-        "List",
-        "Item",
-        "Link",
-        "Current"
-      ],
+      "members": ["List", "Item", "Link", "Current"],
       "effects": {
-        "features": [
-          "motion"
-        ],
+        "features": ["motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -766,20 +540,9 @@
     "Pagination": {
       "variants": [],
       "sizes": [],
-      "members": [
-        "List",
-        "Item",
-        "Link",
-        "Previous",
-        "Next",
-        "Current",
-        "Ellipsis"
-      ],
+      "members": ["List", "Item", "Link", "Previous", "Next", "Current", "Ellipsis"],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -790,19 +553,9 @@
     "Table": {
       "variants": [],
       "sizes": [],
-      "members": [
-        "Caption",
-        "Header",
-        "Body",
-        "Footer",
-        "Row",
-        "Head",
-        "Cell"
-      ],
+      "members": ["Caption", "Header", "Body", "Footer", "Row", "Head", "Cell"],
       "effects": {
-        "features": [
-          "motion"
-        ],
+        "features": ["motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -813,16 +566,9 @@
     "Metric": {
       "variants": [],
       "sizes": [],
-      "members": [
-        "Label",
-        "Value",
-        "Description"
-      ],
+      "members": ["Label", "Value", "Description"],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -833,15 +579,9 @@
     "DescriptionList": {
       "variants": [],
       "sizes": [],
-      "members": [
-        "Item",
-        "Term",
-        "Description"
-      ],
+      "members": ["Item", "Term", "Description"],
       "effects": {
-        "features": [
-          "motion"
-        ],
+        "features": ["motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -852,16 +592,9 @@
     "Timeline": {
       "variants": [],
       "sizes": [],
-      "members": [
-        "Item",
-        "Title",
-        "Time",
-        "Description"
-      ],
+      "members": ["Item", "Title", "Time", "Description"],
       "effects": {
-        "features": [
-          "motion"
-        ],
+        "features": ["motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -874,10 +607,7 @@
       "sizes": [],
       "members": [],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },
@@ -888,16 +618,9 @@
     "EmptyState": {
       "variants": [],
       "sizes": [],
-      "members": [
-        "Title",
-        "Description",
-        "Action"
-      ],
+      "members": ["Title", "Description", "Action"],
       "effects": {
-        "features": [
-          "depth",
-          "motion"
-        ],
+        "features": ["depth", "motion"],
         "rendering": "dom",
         "reducedMotion": true
       },

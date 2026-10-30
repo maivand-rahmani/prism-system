@@ -170,14 +170,28 @@ body {
   min-width: 0;
 }
 
-.specimen-tile--width-compact { --specimen-span: 2; }
-.specimen-tile--width-standard { --specimen-span: 3; }
-.specimen-tile--width-wide { --specimen-span: 4; }
-.specimen-tile--width-feature { --specimen-span: 6; }
+.specimen-tile--width-compact {
+  --specimen-span: 2;
+}
+.specimen-tile--width-standard {
+  --specimen-span: 3;
+}
+.specimen-tile--width-wide {
+  --specimen-span: 4;
+}
+.specimen-tile--width-feature {
+  --specimen-span: 6;
+}
 
-.specimen-tile--height-compact { --specimen-min-height: 54px; }
-.specimen-tile--height-standard { --specimen-min-height: 64px; }
-.specimen-tile--height-roomy { --specimen-min-height: 76px; }
+.specimen-tile--height-compact {
+  --specimen-min-height: 54px;
+}
+.specimen-tile--height-standard {
+  --specimen-min-height: 64px;
+}
+.specimen-tile--height-roomy {
+  --specimen-min-height: 76px;
+}
 
 .specimen-tile > :first-child {
   display: flex;
@@ -612,7 +626,8 @@ body {
 }
 
 .motion-orbit {
-  animation: foundation-orbit var(--foundation-motion-duration) var(--foundation-motion-easing) infinite alternate;
+  animation: foundation-orbit var(--foundation-motion-duration) var(--foundation-motion-easing)
+    infinite alternate;
   background: var(--showcase-accent);
   display: block;
   height: 11px;
@@ -728,68 +743,150 @@ body {
 }
 
 @keyframes foundation-orbit {
-  from { transform: translateX(0); }
-  to { transform: translateX(48px); }
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(48px);
+  }
 }
 
 @media (min-width: 1100px) {
-  .showcase-tabs { margin-top: 2px; }
-  .view-heading { margin-block: 3px; }
+  .showcase-tabs {
+    margin-top: 2px;
+  }
+  .view-heading {
+    margin-block: 3px;
+  }
   .specimen-grid {
     gap: 4px;
     grid-template-columns: repeat(16, minmax(0, 1fr));
   }
-  .optional-grid .specimen-tile--width-feature { grid-column: span 8; }
-  .specimen-tile-layout { padding-block: 1px; }
-  .specimen-tile-heading { min-height: 32px; }
+  .optional-grid .specimen-tile--width-feature {
+    grid-column: span 8;
+  }
+  .specimen-tile-layout {
+    padding-block: 1px;
+  }
+  .specimen-tile-heading {
+    min-height: 32px;
+  }
 }
 
 @media (max-width: 1099px) {
-  .specimen-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  .specimen-grid {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 839px) {
-  .specimen-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-  .specimen-tile--width-wide { grid-column: span 4; }
-  .specimen-tile--width-feature { grid-column: span 6; }
-  .foundation-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .specimen-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .specimen-tile--width-wide {
+    grid-column: span 4;
+  }
+  .specimen-tile--width-feature {
+    grid-column: span 6;
+  }
+  .foundation-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 619px) {
-  .showcase-shell { padding: 13px 14px 24px; }
-  .showcase-header { align-items: flex-start; }
-  .showcase-brand { padding-top: 3px; }
-  .showcase-actions { align-items: flex-end; }
-  .system-picker-label { align-items: flex-start; flex-direction: column; gap: 3px; }
-  .system-picker-label > div { min-width: 132px; }
-  .showcase-tabs { margin-top: 12px; }
-  .showcase-tabs [role="tablist"] { column-gap: clamp(6px, 1.8vw, 12px); }
-  .view-heading { align-items: flex-start; margin-top: 15px; }
-  .catalog-hint { white-space: normal; }
-  .specimen-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .specimen-tile--width-compact { grid-column: span 1; }
+  .showcase-shell {
+    padding: 13px 14px 24px;
+  }
+  .showcase-header {
+    align-items: flex-start;
+  }
+  .showcase-brand {
+    padding-top: 3px;
+  }
+  .showcase-actions {
+    align-items: flex-end;
+  }
+  .system-picker-label {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .system-picker-label > div {
+    min-width: 132px;
+  }
+  .showcase-tabs {
+    margin-top: 12px;
+  }
+  .showcase-tabs [role="tablist"] {
+    column-gap: clamp(6px, 1.8vw, 12px);
+  }
+  .view-heading {
+    align-items: flex-start;
+    margin-top: 15px;
+  }
+  .catalog-hint {
+    white-space: normal;
+  }
+  .specimen-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .specimen-tile--width-compact {
+    grid-column: span 1;
+  }
   .specimen-tile--width-standard,
   .specimen-tile--width-wide,
-  .specimen-tile--width-feature { grid-column: span 2; }
-  .foundation-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .foundation-swatches { grid-template-columns: 1fr; }
-  .extension-card-grid { grid-template-columns: 1fr; }
-  .system-version { display: none; }
+  .specimen-tile--width-feature {
+    grid-column: span 2;
+  }
+  .foundation-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .foundation-swatches {
+    grid-template-columns: 1fr;
+  }
+  .extension-card-grid {
+    grid-template-columns: 1fr;
+  }
+  .system-version {
+    display: none;
+  }
 }
 
 @media (max-width: 410px) {
-  .brand-name { font-size: 11px; }
-  .showcase-actions { gap: 5px; }
-  .system-picker-label > div { min-width: 116px; }
-  .showcase-tabs [role="tablist"] { column-gap: 6px; }
-  .foundation-grid { grid-template-columns: 1fr; }
-  .specimen-grid { grid-template-columns: 1fr; }
-  .specimen-tile { grid-column: span 1; }
-  .variant-gallery { grid-template-columns: 1fr; }
+  .brand-name {
+    font-size: 11px;
+  }
+  .showcase-actions {
+    gap: 5px;
+  }
+  .system-picker-label > div {
+    min-width: 116px;
+  }
+  .showcase-tabs [role="tablist"] {
+    column-gap: 6px;
+  }
+  .foundation-grid {
+    grid-template-columns: 1fr;
+  }
+  .specimen-grid {
+    grid-template-columns: 1fr;
+  }
+  .specimen-tile {
+    grid-column: span 1;
+  }
+  .variant-gallery {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto; }
+  html {
+    scroll-behavior: auto;
+  }
   .motion-orbit,
-  .specimen-tile > :first-child { animation: none; transition: none; }
+  .specimen-tile > :first-child {
+    animation: none;
+    transition: none;
+  }
 }

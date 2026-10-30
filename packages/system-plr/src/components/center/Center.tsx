@@ -8,6 +8,8 @@ export const Center = React.forwardRef<HTMLDivElement, CenterProps>(function Cen
   { className, ...props },
   ref,
 ) {
-  return <div ref={ref} className={cn("maivand-plr-ui", "maivand-plr-center", className)} {...props} />;
+  return (
+    <div ref={ref} className={cn("maivand-plr-ui", "maivand-plr-center", className)} {...props} />
+  );
 });
 Center.displayName = "Center";

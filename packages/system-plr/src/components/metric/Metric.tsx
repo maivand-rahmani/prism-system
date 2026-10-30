@@ -13,7 +13,9 @@ const MetricRoot = React.forwardRef<HTMLDListElement, MetricProps>(function Metr
   { className, ...props },
   ref,
 ) {
-  return <dl ref={ref} className={cn("maivand-plr-ui", "maivand-plr-metric", className)} {...props} />;
+  return (
+    <dl ref={ref} className={cn("maivand-plr-ui", "maivand-plr-metric", className)} {...props} />
+  );
 });
 MetricRoot.displayName = "Metric";
 

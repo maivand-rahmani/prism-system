@@ -6,6 +6,8 @@ export const Grid = React.forwardRef<HTMLDivElement, GridProps>(function Grid(
   { className, ...props },
   ref,
 ) {
-  return <div ref={ref} className={cn("maivand-plr-ui", "maivand-plr-grid", className)} {...props} />;
+  return (
+    <div ref={ref} className={cn("maivand-plr-ui", "maivand-plr-grid", className)} {...props} />
+  );
 });
 Grid.displayName = "Grid";

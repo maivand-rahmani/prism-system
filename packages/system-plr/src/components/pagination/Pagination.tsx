@@ -27,7 +27,11 @@ const PaginationRoot = React.forwardRef<HTMLElement, PaginationProps>(function P
   ref,
 ) {
   return (
-    <nav ref={ref} className={cn("maivand-plr-ui", "maivand-plr-pagination", className)} {...props} />
+    <nav
+      ref={ref}
+      className={cn("maivand-plr-ui", "maivand-plr-pagination", className)}
+      {...props}
+    />
   );
 });
 PaginationRoot.displayName = "Pagination";

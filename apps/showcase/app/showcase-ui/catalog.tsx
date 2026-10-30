@@ -102,7 +102,11 @@ function SpecimenTile({
             </Button>
           </header>
           <div className="specimen-preview">
-            {available ? children : <span className="specimen-unavailable">Not declared by this package</span>}
+            {available ? (
+              children
+            ) : (
+              <span className="specimen-unavailable">Not declared by this package</span>
+            )}
           </div>
         </div>
       </Card>
@@ -191,7 +195,12 @@ export function AdditionalComponents({
             )}
             <div className="specimen-grid optional-grid">
               {availableOptionalNames.map((name) => (
-                <SpecimenTile key={name} system={system} name={name} onOpenVariants={onOpenVariants}>
+                <SpecimenTile
+                  key={name}
+                  system={system}
+                  name={name}
+                  onOpenVariants={onOpenVariants}
+                >
                   <OptionalSpecimen system={system} name={name as OptionalName} />
                 </SpecimenTile>
               ))}
@@ -223,33 +232,62 @@ function VariantExample({
   const label = [variant, size].filter(Boolean).join(" · ") || "Default";
 
   if (name === "Button") {
-    return <Component type="button" variant={variant ?? undefined} size={size ?? undefined}>{label}</Component>;
+    return (
+      <Component type="button" variant={variant ?? undefined} size={size ?? undefined}>
+        {label}
+      </Component>
+    );
   }
   if (name === "Badge") {
-    return <Component variant={variant ?? undefined} size={size ?? undefined}>{variant ?? "Badge"}</Component>;
+    return (
+      <Component variant={variant ?? undefined} size={size ?? undefined}>
+        {variant ?? "Badge"}
+      </Component>
+    );
   }
   if (name === "Card") {
     return (
-      <Component
-        variant={variant ?? undefined}
-        padding="sm"
-      >
+      <Component variant={variant ?? undefined} padding="sm">
         <span>{variant ?? "Default"} surface</span>
       </Component>
     );
   }
   if (name === "Alert") {
     const Alert = withParts(Component, "Title", "Description");
-    return <Alert variant={variant ?? "info"}><Alert.Title>{variant ?? "Info"}</Alert.Title><Alert.Description>Package alert treatment.</Alert.Description></Alert>;
+    return (
+      <Alert variant={variant ?? "info"}>
+        <Alert.Title>{variant ?? "Info"}</Alert.Title>
+        <Alert.Description>Package alert treatment.</Alert.Description>
+      </Alert>
+    );
   }
   if (["Input", "Textarea", "Checkbox", "Switch"].includes(name) && size) {
-    return <Component size={size} aria-label={`${name} ${size}`} placeholder={name === "Input" ? `${size} input` : undefined} />;
+    return (
+      <Component
+        size={size}
+        aria-label={`${name} ${size}`}
+        placeholder={name === "Input" ? `${size} input` : undefined}
+      />
+    );
   }
   if (name === "Select" && size) {
     const Select = withParts(Component, "Trigger", "Value", "Content", "Item");
-    return <Select defaultValue="one"><Select.Trigger size={size} aria-label={`Select ${size}`}><Select.Value>One</Select.Value></Select.Trigger><Select.Content><Select.Item value="one">One</Select.Item></Select.Content></Select>;
+    return (
+      <Select defaultValue="one">
+        <Select.Trigger size={size} aria-label={`Select ${size}`}>
+          <Select.Value>One</Select.Value>
+        </Select.Trigger>
+        <Select.Content>
+          <Select.Item value="one">One</Select.Item>
+        </Select.Content>
+      </Select>
+    );
   }
-  return <Component variant={variant ?? undefined} size={size ?? undefined}>{label}</Component>;
+  return (
+    <Component variant={variant ?? undefined} size={size ?? undefined}>
+      {label}
+    </Component>
+  );
 }
 
 export function VariantDialog({
@@ -277,7 +315,11 @@ export function VariantDialog({
   const variantOptions = variants.length ? variants : [null];
   const sizeOptions = sizes.length ? sizes : [null];
   const examples = variantOptions.flatMap((variant) =>
-    sizeOptions.map((size) => ({ variant, size, key: `${variant ?? "default"}-${size ?? "default"}` })),
+    sizeOptions.map((size) => ({
+      variant,
+      size,
+      key: `${variant ?? "default"}-${size ?? "default"}`,
+    })),
   );
 
   return (
@@ -286,7 +328,9 @@ export function VariantDialog({
         <Dialog.Content>
           <Dialog.Header>
             <Dialog.Title>{name} variants</Dialog.Title>
-            <Dialog.Description>Every variant and size published by {system.name}.</Dialog.Description>
+            <Dialog.Description>
+              Every variant and size published by {system.name}.
+            </Dialog.Description>
           </Dialog.Header>
           {variants.length || sizes.length ? (
             <div className="variant-gallery">
@@ -303,7 +347,11 @@ export function VariantDialog({
             </div>
           )}
           <Dialog.Footer>
-            <Dialog.Close asChild><Button variant="outline" size="sm">Done</Button></Dialog.Close>
+            <Dialog.Close asChild>
+              <Button variant="outline" size="sm">
+                Done
+              </Button>
+            </Dialog.Close>
           </Dialog.Footer>
         </Dialog.Content>
       )}

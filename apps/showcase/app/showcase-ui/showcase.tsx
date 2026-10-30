@@ -3,7 +3,12 @@
 import * as React from "react";
 import { REQUIRED_COMPONENTS } from "@prism-system/ui-core";
 import { getRegisteredSystem, registeredSystems } from "../registry";
-import { AdditionalComponents, RequiredComponents, VariantDialog, type ComponentName } from "./catalog";
+import {
+  AdditionalComponents,
+  RequiredComponents,
+  VariantDialog,
+  type ComponentName,
+} from "./catalog";
 import { Foundations } from "./foundations";
 import { hasDarkTheme, shellThemeStyle, type ThemeMode, withParts } from "./system-theme";
 
@@ -42,19 +47,33 @@ export function Showcase({ initialSystemId }: { initialSystemId?: string } = {})
   }, [darkAvailable, mode]);
 
   return (
-    <main className={`showcase-shell ${system.uiClass}`} data-system={system.id} style={shellThemeStyle(system, mode)}>
+    <main
+      className={`showcase-shell ${system.uiClass}`}
+      data-system={system.id}
+      style={shellThemeStyle(system, mode)}
+    >
       <header className="showcase-header">
         <div className="showcase-brand">
-          <span className="brand-mark" aria-hidden="true">M</span>
-          <span className="brand-name">Maivand <i>/</i> Showcase</span>
+          <span className="brand-mark" aria-hidden="true">
+            M
+          </span>
+          <span className="brand-name">
+            Maivand <i>/</i> Showcase
+          </span>
         </div>
         <div className="showcase-actions">
           <div className="system-picker-label">
             <span id="active-system-label">Active system</span>
             <Select value={system.id} onValueChange={setSystemId}>
-              <Select.Trigger aria-labelledby="active-system-label"><Select.Value>{system.name}</Select.Value></Select.Trigger>
+              <Select.Trigger aria-labelledby="active-system-label">
+                <Select.Value>{system.name}</Select.Value>
+              </Select.Trigger>
               <Select.Content>
-                {registeredSystems.map((item) => <Select.Item key={item.id} value={item.id}>{item.name}</Select.Item>)}
+                {registeredSystems.map((item) => (
+                  <Select.Item key={item.id} value={item.id}>
+                    {item.name}
+                  </Select.Item>
+                ))}
               </Select.Content>
             </Select>
           </div>
@@ -65,7 +84,7 @@ export function Showcase({ initialSystemId }: { initialSystemId?: string } = {})
               size="sm"
               aria-label={mode === "dark" ? "Switch to light theme" : "Switch to dark theme"}
               aria-pressed={mode === "dark"}
-              onClick={() => setMode((current) => current === "dark" ? "light" : "dark")}
+              onClick={() => setMode((current) => (current === "dark" ? "light" : "dark"))}
             >
               <span aria-hidden="true">{mode === "dark" ? "☼" : "◐"}</span>
             </Button>
@@ -90,7 +109,9 @@ export function Showcase({ initialSystemId }: { initialSystemId?: string } = {})
               </Tabs.Trigger>
             ))}
             <span className="showcase-tab-spacer" role="presentation" />
-            <span className="system-version" role="presentation">v{system.version}</span>
+            <span className="system-version" role="presentation">
+              v{system.version}
+            </span>
           </Tabs.List>
 
           <Tabs.Content value="required">

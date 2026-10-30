@@ -25,8 +25,7 @@
       color-mix(in srgb, var(--maivand-plr-color-text-primary) 18%, transparent),
       transparent 70%
     );
-  border-radius:
-    var(--maivand-plr-radius-sm) 100% var(--maivand-plr-radius-sm) 100%;
+  border-radius: var(--maivand-plr-radius-sm) 100% var(--maivand-plr-radius-sm) 100%;
   content: "";
   height: var(--maivand-plr-spacing-scale-3);
   inset-block-start: var(--maivand-plr-spacing-scale-2);

@@ -42,7 +42,11 @@ export const CardHeader = React.forwardRef<HTMLDivElement, CoreCardHeaderProps>(
   ref,
 ) {
   return (
-    <CardHeaderPrimitive ref={ref} className={cn("maivand-plr-card-header", className)} {...props} />
+    <CardHeaderPrimitive
+      ref={ref}
+      className={cn("maivand-plr-card-header", className)}
+      {...props}
+    />
   );
 });
 export const CardContent = React.forwardRef<HTMLDivElement, CoreCardContentProps>(
@@ -61,13 +65,21 @@ export const CardFooter = React.forwardRef<HTMLDivElement, CoreCardFooterProps>(
   ref,
 ) {
   return (
-    <CardFooterPrimitive ref={ref} className={cn("maivand-plr-card-footer", className)} {...props} />
+    <CardFooterPrimitive
+      ref={ref}
+      className={cn("maivand-plr-card-footer", className)}
+      {...props}
+    />
   );
 });
 export const CardTitle = React.forwardRef<HTMLHeadingElement, CoreCardTitleProps>(
   function CardTitle({ className, ...props }, ref) {
     return (
-      <CardTitlePrimitive ref={ref} className={cn("maivand-plr-card-title", className)} {...props} />
+      <CardTitlePrimitive
+        ref={ref}
+        className={cn("maivand-plr-card-title", className)}
+        {...props}
+      />
     );
   },
 );

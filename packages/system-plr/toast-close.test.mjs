@@ -126,11 +126,7 @@ function renderClose(closeProps, rootProps) {
       h(
         Toast.Viewport,
         { "aria-label": "Notifications" },
-        h(
-          Toast.Root,
-          { open: true, duration: null, ...rootProps },
-          h(Toast.Close, closeProps),
-        ),
+        h(Toast.Root, { open: true, duration: null, ...rootProps }, h(Toast.Close, closeProps)),
       ),
     ),
   );
@@ -197,15 +193,7 @@ test("the default close control is still a plain button", () => {
 });
 
 test("every Toast compound member stays attached", () => {
-  for (const part of [
-    "Provider",
-    "Viewport",
-    "Root",
-    "Title",
-    "Description",
-    "Action",
-    "Close",
-  ]) {
+  for (const part of ["Provider", "Viewport", "Root", "Title", "Description", "Action", "Close"]) {
     assert.ok(Toast[part], `Toast.${part} should stay attached`);
   }
 });

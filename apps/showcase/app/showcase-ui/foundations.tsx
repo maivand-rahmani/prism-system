@@ -54,11 +54,15 @@ export function Foundations({ system, mode }: { system: RegisteredSystem; mode: 
   });
   const sans = tokenAt(tokens, "typography.family.sans");
   const mono = tokenAt(tokens, "typography.family.mono");
-  const spacing = tokenEntries(tokenAt(tokens, "spacing.scale")).filter(([name]) => ["1", "2", "3", "4", "6", "8"].includes(name));
+  const spacing = tokenEntries(tokenAt(tokens, "spacing.scale")).filter(([name]) =>
+    ["1", "2", "3", "4", "6", "8"].includes(name),
+  );
   const containers = tokenEntries(tokens.containers);
   const radii = tokenEntries(tokens.radius).filter(([name]) => ["sm", "md", "lg"].includes(name));
   const shadows = tokenEntries(tokens.shadow).filter(([name]) => ["sm", "md", "lg"].includes(name));
-  const motion = tokenEntries(tokens.motion).filter(([name]) => ["duration.fast", "duration.normal", "duration.slow", "easing.standard"].includes(name));
+  const motion = tokenEntries(tokens.motion).filter(([name]) =>
+    ["duration.fast", "duration.normal", "duration.slow", "easing.standard"].includes(name),
+  );
   const slowMotion = tokenAt(tokens, "motion.duration.slow");
   const standardEasing = tokenAt(tokens, "motion.easing.standard");
   const motionStyle: React.CSSProperties & Record<`--${string}`, string> = {
@@ -73,7 +77,9 @@ export function Foundations({ system, mode }: { system: RegisteredSystem; mode: 
         <div>
           <h1 id="foundations-title">Design tokens</h1>
         </div>
-        <span className="foundation-system-label">{system.name} · {mode}</span>
+        <span className="foundation-system-label">
+          {system.name} · {mode}
+        </span>
       </div>
 
       <div className="foundation-grid">
@@ -82,7 +88,10 @@ export function Foundations({ system, mode }: { system: RegisteredSystem; mode: 
             {colors.map(([name, value]) => (
               <div className="foundation-swatch" key={name}>
                 <span aria-hidden="true" style={{ backgroundColor: value }} />
-                <div><strong>{name.replaceAll(".", " / ")}</strong><small>{value}</small></div>
+                <div>
+                  <strong>{name.replaceAll(".", " / ")}</strong>
+                  <small>{value}</small>
+                </div>
               </div>
             ))}
             {colors.length === 0 && <p className="foundation-empty">No color values published.</p>}
@@ -90,16 +99,40 @@ export function Foundations({ system, mode }: { system: RegisteredSystem; mode: 
         </FoundationPanel>
 
         <FoundationPanel system={system} title="Typography" className="foundation-type">
-          <p className="type-specimen" style={{ fontFamily: typeof sans === "string" ? sans : undefined }}>Ag</p>
-          <p className="type-sentence" style={{ fontFamily: typeof sans === "string" ? sans : undefined }}>A clear heading with room to breathe.</p>
-          <p className="type-family" style={{ fontFamily: typeof sans === "string" ? sans : undefined }}>sans · {typeof sans === "string" ? shortValue(sans) : "system sans-serif"}</p>
-          <p className="type-mono" style={{ fontFamily: typeof mono === "string" ? mono : undefined }}>mono · {typeof mono === "string" ? shortValue(mono) : "system monospace"}</p>
+          <p
+            className="type-specimen"
+            style={{ fontFamily: typeof sans === "string" ? sans : undefined }}
+          >
+            Ag
+          </p>
+          <p
+            className="type-sentence"
+            style={{ fontFamily: typeof sans === "string" ? sans : undefined }}
+          >
+            A clear heading with room to breathe.
+          </p>
+          <p
+            className="type-family"
+            style={{ fontFamily: typeof sans === "string" ? sans : undefined }}
+          >
+            sans · {typeof sans === "string" ? shortValue(sans) : "system sans-serif"}
+          </p>
+          <p
+            className="type-mono"
+            style={{ fontFamily: typeof mono === "string" ? mono : undefined }}
+          >
+            mono · {typeof mono === "string" ? shortValue(mono) : "system monospace"}
+          </p>
         </FoundationPanel>
 
         <FoundationPanel system={system} title="Spacing">
           <div className="foundation-measures">
             {spacing.map(([name, value]) => (
-              <div key={name}><span>{name}</span><i style={{ width: value, maxWidth: "100%" }} /><small>{value}</small></div>
+              <div key={name}>
+                <span>{name}</span>
+                <i style={{ width: value, maxWidth: "100%" }} />
+                <small>{value}</small>
+              </div>
             ))}
           </div>
         </FoundationPanel>
@@ -107,17 +140,32 @@ export function Foundations({ system, mode }: { system: RegisteredSystem; mode: 
         <FoundationPanel system={system} title="Shape & depth">
           <div className="foundation-shapes">
             {radii.map(([name, value]) => (
-              <div key={name}><i style={{ borderRadius: value }} /><small>{name} · {value}</small></div>
+              <div key={name}>
+                <i style={{ borderRadius: value }} />
+                <small>
+                  {name} · {value}
+                </small>
+              </div>
             ))}
           </div>
           <div className="foundation-shadows">
-            {shadows.map(([name, value]) => <div key={name}><i title={`${name}: ${value}`} style={{ boxShadow: value }} /><small>{name}</small></div>)}
+            {shadows.map(([name, value]) => (
+              <div key={name}>
+                <i title={`${name}: ${value}`} style={{ boxShadow: value }} />
+                <small>{name}</small>
+              </div>
+            ))}
           </div>
         </FoundationPanel>
 
         <FoundationPanel system={system} title="Motion">
           <div className="foundation-motion-values">
-            {motion.map(([name, value]) => <div key={name}><span>{name.replaceAll(".", " / ")}</span><code>{shortValue(value)}</code></div>)}
+            {motion.map(([name, value]) => (
+              <div key={name}>
+                <span>{name.replaceAll(".", " / ")}</span>
+                <code>{shortValue(value)}</code>
+              </div>
+            ))}
           </div>
           {typeof slowMotion === "string" && typeof standardEasing === "string" && (
             <span className="motion-orbit" style={motionStyle} aria-label="Motion token preview" />
@@ -126,7 +174,12 @@ export function Foundations({ system, mode }: { system: RegisteredSystem; mode: 
 
         <FoundationPanel system={system} title="Containers & icons">
           <div className="foundation-containers">
-            {containers.map(([name, value]) => <div key={name}><span>{name}</span><code>{value}</code></div>)}
+            {containers.map(([name, value]) => (
+              <div key={name}>
+                <span>{name}</span>
+                <code>{value}</code>
+              </div>
+            ))}
           </div>
           <div className="foundation-icon-sample">
             <Button

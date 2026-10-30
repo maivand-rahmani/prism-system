@@ -8,11 +8,7 @@
 }
 :where(.maivand-plr-ui).maivand-plr-heading::after {
   background-image:
-    radial-gradient(
-      circle,
-      var(--maivand-plr-color-action-primary) 0 2px,
-      transparent 2.5px
-    ),
+    radial-gradient(circle, var(--maivand-plr-color-action-primary) 0 2px, transparent 2.5px),
     linear-gradient(
       to right,
       var(--maivand-plr-color-border-strong),

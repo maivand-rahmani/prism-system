@@ -19,25 +19,53 @@ export function RequiredSpecimen({ system, name }: { system: RegisteredSystem; n
     case "Button":
       return (
         <div className="specimen-inline-pair">
-          <Component size="md" variant="primary" type="button" onClick={() => setActivated((value) => !value)}>
+          <Component
+            size="md"
+            variant="primary"
+            type="button"
+            onClick={() => setActivated((value) => !value)}
+          >
             {activated ? "Saved" : "Save"}
           </Component>
-          <Component size="sm" variant="outline" type="button" onClick={() => setActivated(false)}>Cancel</Component>
+          <Component size="sm" variant="outline" type="button" onClick={() => setActivated(false)}>
+            Cancel
+          </Component>
         </div>
       );
     case "Input":
-      return <Component aria-label="Project name" placeholder="Project name" defaultValue="Northstar" />;
+      return (
+        <Component aria-label="Project name" placeholder="Project name" defaultValue="Northstar" />
+      );
     case "Textarea":
       return <Component aria-label="Project note" placeholder="Add a note…" rows={1} size="sm" />;
     case "Card":
-      return <span><strong>Northstar</strong> · 3 open tasks</span>;
+      return (
+        <span>
+          <strong>Northstar</strong> · 3 open tasks
+        </span>
+      );
     case "Badge":
-      return <div className="specimen-inline-pair"><Component variant="success" size="sm">Ready</Component><Component variant="warning" size="sm">Review</Component></div>;
+      return (
+        <div className="specimen-inline-pair">
+          <Component variant="success" size="sm">
+            Ready
+          </Component>
+          <Component variant="warning" size="sm">
+            Review
+          </Component>
+        </div>
+      );
     case "Checkbox":
       return (
         <div className="specimen-inline-pair">
-          <span className="specimen-labeled-control"><Component aria-label="Weekly digest" defaultChecked /><span>Weekly</span></span>
-          <span className="specimen-labeled-control"><Component aria-label="Product news" /><span>News</span></span>
+          <span className="specimen-labeled-control">
+            <Component aria-label="Weekly digest" defaultChecked />
+            <span>Weekly</span>
+          </span>
+          <span className="specimen-labeled-control">
+            <Component aria-label="Product news" />
+            <span>News</span>
+          </span>
         </div>
       );
     case "RadioGroup": {
@@ -63,12 +91,19 @@ export function RequiredSpecimen({ system, name }: { system: RegisteredSystem; n
       );
     }
     case "Switch":
-      return <span className="specimen-labeled-control"><Component aria-label="Email updates" defaultChecked /><span>Updates</span></span>;
+      return (
+        <span className="specimen-labeled-control">
+          <Component aria-label="Email updates" defaultChecked />
+          <span>Updates</span>
+        </span>
+      );
     case "Select": {
       const Select = withParts(Component, "Trigger", "Value", "Content", "Item");
       return (
         <Select value={density} onValueChange={setDensity}>
-          <Select.Trigger aria-label="Density"><Select.Value>{density[0]!.toUpperCase() + density.slice(1)}</Select.Value></Select.Trigger>
+          <Select.Trigger aria-label="Density">
+            <Select.Value>{density[0]!.toUpperCase() + density.slice(1)}</Select.Value>
+          </Select.Trigger>
           <Select.Content>
             <Select.Item value="balanced">Balanced</Select.Item>
             <Select.Item value="compact">Compact</Select.Item>
@@ -85,8 +120,12 @@ export function RequiredSpecimen({ system, name }: { system: RegisteredSystem; n
             <Tabs.Trigger value="overview">Overview</Tabs.Trigger>
             <Tabs.Trigger value="activity">Activity</Tabs.Trigger>
           </Tabs.List>
-          <Tabs.Content value="overview"><span>5 active</span></Tabs.Content>
-          <Tabs.Content value="activity"><span>Updated today</span></Tabs.Content>
+          <Tabs.Content value="overview">
+            <span>5 active</span>
+          </Tabs.Content>
+          <Tabs.Content value="activity">
+            <span>Updated today</span>
+          </Tabs.Content>
         </Tabs>
       );
     }
@@ -109,7 +148,9 @@ export function RequiredSpecimen({ system, name }: { system: RegisteredSystem; n
               <Dialog.Title>Quick preview</Dialog.Title>
               <Dialog.Description>This is the package dialog.</Dialog.Description>
             </Dialog.Header>
-            <Dialog.Footer><Dialog.Close>Close</Dialog.Close></Dialog.Footer>
+            <Dialog.Footer>
+              <Dialog.Close>Close</Dialog.Close>
+            </Dialog.Footer>
           </Dialog.Content>
         </Dialog>
       );
@@ -144,11 +185,25 @@ export function RequiredSpecimen({ system, name }: { system: RegisteredSystem; n
     case "Text":
       return <Component as="p">A clear, readable line of copy.</Component>;
     case "Link":
-      return <Component href="#showcase-tabs">Back to sections <span aria-hidden="true">↗</span></Component>;
+      return (
+        <Component href="#showcase-tabs">
+          Back to sections <span aria-hidden="true">↗</span>
+        </Component>
+      );
     case "Container":
-      return <Component><span>Responsive content width</span></Component>;
+      return (
+        <Component>
+          <span>Responsive content width</span>
+        </Component>
+      );
     case "Stack":
-      return <Component direction="horizontal"><span>Draft</span><span>·</span><span>Review</span></Component>;
+      return (
+        <Component direction="horizontal">
+          <span>Draft</span>
+          <span>·</span>
+          <span>Review</span>
+        </Component>
+      );
     case "FormField": {
       const Field = withParts(Component, "Label", "Control");
       const Input = runtimeComponent(system, "Input");
@@ -156,17 +211,24 @@ export function RequiredSpecimen({ system, name }: { system: RegisteredSystem; n
       return (
         <Field id="showcase-required-email" required>
           <Field.Label>Email</Field.Label>
-          <Field.Control asChild><Input type="email" size="sm" placeholder="name@team.com" /></Field.Control>
+          <Field.Control asChild>
+            <Input type="email" size="sm" placeholder="name@team.com" />
+          </Field.Control>
         </Field>
       );
     }
     case "Center":
-      return <Component><span>Centered content</span></Component>;
+      return (
+        <Component>
+          <span>Centered content</span>
+        </Component>
+      );
     case "Cluster": {
       const Badge = runtimeComponent(system, "Badge");
       return Badge ? (
         <Component role="group" aria-label="Project labels">
-          <Badge variant="outline">Research</Badge><Badge variant="outline">In progress</Badge>
+          <Badge variant="outline">Research</Badge>
+          <Badge variant="outline">In progress</Badge>
         </Component>
       ) : null;
     }
@@ -179,14 +241,19 @@ export function RequiredSpecimen({ system, name }: { system: RegisteredSystem; n
             <Link href="#showcase-tabs">Overview</Link>
             <Link href="#showcase-tabs">Files</Link>
           </nav>
-          <section className="specimen-sidebar-workspace"><strong>Northstar</strong><span>Workspace</span></section>
+          <section className="specimen-sidebar-workspace">
+            <strong>Northstar</strong>
+            <span>Workspace</span>
+          </section>
         </Component>
       );
     }
     case "AspectRatio":
       return (
         <div className="specimen-aspect-wrap">
-          <Component ratio={16 / 9} role="img" aria-label="16 by 9 preview"><span>16:9</span></Component>
+          <Component ratio={16 / 9} role="img" aria-label="16 by 9 preview">
+            <span>16:9</span>
+          </Component>
         </div>
       );
     case "Combobox": {
@@ -201,8 +268,12 @@ export function RequiredSpecimen({ system, name }: { system: RegisteredSystem; n
         >
           <Combobox.Input aria-label="Team" placeholder="Choose a team" />
           <Combobox.Content aria-label="Team options">
-            <Combobox.Item value="design" textValue="Design">Design</Combobox.Item>
-            <Combobox.Item value="research" textValue="Research">Research</Combobox.Item>
+            <Combobox.Item value="design" textValue="Design">
+              Design
+            </Combobox.Item>
+            <Combobox.Item value="research" textValue="Research">
+              Research
+            </Combobox.Item>
           </Combobox.Content>
         </Combobox>
       );
@@ -220,7 +291,9 @@ export function RequiredSpecimen({ system, name }: { system: RegisteredSystem; n
             max={100}
             step={5}
             value={threshold}
-            onChange={(event: React.ChangeEvent<HTMLInputElement>) => setThreshold(event.currentTarget.valueAsNumber)}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+              setThreshold(event.currentTarget.valueAsNumber)
+            }
           />
           <output>{threshold}%</output>
         </div>

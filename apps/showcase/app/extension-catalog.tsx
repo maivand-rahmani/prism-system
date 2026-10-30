@@ -21,7 +21,9 @@ class PreviewErrorBoundary extends React.Component<
       return (
         <Card>
           <Card.Content>
-            <p className="extension-status-copy" role="alert">This preview could not be rendered.</p>
+            <p className="extension-status-copy" role="alert">
+              This preview could not be rendered.
+            </p>
           </Card.Content>
         </Card>
       );

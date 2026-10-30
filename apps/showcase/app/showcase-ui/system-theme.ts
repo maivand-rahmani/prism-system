@@ -5,9 +5,7 @@ export type ThemeMode = "light" | "dark";
 export type TokenRecord = Record<string, unknown>;
 
 export function asRecord(value: unknown): TokenRecord {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as TokenRecord)
-    : {};
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as TokenRecord) : {};
 }
 
 export function tokenAt(value: unknown, path: string): unknown {

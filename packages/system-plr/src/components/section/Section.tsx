@@ -16,7 +16,11 @@ const SectionRoot = React.forwardRef<HTMLElement, SectionProps>(function Section
   ref,
 ) {
   return (
-    <section ref={ref} className={cn("maivand-plr-ui", "maivand-plr-section", className)} {...props} />
+    <section
+      ref={ref}
+      className={cn("maivand-plr-ui", "maivand-plr-section", className)}
+      {...props}
+    />
   );
 });
 SectionRoot.displayName = "Section";

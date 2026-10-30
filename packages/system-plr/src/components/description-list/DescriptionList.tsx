@@ -38,7 +38,9 @@ DescriptionListItem.displayName = "DescriptionListItem";
 
 export const DescriptionListTerm = React.forwardRef<HTMLElement, DescriptionListTermProps>(
   function DescriptionListTerm({ className, ...props }, ref) {
-    return <dt ref={ref} className={cn("maivand-plr-description-list-term", className)} {...props} />;
+    return (
+      <dt ref={ref} className={cn("maivand-plr-description-list-term", className)} {...props} />
+    );
   },
 );
 DescriptionListTerm.displayName = "DescriptionListTerm";
@@ -48,7 +50,11 @@ export const DescriptionListDescription = React.forwardRef<
   DescriptionListDescriptionProps
 >(function DescriptionListDescription({ className, ...props }, ref) {
   return (
-    <dd ref={ref} className={cn("maivand-plr-description-list-description", className)} {...props} />
+    <dd
+      ref={ref}
+      className={cn("maivand-plr-description-list-description", className)}
+      {...props}
+    />
   );
 });
 DescriptionListDescription.displayName = "DescriptionListDescription";

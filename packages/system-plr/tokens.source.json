@@ -149,9 +149,9 @@
   },
   "radius": {
     "none": "0px",
-      "sm": "0.5rem",
-      "md": "0.75rem",
-      "lg": "0.875rem",
+    "sm": "0.5rem",
+    "md": "0.75rem",
+    "lg": "0.875rem",
     "full": "999px"
   },
   "shadow": {

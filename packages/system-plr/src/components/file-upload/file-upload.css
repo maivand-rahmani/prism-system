@@ -7,11 +7,15 @@
   background-image:
     linear-gradient(
       90deg,
-      color-mix(in srgb, var(--maivand-plr-color-action-secondary) 74%, var(--maivand-plr-color-surface-raised)) 0 36px,
+      color-mix(
+          in srgb,
+          var(--maivand-plr-color-action-secondary) 74%,
+          var(--maivand-plr-color-surface-raised)
+        )
+        0 36px,
       transparent 36px
     ),
-    var(--maivand-plr-material-paper-fiber),
-    var(--maivand-plr-material-oak-grain);
+    var(--maivand-plr-material-paper-fiber), var(--maivand-plr-material-oak-grain);
   border: 1px dashed var(--maivand-plr-color-border-strong);
   border-radius: var(--maivand-plr-radius-md);
   cursor: pointer;
@@ -19,7 +23,8 @@
   padding-block: 7px;
   padding-inline: 43px 8px;
   transition:
-    background-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    background-color var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard),
     border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
     box-shadow var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
     transform var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-entrance);
@@ -58,50 +63,66 @@
   transform: rotate(-36deg) scale(0.85);
   transform-origin: center;
   transition:
-    background-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    background-color var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard),
     transform var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-entrance);
   width: 9px;
   z-index: 2;
 }
 
-:where(.maivand-plr-ui).maivand-plr-native-field:not(:has(.maivand-plr-label)):has(.maivand-plr-file-upload)::before {
+:where(.maivand-plr-ui).maivand-plr-native-field:not(:has(.maivand-plr-label)):has(
+    .maivand-plr-file-upload
+  )::before {
   inset-block-start: 13px;
 }
 
-:where(.maivand-plr-ui).maivand-plr-native-field:not(:has(.maivand-plr-label)):has(.maivand-plr-file-upload)::after {
+:where(.maivand-plr-ui).maivand-plr-native-field:not(:has(.maivand-plr-label)):has(
+    .maivand-plr-file-upload
+  )::after {
   inset-block-start: 19px;
 }
 
-:where(.maivand-plr-ui) .maivand-plr-native-control[type="file"].maivand-plr-file-upload:hover:not(:disabled) {
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control[type="file"].maivand-plr-file-upload:hover:not(:disabled) {
   border-color: var(--maivand-plr-color-border-focus);
   box-shadow: var(--maivand-plr-shadow-sm);
   transform: translateY(-1px);
 }
 
-:where(.maivand-plr-ui).maivand-plr-native-field:has(.maivand-plr-file-upload:focus-visible)::before {
+:where(.maivand-plr-ui).maivand-plr-native-field:has(
+    .maivand-plr-file-upload:focus-visible
+  )::before {
   border-color: var(--maivand-plr-color-border-focus);
   transform: translateY(-2px) rotate(-2deg);
 }
 
-:where(.maivand-plr-ui).maivand-plr-native-field:has(.maivand-plr-file-upload:focus-visible)::after {
+:where(.maivand-plr-ui).maivand-plr-native-field:has(
+    .maivand-plr-file-upload:focus-visible
+  )::after {
   transform: rotate(-18deg) scale(1.12);
 }
 
-:where(.maivand-plr-ui).maivand-plr-native-field:has(.maivand-plr-file-upload:active:not(:disabled))::before {
+:where(.maivand-plr-ui).maivand-plr-native-field:has(
+    .maivand-plr-file-upload:active:not(:disabled)
+  )::before {
   transform: translateY(1px);
 }
 
-:where(.maivand-plr-ui).maivand-plr-native-field:has(.maivand-plr-file-upload:active:not(:disabled))::after {
+:where(.maivand-plr-ui).maivand-plr-native-field:has(
+    .maivand-plr-file-upload:active:not(:disabled)
+  )::after {
   transform: translateY(1px) rotate(-36deg) scale(0.8);
 }
 
-:where(.maivand-plr-ui) .maivand-plr-native-control[type="file"].maivand-plr-file-upload:focus-visible {
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control[type="file"].maivand-plr-file-upload:focus-visible {
   outline: 3px solid var(--maivand-plr-color-border-focus);
   outline-offset: 2px;
   box-shadow: var(--maivand-plr-shadow-focus);
 }
 
-:where(.maivand-plr-ui) .maivand-plr-native-control[type="file"].maivand-plr-file-upload:active:not(:disabled) {
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control[type="file"].maivand-plr-file-upload:active:not(:disabled) {
   transform: translateY(1px) scale(0.995);
 }
 
@@ -116,7 +137,8 @@
   margin-inline-end: 10px;
   padding: 7px 11px;
   transition:
-    background-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    background-color var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard),
     border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
     transform var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-entrance);
 }
@@ -131,15 +153,20 @@
   transform: translateY(1px) scale(0.98);
 }
 
-:where(.maivand-plr-ui) .maivand-plr-native-control[type="file"].maivand-plr-file-upload[aria-invalid="true"] {
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control[type="file"].maivand-plr-file-upload[aria-invalid="true"] {
   border-color: var(--maivand-plr-color-status-danger);
 }
 
-:where(.maivand-plr-ui).maivand-plr-native-field:has(.maivand-plr-file-upload[aria-invalid="true"])::before {
+:where(.maivand-plr-ui).maivand-plr-native-field:has(
+    .maivand-plr-file-upload[aria-invalid="true"]
+  )::before {
   border-color: var(--maivand-plr-color-status-danger);
 }
 
-:where(.maivand-plr-ui).maivand-plr-native-field:has(.maivand-plr-file-upload[aria-invalid="true"])::after {
+:where(.maivand-plr-ui).maivand-plr-native-field:has(
+    .maivand-plr-file-upload[aria-invalid="true"]
+  )::after {
   background: var(--maivand-plr-color-status-danger);
 }
 
@@ -149,7 +176,8 @@
   opacity: 0.55;
 }
 
-:where(.maivand-plr-ui) .maivand-plr-native-control[type="file"].maivand-plr-file-upload:disabled::file-selector-button {
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control[type="file"].maivand-plr-file-upload:disabled::file-selector-button {
   cursor: not-allowed;
 }
 

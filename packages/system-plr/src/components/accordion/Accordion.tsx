@@ -189,7 +189,9 @@ export const AccordionTrigger = React.forwardRef<HTMLButtonElement, AccordionTri
       // inside a nested accordion has a different closest `[data-maivand-plrccordion]`
       // root, so Arrow/Home/End never escape into child accordions.
       const triggers = Array.from(
-        root.querySelectorAll<HTMLButtonElement>("[data-maivand-plrccordion-trigger]:not(:disabled)"),
+        root.querySelectorAll<HTMLButtonElement>(
+          "[data-maivand-plrccordion-trigger]:not(:disabled)",
+        ),
       ).filter((trigger) => trigger.closest("[data-maivand-plrccordion]") === root);
       if (triggers.length === 0) return;
       const currentIndex = triggers.indexOf(event.currentTarget);

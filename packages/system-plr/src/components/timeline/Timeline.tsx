@@ -49,7 +49,9 @@ TimelineTime.displayName = "TimelineTime";
 
 export const TimelineDescription = React.forwardRef<HTMLDivElement, TimelineDescriptionProps>(
   function TimelineDescription({ className, ...props }, ref) {
-    return <div ref={ref} className={cn("maivand-plr-timeline-description", className)} {...props} />;
+    return (
+      <div ref={ref} className={cn("maivand-plr-timeline-description", className)} {...props} />
+    );
   },
 );
 TimelineDescription.displayName = "TimelineDescription";

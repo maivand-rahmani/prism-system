@@ -14,7 +14,11 @@ const BreadcrumbsRoot = React.forwardRef<HTMLElement, BreadcrumbsProps>(
   function Breadcrumbs(props, ref) {
     const { className, ...rest } = props;
     return (
-      <nav ref={ref} className={cn("maivand-plr-ui", "maivand-plr-breadcrumbs", className)} {...rest} />
+      <nav
+        ref={ref}
+        className={cn("maivand-plr-ui", "maivand-plr-breadcrumbs", className)}
+        {...rest}
+      />
     );
   },
 );
@@ -35,7 +39,12 @@ export const BreadcrumbsItem = React.forwardRef<HTMLLIElement, BreadcrumbsItemPr
 export const BreadcrumbsLink = React.forwardRef<HTMLAnchorElement, BreadcrumbsLinkProps>(
   function BreadcrumbsLink({ className, href, ...props }, ref) {
     return (
-      <a ref={ref} href={href} className={cn("maivand-plr-breadcrumbs-link", className)} {...props} />
+      <a
+        ref={ref}
+        href={href}
+        className={cn("maivand-plr-breadcrumbs-link", className)}
+        {...props}
+      />
     );
   },
 );

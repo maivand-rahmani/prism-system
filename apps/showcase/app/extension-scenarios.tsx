@@ -117,7 +117,9 @@ function WorkflowMapShowcase({
 
 const keyboardSceneAdapter = createExtensionScenarioAdapter<KeyboardSceneProps>(
   "KeyboardScene",
-  (Extension, context) => <KeyboardSceneShowcase Extension={Extension} systemId={context.systemId} />,
+  (Extension, context) => (
+    <KeyboardSceneShowcase Extension={Extension} systemId={context.systemId} />
+  ),
 );
 
 const workflowMapAdapter = createExtensionScenarioAdapter<InteractiveWorkflowMapProps>(
