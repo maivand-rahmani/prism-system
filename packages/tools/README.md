@@ -110,11 +110,17 @@ it, and no update is ever installed automatically.
 
 ### `prism-ds search [query...]`
 
-Explicit network, read-only npm Registry search (`GET /-/v1/search`) against the public
-registry by default (`--registry <url>` to override). Results are always restricted to
-supported `@prism-system/ui-*` names (tools, core, and foreign packages are excluded) and
-sorted deterministically. `--size <1..250>` caps the request; `--json` emits stable JSON
-(`name`, exact `version`, `description`, `keywords`).
+Explicit network, read-only. With no query it lists the complete published
+`@prism-system/ui-*` scope through npm's public replication key index
+(`replicate.npmjs.com/registry/_all_docs`) and reads each package's latest packument, so
+a newly published style appears even when the ranked search index has not caught up. If
+that index is unavailable, or a custom `--registry` does not expose it, the command falls
+back to ranked `GET /-/v1/search`. A one-token package name or system id is resolved
+directly through its packument; any other query uses ranked search. Results are
+restricted to supported `@prism-system/ui-*` names (tools, core, and foreign packages are
+excluded) and sorted deterministically. `--size <1..250>` caps the result list (default 25
+for a query, 250 when listing); `--json` emits stable JSON (`source`, `warnings`, `name`,
+exact `version`, `description`, `keywords`).
 
 ### `prism-ds info <package-or-id> [version]`
 

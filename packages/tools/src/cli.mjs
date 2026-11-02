@@ -109,7 +109,7 @@ export function helpText() {
     `  ${CLI_NAME} --help`,
     "",
     "Commands:",
-    "  search          Search the npm registry for supported @prism-system/ui-* styles.",
+    "  search          Search or list supported @prism-system/ui-* styles.",
     "  info            Inspect a published style's manifest from the registry.",
     "  install         Explicitly install a style into a consumer (npm or pnpm).",
     "  use             Install, verify, connect a style; optional strict usage check.",
@@ -203,12 +203,16 @@ export function searchHelpText() {
     "Explicit network, read-only: nothing is installed, written, or selected.",
     "",
     "Arguments:",
-    "  [query...]            Optional words. When omitted, lists supported styles.",
+    "  [query...]            Optional words. When omitted, lists every published",
+    "                        supported package through the registry scope index.",
+    "                        A one-token package name or system id resolves directly;",
+    "                        other queries use ranked search.",
     "",
     "Options:",
     "  --registry <url>      Registry base URL (default: public npm registry).",
-    "  --size <1..250>       Maximum results to request (default 25).",
-    "  --json                Emit stable JSON (name, version, description, keywords).",
+    "  --size <1..250>       Maximum results (default 25 for a query, 250 when listing).",
+    "  --json                Emit stable JSON (source, warnings, name, version,",
+    "                        description, keywords).",
     "  -h, --help            Show this help.",
     "",
   ].join("\n");
@@ -954,9 +958,19 @@ export async function runSearchCommand(argv) {
       process.stdout.write(`${JSON.stringify(buildSearchResult(result), null, 2)}\n`);
       return;
     }
+    const scopeLabel =
+      result.query === ""
+        ? "all published packages in the supported scope"
+        : `query: ${JSON.stringify(result.query)}`;
     process.stdout.write(
-      `Supported design systems (registry: ${result.registry}, query: ${JSON.stringify(result.query)}):\n\n`,
+      `Supported design systems (registry: ${result.registry}, ${scopeLabel}):\n\n`,
     );
+    if (result.query === "" && result.source === "search") {
+      process.stdout.write(
+        "  Note: the complete scope index was unavailable, so ranked search was used.\n" +
+          "  The ranked index may omit newly published packages.\n\n",
+      );
+    }
     if (result.results.length === 0) {
       process.stdout.write("  (none found)\n");
     }
@@ -968,6 +982,9 @@ export async function runSearchCommand(argv) {
       }
     }
     process.stdout.write(`\n${result.results.length} result(s).\n`);
+    for (const warning of result.warnings ?? []) {
+      process.stderr.write(`Warning: ${warning}\n`);
+    }
   } catch (error) {
     reportCommandFailure("Search failed", error);
   }

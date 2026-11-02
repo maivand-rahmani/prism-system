@@ -31,6 +31,24 @@ export const DEFAULT_SEARCH_TEXT = PACKAGE_SCOPE;
 export const MAX_SEARCH_SIZE = 250;
 /** Default search page size. */
 export const DEFAULT_SEARCH_SIZE = 25;
+/** Default result cap when listing every package in the supported scope. */
+export const DEFAULT_LIST_SIZE = MAX_SEARCH_SIZE;
+/**
+ * Public npm replication database. The public registry intentionally does not
+ * expose `_all_docs`; the replication database does, and it is a complete,
+ * sorted key range rather than a ranked search index.
+ */
+export const PUBLIC_REPLICATION_REGISTRY_URL = "https://replicate.npmjs.com/registry";
+/** Maximum package names read from one replication page. */
+const SCOPE_PAGE_SIZE = 1000;
+/** Maximum concurrent packument reads while listing a scope. */
+const SCOPE_PACKUMENT_CONCURRENCY = 6;
+/**
+ * Optional scope-index requests fail over to ranked search after this bound so
+ * a blocked replication host never delays the command for the full registry
+ * timeout.
+ */
+const SCOPE_INDEX_TIMEOUT_MS = 5000;
 
 export const REGISTRY_LIMITS = Object.freeze({
   timeoutMs: 15000,
@@ -40,6 +58,17 @@ export const REGISTRY_LIMITS = Object.freeze({
 
 function isPlainObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Validate `--size` against the shared 1..250 contract. */
+function normalizeSearchSize(size, fallback) {
+  const value = size === undefined || size === null ? fallback : Number(size);
+  if (!Number.isInteger(value) || value < 1 || value > MAX_SEARCH_SIZE) {
+    throw new Error(
+      `Invalid --size ${JSON.stringify(size)}; expected an integer from 1 to ${MAX_SEARCH_SIZE}.`,
+    );
+  }
+  return value;
 }
 
 /**
@@ -211,31 +240,215 @@ export function toCatalogEntry(object) {
 }
 
 /**
- * Read-only npm Registry search, filtered to supported `@prism-system/ui-*`
- * packages and sorted deterministically by name, then version.
+ * Map one latest packument document to the allowlisted catalog shape.
+ *
+ * Only the exact `dist-tags.latest` release is reported; a package without an
+ * exact latest version is skipped rather than guessed.
  */
-export async function searchRegistry({
-  query,
+export function toCatalogEntryFromPackument(packument) {
+  if (!isPlainObject(packument) || !isSupportedPackageName(packument.name)) return null;
+  const distTags = isPlainObject(packument["dist-tags"]) ? packument["dist-tags"] : {};
+  const version = distTags.latest;
+  if (!isExactSemver(version)) return null;
+  const versions = isPlainObject(packument.versions) ? packument.versions : {};
+  const metadata = isPlainObject(versions[version]) ? versions[version] : null;
+  if (metadata === null || metadata.version !== version) return null;
+  if (metadata.name !== undefined && metadata.name !== packument.name) return null;
+  const description =
+    typeof metadata.description === "string"
+      ? metadata.description
+      : typeof packument.description === "string"
+        ? packument.description
+        : "";
+  const keywords = Array.isArray(metadata.keywords)
+    ? metadata.keywords
+    : Array.isArray(packument.keywords)
+      ? packument.keywords
+      : [];
+  return {
+    name: packument.name,
+    version,
+    description,
+    keywords: keywords.filter((keyword) => typeof keyword === "string"),
+  };
+}
+
+/**
+ * Build the registry endpoint used to enumerate every name in the supported
+ * scope. The public npm registry uses its replication database; a custom
+ * registry is probed on the same CouchDB-compatible path.
+ */
+export function buildScopeEndpoint(registry, params) {
+  const registryUrl = normalizeRegistryUrl(registry);
+  const base = registryUrl === DEFAULT_REGISTRY_URL ? PUBLIC_REPLICATION_REGISTRY_URL : registryUrl;
+  return buildRegistryEndpoint(base, "_all_docs", params);
+}
+
+/**
+ * Enumerate every supported package name in the configured registry's scope.
+ *
+ * The ranked `-/v1/search` index is not a complete directory (a newly published
+ * package can be missing for days). The npm replication `_all_docs` key range
+ * is complete and sorted, so it is the primary listing source. Callers fall
+ * back to ranked search when a registry does not expose it.
+ */
+export async function listScopePackageNames({ registry, fetchImpl, timeoutMs, maxBytes } = {}) {
+  const registryUrl = normalizeRegistryUrl(registry);
+  const names = new Set();
+  let startkey = PACKAGE_SCOPE;
+  for (;;) {
+    const endpoint = buildScopeEndpoint(registryUrl, {
+      startkey: JSON.stringify(startkey),
+      endkey: JSON.stringify(`${PACKAGE_SCOPE}\ufff0`),
+      limit: String(SCOPE_PAGE_SIZE),
+    });
+    const payload = await fetchJsonLimited(endpoint, {
+      fetchImpl,
+      timeoutMs:
+        typeof timeoutMs === "number"
+          ? timeoutMs
+          : Math.min(REGISTRY_LIMITS.timeoutMs, SCOPE_INDEX_TIMEOUT_MS),
+      maxBytes,
+    });
+    if (!isPlainObject(payload) || !Array.isArray(payload.rows)) {
+      throw new Error(
+        `Registry scope index at ${endpoint.origin}${endpoint.pathname} did not return an ` +
+          "_all_docs rows array.",
+      );
+    }
+    let added = 0;
+    let lastId = null;
+    for (const row of payload.rows) {
+      if (!isPlainObject(row) || typeof row.id !== "string") continue;
+      lastId = row.id;
+      if (!isSupportedPackageName(row.id) || names.has(row.id)) continue;
+      names.add(row.id);
+      added += 1;
+    }
+    if (
+      payload.rows.length < SCOPE_PAGE_SIZE ||
+      added === 0 ||
+      lastId === null ||
+      lastId === startkey
+    ) {
+      break;
+    }
+    startkey = lastId;
+  }
+  return [...names].sort();
+}
+
+/**
+ * Resolve a one-token query to a supported package name for a direct packument
+ * lookup. Multi-word descriptive queries are never reinterpreted as ids.
+ */
+function exactQueryPackageName(text) {
+  if (typeof text !== "string" || text === "" || /\s/.test(text)) return null;
+  try {
+    return normalizeRequestedPackage(text);
+  } catch {
+    return null;
+  }
+}
+
+/** Read one package's latest exact release through its packument. */
+async function fetchLatestCatalogEntry({ packageName, registry, fetchImpl, timeoutMs, maxBytes }) {
+  const { packument } = await fetchPackument({
+    package: packageName,
+    registry,
+    fetchImpl,
+    timeoutMs,
+    maxBytes,
+  });
+  return toCatalogEntryFromPackument(packument);
+}
+
+/**
+ * Read every supported design system by enumerating the scope, then reading
+ * each package's latest packument. Deterministic by name, then version.
+ *
+ * A package that disappears between enumeration and its packument read is
+ * reported in `warnings` instead of hiding the rest of the catalog. If no
+ * package can be read at all, the caller may still fall back to ranked search.
+ */
+export async function listRegistryDesignSystems({
   registry,
-  size = DEFAULT_SEARCH_SIZE,
+  size,
   fetchImpl,
   timeoutMs,
   maxBytes,
 } = {}) {
   const registryUrl = normalizeRegistryUrl(registry);
-  const words = Array.isArray(query) ? query : query === undefined ? [] : [query];
-  const text = words
-    .filter((word) => String(word).trim() !== "")
-    .join(" ")
-    .trim();
-  const requestedSize = size === undefined || size === null ? DEFAULT_SEARCH_SIZE : Number(size);
-  if (!Number.isInteger(requestedSize) || requestedSize < 1 || requestedSize > MAX_SEARCH_SIZE) {
-    throw new Error(
-      `Invalid --size ${JSON.stringify(size)}; expected an integer from 1 to ${MAX_SEARCH_SIZE}.`,
-    );
+  const requestedSize = normalizeSearchSize(size, DEFAULT_LIST_SIZE);
+  const names = await listScopePackageNames({
+    registry: registryUrl,
+    fetchImpl,
+    timeoutMs,
+    maxBytes,
+  });
+  const selected = names.slice(0, requestedSize);
+  const results = new Array(selected.length);
+  const warnings = [];
+  let next = 0;
+  async function worker() {
+    for (;;) {
+      const index = next;
+      next += 1;
+      if (index >= selected.length) return;
+      const packageName = selected[index];
+      try {
+        const entry = await fetchLatestCatalogEntry({
+          packageName,
+          registry: registryUrl,
+          fetchImpl,
+          timeoutMs,
+          maxBytes,
+        });
+        if (entry === null) {
+          warnings.push(`${packageName} has no exact latest release.`);
+          continue;
+        }
+        results[index] = entry;
+      } catch (error) {
+        warnings.push(`${packageName}: ${error.message}`);
+      }
+    }
   }
+  await Promise.all(
+    Array.from({ length: Math.min(SCOPE_PACKUMENT_CONCURRENCY, selected.length) }, worker),
+  );
+  const entries = results.filter((entry) => entry !== null);
+  if (entries.length === 0 && warnings.length > 0) {
+    throw new Error(`No supported design-system release could be read: ${warnings.join(" ")}`);
+  }
+  entries.sort((a, b) => {
+    if (a.name !== b.name) return a.name < b.name ? -1 : 1;
+    return compareSemverDesc(a.version, b.version);
+  });
+  return {
+    registry: registryUrl,
+    query: "",
+    size: requestedSize,
+    source: "scope-index",
+    warnings,
+    results: entries,
+  };
+}
+
+/** Read-only ranked npm Registry search with the shared result contract. */
+async function searchRegistryByText({
+  registry,
+  text,
+  query = text,
+  size,
+  fetchImpl,
+  timeoutMs,
+  maxBytes,
+}) {
+  const registryUrl = normalizeRegistryUrl(registry);
+  const requestedSize = normalizeSearchSize(size, DEFAULT_SEARCH_SIZE);
   const endpoint = buildRegistryEndpoint(registryUrl, "-/v1/search", {
-    text: text === "" ? DEFAULT_SEARCH_TEXT : text,
+    text,
     size: String(requestedSize),
   });
   const payload = await fetchJsonLimited(endpoint, { fetchImpl, timeoutMs, maxBytes });
@@ -247,7 +460,106 @@ export async function searchRegistry({
       if (a.name !== b.name) return a.name < b.name ? -1 : 1;
       return compareSemverDesc(a.version, b.version);
     });
-  return { registry: registryUrl, query: text, size: requestedSize, results };
+  return {
+    registry: registryUrl,
+    query,
+    size: requestedSize,
+    source: "search",
+    warnings: [],
+    results,
+  };
+}
+
+/**
+ * Read-only npm Registry listing/search, filtered to supported
+ * `@prism-system/ui-*` packages and sorted deterministically by name, then
+ * version.
+ *
+ * An omitted query lists the complete scope through the replication key range;
+ * a one-token package name or id is resolved directly through its packument;
+ * any other query uses ranked registry search. If the scope index or direct
+ * packument is unavailable, the command falls back to ranked search rather
+ * than failing.
+ */
+export async function searchRegistry({
+  query,
+  registry,
+  size,
+  fetchImpl,
+  timeoutMs,
+  maxBytes,
+} = {}) {
+  const registryUrl = normalizeRegistryUrl(registry);
+  const words = Array.isArray(query) ? query : query === undefined ? [] : [query];
+  const text = words
+    .filter((word) => String(word).trim() !== "")
+    .join(" ")
+    .trim();
+  const requestedSize = normalizeSearchSize(
+    size,
+    text === "" ? DEFAULT_LIST_SIZE : DEFAULT_SEARCH_SIZE,
+  );
+  if (text === "") {
+    try {
+      return await listRegistryDesignSystems({
+        registry: registryUrl,
+        size: requestedSize,
+        fetchImpl,
+        timeoutMs,
+        maxBytes,
+      });
+    } catch (listingError) {
+      try {
+        return await searchRegistryByText({
+          registry: registryUrl,
+          text: DEFAULT_SEARCH_TEXT,
+          query: "",
+          size: requestedSize,
+          fetchImpl,
+          timeoutMs,
+          maxBytes,
+        });
+      } catch (searchError) {
+        throw new Error(
+          `Scope listing failed (${listingError.message}); fallback ranked search also failed ` +
+            `(${searchError.message}).`,
+        );
+      }
+    }
+  }
+  const exactPackage = exactQueryPackageName(text);
+  if (exactPackage !== null) {
+    try {
+      const entry = await fetchLatestCatalogEntry({
+        packageName: exactPackage,
+        registry: registryUrl,
+        fetchImpl,
+        timeoutMs,
+        maxBytes,
+      });
+      if (entry !== null) {
+        return {
+          registry: registryUrl,
+          query: text,
+          size: requestedSize,
+          source: "exact",
+          warnings: [],
+          results: [entry],
+        };
+      }
+    } catch {
+      // A one-token descriptive query is not an error; fall through to ranked
+      // search when the direct packument does not exist or cannot be read.
+    }
+  }
+  return searchRegistryByText({
+    registry: registryUrl,
+    text,
+    size: requestedSize,
+    fetchImpl,
+    timeoutMs,
+    maxBytes,
+  });
 }
 
 /** Fetch a package packument from the registry. */
@@ -492,6 +804,8 @@ export function buildSearchResult(result) {
     registry: result.registry,
     query: result.query,
     size: result.size,
+    source: typeof result.source === "string" ? result.source : null,
+    warnings: Array.isArray(result.warnings) ? result.warnings : [],
     results: result.results,
   };
 }

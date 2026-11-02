@@ -207,9 +207,12 @@ which covers declared effects, custom extensions, and their entrypoint requireme
   retains the previous dependency; `remove` is a separate explicit operation that refuses
   while active references remain. `skills list` is offline; `skills add/update/remove`
   may bootstrap the pinned `npx skills@1.7.0` (Node >= 22.20 for that command only) and
-  install instructions, never dependencies or executions. `self-update` is separate from
-  design-system `upgrade`; `recover` defaults to offline advice and mutates only with an
-  explicitly selected `--action --yes`.
+  install instructions, never dependencies or executions. `search` without a query lists
+  the complete supported scope through npm's public replication key index and falls back
+  to ranked registry search when that index is unavailable; a one-token package name or
+  system id resolves directly, and other queries use ranked search.
+  `self-update` is separate from design-system `upgrade`; `recover` defaults to offline
+  advice and mutates only with an explicitly selected `--action --yes`.
 - Acceptance checks: `pnpm ds:check <id>` for a package, `pnpm ds:check-tools` for the
   packed tooling and manifests, `pnpm ds:check-docs` for the active documentation, and
   `pnpm ds:check-all` for the full gate over packed artifacts. All of them are read-only

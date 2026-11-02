@@ -923,7 +923,13 @@ function TuiApp({ services }) {
       });
       setView(context === "switch" ? "switch-search" : "main");
       try {
-        const result = await services.searchSystems({ query: cleanQuery, size: 50 });
+        // No query is a complete scope listing; a query is ranked search. Keep
+        // the listing cap at the registry contract maximum so a newly published
+        // system cannot be hidden by a small page.
+        const result = await services.searchSystems({
+          query: cleanQuery,
+          size: cleanQuery ? 50 : 250,
+        });
         if (!result?.ok) {
           const detail = failuresOf(result).join(" ") || "The registry request did not succeed.";
           setCatalogError(detail);
@@ -936,10 +942,20 @@ function TuiApp({ services }) {
         setCatalogResults(results);
         setCatalogLoaded(true);
         setSelectedSystemId(results[0] ? `${results[0].name}@${results[0].version}` : null);
+        const warnings = Array.isArray(result.warnings) ? result.warnings : [];
         setOperation({
           status: "success",
           label: `${results.length} catalog result${results.length === 1 ? "" : "s"}`,
-          detail: cleanQuery ? `Query: ${cleanQuery}` : "Supported systems loaded.",
+          detail:
+            warnings.length > 0
+              ? warnings[0]
+              : cleanQuery
+                ? result.source === "exact"
+                  ? "Exact package resolved from its published packument."
+                  : `Query: ${cleanQuery}`
+                : result.source === "search"
+                  ? "Ranked search index used; some published packages may be missing."
+                  : "Supported systems loaded from the registry scope index.",
         });
       } catch (error) {
         const detail = messageOf(error);

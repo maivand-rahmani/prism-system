@@ -91,9 +91,16 @@ consumer root and read only through its public `exports` (notably `./manifest`).
 ## Network and mutation boundaries
 
 - `search`/`info` are explicit network, read-only. They never write to the consumer or
-  repository and never install. The only other network access is explicit
-  `self-update`, the pinned Skills CLI bootstrap of `skills add/update/remove`, and the
-  bounded TUI startup update check below; `skills list` stays offline.
+  repository and never install. A no-query `search` first enumerates the complete
+  supported scope through npm's public replication key range
+  (`replicate.npmjs.com/registry/_all_docs`) and reads each package's latest packument; if
+  that index is unavailable, or a custom registry does not expose it, the same command
+  falls back to ranked `GET /-/v1/search`. A one-token package name or system id is
+  resolved directly through its packument; any other query uses ranked search. Both
+  listing paths are bounded, redirect-rejected, size-limited, and read-only. The only
+  other network access is explicit `self-update`, the pinned Skills CLI bootstrap of
+  `skills add/update/remove`, and the bounded TUI startup update check below; `skills list`
+  stays offline.
 - `install`/`use`/`upgrade`/`switch`/`remove` are the **only** commands allowed to
   mutate consumer dependencies. They resolve and validate the exact version from the
   registry first, detect npm/pnpm (never a silent default), run a fixed command with

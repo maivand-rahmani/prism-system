@@ -42,7 +42,7 @@ const TAILWIND_MIN_MAJOR = 4;
 /** Exact semver shape used to read an installed package version. */
 const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
 
-/** Read-only registry search for supported design systems. */
+/** Read-only registry search or complete scope listing for supported design systems. */
 export async function searchDesignSystems(options = {}) {
   return searchRegistry(options);
 }

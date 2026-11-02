@@ -529,7 +529,7 @@ test("catalog loads only on explicit browse; query submit, refresh, loading, and
   await press(app, "b");
   assert.equal(calls.length, 1);
   assert.equal(calls[0].query, "");
-  assert.equal(calls[0].size, 50);
+  assert.equal(calls[0].size, 250);
   assert.match(app.lastFrame(), /Searching catalog/i);
   releaseSearch({
     ok: true,
@@ -1066,7 +1066,7 @@ test("normalized mouse clicks activate a measured catalog action", async () => {
     () => searches.length === 1 && /Mouse-selected system/.test(app.lastFrame() ?? ""),
     "mouse browse action",
   );
-  assert.deepEqual(searches, [{ query: "", size: 50 }]);
+  assert.deepEqual(searches, [{ query: "", size: 250 }]);
   const release = diagnostics.filter((event) => event.action === "release").at(-1);
   assert.equal(
     release.dispatched,
