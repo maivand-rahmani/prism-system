@@ -6,7 +6,7 @@
   "id": "system-b",
   "name": "System B",
   "package": "@prism-system/ui-system-b",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
