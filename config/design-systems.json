@@ -6,7 +6,7 @@
       "name": "System A",
       "packageName": "@prism-system/ui-system-a",
       "packagePath": "packages/system-a",
-      "version": "4.0.0",
+      "version": "4.0.1",
       "uiClass": "maivand-a-ui",
       "tokensExport": "systemATokens",
       "contractVersion": 4
@@ -16,7 +16,7 @@
       "name": "System B",
       "packageName": "@prism-system/ui-system-b",
       "packagePath": "packages/system-b",
-      "version": "4.0.0",
+      "version": "4.0.1",
       "uiClass": "maivand-b-ui",
       "tokensExport": "systemBTokens",
       "contractVersion": 4
@@ -26,7 +26,7 @@
       "name": "Plan Like Rahmani",
       "packageName": "@prism-system/ui-system-plr",
       "packagePath": "packages/system-plr",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "uiClass": "maivand-plr-ui",
       "tokensExport": "systemPlrTokens",
       "contractVersion": 4

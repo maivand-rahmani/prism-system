@@ -53,7 +53,7 @@ export const DesignSystem = defineDesignSystem({
   id: "system-plr",
   name: "Plan Like Rahmani",
   packageName: "@prism-system/ui-system-plr",
-  version: "0.1.1",
+  version: "0.2.0",
   contractVersion: 4,
   components: {
     Button,
