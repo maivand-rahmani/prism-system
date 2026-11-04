@@ -192,6 +192,12 @@
   opacity: 0.45;
 }
 
+:where(.maivand-plr-ui) .maivand-plr-select-item [data-slot="select-item-text"] {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 :where(.maivand-plr-ui) .maivand-plr-select-label {
   color: var(--maivand-plr-color-text-muted);
   font-size: var(--maivand-plr-typography-size-xs);

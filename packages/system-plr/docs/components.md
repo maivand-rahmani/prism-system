@@ -10,12 +10,21 @@ extensions.
 The light palette layers warm paper, a darker writing surface, oak-toned edges, and muted leaf
 green. The dark theme shifts those surfaces to deep wood and keeps the text and focus ring clear.
 The stylesheet uses Literata for editorial headings and reflective text, and Manrope for controls
-and numbers. Both font families support Cyrillic; the product can supply equivalent local faces
-when its security policy disallows external font hosting.
+and numbers. Both font families support Cyrillic and are self-hosted as packaged WOFF2 assets; no
+third-party font request is required.
 
 Cards have a faint paper grain and an inset edge. Primary actions use a short pressed depth;
 inputs have a recessed writing surface. The treatments stay restrained so the interface remains
 easy to scan and useful for everyday planning.
+
+## Layout and spacing
+
+`Stack` intentionally exposes only structural flow props (`as`, `direction`, `wrap`). Its gap is
+a visual value owned by this system, so Tailwind `gap-*` utilities do not override it: component
+rules are unlayered and take precedence over the utility layer. This is the intended API boundary,
+not a missing utility. When a product composition needs a different rhythm, wrap the group in a
+product-owned layout element and apply Tailwind spacing or Prism spacing tokens there; do not
+restyle or replace `Stack` itself.
 
 ## Interaction and access
 

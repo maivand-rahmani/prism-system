@@ -11,8 +11,8 @@ import "@prism-system/ui-system-plr/styles.css";
 ```
 
 The system defaults to the light paper theme. Set `data-prism-theme="dark"` on the document
-root to use the dark-wood palette. Literata and Manrope include Cyrillic and are loaded by the
-package stylesheet; see [README.md](./README.md) for font-hosting notes.
+root to use the dark-wood palette. Literata and Manrope include Cyrillic and are self-hosted
+by the package stylesheet; see [FONTS.md](./FONTS.md) for subset coverage and licensing.
 
 ## Day plan
 
@@ -154,6 +154,14 @@ rather than shrinking text below a comfortable reading size. When there is no ac
 
 See [`examples/diary-compositions.md`](./examples/diary-compositions.md) for additional
 combinations from these three product scenarios.
+
+## Layout and Stack spacing
+
+`Stack` owns its gap. Tailwind `gap-*` utilities do not override it because the package's
+component rules are unlayered and take precedence over the utility layer; this is the intended
+API boundary, not a missing feature. When a product composition needs a different rhythm, wrap
+the items in a product-owned layout element and apply Tailwind spacing or Prism spacing tokens
+there instead of restyling `Stack`.
 
 ## Keyboard, contrast, and motion
 

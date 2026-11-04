@@ -43,10 +43,11 @@ Import the stylesheet once, before any components render:
 import "@prism-system/ui-system-plr/styles.css";
 ```
 
-The stylesheet loads the Cyrillic-capable Literata and Manrope families from Google Fonts.
-If your product's content policy blocks third-party font requests, self-host those families
-and replace the font import in your application build while keeping their family names.
-Set `data-prism-theme="dark"` on the document root to use the dark-wood palette; the
+The stylesheet ships the Cyrillic-capable Literata and Manrope families as
+self-hosted WOFF2 assets, so importing `styles.css` is enough: there is no
+third-party font request and no application-level font filter. See
+[FONTS.md](./FONTS.md) for subset coverage and licensing. Set
+`data-prism-theme="dark"` on the document root to use the dark-wood palette; the
 default theme is warm paper.
 
 ### Tailwind CSS v4
@@ -147,6 +148,15 @@ Components; see [Client boundary](#client-boundary).
   components stay in the product and are composed from these primitives.
 - **Versioning:** `package.json.version` is authoritative; the manifest, the registry
   entry, and the runtime `DesignSystem.version` must match it.
+
+### Stack spacing
+
+`Stack` exposes only `as`, `direction`, and `wrap`; its gap is part of this system's
+visual language. Tailwind `gap-*` utilities do not override it because component rules
+are unlayered and win over the utility layer. That is the intended API boundary. For a
+different rhythm in a product composition, wrap the items in a product-owned layout
+element and apply Tailwind spacing or Prism spacing tokens there; do not restyle
+`Stack` itself.
 
 ## Development
 

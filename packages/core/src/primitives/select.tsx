@@ -55,17 +55,25 @@ export const SelectTrigger = React.forwardRef<
 });
 SelectTrigger.displayName = "SelectTrigger";
 
+/**
+ * Radix requires `Select.Viewport` inside `Select.Content`: the viewport owns
+ * the collection slot that registers items for keyboard navigation, typeahead,
+ * and scroll buttons. Core renders it here so every design system gets a
+ * working listbox without exposing another compound member.
+ */
 export const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(function SelectContent({ className, ...props }, ref) {
+>(function SelectContent({ className, children, ...props }, ref) {
   return (
     <SelectPrimitive.Content
       ref={ref}
       data-slot="select-content"
       className={cn(className)}
       {...props}
-    />
+    >
+      <SelectPrimitive.Viewport data-slot="select-viewport">{children}</SelectPrimitive.Viewport>
+    </SelectPrimitive.Content>
   );
 });
 SelectContent.displayName = "SelectContent";
@@ -88,9 +96,11 @@ SelectLabel.displayName = "SelectLabel";
 export const SelectItem = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
->(function SelectItem({ className, ...props }, ref) {
+>(function SelectItem({ className, children, ...props }, ref) {
   return (
-    <SelectPrimitive.Item ref={ref} data-slot="select-item" className={cn(className)} {...props} />
+    <SelectPrimitive.Item ref={ref} data-slot="select-item" className={cn(className)} {...props}>
+      <SelectPrimitive.ItemText data-slot="select-item-text">{children}</SelectPrimitive.ItemText>
+    </SelectPrimitive.Item>
   );
 });
 SelectItem.displayName = "SelectItem";

@@ -111,6 +111,9 @@ control refs, invalid state, and keyboard-accessible form wiring.
 - Prefer an existing component over a local replacement.
 - Layout is allowed (`grid`, `flex`, `gap`, responsive rules, positioning,
   page-specific composition). Visual language changes are not.
+- `Stack` owns its gap. Tailwind `gap-*` utilities do not override it; wrap the
+  items in a product-owned layout element when a composition needs a different
+  rhythm instead of restyling `Stack`.
 - If a component must look different for the whole product, change it here in
   the design system, not in the consuming app.
 
