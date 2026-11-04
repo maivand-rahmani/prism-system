@@ -26,6 +26,7 @@
   --color-prism-status-danger: var(--maivand-plr-color-status-danger);
   --font-prism-sans: var(--maivand-plr-typography-family-sans);
   --font-prism-mono: var(--maivand-plr-typography-family-mono);
+  --font-prism-handwriting: var(--maivand-plr-typography-family-handwriting);
   --text-prism-xs: var(--maivand-plr-typography-size-xs);
   --text-prism-sm: var(--maivand-plr-typography-size-sm);
   --text-prism-md: var(--maivand-plr-typography-size-md);

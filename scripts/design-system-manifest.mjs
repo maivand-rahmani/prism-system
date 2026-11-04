@@ -1231,10 +1231,14 @@ const TOKEN_SHAPE = Object.freeze({
     dark: tokenObject({ color: COLOR_SEMANTIC_SHAPE }),
   }),
   typography: tokenObject({
-    family: tokenObject({
-      sans: safeStringLeaf("a font family list"),
-      mono: safeStringLeaf("a font family list"),
-    }),
+    family: tokenObject(
+      {
+        sans: safeStringLeaf("a font family list"),
+        mono: safeStringLeaf("a font family list"),
+        handwriting: safeStringLeaf("a font family list"),
+      },
+      ["sans", "mono"],
+    ),
     size: tokenObject({
       xs: dimensionLeaf(),
       sm: dimensionLeaf(),

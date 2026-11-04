@@ -11,8 +11,9 @@ import "@prism-system/ui-system-plr/styles.css";
 ```
 
 The system defaults to the light paper theme. Set `data-prism-theme="dark"` on the document
-root to use the dark-wood palette. Literata and Manrope include Cyrillic and are self-hosted
-by the package stylesheet; see [FONTS.md](./FONTS.md) for subset coverage and licensing.
+root to use the dark-wood palette. Literata, Manrope, and Caveat include Cyrillic and are
+self-hosted by the package stylesheet; see [FONTS.md](./FONTS.md) for subset coverage and
+licensing.
 
 ## Day plan
 
@@ -80,6 +81,39 @@ export function DayPlan() {
 The displayed date and plan items are sample content. The application decides how dates,
 completion, scheduling, and persistence work. Use `EmptyState` for a new day with no plans yet;
 use `Alert` or `Toast` for save feedback.
+
+## Diary entry
+
+Use `Text variant="handwriting"` for the written part of a day page. The variant is a
+typographic treatment of the existing `Text` contract, not a new component, and it keeps
+Cyrillic, Latin, and digits in the same self-hosted Caveat family.
+
+```tsx
+import { Card, Stack, Text } from "@prism-system/ui-system-plr";
+
+export function DiaryEntry() {
+  return (
+    <Card>
+      <Card.Header>
+        <Card.Title>Вторник, 30 июня</Card.Title>
+      </Card.Header>
+      <Card.Content>
+        <Stack>
+          <Text variant="handwriting">
+            Утро началось с тишины и чашки чая. Записала 3 мысли о неделе.
+          </Text>
+          <Text variant="handwriting" lang="en">
+            A quiet morning, 3 thoughts, and a walk before the rain.
+          </Text>
+        </Stack>
+      </Card.Content>
+    </Card>
+  );
+}
+```
+
+Keep handwriting for short reflective copy. Controls, labels, navigation, and long-form
+reading stay in the default `body` style so the interface remains easy to scan.
 
 ## Evening review form
 

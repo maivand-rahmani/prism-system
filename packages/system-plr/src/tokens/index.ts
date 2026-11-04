@@ -77,7 +77,8 @@ export const systemPlrTokens = {
   "typography": {
     "family": {
       "sans": "Manrope, ui-sans-serif, system-ui, sans-serif",
-      "mono": "ui-monospace, SFMono-Regular, monospace"
+      "mono": "ui-monospace, SFMono-Regular, monospace",
+      "handwriting": "Caveat, \"Segoe Print\", cursive"
     },
     "size": {
       "xs": "0.75rem",

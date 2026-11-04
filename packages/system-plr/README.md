@@ -44,8 +44,9 @@ import "@prism-system/ui-system-plr/styles.css";
 ```
 
 The stylesheet ships the Cyrillic-capable Literata and Manrope families as
-self-hosted WOFF2 assets, so importing `styles.css` is enough: there is no
-third-party font request and no application-level font filter. See
+self-hosted WOFF2 assets, plus Caveat for handwritten entries, so importing
+`styles.css` is enough: there is no third-party font request and no
+application-level font filter. See
 [FONTS.md](./FONTS.md) for subset coverage and licensing. Set
 `data-prism-theme="dark"` on the document root to use the dark-wood palette; the
 default theme is warm paper.
@@ -114,7 +115,8 @@ The token source mandates these groups:
 
 - **themes** — light and dark semantic color trees: `text`, `surface`, `border`,
   `action`, `status`.
-- **typography** — families, sizes, weights, line heights, letter spacing.
+- **typography** — families, sizes, weights, line heights, letter spacing. The
+  optional `family.handwriting` entry backs the handwritten diary treatment.
 - **spacing** — scale plus semantic roles.
 - **containers** — tokenized content widths for `Container`.
 - **breakpoints** — static build-time breakpoints.
@@ -134,6 +136,24 @@ is the single source of truth. Browse the live catalog at **`/showcase/system-pl
 it offline with `prism-ds components [name]`. Card publishes flat root exports for its parts
 (`CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`) for Server
 Components; see [Client boundary](#client-boundary).
+
+### Handwritten diary copy
+
+`Text` defaults to `body`, the editorial Literata reading style. For day pages,
+evening reflections, and other journal-like writing, use the handwritten
+treatment:
+
+```tsx
+<Text variant="handwriting">Сегодня 3 задачи: прогулка, чтение, дневник.</Text>
+<Text variant="handwriting" lang="en">Today 3 things: walk, read, write.</Text>
+```
+
+Caveat is self-hosted with Latin, Latin Extended, Cyrillic, and Cyrillic
+Extended subsets, so the variant covers English, Russian, and digits. Keep it
+for short reflective entries, not controls, labels, or long-form reading. The
+same family is public as `typography.family.handwriting` in the token export,
+`--maivand-plr-typography-family-handwriting` in CSS, and
+`--font-prism-handwriting` in the Tailwind bridge.
 
 ## Usage rules
 

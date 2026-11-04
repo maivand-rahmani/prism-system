@@ -10,6 +10,10 @@ The build copies these files from `src/fonts/` into `dist/`:
   Latin, Latin Extended, Cyrillic, and Cyrillic Extended subsets.
 - `manrope-*.woff2` — Manrope variable (weight 400–700), Latin, Latin
   Extended, Cyrillic, and Cyrillic Extended subsets.
+- `caveat-*.woff2` — Caveat variable (weight 400–700), Latin, Latin Extended,
+  Cyrillic, and Cyrillic Extended subsets. Used only by
+  `Text variant="handwriting"` and the `typography.family.handwriting` token;
+  the subsets together cover English, Russian, and digits.
 
 All files are licensed under the SIL Open Font License, Version 1.1.
 
@@ -19,6 +23,8 @@ All files are licensed under the SIL Open Font License, Version 1.1.
   (https://github.com/googlefonts/literata)
 - Manrope: Copyright 2018 The Manrope Project Authors
   (https://github.com/googlefonts/manrope)
+- Caveat: Copyright 2014 The Caveat Project Authors
+  (https://github.com/googlefonts/caveat)
 
 ## SIL Open Font License, Version 1.1
 

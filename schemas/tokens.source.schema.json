@@ -61,7 +61,11 @@
           "additionalProperties": false,
           "properties": {
             "sans": { "$ref": "#/$defs/fontFamily" },
-            "mono": { "$ref": "#/$defs/fontFamily" }
+            "mono": { "$ref": "#/$defs/fontFamily" },
+            "handwriting": {
+              "$ref": "#/$defs/fontFamily",
+              "description": "Optional handwritten font family for reflective, journal-style copy."
+            }
           }
         },
         "size": {

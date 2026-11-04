@@ -261,6 +261,15 @@ function VariantExample({
       </Alert>
     );
   }
+  if (name === "Text") {
+    return (
+      <Component variant={variant ?? undefined}>
+        {variant === "handwriting"
+          ? "Сегодня 3 задачи: прогулка, чтение, дневник."
+          : "A clear, readable line of copy for 2 tasks."}
+      </Component>
+    );
+  }
   if (["Input", "Textarea", "Checkbox", "Switch"].includes(name) && size) {
     return (
       <Component

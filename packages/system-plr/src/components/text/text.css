@@ -55,3 +55,18 @@
     transition-duration: var(--maivand-plr-motion-duration-reduced);
   }
 }
+:where(.maivand-plr-ui).maivand-plr-text-handwriting {
+  color: var(--maivand-plr-color-text-primary);
+  font-family: var(--maivand-plr-typography-family-handwriting);
+  font-size: var(--maivand-plr-typography-size-3xl);
+  font-weight: var(--maivand-plr-typography-weight-medium);
+  letter-spacing: var(--maivand-plr-typography-letter-spacing-normal);
+  line-height: var(--maivand-plr-typography-line-height-normal);
+  max-width: 58ch;
+}
+:where(.maivand-plr-ui).maivand-plr-text-handwriting:is(p) {
+  padding-inline-start: 0;
+}
+:where(.maivand-plr-ui).maivand-plr-text-handwriting:is(p)::before {
+  content: none;
+}

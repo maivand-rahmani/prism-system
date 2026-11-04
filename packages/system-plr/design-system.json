@@ -306,7 +306,7 @@
       "example": "./examples/diary-compositions.md"
     },
     "Text": {
-      "variants": [],
+      "variants": ["body", "handwriting"],
       "sizes": [],
       "members": [],
       "effects": {
@@ -314,7 +314,7 @@
         "rendering": "dom",
         "reducedMotion": true
       },
-      "description": "Readable supporting copy for labels, descriptions, and longer notes.",
+      "description": "Readable supporting copy for labels, descriptions, and longer notes, with an optional handwritten diary treatment.",
       "docs": "./docs/components.md",
       "example": "./examples/diary-compositions.md"
     },
@@ -804,6 +804,7 @@
       "typography": [
         "family.sans",
         "family.mono",
+        "family.handwriting",
         "size.xs",
         "size.sm",
         "size.md",

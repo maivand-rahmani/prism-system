@@ -11,7 +11,9 @@ The light palette layers warm paper, a darker writing surface, oak-toned edges, 
 green. The dark theme shifts those surfaces to deep wood and keeps the text and focus ring clear.
 The stylesheet uses Literata for editorial headings and reflective text, and Manrope for controls
 and numbers. Both font families support Cyrillic and are self-hosted as packaged WOFF2 assets; no
-third-party font request is required.
+third-party font request is required. Caveat is bundled for `Text variant="handwriting"`: the
+handwritten treatment for day pages and evening reflections covers Cyrillic, Latin, and digits,
+and stays self-hosted with the same subset strategy.
 
 Cards have a faint paper grain and an inset edge. Primary actions use a short pressed depth;
 inputs have a recessed writing surface. The treatments stay restrained so the interface remains
