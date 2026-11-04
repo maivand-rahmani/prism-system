@@ -305,7 +305,7 @@ are exactly two supported locations and both are equivalent:
 
 - `package-json` — the `"designSystem"` field in the consumer root `package.json`;
 - `design-system` — `.design-system/config.json` in the **extended layout**, which wraps the
-  *identical* subtree under the same key:
+  _identical_ subtree under the same key:
 
 ```json
 {

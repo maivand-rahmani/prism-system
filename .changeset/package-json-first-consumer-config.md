@@ -52,7 +52,7 @@ shows or moves where a consumer stores its configuration:
 - `config` with no argument reports the active location (read-only).
 - `config package-json` moves the configuration into `package.json#designSystem`.
 - `config design-system` moves it into `.design-system/config.json` in an extended layout
-  that wraps the *identical* subtree:
+  that wraps the _identical_ subtree:
 
   ```json
   { "designSystem": { "schemaVersion": 1, "package": "…", "version": "…", "strict": true } }

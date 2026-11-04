@@ -72,7 +72,7 @@ back automatically.
   consumer root `AGENTS.md`; it never installs packages or edits dependencies. The
   configuration lives in `package.json` → `designSystem` by default, or in
   `.design-system/config.json` when the consumer chose that location with `prism-ds
-  config design-system`; both hold the identical subtree. `connect` keeps whichever
+config design-system`; both hold the identical subtree. `connect` keeps whichever
   location is already active and creates no `.design-system/` directory for a project that
   does not use it. `--check` validates; `--dry-run` previews. Read the active
   configuration and the managed section before implementing UI; never hand-edit the
@@ -84,7 +84,7 @@ back automatically.
   config and generated
   `.design-system/AGENTS.md` are retired by `connect` in the same run.
 - **Choosing where the config lives:** `npx prism-ds config [package-json|design-system]
-  --cwd <consumer-root>` reports the active location, or moves it with one command. Both
+--cwd <consumer-root>` reports the active location, or moves it with one command. Both
   locations are equivalent and hold the identical subtree; `--check` exits non-zero when a
   move is pending, and `--dry-run` writes nothing. Moving never installs packages, never
   edits dependencies, and never changes the selected package or version.
