@@ -10,12 +10,20 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { test } from "node:test";
 
-import { MANAGED_BLOCK_BEGIN } from "../src/consumer.mjs";
+import { MANAGED_BLOCK_BEGIN, connectDesignSystem } from "../src/consumer.mjs";
 import {
   buildRecoverySuggestions,
   collectRecoveryReport,
@@ -74,6 +82,7 @@ function createConsumer(t, options = {}) {
     systems = [{ name: PACKAGE_NAME, version: "1.0.0" }],
     dependencies = null,
     withConfig = true,
+    configSource = "package-json",
     configVersion = null,
     configOverride = null,
     rawConfig = null,
@@ -99,22 +108,25 @@ function createConsumer(t, options = {}) {
     dependencies: effectiveDependencies,
   };
   if (tailwind !== null) pkg.dependencies = { ...pkg.dependencies, tailwindcss: tailwind };
+
+  const config = {
+    schemaVersion: 1,
+    package: systems[0]?.name ?? PACKAGE_NAME,
+    version: configVersion ?? systems[0]?.version ?? "1.0.0",
+    strict: true,
+  };
+  const effectiveConfig = configOverride === null ? config : { ...config, ...configOverride };
+  if (withConfig && rawConfig === null && configSource === "package-json") {
+    pkg.designSystem = effectiveConfig;
+  }
   writeJson(join(root, "package.json"), pkg);
 
   if (rawConfig !== null) {
-    mkdirSync(join(root, ".design-system"), { recursive: true });
-    writeFileSync(join(root, ".design-system", "config.json"), rawConfig, "utf8");
-  } else if (withConfig) {
-    const config = {
-      $schema:
-        "https://github.com/maivand-rahmani/prism-system/schemas/design-system-consumer.schema.json",
-      schemaVersion: 1,
-      package: systems[0].name,
-      version: configVersion ?? systems[0].version,
-      manifest: "./manifest",
-      strict: true,
-    };
-    writeJson(join(root, ".design-system", "config.json"), configOverride ?? config);
+    writeFile(root, ".design-system/config.json", rawConfig);
+  } else if (withConfig && configSource === "legacy") {
+    writeJson(join(root, ".design-system", "config.json"), effectiveConfig);
+  } else if (withConfig && configSource === "extended") {
+    writeJson(join(root, ".design-system", "config.json"), { designSystem: effectiveConfig });
   }
 
   for (const system of systems) {
@@ -180,6 +192,39 @@ test("a healthy connected consumer reports no issues and no suggestions", (t) =>
   assert.equal(report.diagnosis.connection.status, "ok");
 });
 
+test("a legacy config-only consumer is healthy and connect migrates it to package.json", (t) => {
+  const { root } = createConsumer(t, { configSource: "legacy" });
+  const report = collectRecoveryReport({ cwd: root });
+  assert.equal(report.ok, true, JSON.stringify(report.issues));
+  assert.equal(report.diagnosis.config.status, "ok");
+  assert.match(report.diagnosis.config.label, /config\.json$/);
+  assert.equal(report.diagnosis.connection.status, "ok");
+  assert.deepEqual(buildRecoverySuggestions(report), []);
+
+  const result = connectDesignSystem({ cwd: root });
+  assert.equal(result.ok, true, result.failures.join(" "));
+  assert.ok(
+    result.migrations.some((migration) => migration.includes("package.json#designSystem")),
+    "connect reports the legacy config migration",
+  );
+  assert.equal(readJson(join(root, "package.json")).designSystem.package, PACKAGE_NAME);
+  assert.equal(existsSync(join(root, ".design-system", "config.json")), false);
+
+  const after = collectRecoveryReport({ cwd: root });
+  assert.equal(after.ok, true, JSON.stringify(after.issues));
+  assert.match(after.diagnosis.config.label, /package\.json#designSystem$/);
+});
+
+test("an extended-location consumer is healthy and is not reported as a schema mismatch", (t) => {
+  const { root } = createConsumer(t, { configSource: "extended" });
+  const report = collectRecoveryReport({ cwd: root });
+  assert.equal(report.ok, true, JSON.stringify(report.issues));
+  assert.equal(report.diagnosis.config.status, "ok");
+  assert.match(report.diagnosis.config.label, /\.design-system[\\/]config\.json#designSystem$/);
+  assert.equal(report.diagnosis.connection.status, "ok");
+  assert.deepEqual(buildRecoverySuggestions(report), []);
+});
+
 test("a missing connection suggests an explicit connect and executes only after consent", (t) => {
   const { root } = createConsumer(t, {
     withConfig: false,
@@ -223,7 +268,7 @@ test("a missing connection suggests an explicit connect and executes only after 
   assert.equal(executed.healthy, true);
   assert.deepEqual(executed.stillRemaining, []);
 
-  const config = readJson(join(root, ".design-system", "config.json"));
+  const config = readJson(join(root, "package.json")).designSystem;
   assert.equal(config.package, PACKAGE_NAME);
   assert.equal(config.version, "1.0.0");
   const agents = readFileSync(join(root, "AGENTS.md"), "utf8");
@@ -246,7 +291,7 @@ test("a stale connection is repaired by the same connect action", (t) => {
   assert.equal(executed.actionCompleted, true);
   assert.equal(executed.repaired, true);
   assert.equal(executed.healthy, true);
-  assert.equal(readJson(join(root, ".design-system", "config.json")).version, "1.0.0");
+  assert.equal(readJson(join(root, "package.json")).designSystem.version, "1.0.0");
 });
 
 test("multiple installed candidates are never guessed", (t) => {
@@ -293,7 +338,7 @@ test("multiple installed candidates are never guessed", (t) => {
     expectedPlan: preview.plan,
   });
   assert.equal(executed.repaired, true);
-  assert.equal(readJson(join(root, ".design-system", "config.json")).package, OTHER_PACKAGE);
+  assert.equal(readJson(join(root, "package.json")).designSystem.package, OTHER_PACKAGE);
 });
 
 test("missing package, malformed config, and schema mismatch are guidance only", (t) => {

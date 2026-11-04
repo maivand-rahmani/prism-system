@@ -23,14 +23,16 @@ system, use the `switch-design-system` skill. For contract rules, read the local
 Identify the user's intended screen, task, or fix before choosing components. Then branch
 on the consumer state:
 
-1. **Selected package with current config** — read `.design-system/config.json` and the
-   generated `.design-system/AGENTS.md` (plus the managed design-system block in the
-   consumer root `AGENTS.md` when present), the installed public manifest
-   (`<package>/manifest`), the package's shipped `AGENTS.md` and README, its public
-   TypeScript exports/declarations, and the shipped usage document when the manifest
-   declares `docs.usage`. These describe the exact installed release. The `.design-system`
-   files are generated: read them, never hand-edit them, and re-run `connect` when the
-   selected package or version changes.
+1. **Selected package with current config** — read the active configuration
+   (`package.json` → `designSystem`, or `.design-system/config.json` when the consumer
+   stores it there) and
+   the managed design-system section in the consumer root `AGENTS.md`, the installed
+   public manifest (`<package>/manifest`), the package's shipped `AGENTS.md` and README,
+   its public TypeScript exports/declarations, and the shipped usage document when the
+   manifest declares `docs.usage`. These describe the exact installed release. The
+   configuration and the managed section are generated: read them, never hand-edit
+   the managed section, and re-run `connect` when the selected package or version
+   changes.
 2. **Package installed but unconnected or stale** — establish the selected package and
    exact version, then verify before coding. With the CLI, configure or update the
    connection explicitly. Without it, use the verified installed manifest, declarations,
@@ -54,9 +56,10 @@ recommendation.
 
 The manifest is the authority for the installed component catalog, variants, sizes,
 compound members, declared effects, token names, and CSS/documentation paths. Check that the
-installed package, manifest, and config (when present) versions match exactly. Use documented exports
-only. For whole-page or form composition, read the shipped usage document when the
-installed manifest declares `docs.usage`; its examples must match that installed version.
+installed package, manifest, and the `designSystem` field (when present) versions match
+exactly. Use documented exports only. For whole-page or form composition, read the shipped
+usage document when the installed manifest declares `docs.usage`; its examples must match
+that installed version.
 Do not infer installed features or substitute examples from repository sources, another
 system, or a newer manifest. Current shipped manifests are `schemaVersion: 5`
 (`contractVersion: 4`); tools that only understand schema 4 or older cannot read them and

@@ -71,6 +71,10 @@ const TAILWIND_EXPORT_SUBPATH = "./tailwind.css";
 const STYLES_EXPORT_SUBPATH = "./styles.css";
 const MANIFEST_EXPORT_SUBPATH = "./manifest";
 
+/** The managed contract markers `connect` writes into the root `AGENTS.md`. */
+const MANAGED_BLOCK_BEGIN = "<!-- BEGIN @prism-system design system contract (managed) -->";
+const MANAGED_BLOCK_END = "<!-- END @prism-system design system contract (managed) -->";
+
 /** The 29 required contract component names, in canonical order. */
 const REQUIRED_COMPONENTS = [
   "Button",
@@ -170,6 +174,7 @@ const TOOLS_COMMANDS = [
   "switch",
   "remove",
   "connect",
+  "config",
   "components",
   "tokens",
   "check",
@@ -243,6 +248,18 @@ function writeFile(root, relativePath, content) {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content, "utf8");
   return path;
+}
+
+/** Count non-overlapping occurrences of a literal needle. */
+function countOccurrences(text, needle) {
+  return text.split(needle).length - 1;
+}
+
+/** A `package.json` object with the tool-owned `designSystem` field removed. */
+function packageWithoutConfig(pkg) {
+  const copy = { ...pkg };
+  delete copy.designSystem;
+  return copy;
 }
 
 /** Read the entry list of a tarball via the system `tar`. */
@@ -636,6 +653,8 @@ function makeConsumer(name, { packageName, version, sourceDir, tailwind = null }
     version: "0.0.0",
     private: true,
     packageManager: "npm@10.0.0",
+    scripts: { test: "node --version" },
+    harness: { owner: "check-tools" },
     dependencies,
   });
   writeFile(dir, "AGENTS.md", "# Tools harness consumer\n\nUser-owned content.\n");
@@ -653,7 +672,9 @@ function stageTailwind(consumerRoot, version) {
 }
 
 function consumerConfig(dir) {
-  return readJsonFile(join(dir, ".design-system", "config.json"));
+  const pkg = readJsonFile(join(dir, "package.json"));
+  assert(pkg.designSystem, "consumer package.json is missing the designSystem field");
+  return pkg.designSystem;
 }
 
 function installedManifest(dir, packageName) {
@@ -686,10 +707,12 @@ function verifyConsumer(target) {
     tailwind: "4.1.0",
   });
   const consumerPackageJson = join(dir, "package.json");
-  const packageHashBefore = hashFile(consumerPackageJson);
+  const packageBefore = readJsonFile(consumerPackageJson);
   const appCssPath = join(dir, "src", "app.css");
 
-  // Connect (configure-only) and verify exact identity/version invariants.
+  // Connect (configure-only) and verify exact identity/version invariants. The
+  // contract is package.json#designSystem plus the root AGENTS.md managed block;
+  // no `.design-system/` directory is created for a normal install.
   const connect = runPackedTools(["connect", target.packageName, "--cwd", dir]);
   assert(connect.status === 0, `connect failed for ${target.id}: ${output(connect)}`);
   assert(
@@ -698,9 +721,6 @@ function verifyConsumer(target) {
   );
   const config = consumerConfig(dir);
   const manifest = installedManifest(dir, target.packageName);
-  assert(config.package === target.packageName, `${target.id} config identity mismatch`);
-  assert(config.manifest === MANIFEST_EXPORT_SUBPATH, `${target.id} config manifest subpath`);
-  assert(config.version === target.version, `${target.id} config version mismatch`);
   assert(
     manifest.contractVersion === 4,
     `${target.id} installed manifest must declare contractVersion 4`,
@@ -717,16 +737,74 @@ function verifyConsumer(target) {
         JSON.stringify([...CAPABILITY_CATEGORY_KEYS]),
     `${target.id} installed manifest must declare the canonical capability categories`,
   );
+  assert(config.schemaVersion === 1, `${target.id} config schemaVersion mismatch`);
+  assert(config.package === target.packageName, `${target.id} config identity mismatch`);
+  assert(config.version === target.version, `${target.id} config version mismatch`);
+  assert(config.strict === true, `${target.id} config strict default`);
   assert(
-    listFiles(join(dir, ".design-system")).join(",") === "AGENTS.md,config.json",
-    ".design-system must contain only config/AGENTS",
+    !("manifest" in config) && !("$schema" in config),
+    `${target.id} config must not carry legacy-only keys`,
+  );
+  assert(!existsSync(join(dir, ".design-system")), "connect must not create .design-system");
+
+  const connectedPackage = readJsonFile(consumerPackageJson);
+  assert(connectedPackage.name === packageBefore.name, `${target.id} package name mutated`);
+  assert(
+    connectedPackage.version === packageBefore.version,
+    `${target.id} package version mutated`,
+  );
+  assert(
+    JSON.stringify(connectedPackage.dependencies) === JSON.stringify(packageBefore.dependencies),
+    `${target.id} package dependencies mutated`,
+  );
+  assert(
+    JSON.stringify(connectedPackage.scripts) === JSON.stringify(packageBefore.scripts),
+    `${target.id} package scripts mutated`,
+  );
+  assert(
+    connectedPackage.harness?.owner === "check-tools",
+    `${target.id} unrelated package.json key mutated`,
+  );
+  assert(
+    JSON.stringify(packageWithoutConfig(connectedPackage)) ===
+      JSON.stringify(packageWithoutConfig(packageBefore)),
+    `${target.id} connect must preserve every consumer-owned package.json field`,
   );
   const rootAgents = readFileSync(join(dir, "AGENTS.md"), "utf8");
-  assert(rootAgents.includes("# Tools harness consumer"), "user AGENTS content not preserved");
   assert(
-    rootAgents.includes("BEGIN @prism-system design system contract"),
-    "managed contract block missing",
+    rootAgents.startsWith("# Tools harness consumer\n\nUser-owned content.\n"),
+    `${target.id} user AGENTS content not preserved`,
   );
+  assert(
+    countOccurrences(rootAgents, MANAGED_BLOCK_BEGIN) === 1 &&
+      countOccurrences(rootAgents, MANAGED_BLOCK_END) === 1,
+    `${target.id} managed block must have exactly one BEGIN and one END marker`,
+  );
+
+  // `connect --check` is read-only: up to date immediately after connect, out of
+  // date once the recorded configuration no longer matches the installed system.
+  const freshCheck = runPackedTools(["connect", "--check", "--cwd", dir]);
+  assert(freshCheck.status === 0, `${target.id} connect --check failed: ${output(freshCheck)}`);
+  assert(
+    /Consumer contract is up to date/.test(output(freshCheck)),
+    `${target.id} fresh connect --check must report up to date`,
+  );
+  const stalePackage = readJsonFile(consumerPackageJson);
+  delete stalePackage.designSystem.version;
+  writeJson(consumerPackageJson, stalePackage);
+  const staleCheck = runPackedTools(["connect", "--check", "--cwd", dir]);
+  assert(staleCheck.status !== 0, `${target.id} connect --check must report an incomplete field`);
+  assert(
+    /Consumer contract is out of date/.test(output(staleCheck)),
+    `${target.id} stale connect --check diagnostic`,
+  );
+  const repaired = runPackedTools(["connect", "--cwd", dir]);
+  assert(repaired.status === 0, `${target.id} connect repair failed: ${output(repaired)}`);
+  assert(
+    consumerConfig(dir).version === target.version,
+    `${target.id} connect must restore the exact version`,
+  );
+  const connectedPackageHash = hashFile(consumerPackageJson);
 
   // Doctor: read-only, and the Tailwind bridge must validate.
   const doctor = runPackedTools(["doctor", "--cwd", dir]);
@@ -903,10 +981,10 @@ function verifyConsumer(target) {
   assert(/Already connected/.test(output(again)), `${target.id} repeated connect message`);
   assert(hashTree(dir) === idempotentBefore, `${target.id} repeated connect was not byte-stable`);
 
-  // The consumer package.json and dependencies are never mutated by read-only
-  // commands or connect.
+  // Read-only commands and a repeated connect never mutate the connected
+  // consumer package.json; connect wrote `designSystem` exactly once above.
   assert(
-    hashFile(consumerPackageJson) === packageHashBefore,
+    hashFile(consumerPackageJson) === connectedPackageHash,
     `${target.id} consumer package.json mutated`,
   );
 }
@@ -916,6 +994,113 @@ for (const target of targets) {
     verifyConsumer(target);
   });
 }
+
+runCheck("connect migrates a legacy .design-system install in one run", () => {
+  const target = targets[0];
+  const dir = makeConsumer("legacy-migration", {
+    packageName: target.packageName,
+    version: target.version,
+    sourceDir: target.extractedPackageDir,
+  });
+  // Seed a pre-package.json install: the legacy config, the generated
+  // `.design-system/AGENTS.md`, and the consumer's own root AGENTS.md.
+  writeJson(join(dir, ".design-system", "config.json"), {
+    schemaVersion: 1,
+    package: target.packageName,
+    version: target.version,
+    manifest: MANIFEST_EXPORT_SUBPATH,
+    strict: true,
+  });
+  writeFile(
+    dir,
+    ".design-system/AGENTS.md",
+    [
+      "# Design system consumer contract",
+      "",
+      "This directory is generated by `prism-ds connect` from the `@prism-system/tools`",
+      "package.",
+      "",
+    ].join("\n"),
+  );
+  const userAgents = "# Legacy consumer\n\nUser-owned content.\n";
+  writeFile(dir, "AGENTS.md", userAgents);
+
+  const migrated = runPackedTools(["connect", "--cwd", dir]);
+  assert(migrated.status === 0, `legacy connect failed: ${output(migrated)}`);
+  const config = consumerConfig(dir);
+  assert(config.schemaVersion === 1, "migrated config schemaVersion");
+  assert(config.package === target.packageName, "migrated config identity");
+  assert(config.version === target.version, "migrated config version");
+  assert(!existsSync(join(dir, ".design-system")), "legacy .design-system must be removed");
+  const rootAgents = readFileSync(join(dir, "AGENTS.md"), "utf8");
+  assert(rootAgents.startsWith(userAgents), "legacy migration must preserve user AGENTS content");
+  assert(
+    countOccurrences(rootAgents, MANAGED_BLOCK_BEGIN) === 1 &&
+      countOccurrences(rootAgents, MANAGED_BLOCK_END) === 1,
+    "legacy migration must write exactly one managed block",
+  );
+});
+
+runCheck("config moves the consumer configuration between both locations", () => {
+  const target = targets[0];
+  const dir = makeConsumer("config-location", {
+    packageName: target.packageName,
+    version: target.version,
+    sourceDir: target.extractedPackageDir,
+  });
+  const extendedPath = join(dir, ".design-system", "config.json");
+
+  const connected = runPackedTools(["connect", "--cwd", dir]);
+  assert(connected.status === 0, `connect failed: ${output(connected)}`);
+  const packageAfterConnect = readFileSync(join(dir, "package.json"), "utf8");
+
+  const reported = runPackedTools(["config", "--cwd", dir]);
+  assert(reported.status === 0, `config report failed: ${output(reported)}`);
+  assert(
+    output(reported).includes("package.json#designSystem"),
+    "config must report the active package.json location",
+  );
+
+  const moved = runPackedTools(["config", "design-system", "--cwd", dir]);
+  assert(moved.status === 0, `config design-system failed: ${output(moved)}`);
+  const extended = readJsonFile(extendedPath);
+  assert(
+    extended.designSystem?.package === target.packageName &&
+      extended.designSystem?.version === target.version,
+    "the extended config must hold the identical designSystem subtree",
+  );
+  assert(
+    readJsonFile(join(dir, "package.json")).designSystem === undefined,
+    "moving to .design-system must remove the package.json field",
+  );
+
+  // A plain connect keeps the chosen location instead of migrating it back.
+  const reconnect = runPackedTools(["connect", "--cwd", dir]);
+  assert(reconnect.status === 0, `reconnect failed: ${output(reconnect)}`);
+  assert(existsSync(extendedPath), "connect must not migrate a deliberate extended config back");
+  assert(
+    readJsonFile(join(dir, "package.json")).designSystem === undefined,
+    "connect must not re-add the package.json field",
+  );
+
+  const pending = runPackedTools(["config", "package-json", "--cwd", dir, "--check"]);
+  assert(pending.status === 1, "config --check must fail while the target location is not active");
+
+  const dryRun = runPackedTools(["config", "package-json", "--cwd", dir, "--dry-run"]);
+  assert(dryRun.status === 0, `config --dry-run failed: ${output(dryRun)}`);
+  assert(existsSync(extendedPath), "a dry run must not move the configuration");
+
+  const back = runPackedTools(["config", "package-json", "--cwd", dir]);
+  assert(back.status === 0, `config package-json failed: ${output(back)}`);
+  assert(!existsSync(join(dir, ".design-system")), "the emptied directory must be retired");
+  assert(
+    readFileSync(join(dir, "package.json"), "utf8") === packageAfterConnect,
+    "moving back must restore the exact package.json bytes",
+  );
+
+  const atTarget = runPackedTools(["config", "package-json", "--cwd", dir, "--check"]);
+  assert(atTarget.status === 0, "config --check must pass once the target location is active");
+});
 
 /* -------------------------------------------------------------------------- */
 /* Step 3: unsupported metadata fails closed                                  */
@@ -947,8 +1132,12 @@ runCheck("packed tools fail closed on unsupported metadata and exports", () => {
     "unsupported metadata diagnostic",
   );
   assert(
-    !existsSync(join(pairDir, ".design-system", "config.json")),
-    "connect must not write config for invalid metadata",
+    readJsonFile(join(pairDir, "package.json")).designSystem === undefined,
+    "connect must not write designSystem for invalid metadata",
+  );
+  assert(
+    !existsSync(join(pairDir, ".design-system")),
+    "connect must not create .design-system for invalid metadata",
   );
 
   const exportDir = makeConsumer("fail-export", {
@@ -972,8 +1161,12 @@ runCheck("packed tools fail closed on unsupported metadata and exports", () => {
     "missing export diagnostic",
   );
   assert(
-    !existsSync(join(exportDir, ".design-system", "config.json")),
-    "connect must not write config without a ./manifest export",
+    readJsonFile(join(exportDir, "package.json")).designSystem === undefined,
+    "connect must not write designSystem without a ./manifest export",
+  );
+  assert(
+    !existsSync(join(exportDir, ".design-system")),
+    "connect must not create .design-system without a ./manifest export",
   );
 });
 
@@ -1355,6 +1548,10 @@ try {
       "install target",
     );
     assert(!existsSync(join(installDir, ".design-system")), "install must not connect");
+    assert(
+      readJsonFile(join(installDir, "package.json")).designSystem === undefined,
+      "install must not write designSystem",
+    );
 
     rmSync(FAKE_ARGS_FILE, { force: true });
     resetFakeNpx();
@@ -1372,7 +1569,13 @@ try {
       { env: withFakeManagerEnv() },
     );
     assert(use.status === 0, `use failed: ${output(use)}`);
-    assert(existsSync(join(installDir, ".design-system", "config.json")), "use must connect");
+    const usedConfig = consumerConfig(installDir);
+    assert(usedConfig.package === targets[0].packageName, "use must connect");
+    assert(usedConfig.version === targets[0].version, "use must record the exact version");
+    assert(
+      !existsSync(join(installDir, ".design-system", "config.json")),
+      "use must not write the legacy .design-system/config.json",
+    );
     assert(/0 error\(s\), 0 warning\(s\)/.test(output(use)), "use usage summary");
     assert(
       readFakeNpxInvocations().length === 0,

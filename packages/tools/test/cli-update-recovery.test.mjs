@@ -204,33 +204,42 @@ function writeFile(root, relative, content) {
 
 function createConsumer(
   t,
-  { connected = false, tailwind = null, css = null, agents = null, rawConfig = null } = {},
+  {
+    connected = false,
+    configSource = "package-json",
+    tailwind = null,
+    css = null,
+    agents = null,
+    rawConfig = null,
+  } = {},
 ) {
   const root = mkdtempSync(join(tmpdir(), "prism-cli-recover-"));
   t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
   const dependencies = { [SYSTEM_A.package]: SYSTEM_A.version };
   if (tailwind !== null) dependencies.tailwindcss = tailwind;
-  writeJson(join(root, "package.json"), {
+  const config = {
+    schemaVersion: 1,
+    package: SYSTEM_A.package,
+    version: SYSTEM_A.version,
+    strict: true,
+  };
+  const pkg = {
     name: "consumer-app",
     version: "0.0.0",
     private: true,
     packageManager: "npm@10.0.0",
     dependencies,
-  });
+  };
+  if (connected && rawConfig === null && configSource === "package-json") {
+    pkg.designSystem = config;
+  }
+  writeJson(join(root, "package.json"), pkg);
 
   if (rawConfig !== null) {
     writeFile(root, ".design-system/config.json", rawConfig);
-  } else if (connected) {
-    writeJson(join(root, ".design-system", "config.json"), {
-      $schema:
-        "https://github.com/maivand-rahmani/prism-system/schemas/design-system-consumer.schema.json",
-      schemaVersion: 1,
-      package: SYSTEM_A.package,
-      version: SYSTEM_A.version,
-      manifest: "./manifest",
-      strict: true,
-    });
+  } else if (connected && configSource === "legacy") {
+    writeJson(join(root, ".design-system", "config.json"), config);
   }
 
   const packageDir = join(root, "node_modules", ...SYSTEM_A.package.split("/"));
@@ -615,6 +624,19 @@ test("recover reports a healthy consumer and exits zero", async (t) => {
   assert.deepEqual(snapshot(root), before);
 });
 
+test("recover treats a legacy config-only consumer as connected and stays read-only", async (t) => {
+  const { root } = createConsumer(t, { connected: true, configSource: "legacy" });
+  const before = snapshot(root);
+
+  const json = await runBin(["recover", "--cwd", root, "--json"]);
+  assert.equal(json.exitCode, 0);
+  const report = JSON.parse(json.stdout);
+  assert.equal(report.ok, true);
+  assert.equal(report.diagnosis.config.status, "ok");
+  assert.match(report.diagnosis.config.label, /config\.json$/);
+  assert.deepEqual(snapshot(root), before);
+});
+
 test("recover requires --cwd and validates conflicting options", async (t) => {
   const { root } = createConsumer(t, { connected: false });
 
@@ -694,7 +716,12 @@ test("recover executes a connect repair only with --yes and reports the recheck"
   assert.equal(executed.repaired, true);
   assert.equal(executed.healthy, true);
   assert.deepEqual(executed.stillRemaining, []);
-  assert.ok(existsSync(join(root, ".design-system", "config.json")));
+  assert.equal(
+    existsSync(join(root, ".design-system", "config.json")),
+    false,
+    "connect writes no legacy config file",
+  );
+  assert.equal(readJson(join(root, "package.json")).designSystem.package, SYSTEM_A.package);
   assert.ok(existsSync(join(root, "AGENTS.md")));
   assert.notDeepEqual(snapshot(root), before, "the confirmed repair writes the contract");
 
@@ -798,7 +825,7 @@ test("recover reports a failed repair instead of hiding it", async (t) => {
   assert.equal(preview.ok, false);
   assert.equal(preview.boundary, "preview");
   assert.ok(preview.failures.length > 0);
-  assert.equal(existsSync(join(root, ".design-system", "config.json")), false);
+  assert.equal(readJson(join(root, "package.json")).designSystem, undefined);
   assert.deepEqual(snapshot(root), before);
 
   const human = await runBin(["recover", "--cwd", root, "--action", "connect", "--yes"]);

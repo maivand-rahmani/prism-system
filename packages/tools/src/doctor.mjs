@@ -6,14 +6,16 @@
  * deterministic order:
  *
  *   1. the explicit consumer root and its realpath containment;
- *   2. package discovery (config, package.json metadata, or single dependency);
+ *   2. package discovery (package.json `"designSystem"`, a legacy config, or a
+ *      single dependency);
  *   3. the installed package resolved through Node package resolution;
  *   4. the public `./manifest` export, its version, and identity invariants;
- *   5. the consumer `.design-system/config.json` state.
+ *   5. the consumer configuration state in `package.json` `"designSystem"`
+ *      (a legacy `.design-system/config.json` is reported through its own label).
  *
  * Any failed check is reported with an actionable message and makes the command
- * exit non-zero. Missing `.design-system/config.json` is expected before the
- * first `connect`, so it is reported as information, not a failure.
+ * exit non-zero. Missing configuration is expected before the first `connect`,
+ * so it is reported as information, not a failure.
  */
 
 import { existsSync, statSync } from "node:fs";
@@ -23,7 +25,7 @@ import { CONTRACT_VERSION, assertWithin } from "./constants.mjs";
 import { collectEntryPrerequisites } from "./entry-scan.mjs";
 import { detectManifestContract } from "./manifest.mjs";
 import {
-  CONSUMER_CONFIG_FILENAME,
+  CONSUMER_CONFIG_LABEL,
   CONSUMER_DIRECTORY,
   discoverConsumerPackage,
   readConsumerConfig,
@@ -125,12 +127,18 @@ export function collectDoctorReport({ cwd, package: explicitPackage, entry } = {
   checks.push(info("consumer root", consumerRoot));
 
   // Target containment: consumer-owned paths must stay inside the real root.
+  // `.design-system/` is optional tool state (it may not exist), so only its
+  // resolved location is checked, never its presence.
   try {
     resolveConsumerPath(consumerRoot, CONSUMER_DIRECTORY);
     resolveConsumerPath(consumerRoot, "AGENTS.md");
     resolveConsumerPath(consumerRoot, "package.json");
     checks.push(
-      info("target containment", ".design-system, AGENTS.md, and package.json stay inside --cwd"),
+      info(
+        "target containment",
+        "package.json, AGENTS.md, and the optional .design-system state directory stay " +
+          "inside --cwd",
+      ),
     );
   } catch (error) {
     checks.push(failure("target containment", error.message));
@@ -144,11 +152,12 @@ export function collectDoctorReport({ cwd, package: explicitPackage, entry } = {
       config
         ? info(
             "consumer config",
-            `${CONSUMER_DIRECTORY}/${CONSUMER_CONFIG_FILENAME} (package ${config.package}@${config.version}, strict ${config.strict})`,
+            `${config.label} (package ${config.package}@${config.version ?? "unpinned"}, ` +
+              `strict ${config.strict})`,
           )
         : info(
             "consumer config",
-            `absent (${CONSUMER_DIRECTORY}/${CONSUMER_CONFIG_FILENAME}); run connect to create it`,
+            `absent (${CONSUMER_CONFIG_LABEL}); run connect to configure this consumer`,
           ),
     );
   } catch (error) {
@@ -262,9 +271,10 @@ export function doctorHelpText() {
     "",
     "Read-only diagnostics for a consumer repository: target containment, discovered",
     "package and identity, installed package version (through Node package resolution),",
-    "public ./manifest availability and version, exact invariants, config state, and",
-    "optional entry prerequisites for a named extension, declared entrypoint, or",
-    "contained consumer source file (literal import scan; nothing is executed).",
+    "public ./manifest availability and version, exact invariants, the package.json",
+    "designSystem config state, and optional entry prerequisites for a named extension,",
+    "declared entrypoint, or contained consumer source file (literal import scan;",
+    "nothing is executed).",
     "",
     "Arguments:",
     "  [package]             Optional package name or system id to check explicitly.",

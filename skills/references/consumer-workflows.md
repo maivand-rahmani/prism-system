@@ -61,21 +61,36 @@ the user's explicit intent; never install, switch, upgrade, or remove a design s
 silently. They resolve and validate an exact version from the registry first, detect
 npm/pnpm from the consumer (missing or ambiguous managers fail closed, never a silent npm
 default), and verify the installed package identity afterward. `install` stops at install
-and verification — it does not write the consumer config, so run `connect` explicitly
-afterward. `use` and `upgrade` reconnect the consumer after verifying (`use` can also run
+and verification — it does not write `package.json#designSystem`, so run `connect`
+explicitly afterward. `use` and `upgrade` reconnect the consumer after verifying (`use`
+can also run
 the usage check and Tailwind setup). A completed package-manager mutation is not rolled
 back automatically.
 
 - **Package installed but no config yet:** `npx prism-ds connect [package] --cwd
-<consumer-root>` writes only `.design-system/config.json`, `.design-system/AGENTS.md`,
-  and a managed block in the consumer root `AGENTS.md`. It never installs packages or
-  edits dependencies. `--check` validates; `--dry-run` previews. Read both generated
-  files before implementing UI; do not hand-edit them, and re-run `connect` when the
-  selected package or version changes. The managed block preserves the consumer's own
-  AGENTS content outside it.
+<consumer-root>` writes only the consumer configuration and one managed section in the
+  consumer root `AGENTS.md`; it never installs packages or edits dependencies. The
+  configuration lives in `package.json` → `designSystem` by default, or in
+  `.design-system/config.json` when the consumer chose that location with `prism-ds
+  config design-system`; both hold the identical subtree. `connect` keeps whichever
+  location is already active and creates no `.design-system/` directory for a project that
+  does not use it. `--check` validates; `--dry-run` previews. Read the active
+  configuration and the managed section before implementing UI; never hand-edit the
+  managed section, and re-run `connect` when the selected package or version changes.
+  The managed section preserves the consumer's own AGENTS content outside it. Discovery
+  order is explicit `--package`, then the `package.json` field, then an extended
+  `.design-system/config.json`, then a legacy root-level `.design-system/config.json`
+  (read-only migration path), then one installed `@prism-system/ui-*` dependency. A legacy
+  config and generated
+  `.design-system/AGENTS.md` are retired by `connect` in the same run.
+- **Choosing where the config lives:** `npx prism-ds config [package-json|design-system]
+  --cwd <consumer-root>` reports the active location, or moves it with one command. Both
+  locations are equivalent and hold the identical subtree; `--check` exits non-zero when a
+  move is pending, and `--dry-run` writes nothing. Moving never installs packages, never
+  edits dependencies, and never changes the selected package or version.
 - **Installing without connecting:** `npx prism-ds install <package> [version] --cwd
 <consumer-root>` mutates dependencies and verifies the installed identity, but does not
-  write the consumer config. Run `connect` separately (or use `use`).
+  write `package.json#designSystem`. Run `connect` separately (or use `use`).
 - **Selecting or installing a package:** `npx prism-ds use <package> [version] --cwd
 <consumer-root>` resolves, installs, verifies, connects, and optionally checks usage and
   configures Tailwind. The target is always explicit; the package is never discovered
@@ -132,17 +147,18 @@ source checkout. The `switch-design-system` skill owns the full migration proces
   `--with-entry`/`--peer` can extend or resolve the plan but never bypass a compatibility
   blocker. `--yes` authorizes the mutation; without it the command must not mutate.
   It performs only exact literal replacements it can determine — import specifiers, the
-  explicit CSS file, and the consumer config — and never rewrites JSX, props, component
-  usage, or product UI. The previous package dependency is preserved; do not remove it in
-  the same step. A completed package-manager mutation is not rolled back automatically.
+  explicit CSS file, and `package.json#designSystem` — and never rewrites JSX, props,
+  component usage, or product UI. The previous package dependency is preserved; do not
+  remove it in the same step. A completed package-manager mutation is not rolled back
+  automatically.
 - **Repair:** re-read the installed target manifest, declarations, README, shipped
   `AGENTS.md`, and the shipped usage document when the manifest declares `docs.usage`;
   repair call sites using only the target public API, then run `check` once (with an
   explicit `--css` file in a Tailwind project).
 - **Remove the previous package once unused:** `npx prism-ds remove [package] --cwd
 <consumer-root> --dry-run` previews and `--yes` mutates. Remove only after no import,
-  CSS import, config entry, or build reference needs the package; `remove` never edits
-  product source. Removing the only selected system is a separate explicit dependency
+  CSS import, `designSystem` entry, or build reference needs the package; `remove` never
+  edits product source. Removing the only selected system is a separate explicit dependency
   decision, not part of a switch.
 
 `@prism-system/tools` is optional tooling, not a requirement to consume a released
@@ -154,14 +170,14 @@ the user declines, report the Prism CLI check as skipped, never as passed.
 
 ## Contract and version rules
 
-- Use the exact installed release only: imports, docs, config, and manifest must describe
-  the same package and exact version.
+- Use the exact installed release only: imports, docs, the `designSystem` field, and
+  manifest must describe the same package and exact version.
 - Current shipped manifests are `schemaVersion: 5` with numeric `contractVersion: 4`;
   readers built for schema 4 or older must be upgraded in lockstep, and an older
   `prism-ds` cannot read a schema-5 manifest.
 - Contract availability is only the presence of a key in `manifest.components`;
   custom extensions are available only as declared in `manifest.extensions`;
   `capabilities.categories` is canonical category membership, not availability.
-- If the installed package, config, manifest, and declarations disagree, fail closed,
-  report the inconsistency, and do not patch the package or assume the conflicting
-  capability works.
+- If the installed package, `designSystem` field, manifest, and declarations disagree,
+  fail closed, report the inconsistency, and do not patch the package or assume the
+  conflicting capability works.

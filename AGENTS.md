@@ -37,6 +37,11 @@ design-systems/
     └── archive/           # historical development-stage material
 ```
 
+## proccess control rules
+
+- Запускай серверы и другие длительные процессы только для конкретной работы, отслеживая их PID и порты. Сразу после проверки останавливай собственные процессы вместе с их дочерними процессами; не затрагивай чужие. По возможности ограничивай потребление ресурсов и не держи лишние серверы одновременно.
+
+
 ## Package boundaries
 
 - `@prism-system/ui-core` is the **unstyled** technical foundation. It owns contracts,
@@ -51,8 +56,10 @@ design-systems/
   imports no repository source at runtime. Its `search`/`info` commands are explicit
   network read-only; `install`/`use`/`upgrade`/`switch`/`remove` are the only commands
   that mutate consumer dependencies (via a fixed npm/pnpm command; `switch` retains the
-  previous dependency and applies only reviewed literal substitutions); `connect` writes
-  only consumer config and agent instructions; `setup-tailwind` edits only the explicitly
+  previous dependency and applies only reviewed literal substitutions); `connect`/`config`
+  write only the consumer configuration (`package.json#designSystem` or
+  `.design-system/config.json`) and the root `AGENTS.md` managed section;
+  `setup-tailwind` edits only the explicitly
   named consumer CSS file; `components`/`tokens`/`check`/`check-usage`/`doctor`, default
   `recover`, and `skills list` are offline and read-only; `skills add/update/remove` may
   bootstrap the pinned `npx skills@1.7.0`; `self-update` updates only the CLI itself. It
@@ -196,9 +203,9 @@ which covers declared effects, custom extensions, and their entrypoint requireme
   `pnpm ds:sync-versions`, and `pnpm ds:release` commands, and the
   `config/design-systems.json` registry. Showcase and Reference App integrate registered
   systems from that registry.
-- `@prism-system/tools` ships the consumer `prism-ds` CLI with seventeen root commands:
+- `@prism-system/tools` ships the consumer `prism-ds` CLI with eighteen root commands:
   explicit network reads (`search`, `info`), dependency-mutating commands (`install`,
-  `use`, `upgrade`, `switch`, `remove`), configuration (`connect`), catalog reads
+  `use`, `upgrade`, `switch`, `remove`), configuration (`connect`, `config`), catalog reads
   (`components`, `tokens`), Tailwind v4 setup (`setup-tailwind`), offline checks
   (`check`, `check-usage`, `doctor`), skill management (`skills list/add/update/remove`),
   CLI self-update (`self-update`), and project recovery (`recover`). `switch` reviews
@@ -274,6 +281,7 @@ npx prism-ds tokens [group] --cwd <consumer-root>
 npx prism-ds check --cwd <consumer-root> [--css <file>] [--entry <path-or-extension>]
 npx prism-ds setup-tailwind --cwd <consumer-root> --css <file> [--dry-run|--check]
 npx prism-ds connect [package] --cwd <consumer-root> [--strict|--no-strict] [--check] [--dry-run]
+npx prism-ds config [package-json|design-system] --cwd <consumer-root> [--check] [--dry-run] [--json]
 npx prism-ds check-usage --cwd <consumer-root> [--ignore <glob>]
 npx prism-ds doctor [package] --cwd <consumer-root> [--entry <path-or-extension>]
 npx prism-ds skills list --cwd <consumer-root> [--global]
@@ -287,7 +295,9 @@ npx prism-ds recover [package] --cwd <consumer-root> --action <id> [--css <file>
 are the only commands that mutate consumer dependencies (`switch` retains the previous
 dependency, `remove` is a separate explicit operation, and both apply only reviewed
 literal substitutions/attributable cleanup — never product UI rewrites or source
-deletion); `connect` only writes consumer config and agent instructions; `setup-tailwind`
+deletion); `connect`/`config` write only the consumer configuration
+(`package.json#designSystem` or `.design-system/config.json`) and the root `AGENTS.md`
+managed section; `setup-tailwind`
 edits only its explicitly named CSS file; `components`/`tokens`/`check`/`check-usage`/
 `doctor` and default `recover` are offline and read-only. Declared network exceptions:
 the bare-TUI startup may run one bounded (2500 ms), nonblocking, read-only update check

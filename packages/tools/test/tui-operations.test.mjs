@@ -113,10 +113,11 @@ function validConfig() {
     schemaVersion: 1,
     package: TARGET,
     version: "1.2.3",
-    manifest: "./manifest",
     strict: true,
     ignore: [],
-    path: `${CONSUMER_ROOT}/.design-system/config.json`,
+    path: `${CONSUMER_ROOT}/package.json`,
+    label: `${CONSUMER_ROOT}/package.json#designSystem`,
+    source: "designSystem",
   };
 }
 
@@ -171,17 +172,10 @@ function makeUseConnectPlan() {
     check: false,
     files: [
       {
-        kind: "config",
-        path: `${CONSUMER_ROOT}/.design-system/config.json`,
-        before: null,
-        after: `{\n  "package": "${TARGET}",\n  "version": "1.2.3"\n}\n`,
-        changed: true,
-      },
-      {
-        kind: "agents",
-        path: `${CONSUMER_ROOT}/.design-system/AGENTS.md`,
-        before: null,
-        after: "# Design system consumer contract\n",
+        kind: "package-json",
+        path: `${CONSUMER_ROOT}/package.json`,
+        before: `{\n  "name": "consumer"\n}\n`,
+        after: `{\n  "name": "consumer",\n  "designSystem": {\n    "package": "${TARGET}",\n    "version": "1.2.3"\n  }\n}\n`,
         changed: true,
       },
       {
@@ -205,18 +199,11 @@ function upgradeConnectPlan(toVersion = "2.0.0") {
     check: false,
     files: [
       {
-        kind: "config",
-        path: `${CONSUMER_ROOT}/.design-system/config.json`,
-        before: `{\n  "package": "${TARGET}",\n  "version": "1.2.3"\n}\n`,
-        after: `{\n  "package": "${TARGET}",\n  "version": "${toVersion}"\n}\n`,
+        kind: "package-json",
+        path: `${CONSUMER_ROOT}/package.json`,
+        before: `{\n  "designSystem": {\n    "package": "${TARGET}",\n    "version": "1.2.3"\n  }\n}\n`,
+        after: `{\n  "designSystem": {\n    "package": "${TARGET}",\n    "version": "${toVersion}"\n  }\n}\n`,
         changed: true,
-      },
-      {
-        kind: "agents",
-        path: `${CONSUMER_ROOT}/.design-system/AGENTS.md`,
-        before: "# Design system consumer contract\n",
-        after: "# Design system consumer contract\n",
-        changed: false,
       },
       {
         kind: "root-agents",
@@ -291,16 +278,10 @@ function connectDryRun() {
     check: false,
     files: [
       {
-        kind: "config",
-        path: `${CONSUMER_ROOT}/.design-system/config.json`,
-        before: null,
-        after: `{"package":"${TARGET}"}\n`,
-      },
-      {
-        kind: "agents",
-        path: `${CONSUMER_ROOT}/.design-system/AGENTS.md`,
-        before: null,
-        after: "# Design system consumer contract\n",
+        kind: "package-json",
+        path: `${CONSUMER_ROOT}/package.json`,
+        before: `{"name":"consumer"}\n`,
+        after: `{"designSystem":{"package":"${TARGET}"},"name":"consumer"}\n`,
       },
       {
         kind: "root-agents",
@@ -405,7 +386,12 @@ test("getProjectState reports connected for a validated config and verified publ
   const { tui, calls, fetchImpl, spawnImpl } = createHarness({
     resolveRoot: () => CONSUMER_ROOT,
     readConfig: () => config,
-    discover: () => ({ packageName: TARGET, expectedVersion: "1.2.3", source: "config", config }),
+    discover: () => ({
+      packageName: TARGET,
+      expectedVersion: "1.2.3",
+      source: "designSystem",
+      config,
+    }),
     resolveInstalled: ({ consumerRoot, packageName }) => {
       assert.equal(consumerRoot, CONSUMER_ROOT);
       assert.equal(packageName, TARGET);
@@ -428,7 +414,7 @@ test("getProjectState reports connected for a validated config and verified publ
   assert.equal(state.packageName, TARGET);
   assert.equal(state.version, "1.2.3");
   assert.equal(state.contractVersion, 4);
-  assert.equal(state.source, "config");
+  assert.equal(state.source, "designSystem");
   assert.deepEqual(state.config, config);
   assert.deepEqual(state.failures, []);
   assert.equal(state.reason, null);
@@ -465,10 +451,10 @@ test("getProjectState reports installed-but-unconnected for an unambiguous disco
 test("getProjectState reports empty with a useful reason when nothing is selected or installed", () => {
   const reasons = [
     "No supported @prism-system/ui-* package found in consumer dependencies; " +
-      "install one and re-run the consumer command, or add .design-system/config.json.",
-    "Cannot discover a design system: no .design-system/config.json and no consumer " +
-      `package.json at ${CONSUMER_ROOT}/package.json.`,
+      'install one and re-run the consumer command, or declare "designSystem" in package.json.',
+    `Cannot discover a design system: no consumer package.json and no .design-system/config.json at ${CONSUMER_ROOT}/package.json.`,
   ];
+  const hint = "Run prism-ds connect to record the selection in package.json#designSystem.";
 
   for (const reason of reasons) {
     const { tui, calls } = createHarness({
@@ -484,7 +470,7 @@ test("getProjectState reports empty with a useful reason when nothing is selecte
     assert.equal(state.status, PROJECT_STATES.EMPTY);
     assert.equal(state.ok, false);
     assert.equal(state.connected, false);
-    assert.equal(state.reason, reason);
+    assert.equal(state.reason, `${reason} ${hint}`);
     assert.deepEqual(state.failures, []);
     assert.equal(state.packageName, null);
     assert.equal(calls.resolveInstalled.length, 0);
@@ -492,7 +478,7 @@ test("getProjectState reports empty with a useful reason when nothing is selecte
 });
 
 test("getProjectState reports an error for an invalid consumer config", () => {
-  const reason = `Invalid consumer config ${CONSUMER_ROOT}/.design-system/config.json: bad JSON`;
+  const reason = `Invalid consumer config ${CONSUMER_ROOT}/package.json#designSystem: bad JSON`;
   const { tui, calls } = createHarness({
     resolveRoot: () => CONSUMER_ROOT,
     readConfig: () => {
@@ -512,7 +498,7 @@ test("getProjectState reports an error for an invalid consumer config", () => {
 test("getProjectState reports an error for ambiguous discovery and never guesses", () => {
   const reason =
     `Multiple supported @prism-system/ui-* packages found (${TARGET}, ${TARGET_B}); ` +
-    "select one explicitly or add .design-system/config.json.";
+    'select one explicitly or declare "designSystem" in package.json.';
   const { tui, calls } = createHarness({
     resolveRoot: () => CONSUMER_ROOT,
     readConfig: () => null,
@@ -819,7 +805,7 @@ test("previewMutation('use') forwards explicit flags and includes the Tailwind C
   assert.equal(preview.ok, true);
   assert.deepEqual(
     preview.plannedChanges.map((change) => change.kind),
-    ["dependency", "css", "connect", "connect", "connect"],
+    ["dependency", "css", "connect", "connect"],
   );
   assert.equal(preview.material.tailwind.changed, true);
   assert.match(preview.material.tailwind.after, /ui-system-a\/tailwind\.css/);
@@ -847,12 +833,11 @@ test("previewMutation('connect') plans configure-only file effects and never pas
   assert.deepEqual(
     preview.material.effects.map((effect) => [effect.kind, effect.changed]),
     [
-      ["config", true],
-      ["agents", true],
+      ["package-json", true],
       ["root-agents", true],
     ],
   );
-  assert.equal(preview.material.effects[0].before, null);
+  assert.match(preview.material.effects[0].before, /"name":"consumer"/);
   assert.match(preview.material.effects[0].after, new RegExp(TARGET));
 });
 
@@ -1056,20 +1041,16 @@ test("previewMutation('use') retains each managed file's exact before/after mate
   const connectEffects = preview.material.effects.filter((effect) => effect.kind === "connect");
   assert.deepEqual(
     connectEffects.map((effect) => effect.fileKind),
-    ["config", "agents", "root-agents"],
+    ["package-json", "root-agents"],
   );
-  assert.equal(connectEffects[0].before, null);
+  assert.match(connectEffects[0].before, /"name": "consumer"/);
   assert.match(connectEffects[0].after, new RegExp(TARGET));
-  assert.equal(connectEffects[2].before, "# Root\n");
-  assert.match(connectEffects[2].after, /BEGIN managed/);
+  assert.equal(connectEffects[1].before, "# Root\n");
+  assert.match(connectEffects[1].after, /BEGIN managed/);
   assert.ok(connectEffects.every((effect) => effect.changed === true));
   assert.deepEqual(
     connectEffects.map((effect) => effect.path),
-    [
-      `${CONSUMER_ROOT}/.design-system/config.json`,
-      `${CONSUMER_ROOT}/.design-system/AGENTS.md`,
-      `${CONSUMER_ROOT}/AGENTS.md`,
-    ],
+    [`${CONSUMER_ROOT}/package.json`, `${CONSUMER_ROOT}/AGENTS.md`],
   );
 });
 
@@ -1174,7 +1155,7 @@ test("executeMutation fails closed when a managed file changes between preview a
         const injected = '{"injected":true}\n';
         result.connectPlan.files[0].before = injected;
         result.plannedChanges = result.plannedChanges.map((change) =>
-          change.kind === "connect" && change.fileKind === "config"
+          change.kind === "connect" && change.fileKind === "package-json"
             ? { ...change, before: injected }
             : change,
         );
@@ -1192,7 +1173,7 @@ test("executeMutation fails closed when a managed file changes between preview a
   assert.equal(outcome.applied, false);
   assert.deepEqual(dryRunFlags(calls, "use"), [true, true]);
   assert.equal(
-    outcome.preview.material.effects.find((effect) => effect.fileKind === "config").before,
+    outcome.preview.material.effects.find((effect) => effect.fileKind === "package-json").before,
     '{"injected":true}\n',
   );
 });
@@ -1463,10 +1444,10 @@ test("switch and remove previews preserve exact lifecycle effects and execute on
     plannedChanges: [
       { kind: "dependency", manager: "pnpm", command: removeCommand },
       {
-        kind: "config",
-        path: `${CONSUMER_ROOT}/.design-system/config.json`,
+        kind: "package-json",
+        path: `${CONSUMER_ROOT}/package.json`,
         changed: true,
-        before: '{"package":"old"}',
+        before: '{"designSystem":{"package":"old"}}',
         after: null,
       },
     ],
@@ -1717,10 +1698,10 @@ test("recovery report is read-only; action preview is exact and execution stays 
     version: "1.2.3",
     files: [
       {
-        kind: "config",
-        path: `${CONSUMER_ROOT}/.design-system/config.json`,
-        before: '{"version":"old"}',
-        after: '{"version":"1.2.3"}',
+        kind: "package-json",
+        path: `${CONSUMER_ROOT}/package.json`,
+        before: '{"designSystem":{"version":"old"}}',
+        after: '{"designSystem":{"version":"1.2.3"}}',
       },
     ],
   };

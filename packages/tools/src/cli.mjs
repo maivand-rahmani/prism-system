@@ -64,7 +64,15 @@
 
 import { readFileSync } from "node:fs";
 
-import { connectDesignSystem } from "./consumer.mjs";
+import {
+  CONSUMER_CONFIG_LABEL,
+  CONSUMER_DIRECTORY,
+  LEGACY_CONSUMER_CONFIG_FILENAME,
+  connectDesignSystem,
+  normalizeConsumerLocation,
+  readConsumerConfig,
+  resolveConsumerRoot,
+} from "./consumer.mjs";
 import { collectDoctorReport, doctorHelpText } from "./doctor.mjs";
 
 /** Published executable name. */
@@ -91,6 +99,7 @@ export function helpText() {
     `  ${CLI_NAME} install <package-or-id> [version] --cwd <root> [options]`,
     `  ${CLI_NAME} use <package-or-id> [version] --cwd <root> [options]`,
     `  ${CLI_NAME} connect [package] --cwd <root> [options]`,
+    `  ${CLI_NAME} config [package-json|design-system] --cwd <root> [--check] [--dry-run] [--json]`,
     `  ${CLI_NAME} check-usage --cwd <root> [options]`,
     `  ${CLI_NAME} doctor [package] --cwd <root>`,
     `  ${CLI_NAME} components [name] --cwd <root> [--json]`,
@@ -114,6 +123,8 @@ export function helpText() {
     "  install         Explicitly install a style into a consumer (npm or pnpm).",
     "  use             Install, verify, connect a style; optional strict usage check.",
     "  connect         Configure an already-installed style in a consumer.",
+    "  config          Show or move where the consumer stores its design-system",
+    "                  configuration (package.json or .design-system/config.json).",
     "  check-usage     Deterministically validate strict usage with the TypeScript AST.",
     "  doctor          Read-only diagnostics: containment, discovery, manifest, config.",
     "  components      Offline component catalog of the installed style.",
@@ -148,8 +159,8 @@ export function helpText() {
     "                                   (Node >= 22.20), preview + --yes only; installs",
     "                                   instructions only, never dependencies.",
     "  connect/check-usage/doctor/      offline and never edit dependencies (connect writes",
-    "  components/tokens/check/         only its consumer config/AGENTS files; the others",
-    "                                   are read-only).",
+    "  config/components/tokens/check/  only the consumer config/AGENTS files; config only",
+    "                                   moves that configuration; the rest are read-only).",
     "  setup-tailwind                   offline; the only command that edits its explicitly",
     "                                   named --css file, and it writes nothing in --dry-run",
     "                                   or --check.",
@@ -172,15 +183,19 @@ export function connectHelpText() {
     `Usage: ${CLI_NAME} connect [package] --cwd <consumer-root> [options]`,
     "",
     "Configure an already-installed @prism-system design system in a consumer",
-    "repository. Writes .design-system/config.json, .design-system/AGENTS.md, and an",
-    "idempotent managed block in the consumer root AGENTS.md. Offline and",
-    "configure-only: never installs packages, edits dependencies, copies source, or",
-    "mutates the design-system repo.",
+    'repository. Writes the root package.json "designSystem" field and an idempotent',
+    "managed section in the root AGENTS.md; it creates no .design-system directory",
+    "unless the configuration is already stored there (see `prism-ds config`).",
+    "A legacy .design-system/config.json or generated .design-system/AGENTS.md is",
+    "migrated (moved into package.json#designSystem / the AGENTS.md managed section)",
+    "and removed. Offline and configure-only: never installs packages, edits",
+    "dependencies, copies source, or mutates the design-system repo.",
     "",
     "Arguments:",
     "  [package]             Optional package name or system id. When omitted, discovery",
-    "                        uses .design-system/config.json, then package.json",
-    '                        "designSystem" metadata, then a single dependency.',
+    "                        uses an explicit package argument, then the package.json",
+    '                        "designSystem" field, then a legacy .design-system/config.json,',
+    "                        then a single installed @prism-system/ui-* dependency.",
     "",
     "Options:",
     "  --cwd <path>          Consumer root (required; never defaults to a repo root).",
@@ -191,6 +206,38 @@ export function connectHelpText() {
     "  -h, --help            Show this help.",
     "",
     "Exit code is non-zero for every failed discovery, verification, or write.",
+    "",
+  ].join("\n");
+}
+
+export function configHelpText() {
+  return [
+    `Usage: ${CLI_NAME} config [package-json|design-system] --cwd <consumer-root> [options]`,
+    "",
+    "Show or move where a consumer stores its design-system configuration. The",
+    "configuration is one subtree; only its location changes. It is written to the",
+    'root package.json under "designSystem" by default, or to',
+    ".design-system/config.json in the extended layout, which wraps the identical",
+    'subtree as { "designSystem": { ... } }.',
+    "",
+    "Both locations are equivalent and fully supported. Each file describes itself,",
+    "so a consumer can never be left with two competing configurations. Moving",
+    "never installs packages, never edits dependencies, and never changes the",
+    "selected package or version.",
+    "",
+    "Arguments:",
+    "  package-json          Store the configuration in package.json#designSystem.",
+    "  design-system         Store it in .design-system/config.json (extended layout).",
+    "  (none)                Report the active location and write nothing.",
+    "",
+    "Options:",
+    "  --cwd <path>          Consumer root (required; never defaults to a repo root).",
+    "  --check               Report whether the target location is active; write nothing.",
+    "  --dry-run             Show the planned writes/removals without writing.",
+    "  --json                Emit the result as JSON.",
+    "  -h, --help            Show this help.",
+    "",
+    "Exit code is non-zero when --check finds a pending move, or on any failure.",
     "",
   ].join("\n");
 }
@@ -749,6 +796,11 @@ function reportConnectFailure(result) {
   process.exitCode = 1;
 }
 
+function reportMigrations(migrations, prefix) {
+  if (!Array.isArray(migrations)) return;
+  for (const migration of migrations) process.stdout.write(`${prefix}${migration}\n`);
+}
+
 function reportConnectSuccess(result) {
   const plan = result.plan;
   const label = `${plan.packageName}@${plan.version}`;
@@ -758,6 +810,7 @@ function reportConnectSuccess(result) {
         ? `Consumer contract is out of date for ${label} (run connect to update).\n`
         : `Consumer contract is up to date for ${label}.\n`,
     );
+    reportMigrations(result.migrations, "  pending migration: ");
     if (result.changed) process.exitCode = 1;
     return;
   }
@@ -767,9 +820,13 @@ function reportConnectSuccess(result) {
       process.stdout.write("  no changes (already connected)\n");
     } else {
       for (const change of result.changes) {
-        process.stdout.write(`  would write ${change.kind}: ${change.path}\n`);
+        // A migration effect that removes a legacy file is a deletion, not a write.
+        const effect = plan.files.find((file) => file.path === change.path);
+        const verb = effect !== undefined && effect.after === null ? "would remove" : "would write";
+        process.stdout.write(`  ${verb} ${change.kind}: ${change.path}\n`);
       }
     }
+    reportMigrations(result.migrations, "  would migrate: ");
     process.stdout.write("\nDry run: nothing was written.\n");
     return;
   }
@@ -778,6 +835,7 @@ function reportConnectSuccess(result) {
       ? `Connected ${label} in ${plan.consumerRoot}.\n`
       : `Already connected ${label} in ${plan.consumerRoot} (no changes).\n`,
   );
+  reportMigrations(result.migrations, "  migration: ");
 }
 
 export function runConnectCommand(argv) {
@@ -809,6 +867,189 @@ export function runConnectCommand(argv) {
     return;
   }
   reportConnectSuccess(result);
+}
+
+/* -------------------------------------------------------------------------- */
+/* config                                                                     */
+/* -------------------------------------------------------------------------- */
+
+/** Human-readable label for one configuration location. */
+function locationLabel(location) {
+  return location === "design-system"
+    ? `${CONSUMER_DIRECTORY}/${LEGACY_CONSUMER_CONFIG_FILENAME}`
+    : CONSUMER_CONFIG_LABEL;
+}
+
+/**
+ * Report which location currently holds the configuration. Read-only; used when
+ * `config` is invoked with no target.
+ */
+function reportConfigLocation(result) {
+  const { config } = result;
+  if (config === null) {
+    process.stdout.write(
+      "No design system configuration found. " +
+        `Run "${CLI_NAME} config package-json --cwd <root>" or connect the consumer first.\n`,
+    );
+    return false;
+  }
+  const location = config.source === "extended-config" ? "design-system" : "package-json";
+  process.stdout.write(
+    `Configuration location: ${locationLabel(location)} ` +
+      `(${config.package}@${config.version ?? "version not recorded"}).\n`,
+  );
+  if (config.source === "legacy-config") {
+    process.stdout.write(
+      `  legacy layout detected; run "${CLI_NAME} config package-json" to move it into ` +
+        `${CONSUMER_CONFIG_LABEL}.\n`,
+    );
+  }
+  return true;
+}
+
+/**
+ * The location that currently holds the configuration, derived from the
+ * discovery source of a connect plan. A legacy file is still reported as
+ * `package-json` because that is where `connect` will move it.
+ */
+function currentConfigLocation(plan) {
+  return plan.source === "extended-config" ? "design-system" : "package-json";
+}
+
+function reportConfigSuccess(result) {
+  const target = locationLabel(result.plan.location);
+  const label = `${result.plan.packageName}@${result.plan.version}`;
+  const atTarget = currentConfigLocation(result.plan) === result.plan.location;
+  if (result.check) {
+    // `config --check` answers one question: is the configuration stored where
+    // the target says it should be? Unrelated contract drift is `connect --check`.
+    if (atTarget) {
+      process.stdout.write(`Configuration is stored in ${target} for ${label}.\n`);
+    } else {
+      process.stdout.write(
+        `Configuration is not stored in ${target} for ${label} ` +
+          `(run "${CLI_NAME} config ${result.plan.location}").\n`,
+      );
+      process.exitCode = 1;
+    }
+    reportMigrations(result.migrations, "  pending migration: ");
+    return;
+  }
+  if (result.dryRun) {
+    process.stdout.write(`Configuration move to ${target} for ${label}\n\n`);
+    if (result.changes.length === 0) {
+      process.stdout.write("  no changes (already stored there)\n");
+    } else {
+      for (const change of result.changes) {
+        const effect = result.plan.files.find((file) => file.path === change.path);
+        const verb = effect !== undefined && effect.after === null ? "would remove" : "would write";
+        process.stdout.write(`  ${verb} ${change.kind}: ${change.path}\n`);
+      }
+    }
+    reportMigrations(result.migrations, "  would migrate: ");
+    process.stdout.write("\nDry run: nothing was written.\n");
+    return;
+  }
+  process.stdout.write(
+    result.changed
+      ? `Moved the design system configuration to ${target} for ${label}.\n`
+      : `Configuration is already stored in ${target} for ${label} (no changes).\n`,
+  );
+  reportMigrations(result.migrations, "  migration: ");
+}
+
+export function runConfigCommand(argv) {
+  let parsed;
+  try {
+    parsed = parseOptions(argv, {
+      maxPositionals: 1,
+      booleans: ["check", "dry-run", "json"],
+      values: ["cwd"],
+    });
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  if (parsed.options.help) {
+    process.stdout.write(configHelpText());
+    return;
+  }
+
+  const requested = parsed.positionals[0];
+  if (requested === undefined) {
+    if (parsed.options.check || parsed.options.dryRun) {
+      process.stderr.write(
+        `\`${CLI_NAME} config\` needs a target location for --check or --dry-run: ` +
+          `"package-json" or "design-system".\n`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+    // Read-only report of the active location.
+    let config;
+    try {
+      config = readConsumerConfig(resolveConsumerRoot({ cwd: parsed.options.cwd }));
+    } catch (error) {
+      process.stderr.write(`${error.message}\n`);
+      process.exitCode = 1;
+      return;
+    }
+    const configLocation =
+      config === null || config.source !== "extended-config" ? "package-json" : "design-system";
+    if (parsed.options.json) {
+      // `--json` emits only machine-readable output.
+      process.stdout.write(
+        `${JSON.stringify(
+          {
+            ok: config !== null,
+            mode: "report",
+            location: config === null ? null : configLocation,
+            source: config?.source ?? null,
+            package: config?.package ?? null,
+            version: config?.version ?? null,
+            strict: config?.strict ?? null,
+            path: config?.path ?? null,
+          },
+          null,
+          2,
+        )}\n`,
+      );
+      if (config === null) process.exitCode = 1;
+      return;
+    }
+    const ok = reportConfigLocation({ config });
+    if (!ok) process.exitCode = 1;
+    return;
+  }
+
+  let location;
+  try {
+    location = normalizeConsumerLocation(requested);
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const result = connectDesignSystem({
+    cwd: parsed.options.cwd,
+    location,
+    check: parsed.options.check,
+    dryRun: parsed.options.dryRun,
+  });
+  if (parsed.options.json) {
+    process.stdout.write(`${JSON.stringify({ mode: "move", ...result }, null, 2)}\n`);
+    const ok =
+      result.ok && (!result.check || currentConfigLocation(result.plan) === result.plan.location);
+    if (!ok) process.exitCode = 1;
+    return;
+  }
+  if (!result.ok) {
+    reportConnectFailure(result);
+    return;
+  }
+  reportConfigSuccess(result);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -2550,8 +2791,12 @@ function reportRecoveryPreview(preview, { consentRequired }) {
   if (preview.changes.length === 0) {
     process.stdout.write("  changes: none (the targeted state is already satisfied)\n");
   } else {
+    const plannedFiles = Array.isArray(preview.plan?.files) ? preview.plan.files : [];
     for (const change of preview.changes) {
-      process.stdout.write(`  would write ${change.kind}: ${change.path}\n`);
+      // A migration effect that removes a legacy file is a deletion, not a write.
+      const effect = plannedFiles.find((file) => file.path === change.path);
+      const verb = effect !== undefined && effect.after === null ? "would remove" : "would write";
+      process.stdout.write(`  ${verb} ${change.kind}: ${change.path}\n`);
     }
   }
   if (consentRequired) {
@@ -2770,6 +3015,10 @@ export async function runCli(argv) {
   }
   if (command === "connect") {
     runConnectCommand(rest);
+    return;
+  }
+  if (command === "config") {
+    runConfigCommand(rest);
     return;
   }
   if (command === "check-usage") {

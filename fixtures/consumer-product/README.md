@@ -14,9 +14,10 @@ workspace source paths.
 
 - `src/dashboard.tsx` — the same product composition rendered with each system,
   composed only through public props.
-- `package.json` — declares both supported systems, so dependency discovery
-  deliberately fails closed with "multiple candidates" unless a package is passed
-  explicitly or `.design-system/config.json` exists.
+- `package.json` — declares both supported systems and a `designSystem` field selecting
+  `@prism-system/ui-system-a`, so discovery uses that field; removing it (or passing a
+  package explicitly) exercises the other paths, including the "multiple candidates"
+  failure from the two installed dependencies.
 - `AGENTS.md` — the product-side rules an external agent should follow.
 
 ## Trying the consumer lifecycle
@@ -41,9 +42,10 @@ pnpm --filter @prism-system/ui-system-b pack --pack-destination TEMP/lifecycle/p
 pnpm ds:connect @prism-system/ui-system-a --cwd TEMP/lifecycle/<scratch>
 ```
 
-`ds:connect` writes `.design-system/config.json` and `.design-system/AGENTS.md`
-and appends a managed block to `AGENTS.md`. It never installs packages, edits
-`package.json`, copies component source, or mutates the design-system repository.
+`ds:connect` writes the `designSystem` field in the fixture's `package.json` and one
+managed section in its `AGENTS.md`. It never installs packages, edits dependencies,
+copies component source, or mutates the design-system repository, and it creates no
+`.design-system/` directory.
 
 A real external product does not need this repository at all: it installs the
 published `@prism-system/tools` package and runs `npx prism-ds use

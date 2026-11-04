@@ -27,6 +27,7 @@ import { test } from "node:test";
 import { gzipSync } from "node:zlib";
 
 import { helpText, removeHelpText, switchHelpText } from "../src/cli.mjs";
+import { renderConsumerAgents, renderLegacyConsumerConfig } from "../src/consumer.mjs";
 import {
   addSyntheticExtension,
   currentManifest,
@@ -174,7 +175,10 @@ function writeFile(root, relative, content) {
   return path;
 }
 
-function createConsumer(t, { source = null, sourceFile = "src/app.ts", system = SYSTEM_A } = {}) {
+function createConsumer(
+  t,
+  { source = null, sourceFile = "src/app.ts", system = SYSTEM_A, legacy = false } = {},
+) {
   const root = mkdtempSync(join(tmpdir(), "prism-cli-lifecycle-"));
   t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
@@ -184,16 +188,41 @@ function createConsumer(t, { source = null, sourceFile = "src/app.ts", system = 
     private: true,
     packageManager: "npm@10.0.0",
     dependencies: { [system.package]: system.version },
+    // The current consumer contract: configuration lives in package.json, not in
+    // a `.design-system/config.json` file. A legacy consumer predates that field.
+    ...(legacy
+      ? {}
+      : {
+          designSystem: {
+            schemaVersion: 1,
+            package: system.package,
+            version: system.version,
+            strict: true,
+          },
+        }),
   });
-  writeJson(join(root, ".design-system", "config.json"), {
-    $schema:
-      "https://github.com/maivand-rahmani/prism-system/schemas/design-system-consumer.schema.json",
-    schemaVersion: 1,
-    package: system.package,
-    version: system.version,
-    manifest: "./manifest",
-    strict: true,
-  });
+  if (legacy) {
+    writeFile(
+      root,
+      join(".design-system", "config.json"),
+      renderLegacyConsumerConfig({
+        packageName: system.package,
+        version: system.version,
+        strict: true,
+        ignore: [],
+      }),
+    );
+    writeFile(
+      root,
+      join(".design-system", "AGENTS.md"),
+      renderConsumerAgents({
+        packageName: system.package,
+        version: system.version,
+        strict: true,
+        contractVersion: system.contractVersion,
+      }),
+    );
+  }
   const packageDir = join(root, "node_modules", ...system.package.split("/"));
   writeJson(join(packageDir, "package.json"), {
     name: system.package,
@@ -537,12 +566,89 @@ test("remove --dry-run --json plans the exact removal without writing", async (t
   assert.equal(report.dryRun, true);
   assert.equal(report.package, SYSTEM_A.package);
   assert.ok(report.plannedChanges.some((change) => change.kind === "dependency"));
+  assert.deepEqual(
+    report.plannedChanges
+      .filter((change) => change.kind === "file")
+      .map((change) => change.fileKind),
+    ["package-json"],
+    "the configuration value is the planned cleanup (this fixture has no AGENTS.md)",
+  );
+  const packageJsonChange = report.plannedChanges.find(
+    (change) => change.fileKind === "package-json",
+  );
+  assert.equal(JSON.parse(packageJsonChange.before).designSystem.package, SYSTEM_A.package);
+  assert.equal(JSON.parse(packageJsonChange.after).designSystem, undefined);
   assert.ok(report.planMaterial.action === "remove");
   assert.ok(
     report.compatibility.warnings.some((warning) => warning.code === "css-not-inspected"),
     "the JSON result must carry the CSS-not-inspected coverage warning",
   );
   assert.deepEqual(snapshot(root), before);
+  assert.equal(readdirSync(dir).includes("spawned.txt"), false);
+});
+
+test("remove --dry-run --json plans the migration of a legacy .design-system install", async (t) => {
+  const { root } = createConsumer(t, { legacy: true });
+  const before = snapshot(root);
+  const { dir } = createFakeManagerDir(t);
+
+  const result = await runBin(["remove", "--cwd", root, "--dry-run", "--json"], {
+    env: managerEnv(dir),
+  });
+
+  assert.equal(result.exitCode, 0, result.stderr);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.ok, true);
+  assert.deepEqual(
+    report.plannedChanges.map((change) => change.kind),
+    ["dependency", "file", "file", "directory"],
+    "only the legacy generated files and the emptied directory are planned",
+  );
+  assert.deepEqual(
+    report.plannedChanges
+      .filter((change) => change.kind === "file")
+      .map((change) => change.fileKind),
+    ["design-system-config", "legacy-agents"],
+  );
+  assert.equal(report.packageJson, null, "a legacy install has no package.json field to strip");
+  assert.deepEqual(snapshot(root), before);
+  assert.equal(readdirSync(dir).includes("spawned.txt"), false);
+});
+
+test("switch --dry-run --json previews the legacy-to-package.json migration", async (t) => {
+  const registry = await startRegistry(t, {
+    packageName: SYSTEM_B.package,
+    manifest: SYSTEM_B,
+  });
+  const { root } = createConsumer(t, { legacy: true });
+  const before = snapshot(root);
+  const { dir } = createFakeManagerDir(t);
+
+  const result = await runBin(
+    [
+      "switch",
+      SYSTEM_B.package,
+      "--cwd",
+      root,
+      "--registry",
+      registry.registry,
+      "--dry-run",
+      "--json",
+    ],
+    { env: managerEnv(dir) },
+  );
+
+  assert.equal(result.exitCode, 0, result.stderr);
+  const report = JSON.parse(result.stdout);
+  assert.deepEqual(
+    report.plannedChanges
+      .filter((change) => change.kind === "connect")
+      .map((change) => change.fileKind),
+    ["package-json", "design-system-config", "root-agents", "legacy-agents"],
+  );
+  assert.equal(report.connectPlan.directory.remove, true, "the emptied directory is retired");
+  assert.equal(report.connectPlan.migrations.length, 2);
+  assert.deepEqual(snapshot(root), before, "a dry run must not write");
   assert.equal(readdirSync(dir).includes("spawned.txt"), false);
 });
 

@@ -1,19 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/maivand-rahmani/prism-system/schemas/design-system-consumer.schema.json",
-  "title": "Design System Consumer Config",
-  "description": "The consumer-side configuration written by `pnpm ds:connect` at <consumer-root>/.design-system/config.json. It records which installed @prism-system design system a product repository consumes, the exact resolved version, the public manifest subpath, and strict mode. It contains no component source or styling; the installed package remains the source of truth.",
+  "title": "Design System Consumer Configuration",
+  "description": "The `designSystem` configuration subtree a consumer uses to record which installed @prism-system design system it consumes. `prism-ds connect` writes it to the root package.json `designSystem` field by default, or — after `prism-ds config design-system` — to the extended `.design-system/config.json` document under the same `designSystem` key: { \"designSystem\": <this object> }. Both locations are equivalent and hold identical content. It contains no component source or styling; the installed package remains the source of truth.",
   "type": "object",
-  "required": ["$schema", "schemaVersion", "package", "version", "manifest", "strict"],
+  "required": ["schemaVersion", "package"],
   "additionalProperties": false,
   "properties": {
-    "$schema": {
-      "type": "string",
-      "description": "Reference to this schema."
-    },
     "schemaVersion": {
       "const": 1,
-      "description": "Consumer config schema version."
+      "description": "Consumer configuration schema version."
     },
     "package": {
       "type": "string",
@@ -23,14 +19,11 @@
     "version": {
       "type": "string",
       "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$",
-      "description": "Exact resolved version; equal to the installed package.json version and the shipped manifest version."
-    },
-    "manifest": {
-      "const": "./manifest",
-      "description": "The public export subpath that resolves to the shipped design-system.json manifest."
+      "description": "Optional exact resolved version, recorded by `connect`; when present it must equal the installed package.json version and the shipped manifest version."
     },
     "strict": {
       "type": "boolean",
+      "default": true,
       "description": "Strict usage mode. Defaults to true; layout is allowed, visual language overrides are not."
     },
     "ignore": {

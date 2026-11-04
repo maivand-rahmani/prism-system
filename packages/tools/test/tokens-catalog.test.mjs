@@ -68,24 +68,21 @@ function createConsumer(t, { manifest, withConfig = false } = {}) {
   const root = mkdtempSync(join(tmpdir(), "prism-tokens-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
 
-  writeJson(join(root, "package.json"), {
+  const consumerPackage = {
     name: "consumer-app",
     version: "0.0.0",
     private: true,
     dependencies: { [manifest.package]: manifest.version },
-  });
-
+  };
   if (withConfig) {
-    writeJson(join(root, ".design-system", "config.json"), {
-      $schema:
-        "https://github.com/maivand-rahmani/prism-system/schemas/design-system-consumer.schema.json",
+    consumerPackage.designSystem = {
       schemaVersion: 1,
       package: manifest.package,
       version: manifest.version,
-      manifest: "./manifest",
       strict: true,
-    });
+    };
   }
+  writeJson(join(root, "package.json"), consumerPackage);
 
   const packageDir = join(root, "node_modules", ...manifest.package.split("/"));
   writeJson(join(packageDir, "package.json"), {

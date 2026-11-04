@@ -9,16 +9,24 @@
  *   - it never copies component source or styling;
  *   - it never mutates the design-system repository or accesses its source.
  *
- * It writes a small consumer contract next to the product:
+ * The consumer contract is the root `package.json` `"designSystem"` field plus
+ * an idempotent managed section in the root `AGENTS.md`:
  *
- *   <consumer-root>/.design-system/config.json   selected package, version, manifest, strict
- *   <consumer-root>/.design-system/AGENTS.md     agent instructions
- *   <consumer-root>/AGENTS.md                    idempotent managed contract block
+ *   <consumer-root>/package.json   "designSystem": { schemaVersion, package, version, strict, ignore? }
+ *   <consumer-root>/AGENTS.md      managed contract block (user content preserved)
  *
- * Discovery precedence: explicit `.design-system/config.json`, then consumer
- * `package.json` `designSystem` metadata, then dependency discovery when exactly
- * one supported `@prism-system/ui-*` package exists. Invalid config, multiple
- * candidates, a missing package, or mismatched versions fail closed.
+ * No directory or extra configuration file is created for a normal install.
+ * `.design-system/` remains an optional project-local extension directory: it
+ * holds tool-managed state that does not belong in `package.json` (currently
+ * `skills.json`) and is reserved for future complex configuration that genuinely
+ * outgrows the package.json field.
+ *
+ * Discovery precedence: explicit `--package`, then the root `package.json`
+ * `"designSystem"` field, then a legacy `.design-system/config.json` (read-only
+ * migration path for pre-package.json installs), then dependency discovery when
+ * exactly one supported `@prism-system/ui-*` package exists. Invalid config,
+ * conflicting configs, multiple candidates, a missing package, or mismatched
+ * versions fail closed.
  *
  * The installed package and its public `./manifest` export are resolved through
  * Node package resolution from the consumer root, never by hardcoding a
@@ -37,9 +45,11 @@ import { createRequire } from "node:module";
 import {
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
+  rmdirSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -59,12 +69,40 @@ import {
 } from "./constants.mjs";
 import { collectManifestFailures, detectManifestContract } from "./manifest.mjs";
 
-/** Consumer contract directory, relative to the consumer root. */
+/**
+ * Optional project-local extension directory, relative to the consumer root.
+ * It is NOT the configuration location: configuration lives in `package.json`
+ * under {@link CONSUMER_CONFIG_KEY}. This directory only holds tool-managed
+ * state that does not belong in `package.json` (currently `skills.json`) and is
+ * reserved for future configuration that outgrows the package.json field.
+ */
 export const CONSUMER_DIRECTORY = ".design-system";
-/** Consumer config filename inside {@link CONSUMER_DIRECTORY}. */
-export const CONSUMER_CONFIG_FILENAME = "config.json";
-/** Consumer agent instructions filename inside {@link CONSUMER_DIRECTORY}. */
-export const CONSUMER_AGENTS_FILENAME = "AGENTS.md";
+/** The root `package.json` field that holds the consumer configuration. */
+export const CONSUMER_CONFIG_KEY = "designSystem";
+/** Human-readable label for the primary configuration location. */
+export const CONSUMER_CONFIG_LABEL = `package.json#${CONSUMER_CONFIG_KEY}`;
+/**
+ * The supported consumer configuration locations. `package-json` is the default;
+ * `design-system` stores the identical configuration subtree in
+ * `.design-system/config.json` for consumers that need a dedicated extended
+ * configuration file.
+ */
+export const CONSUMER_LOCATIONS = Object.freeze(["package-json", "design-system"]);
+/** The default consumer configuration location. */
+export const DEFAULT_CONSUMER_LOCATION = "package-json";
+/**
+ * Legacy configuration filename inside {@link CONSUMER_DIRECTORY}. It is read
+ * only to migrate pre-package.json installs and is retired by `connect`; never
+ * write it for a new installation.
+ */
+export const LEGACY_CONSUMER_CONFIG_FILENAME = "config.json";
+/**
+ * Legacy generated agent-instructions filename inside
+ * {@link CONSUMER_DIRECTORY}. Instructions now live in the root `AGENTS.md`
+ * managed block; this constant only identifies files left by older installs so
+ * they can be attributed and retired.
+ */
+export const LEGACY_CONSUMER_AGENTS_FILENAME = "AGENTS.md";
 /** Consumer config schema version. */
 export const CONSUMER_SCHEMA_VERSION = 1;
 /** Consumer config schema URL. */
@@ -146,15 +184,90 @@ export function resolveConsumerPath(consumerRoot, ...segments) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Discovery                                                                  */
+/* Configuration                                                              */
 /* -------------------------------------------------------------------------- */
 
-/** Read and validate `<consumer-root>/.design-system/config.json`, or null. */
-export function readConsumerConfig(consumerRoot) {
+/** Split a leading UTF-8 BOM from `text` so JSON.parse is not confused by it. */
+function splitBom(text) {
+  return text.charCodeAt(0) === 0xfeff
+    ? { bom: "\uFEFF", body: text.slice(1) }
+    : { bom: "", body: text };
+}
+
+/** Detect the indentation unit a JSON document already uses. */
+function detectJsonIndent(body) {
+  const match = /^([ \t]+)"/m.exec(body);
+  return match === null ? "  " : match[1];
+}
+
+/**
+ * Validate a raw consumer configuration object and return the normalized shape.
+ *
+ * One validator serves both the `package.json` field and the legacy
+ * `.design-system/config.json` so the two can never drift during migration.
+ * `version` is optional: `connect` always records the exact verified version,
+ * but a hand-written configuration may omit it and rely on the installed
+ * package instead.
+ */
+function normalizeConsumerConfig(raw, { consumerRoot, path, label, source }) {
+  const fail = (message) => {
+    throw new Error(`Invalid consumer config ${label}: ${message}`);
+  };
+  if (!isPlainObject(raw)) fail("it must be a JSON object.");
+  if (raw.schemaVersion !== CONSUMER_SCHEMA_VERSION) {
+    fail(
+      `"schemaVersion" is ${JSON.stringify(raw.schemaVersion ?? null)}; expected ` +
+        `${CONSUMER_SCHEMA_VERSION}.`,
+    );
+  }
+  if (typeof raw.package !== "string" || raw.package.trim().length === 0) {
+    fail('"package" must be a non-empty string.');
+  }
+  const packageName = raw.package.trim();
+  if (!isSupportedPackageName(packageName)) {
+    fail(`"package" names unsupported package ${JSON.stringify(packageName)}.`);
+  }
+  let version = null;
+  if (raw.version !== undefined && raw.version !== null) {
+    version = requireNonEmptyString(raw.version, "config.version");
+  }
+  // `manifest` was required by the legacy file and is an invariant of the public
+  // package contract; accept it when present, but never require or write it.
+  if (raw.manifest !== undefined && raw.manifest !== MANIFEST_EXPORT_SUBPATH) {
+    fail(`"manifest" must be exactly ${JSON.stringify(MANIFEST_EXPORT_SUBPATH)}.`);
+  }
+  const strict = raw.strict === undefined ? true : raw.strict;
+  if (typeof strict !== "boolean") fail('"strict" must be a boolean.');
+  const ignore = normalizeIgnoreGlobs(consumerRoot, raw.ignore, "config");
+  return {
+    schemaVersion: CONSUMER_SCHEMA_VERSION,
+    package: packageName,
+    version,
+    strict,
+    ignore,
+    path,
+    label,
+    source,
+  };
+}
+
+/**
+ * Read and validate `<root>/.design-system/config.json`, or null.
+ *
+ * The file has two accepted shapes:
+ *
+ *   - extended layout: `{ "designSystem": { … } }` — the same subtree as
+ *     `package.json`, written by `prism-ds config design-system`. This is a
+ *     deliberate, supported location.
+ *   - legacy layout: the configuration at the file root, as older `connect`
+ *     versions wrote it. It is read only so existing installs keep working and
+ *     can be migrated; it is never written again.
+ */
+function readConfigFileConsumerConfig(consumerRoot) {
   const configPath = resolveConsumerPath(
     consumerRoot,
     CONSUMER_DIRECTORY,
-    CONSUMER_CONFIG_FILENAME,
+    LEGACY_CONSUMER_CONFIG_FILENAME,
   );
   if (!existsSync(configPath)) return null;
   let raw;
@@ -163,41 +276,218 @@ export function readConsumerConfig(consumerRoot) {
   } catch (error) {
     throw new Error(`Invalid consumer config ${configPath}: ${error.message}`);
   }
-  if (!isPlainObject(raw)) {
-    throw new Error(`Consumer config ${configPath} must be a JSON object.`);
+  if (isPlainObject(raw) && raw[CONSUMER_CONFIG_KEY] !== undefined) {
+    return normalizeConsumerConfig(raw[CONSUMER_CONFIG_KEY], {
+      consumerRoot,
+      path: configPath,
+      label: `${configPath}#${CONSUMER_CONFIG_KEY}`,
+      source: "extended-config",
+    });
   }
-  if (raw.schemaVersion !== CONSUMER_SCHEMA_VERSION) {
-    throw new Error(
-      `Consumer config ${configPath} has schemaVersion ${JSON.stringify(
-        raw.schemaVersion ?? null,
-      )}; expected ${CONSUMER_SCHEMA_VERSION}.`,
-    );
-  }
-  const packageName = requireNonEmptyString(raw.package, "config.package");
-  if (!isSupportedPackageName(packageName)) {
-    throw new Error(
-      `Consumer config ${configPath} names unsupported package ${JSON.stringify(packageName)}.`,
-    );
-  }
-  const version = requireNonEmptyString(raw.version, "config.version");
-  if (raw.manifest !== MANIFEST_EXPORT_SUBPATH) {
-    throw new Error(
-      `Consumer config ${configPath} "manifest" must be exactly ` +
-        `${JSON.stringify(MANIFEST_EXPORT_SUBPATH)}.`,
-    );
-  }
-  if (typeof raw.strict !== "boolean") {
-    throw new Error(`Consumer config ${configPath} "strict" must be a boolean.`);
-  }
-  const ignore = normalizeIgnoreGlobs(consumerRoot, raw.ignore, configPath);
-  return {
-    schemaVersion: CONSUMER_SCHEMA_VERSION,
-    package: packageName,
-    version,
-    manifest: raw.manifest,
-    strict: raw.strict,
-    ignore,
+  return normalizeConsumerConfig(raw, {
+    consumerRoot,
     path: configPath,
+    label: configPath,
+    source: "legacy-config",
+  });
+}
+
+/** Read the consumer `package.json` document, or null when it does not exist. */
+export function readConsumerPackageJson(consumerRoot) {
+  const packageJsonPath = resolveConsumerPath(consumerRoot, "package.json");
+  if (!existsSync(packageJsonPath)) return null;
+  try {
+    return { path: packageJsonPath, json: readJsonFile(packageJsonPath) };
+  } catch (error) {
+    throw new Error(`Invalid consumer package.json ${packageJsonPath}: ${error.message}`);
+  }
+}
+
+/** Read and validate `<root>/package.json` `"designSystem"`, or null. */
+function readPackageJsonConsumerConfig(consumerRoot) {
+  const packageJson = readConsumerPackageJson(consumerRoot);
+  if (packageJson === null) return null;
+  const raw = packageJson.json?.[CONSUMER_CONFIG_KEY];
+  if (raw === undefined || raw === null) return null;
+  const label = `${packageJson.path}#${CONSUMER_CONFIG_KEY}`;
+  // A bare package name is accepted as the minimal hand-written form; `connect`
+  // replaces it with the full object once the exact version is verified.
+  if (typeof raw === "string") {
+    return {
+      schemaVersion: CONSUMER_SCHEMA_VERSION,
+      package: normalizeRequestedPackage(raw),
+      version: null,
+      strict: true,
+      ignore: [],
+      path: packageJson.path,
+      label,
+      source: CONSUMER_CONFIG_KEY,
+    };
+  }
+  return normalizeConsumerConfig(raw, {
+    consumerRoot,
+    path: packageJson.path,
+    label,
+    source: CONSUMER_CONFIG_KEY,
+  });
+}
+
+/**
+ * Resolve the consumer configuration.
+ *
+ * `package.json` is authoritative. `.design-system/config.json` is read in two
+ * shapes: the supported extended layout (`{ "designSystem": { … } }`), and the
+ * legacy layout emitted by older `connect` versions. A legacy file is reported
+ * as `legacyPath` so `connect` migrates it away, while an extended file simply
+ * becomes the active location.
+ *
+ * Two complete configurations that disagree fail closed instead of silently
+ * picking one; `prism-ds config <location>` is the command that resolves it.
+ *
+ * @returns {object | null} normalized config, or null when nothing is configured
+ */
+export function readConsumerConfig(consumerRoot, { resolveLocationConflict = false } = {}) {
+  const fromPackageJson = readPackageJsonConsumerConfig(consumerRoot);
+  const fromFile = readConfigFileConsumerConfig(consumerRoot);
+  if (fromPackageJson === null) return fromFile;
+  if (fromFile === null) return { ...fromPackageJson, legacyPath: null };
+  if (fromFile.source === "extended-config") {
+    if (resolveLocationConflict) return { ...fromPackageJson, legacyPath: null };
+    throw new Error(
+      `Conflicting consumer configuration: the design system is configured in both ` +
+        `${fromPackageJson.label} and ${fromFile.label}. Keep one location with ` +
+        `\`${CLI_NAME} config package-json\` or \`${CLI_NAME} config design-system\`.`,
+    );
+  }
+  if (fromFile.package !== fromPackageJson.package) {
+    throw new Error(
+      `Conflicting consumer configuration: ${fromPackageJson.label} selects ` +
+        `"${fromPackageJson.package}" while ${fromFile.path} selects "${fromFile.package}". ` +
+        `Remove the stale ${CONSUMER_DIRECTORY}/${LEGACY_CONSUMER_CONFIG_FILENAME} and re-run ` +
+        "the consumer command.",
+    );
+  }
+  return { ...fromPackageJson, legacyPath: fromFile.path };
+}
+
+/**
+ * Render the extended `.design-system/config.json` document.
+ *
+ * It wraps the *same* configuration subtree as `package.json` under the same
+ * `designSystem` key, so one shape and one validator serve both locations, the
+ * file describes itself, and the legacy root-level layout stays unambiguous.
+ */
+export function renderExtendedConsumerConfig(config) {
+  return `${JSON.stringify({ [CONSUMER_CONFIG_KEY]: config }, null, 2)}\n`;
+}
+
+/** True when `text` is a `.design-system/config.json` in the extended layout. */
+export function isExtendedConsumerConfigText(text) {
+  if (text === null) return false;
+  try {
+    const parsed = JSON.parse(splitBom(text).body);
+    return isPlainObject(parsed) && isPlainObject(parsed[CONSUMER_CONFIG_KEY]);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Normalize a user-supplied configuration location. Accepts the canonical names
+ * and the obvious spellings of the same locations.
+ */
+export function normalizeConsumerLocation(value) {
+  const text = requireNonEmptyString(value, "location").toLowerCase();
+  if (text === "package-json" || text === "package.json" || text === "packagejson") {
+    return "package-json";
+  }
+  if (
+    text === "design-system" ||
+    text === ".design-system" ||
+    text === "designsystem" ||
+    text === "extended"
+  ) {
+    return "design-system";
+  }
+  throw new Error(
+    `Unsupported configuration location ${JSON.stringify(value)}; expected ` +
+      `${CONSUMER_LOCATIONS.map((location) => JSON.stringify(location)).join(" or ")}.`,
+  );
+}
+
+/**
+ * Set (or, with `null`, remove) the consumer configuration inside a
+ * `package.json` document, preserving the file's own indentation, byte-order
+ * mark, trailing newline, and every field this tooling does not own.
+ */
+export function applyConsumerConfigToPackageJson(text, config) {
+  const { bom, body } = splitBom(text);
+  let parsed;
+  try {
+    parsed = JSON.parse(body);
+  } catch (error) {
+    throw new Error(`Invalid consumer package.json: ${error.message}`);
+  }
+  if (!isPlainObject(parsed)) {
+    throw new Error("Invalid consumer package.json: it must be a JSON object.");
+  }
+  if (config === null) {
+    if (parsed[CONSUMER_CONFIG_KEY] === undefined) return text;
+    delete parsed[CONSUMER_CONFIG_KEY];
+  } else {
+    // Preserve consumer-owned extra keys inside the field; the canonical shape
+    // always wins for the keys this tooling owns.
+    const existing = isPlainObject(parsed[CONSUMER_CONFIG_KEY]) ? parsed[CONSUMER_CONFIG_KEY] : {};
+    parsed[CONSUMER_CONFIG_KEY] = { ...existing, ...config };
+  }
+  const trailing = body.endsWith("\n") ? "\n" : "";
+  return `${bom}${JSON.stringify(parsed, null, detectJsonIndent(body))}${trailing}`;
+}
+
+/**
+ * Read the raw `"designSystem"` value from an explicit package.json path.
+ * Returns null when the field is absent. Used by lifecycle commands that must
+ * compare the live configuration against a previewed plan by value rather than
+ * by file bytes.
+ */
+export function readDesignSystemValue(packageJsonPath) {
+  let text;
+  try {
+    text = readFileSync(packageJsonPath, "utf8");
+  } catch {
+    return null;
+  }
+  const { body } = splitBom(text);
+  let parsed;
+  try {
+    parsed = JSON.parse(body);
+  } catch (error) {
+    throw new Error(`Invalid consumer package.json ${packageJsonPath}: ${error.message}`);
+  }
+  return parsed?.[CONSUMER_CONFIG_KEY] ?? null;
+}
+
+/**
+ * Recompute a planned `package-json` effect against the file's current bytes.
+ *
+ * A package manager legitimately rewrites unrelated `package.json` content
+ * (usually a dependency entry) between planning and writing, so the planned
+ * bytes are not authoritative for this file — only the `designSystem` value is.
+ * Callers that write after a spawn must refresh the effect instead of writing
+ * the previewed bytes.
+ */
+export function refreshPackageJsonEffect(effect) {
+  if (effect?.config !== null && !isPlainObject(effect?.config)) {
+    throw new Error(
+      `Cannot refresh ${typeof effect?.path === "string" ? effect.path : "package.json"}: the ` +
+        "planned effect carries no designSystem configuration.",
+    );
+  }
+  const text = readFileSync(effect.path, "utf8");
+  return {
+    ...effect,
+    before: text,
+    after: applyConsumerConfigToPackageJson(text, effect.config),
   };
 }
 
@@ -232,43 +522,31 @@ export function normalizeIgnoreGlobs(consumerRoot, value, label = "ignore") {
   });
 }
 
-function metadataCandidate(meta, packageJsonPath) {
-  if (typeof meta === "string") {
-    return { packageName: normalizeRequestedPackage(meta), expectedVersion: null };
-  }
-  if (isPlainObject(meta) && typeof meta.package === "string") {
-    return {
-      packageName: normalizeRequestedPackage(meta.package),
-      expectedVersion: typeof meta.version === "string" ? meta.version.trim() : null,
-    };
-  }
-  throw new Error(
-    `Consumer package.json "designSystem" in ${packageJsonPath} must be a package name string ` +
-      "or an object { package, version? }.",
-  );
-}
-
 /**
  * Resolve the candidate design system package for a consumer root.
  *
  * @returns {{ packageName: string, expectedVersion: string | null, source: string, config: object | null }}
  */
-export function discoverConsumerPackage({ consumerRoot, explicitPackage } = {}) {
+export function discoverConsumerPackage({
+  consumerRoot,
+  explicitPackage,
+  resolveLocationConflict = false,
+} = {}) {
   if (explicitPackage !== undefined && explicitPackage !== null) {
     return {
       packageName: normalizeRequestedPackage(explicitPackage),
       expectedVersion: null,
       source: "explicit",
-      config: readConsumerConfig(consumerRoot),
+      config: readConsumerConfig(consumerRoot, { resolveLocationConflict }),
     };
   }
 
-  const config = readConsumerConfig(consumerRoot);
+  const config = readConsumerConfig(consumerRoot, { resolveLocationConflict });
   if (config) {
     return {
       packageName: config.package,
       expectedVersion: config.version,
-      source: "config",
+      source: config.source,
       config,
     };
   }
@@ -276,20 +554,11 @@ export function discoverConsumerPackage({ consumerRoot, explicitPackage } = {}) 
   const packageJsonPath = resolveConsumerPath(consumerRoot, "package.json");
   if (!existsSync(packageJsonPath)) {
     throw new Error(
-      "Cannot discover a design system: no .design-system/config.json and no consumer " +
-        `package.json at ${packageJsonPath}.`,
+      `Cannot discover a design system: no consumer package.json and no ${CONSUMER_DIRECTORY}/` +
+        `${LEGACY_CONSUMER_CONFIG_FILENAME} at ${packageJsonPath}.`,
     );
   }
-  let pkg;
-  try {
-    pkg = readJsonFile(packageJsonPath);
-  } catch (error) {
-    throw new Error(`Invalid consumer package.json ${packageJsonPath}: ${error.message}`);
-  }
-  if (pkg.designSystem !== undefined && pkg.designSystem !== null) {
-    const candidate = metadataCandidate(pkg.designSystem, packageJsonPath);
-    return { ...candidate, source: "metadata", config: null };
-  }
+  const pkg = readConsumerPackageJson(consumerRoot).json;
 
   const dependencies = {
     ...(isPlainObject(pkg.dependencies) ? pkg.dependencies : {}),
@@ -299,14 +568,14 @@ export function discoverConsumerPackage({ consumerRoot, explicitPackage } = {}) 
   if (candidates.length === 0) {
     throw new Error(
       "No supported @prism-system/ui-* package found in consumer dependencies; install one and " +
-        "re-run the consumer command, or add .design-system/config.json.",
+        `re-run the consumer command, or declare "${CONSUMER_CONFIG_KEY}" in package.json.`,
     );
   }
   if (candidates.length > 1) {
     throw new Error(
       `Multiple supported @prism-system/ui-* packages found (${candidates.join(
         ", ",
-      )}); select one explicitly or add .design-system/config.json.`,
+      )}); select one explicitly or declare "${CONSUMER_CONFIG_KEY}" in package.json.`,
     );
   }
   return { packageName: candidates[0], expectedVersion: null, source: "dependency", config: null };
@@ -478,8 +747,26 @@ export function verifyConsumerDesignSystem({ packageName, expectedVersion, insta
 /* Generated content                                                          */
 /* -------------------------------------------------------------------------- */
 
-/** The canonical consumer config object. */
+/** The canonical consumer configuration object written to `package.json`. */
 export function buildConsumerConfig({ packageName, version, strict, ignore }) {
+  const config = {
+    schemaVersion: CONSUMER_SCHEMA_VERSION,
+    package: packageName,
+    version,
+    strict,
+  };
+  if (Array.isArray(ignore) && ignore.length > 0) {
+    config.ignore = [...ignore];
+  }
+  return config;
+}
+
+/**
+ * Render the legacy `.design-system/config.json` text used by pre-package.json
+ * installs. Current versions never write it; this exists only so `remove` can
+ * attribute and retire a file an older `connect` generated, byte for byte.
+ */
+export function renderLegacyConsumerConfig({ packageName, version, strict, ignore }) {
   const config = {
     $schema: CONSUMER_SCHEMA_URL,
     schemaVersion: CONSUMER_SCHEMA_VERSION,
@@ -491,10 +778,15 @@ export function buildConsumerConfig({ packageName, version, strict, ignore }) {
   if (Array.isArray(ignore) && ignore.length > 0) {
     config.ignore = [...ignore];
   }
-  return config;
+  return `${JSON.stringify(config, null, 2)}\n`;
 }
 
-/** Render `<consumer-root>/.design-system/AGENTS.md`. */
+/**
+ * Render the legacy `.design-system/AGENTS.md` text used by pre-package.json
+ * installs. Instructions now live in the root `AGENTS.md` managed block
+ * ({@link buildManagedBlock}); this exists only so `remove` can attribute and
+ * retire a file an older `connect` generated, byte for byte.
+ */
 export function renderConsumerAgents({ packageName, version, strict, contractVersion }) {
   const manifestRequest = `${packageName}${MANIFEST_EXPORT_SUBPATH.replace(/^\./, "")}`;
   const importPaths = [
@@ -545,9 +837,25 @@ export function renderConsumerAgents({ packageName, version, strict, contractVer
   ].join("\n");
 }
 
-/** Render the managed contract block appended to the consumer root AGENTS.md. */
+/**
+ * Render the managed contract block inserted into the consumer root `AGENTS.md`.
+ *
+ * This is the single agent-instruction surface: it carries the full guidance an
+ * agent needs (configuration, read order, and rules) so no separate
+ * `.design-system/AGENTS.md` is required.
+ */
 export function buildManagedBlock({ packageName, version, strict, contractVersion }) {
   const manifestRequest = `${packageName}${MANIFEST_EXPORT_SUBPATH.replace(/^\./, "")}`;
+  const importPaths = [
+    `\`${packageName}\``,
+    `\`${packageName}/tokens\``,
+    `\`${packageName}/styles.css\``,
+    `\`${packageName}/tailwind.css\``,
+    `\`${manifestRequest}\``,
+  ];
+  const importList = `${importPaths.slice(0, -1).join(", ")}, and ${
+    importPaths[importPaths.length - 1]
+  }`;
   const mode = contractVersion
     ? `contract version \`${contractVersion}\`, strict mode: \`${strict}\``
     : `strict mode: \`${strict}\``;
@@ -556,21 +864,45 @@ export function buildManagedBlock({ packageName, version, strict, contractVersio
     "## Design system (managed)",
     "",
     `This project consumes \`${packageName}@${version}\` as its visual source of truth`,
-    `(${mode}). This block is managed by \`${CLI_NAME} connect\`; do not edit`,
-    "it by hand.",
+    `(${mode}). The configuration lives in \`package.json\` under \`${CONSUMER_CONFIG_KEY}\`.`,
     "",
-    "Before implementing UI, read in order:",
+    `This section is generated by \`${CLI_NAME} connect\`. Re-run that command instead of`,
+    "editing it by hand; everything outside the markers belongs to the project and is never",
+    "modified.",
     "",
-    "1. `.design-system/config.json`",
-    `2. \`${manifestRequest}\``,
-    `3. \`node_modules/${packageName}/AGENTS.md\``,
-    `4. \`node_modules/${packageName}/README.md\``,
-    `5. the public TypeScript API of \`${packageName}\``,
+    "### Selected design system",
     "",
-    "Compose existing components with props; do not restyle them, copy package CSS, import",
-    "package internals, or create local replacements for components the design system already",
-    "provides. Layout and composition belong to the product; visual language changes belong in",
-    "the design system package.",
+    `- Package: \`${packageName}\``,
+    `- Version: \`${version}\``,
+    ...(contractVersion ? [`- Contract version: \`${contractVersion}\``] : []),
+    `- Manifest: \`${manifestRequest}\``,
+    `- Strict mode: \`${strict}\``,
+    "",
+    "### Read before implementing UI",
+    "",
+    "Follow this order and do not guess the API:",
+    "",
+    `1. \`package.json\` → \`${CONSUMER_CONFIG_KEY}\` — the selected package, exact version, and strict mode.`,
+    `2. \`${manifestRequest}\` — the shipped structured manifest: component catalog, variants, sizes, compound members, and usage rules.`,
+    `3. \`node_modules/${packageName}/AGENTS.md\` — the package consumer contract and restrictions.`,
+    `4. \`node_modules/${packageName}/README.md\` — installation, setup, and usage.`,
+    `5. The public TypeScript API exported by \`${packageName}\`.`,
+    "",
+    "### Rules",
+    "",
+    `- Import only from ${importList}. Never import package internals.`,
+    "- Compose existing components with props. Do not restyle them, copy package CSS, or",
+    "  override the visual language.",
+    "- Layout (`grid`, `flex`, `gap`, responsive rules, positioning, page composition) belongs",
+    "  to the product. Colors, typography, spacing, radius, borders, shadows, states, variants,",
+    "  and motion belong to the design system.",
+    "- In strict mode, do not introduce arbitrary colors, radius, or shadows, do not duplicate",
+    "  primitives, and do not create local replacements for components the design system",
+    "  already provides.",
+    "- A reusable visual pattern shared across the product belongs in the design system",
+    "  package. Product-specific and feature components stay in the project and are composed",
+    "  from design system primitives.",
+    `- After changing the installed version, re-run \`${CLI_NAME} connect\` and verify types and build.`,
     MANAGED_BLOCK_END,
   ].join("\n");
 }
@@ -634,15 +966,45 @@ function readIfExists(filePath) {
 }
 
 /**
- * Build the three managed consumer-file effects from explicit target content.
- * Shared by the installed-package plan ({@link planConnect}) and the
- * pre-install target plan ({@link planConnectForTarget}) so both produce
- * byte-identical content, strict/ignore semantics, and containment checks.
+ * Detect whether `text` is a `.design-system/AGENTS.md` written by an older
+ * `connect`. It is conservative: only the exact generated title followed by the
+ * generated preamble counts, so a consumer-authored file is never deleted.
+ */
+function isLegacyGeneratedAgents(text) {
+  if (text === null) return false;
+  // Tolerate CRLF and a leading BOM: an editor may have normalized or re-saved
+  // the file since it was generated, and the content is still unmistakably the
+  // generated one.
+  const normalized = text.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n");
+  return (
+    normalized.startsWith("# Design system consumer contract\n") &&
+    normalized.includes("generated by `prism-ds connect`")
+  );
+}
+
+/**
+ * Build the managed consumer-file effects from explicit target content.
+ * Shared by the installed-package plan ({@link planConnect}), the pre-install
+ * target plan ({@link planConnectForTarget}), and the location command
+ * ({@link connectDesignSystem} with an explicit `location`) so every path
+ * produces the same content, strict/ignore semantics, and containment checks.
  *
- * Containment: validate every consumer-owned path (including the
- * .design-system directory) against the real consumer root before planning any
- * write, so an external symlink/junction can never redirect config, AGENTS, or
- * rollback writes outside the consumer root.
+ * `location` selects where the configuration lives:
+ *
+ *   - `package-json` (default): the `package.json` `"designSystem"` field. A
+ *     `.design-system/config.json` is retired so the field is the only location.
+ *   - `design-system`: `.design-system/config.json` in the extended shape
+ *     `{ "designSystem": { … } }`; the `package.json` field is removed.
+ *
+ * Either way the root `AGENTS.md` managed block is the single agent-instruction
+ * surface, and the generated legacy `.design-system/AGENTS.md` is retired so an
+ * existing installation migrates in one idempotent run. The `.design-system/`
+ * directory is removed only when it becomes empty; `skills.json` and any
+ * consumer file keep it.
+ *
+ * Containment: validate every consumer-owned path against the real consumer
+ * root before planning any write, so an external symlink/junction can never
+ * redirect a config, AGENTS, migration, or rollback write outside the root.
  */
 function planConnectFiles({
   consumerRoot,
@@ -652,27 +1014,30 @@ function planConnectFiles({
   strict,
   ignore,
   source,
+  location = DEFAULT_CONSUMER_LOCATION,
   check = false,
 }) {
-  resolveConsumerPath(consumerRoot, CONSUMER_DIRECTORY);
-  const configPath = resolveConsumerPath(
-    consumerRoot,
-    CONSUMER_DIRECTORY,
-    CONSUMER_CONFIG_FILENAME,
-  );
-  const agentsPath = resolveConsumerPath(
-    consumerRoot,
-    CONSUMER_DIRECTORY,
-    CONSUMER_AGENTS_FILENAME,
-  );
+  const packageJsonPath = resolveConsumerPath(consumerRoot, "package.json");
   const rootAgentsPath = resolveConsumerPath(consumerRoot, "AGENTS.md");
+  const configFilePath = resolveConsumerPath(
+    consumerRoot,
+    CONSUMER_DIRECTORY,
+    LEGACY_CONSUMER_CONFIG_FILENAME,
+  );
+  const legacyAgentsPath = resolveConsumerPath(
+    consumerRoot,
+    CONSUMER_DIRECTORY,
+    LEGACY_CONSUMER_AGENTS_FILENAME,
+  );
 
-  const configContent = `${JSON.stringify(
-    buildConsumerConfig({ packageName, version, strict, ignore }),
-    null,
-    2,
-  )}\n`;
-  const agentsContent = renderConsumerAgents({ packageName, version, strict, contractVersion });
+  const packageJsonBefore = readIfExists(packageJsonPath);
+  if (packageJsonBefore === null) {
+    throw new Error(
+      `Cannot write the consumer contract: no consumer package.json at ${packageJsonPath}.`,
+    );
+  }
+
+  const config = buildConsumerConfig({ packageName, version, strict, ignore });
   const block = buildManagedBlock({ packageName, version, strict, contractVersion });
   const rootAgentsAfter = applyManagedBlock(readIfExists(rootAgentsPath), block);
 
@@ -681,18 +1046,82 @@ function planConnectFiles({
     return { kind, path, before, after, changed: before !== after };
   };
 
+  const configFileBefore = readIfExists(configFilePath);
+  const configFileWasExtended = isExtendedConsumerConfigText(configFileBefore);
+  const migrations = [];
+  const files = [];
+
+  if (location === "design-system") {
+    // The field must be gone from package.json: one configuration, one location.
+    // When it is already absent this effect is a no-op (`changed: false`).
+    const packageJsonAfter = applyConsumerConfigToPackageJson(packageJsonBefore, null);
+    files.push({ ...fileEffect("package-json", packageJsonPath, packageJsonAfter), config: null });
+    files.push(
+      fileEffect("design-system-config", configFilePath, renderExtendedConsumerConfig(config)),
+    );
+    if (configFileBefore !== null && !configFileWasExtended) {
+      migrations.push(
+        `converted ${CONSUMER_DIRECTORY}/${LEGACY_CONSUMER_CONFIG_FILENAME} to the extended ` +
+          `${CONSUMER_CONFIG_KEY} layout`,
+      );
+    }
+  } else {
+    // `config` travels with the effect so plan-drift comparison can use the
+    // semantic configuration instead of the whole package.json byte image (the
+    // installer legitimately rewrites unrelated package.json content).
+    const packageJsonAfter = applyConsumerConfigToPackageJson(packageJsonBefore, config);
+    files.push({ ...fileEffect("package-json", packageJsonPath, packageJsonAfter), config });
+    if (configFileBefore !== null) {
+      files.push(fileEffect("design-system-config", configFilePath, null));
+      migrations.push(
+        `moved ${CONSUMER_DIRECTORY}/${LEGACY_CONSUMER_CONFIG_FILENAME} to ` +
+          `${CONSUMER_CONFIG_LABEL}`,
+      );
+    }
+  }
+
+  // The root AGENTS.md block is the only instruction surface in both locations.
+  files.push(fileEffect("root-agents", rootAgentsPath, rootAgentsAfter));
+
+  const legacyAgentsBefore = readIfExists(legacyAgentsPath);
+  const retiresLegacyAgents = isLegacyGeneratedAgents(legacyAgentsBefore);
+  if (retiresLegacyAgents) {
+    files.push(fileEffect("legacy-agents", legacyAgentsPath, null));
+    migrations.push(
+      `removed the generated ${CONSUMER_DIRECTORY}/${LEGACY_CONSUMER_AGENTS_FILENAME}; its ` +
+        "instructions now live in AGENTS.md",
+    );
+  }
+
+  // Predict the directory state after the planned retirements: it is removed
+  // only when nothing else remains (for example `skills.json` keeps it, and so
+  // does a consumer-authored file we are not allowed to delete). The extended
+  // location keeps the directory by definition.
+  let directory = null;
+  if (location !== "design-system" && (retiresLegacyAgents || configFileBefore !== null)) {
+    const directoryPath = resolveConsumerPath(consumerRoot, CONSUMER_DIRECTORY);
+    if (existsSync(directoryPath)) {
+      const retiring = new Set();
+      if (retiresLegacyAgents) retiring.add(LEGACY_CONSUMER_AGENTS_FILENAME);
+      if (configFileBefore !== null) retiring.add(LEGACY_CONSUMER_CONFIG_FILENAME);
+      const remaining = readdirSync(directoryPath).filter((name) => !retiring.has(name));
+      if (remaining.length === 0) {
+        directory = { kind: "directory", path: directoryPath, remove: true };
+      }
+    }
+  }
+
   return {
     consumerRoot,
     packageName,
     version,
     strict,
     source,
+    location,
     check,
-    files: [
-      fileEffect("config", configPath, configContent),
-      fileEffect("agents", agentsPath, agentsContent),
-      fileEffect("root-agents", rootAgentsPath, rootAgentsAfter),
-    ],
+    files,
+    directory,
+    migrations,
   };
 }
 
@@ -700,10 +1129,27 @@ function planConnectFiles({
  * Plan a connect without writing anything. Throws on any discovery or
  * verification failure (invalid config, multiple candidates, missing package,
  * mismatched versions, malformed markers).
+ *
+ * `location` is optional: when omitted the plan keeps the location that is
+ * already active, so `connect` never fights a deliberate
+ * `.design-system/config.json` and still migrates a legacy file by default. An
+ * explicit `location` is the `prism-ds config <location>` move, which also
+ * resolves a two-location conflict instead of failing closed.
  */
-export function planConnect({ cwd, package: explicitPackage, strict, check = false } = {}) {
+export function planConnect({
+  cwd,
+  package: explicitPackage,
+  strict,
+  check = false,
+  location,
+} = {}) {
   const consumerRoot = resolveConsumerRoot({ cwd });
-  const discovered = discoverConsumerPackage({ consumerRoot, explicitPackage });
+  const explicitLocation = location === undefined ? undefined : normalizeConsumerLocation(location);
+  const discovered = discoverConsumerPackage({
+    consumerRoot,
+    explicitPackage,
+    resolveLocationConflict: explicitLocation !== undefined,
+  });
   const installed = resolveInstalledDesignSystem({
     consumerRoot,
     packageName: discovered.packageName,
@@ -718,6 +1164,9 @@ export function planConnect({ cwd, package: explicitPackage, strict, check = fal
   // Preserve any configured ignore globs across re-connect so the config stays
   // idempotent and consumer-defined ignores are not dropped.
   const effectiveIgnore = discovered.config ? discovered.config.ignore : [];
+  const effectiveLocation =
+    explicitLocation ??
+    (discovered.config?.source === "extended-config" ? "design-system" : DEFAULT_CONSUMER_LOCATION);
   return planConnectFiles({
     consumerRoot,
     packageName: discovered.packageName,
@@ -726,6 +1175,7 @@ export function planConnect({ cwd, package: explicitPackage, strict, check = fal
     strict: effectiveStrict,
     ignore: effectiveIgnore,
     source: discovered.source,
+    location: effectiveLocation,
     check,
   });
 }
@@ -791,15 +1241,21 @@ export function planConnectForTarget({
     strict: effectiveStrict,
     ignore: effectiveIgnore,
     source: "target",
+    location: config?.source === "extended-config" ? "design-system" : DEFAULT_CONSUMER_LOCATION,
     check: false,
   });
 }
 
 /**
  * Compare a previewed connect plan against a freshly recomputed one by material
- * file content only: consumer root, package, version, strict mode, and every
- * managed file's kind/path/before/after. Returns human-readable differences; an
- * empty array means the plans are materially identical.
+ * content only: consumer root, package, version, strict mode, and every managed
+ * file's kind/path/content. Returns human-readable differences; an empty array
+ * means the plans are materially identical.
+ *
+ * The `package-json` effect is compared by the `designSystem` value it sets,
+ * never by whole-file bytes: a package manager legitimately rewrites unrelated
+ * package.json content between the preview and the confirmed run, and that must
+ * not be reported as drift. Every other managed file is byte-compared.
  */
 function connectPlanDifference(expected, actual) {
   if (!isPlainObject(expected) || !Array.isArray(expected.files)) {
@@ -810,6 +1266,7 @@ function connectPlanDifference(expected, actual) {
   if (expected.packageName !== actual.packageName) details.push("package changed");
   if (expected.version !== actual.version) details.push("version changed");
   if (expected.strict !== actual.strict) details.push("strict mode changed");
+  if (expected.location !== actual.location) details.push("configuration location changed");
   const expectedFiles = expected.files;
   const actualFiles = actual.files;
   if (expectedFiles.length !== actualFiles.length) {
@@ -827,8 +1284,14 @@ function connectPlanDifference(expected, actual) {
     const changed = [];
     if (before.kind !== after.kind) changed.push("kind");
     if (before.path !== after.path) changed.push("path");
-    if (before.before !== after.before) changed.push("before");
-    if (before.after !== after.after) changed.push("after");
+    if (before.kind === "package-json") {
+      if (JSON.stringify(before.config ?? null) !== JSON.stringify(after.config ?? null)) {
+        changed.push("designSystem configuration");
+      }
+    } else {
+      if (before.before !== after.before) changed.push("before");
+      if (before.after !== after.after) changed.push("after");
+    }
     if (changed.length > 0) {
       details.push(
         `${label} (${typeof before.path === "string" ? before.path : "unknown path"}): ` +
@@ -848,6 +1311,10 @@ function connectPlanDifference(expected, actual) {
  * against it; any drift fails closed before the first write and never
  * replans-and-overwrites. It is ignored by `--check` and `--dry-run`.
  *
+ * `location` moves the configuration to `package-json` or `design-system`; it
+ * is what `prism-ds config <location>` uses. Omitted, the active location is
+ * kept.
+ *
  * @returns {{ ok: boolean, changed: boolean, check: boolean, dryRun: boolean, failures: string[], plan: object | null, changes: object[] }}
  */
 export function connectDesignSystem({
@@ -857,10 +1324,11 @@ export function connectDesignSystem({
   check = false,
   dryRun = false,
   expectedPlan,
+  location,
 } = {}) {
   let plan;
   try {
-    plan = planConnect({ cwd, package: explicitPackage, strict, check });
+    plan = planConnect({ cwd, package: explicitPackage, strict, check, location });
   } catch (error) {
     return {
       ok: false,
@@ -910,11 +1378,21 @@ export function connectDesignSystem({
       dryRun: false,
       failures: [],
       plan,
+      migrations: plan.migrations,
       changes,
     };
   }
   if (dryRun) {
-    return { ok: true, changed: false, check: false, dryRun: true, failures: [], plan, changes };
+    return {
+      ok: true,
+      changed: false,
+      check: false,
+      dryRun: true,
+      failures: [],
+      plan,
+      migrations: plan.migrations,
+      changes,
+    };
   }
 
   const backups = [];
@@ -924,7 +1402,19 @@ export function connectDesignSystem({
       // Re-assert containment immediately before each mutation.
       assertWithin(plan.consumerRoot, file.path, "Consumer write path");
       backups.push({ path: file.path, before: file.before });
-      writeFileAtomic(file.path, file.after, plan.consumerRoot);
+      if (file.after === null) rmSync(file.path, { force: true });
+      else writeFileAtomic(file.path, file.after, plan.consumerRoot);
+    }
+    // The optional `.design-system/` directory is retired only when it is empty
+    // after the planned migrations. Best effort: a directory that gained a file
+    // in the meantime is simply kept.
+    if (plan.directory !== null && plan.directory?.remove === true) {
+      try {
+        assertWithin(plan.consumerRoot, plan.directory.path, "Consumer directory path");
+        if (readdirSync(plan.directory.path).length === 0) rmdirSync(plan.directory.path);
+      } catch {
+        // Nothing else depends on the directory; keep it and report the run.
+      }
     }
   } catch (error) {
     for (const backup of [...backups].reverse()) {
@@ -956,6 +1446,7 @@ export function connectDesignSystem({
     dryRun: false,
     failures: [],
     plan,
+    migrations: plan.migrations,
     changes: backups.map((backup) => ({ kind: "written", path: backup.path })),
   };
 }

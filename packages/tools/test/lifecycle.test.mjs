@@ -27,10 +27,11 @@ import { test } from "node:test";
 import { gzipSync } from "node:zlib";
 
 import {
+  applyManagedBlock,
   buildConsumerConfig,
   buildManagedBlock,
-  applyManagedBlock,
   renderConsumerAgents,
+  renderLegacyConsumerConfig,
 } from "../src/consumer.mjs";
 import {
   buildLifecyclePlanMaterial,
@@ -233,6 +234,7 @@ function createConsumer(
     source = {},
     css = null,
     connected = true,
+    legacy = false,
     configOverride,
     rootAgents = null,
     extraDependencies = {},
@@ -241,32 +243,43 @@ function createConsumer(
   const root = mkdtempSync(join(tmpdir(), "prism-lifecycle-"));
   t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
-  writeJson(join(root, "package.json"), {
+  const packageJson = {
     name: "consumer-app",
     version: "0.0.0",
     private: true,
     packageManager: "npm@10.0.0",
     dependencies: { [oldManifest.package]: `^${oldManifest.version}`, ...extraDependencies },
-  });
-
-  if (connected) {
-    if (typeof configOverride === "string") {
-      writeFile(root, join(".design-system", "config.json"), configOverride);
-    } else if (configOverride === null) {
-      // no config file
+  };
+  // A legacy consumer is a pre-package.json install: the configuration and the
+  // agent instructions live in `.design-system/` and `connect` migrates them.
+  if (connected && !legacy) {
+    if (configOverride === null) {
+      // no consumer configuration at all
     } else if (configOverride !== undefined) {
-      writeJson(join(root, ".design-system", "config.json"), configOverride);
+      packageJson.designSystem = configOverride;
     } else {
-      writeJson(
-        join(root, ".design-system", "config.json"),
-        buildConsumerConfig({
-          packageName: oldManifest.package,
-          version: oldManifest.version,
-          strict: true,
-          ignore: [],
-        }),
-      );
+      packageJson.designSystem = buildConsumerConfig({
+        packageName: oldManifest.package,
+        version: oldManifest.version,
+        strict: true,
+        ignore: [],
+      });
     }
+  }
+  writeJson(join(root, "package.json"), packageJson);
+
+  if (connected && legacy) {
+    writeFile(
+      root,
+      join(".design-system", "config.json"),
+      renderLegacyConsumerConfig({
+        packageName: oldManifest.package,
+        version: oldManifest.version,
+        strict: true,
+        ignore: [],
+      }),
+    );
+    writeFile(root, join(".design-system", "AGENTS.md"), generatedConsumerAgents(oldManifest));
   }
 
   writeInstalled(root, oldManifest, { bridge: true });
@@ -276,7 +289,7 @@ function createConsumer(
   return root;
 }
 
-/** Generated `.design-system/AGENTS.md` content for the old system. */
+/** Generated legacy `.design-system/AGENTS.md` content for the old system. */
 function generatedConsumerAgents(manifest, strict = true) {
   return renderConsumerAgents({
     packageName: manifest.package,
@@ -429,7 +442,7 @@ test("switch --dry-run plans exact dependency, source, and connect bytes without
   assert.deepEqual(result.compatibility.blockers, []);
 
   const kinds = result.plannedChanges.map((change) => change.kind);
-  assert.deepEqual(kinds, ["dependency", "source", "connect", "connect", "connect"]);
+  assert.deepEqual(kinds, ["dependency", "source", "connect", "connect"]);
 
   const sourceChange = result.plannedChanges.find((change) => change.kind === "source");
   assert.equal(sourceChange.path, join(root, "src", "app.tsx"));
@@ -439,12 +452,30 @@ test("switch --dry-run plans exact dependency, source, and connect bytes without
   assert.ok(!sourceChange.after.includes(OLD_PACKAGE));
   assert.equal(sourceChange.changed, true);
 
+  // The configuration is a `package.json` value effect, never a `.design-system`
+  // file, and it carries the exact configuration it sets.
   const configChange = result.plannedChanges.find(
-    (change) => change.kind === "connect" && change.fileKind === "config",
+    (change) => change.kind === "connect" && change.fileKind === "package-json",
   );
-  assert.match(configChange.before, /"version": "1\.1\.0"/);
-  assert.match(configChange.after, /"version": "2\.0\.0"/);
-  assert.match(configChange.after, new RegExp(TARGET_PACKAGE.replace(/[/@]/g, "\\$&")));
+  assert.equal(configChange.path, join(root, "package.json"));
+  assert.equal(configChange.config.package, TARGET_PACKAGE);
+  assert.equal(configChange.config.version, TARGET_VERSION);
+  const configBefore = JSON.parse(configChange.before);
+  const configAfter = JSON.parse(configChange.after);
+  assert.equal(configBefore.designSystem.version, OLD_VERSION);
+  assert.equal(configAfter.designSystem.version, TARGET_VERSION);
+  assert.equal(configAfter.designSystem.package, TARGET_PACKAGE);
+  assert.equal(
+    configAfter.dependencies[OLD_PACKAGE],
+    `^${OLD_VERSION}`,
+    "unrelated package.json content is preserved by the value effect",
+  );
+  assert.equal(existsSync(join(root, ".design-system")), false, "no config directory is created");
+
+  const rootAgentsChange = result.plannedChanges.find(
+    (change) => change.kind === "connect" && change.fileKind === "root-agents",
+  );
+  assert.equal(rootAgentsChange.path, join(root, "AGENTS.md"));
 
   // The old dependency is deliberately retained, and appearance is unknown.
   const warningCodes = result.compatibility.warnings.map((warning) => warning.code);
@@ -520,13 +551,12 @@ test("switch installs the target, rewrites exact specifiers, reconnects, and kee
   assert.ok(source.includes(`from "${TARGET_PACKAGE}/custom/keyboard-scene"`));
   assert.ok(!source.includes(OLD_PACKAGE));
 
-  const config = readJson(join(root, ".design-system", "config.json"));
-  assert.equal(config.package, TARGET_PACKAGE);
-  assert.equal(config.version, TARGET_VERSION);
-
   const packageJson = readJson(join(root, "package.json"));
+  assert.equal(packageJson.designSystem.package, TARGET_PACKAGE);
+  assert.equal(packageJson.designSystem.version, TARGET_VERSION);
   assert.equal(packageJson.dependencies[OLD_PACKAGE], `^${OLD_VERSION}`);
   assert.equal(typeof packageJson.dependencies[TARGET_PACKAGE], "undefined");
+  assert.equal(existsSync(join(root, ".design-system")), false, "no config directory is created");
 
   const rootAgents = readFileSync(join(root, "AGENTS.md"), "utf8");
   assert.ok(rootAgents.includes(TARGET_PACKAGE));
@@ -561,10 +591,153 @@ test("switch to the same package/version rewrites nothing", async (t) => {
     [],
     "a same-package switch plans no source rewrite",
   );
+  assert.equal(readJson(join(root, "package.json")).designSystem.version, OLD_VERSION);
+});
+
+/**
+ * Simulate a package manager: it rewrites package.json (it records the newly
+ * installed dependency and adds its own bookkeeping), which makes every
+ * previewed package.json byte image stale while the `designSystem` value is
+ * untouched.
+ */
+function managerRewritesPackageJson(root, packageName, version) {
+  return () => {
+    const packageJson = readJson(join(root, "package.json"));
+    packageJson.dependencies[packageName] = `^${version}`;
+    packageJson.overrides = { ...(packageJson.overrides ?? {}), "left-pad": "1.3.0" };
+    writeJson(join(root, "package.json"), packageJson);
+  };
+}
+
+test("switch writes package.json from its current bytes instead of the previewed bytes", async (t) => {
+  const target = buildTargetManifest();
+  const registry = createRegistry({
+    packageName: TARGET_PACKAGE,
+    versions: { [TARGET_VERSION]: target },
+  });
+  const root = createConsumer(t, { source: { "src/app.tsx": APP_TSX } });
+  const manager = makeManager({
+    onSpawn: () => {
+      writeInstalled(root, target, { bridge: true });
+      managerRewritesPackageJson(root, TARGET_PACKAGE, TARGET_VERSION)();
+    },
+  });
+
+  const result = await switchDesignSystem({
+    cwd: root,
+    package: TARGET_PACKAGE,
+    version: TARGET_VERSION,
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: manager.spawnImpl,
+    confirmed: true,
+  });
+
+  assert.equal(result.ok, true, result.failures?.join(" "));
+  const packageJson = readJson(join(root, "package.json"));
   assert.equal(
-    readFileSync(join(root, ".design-system", "config.json"), "utf8").includes(OLD_VERSION),
-    true,
+    packageJson.dependencies[TARGET_PACKAGE],
+    `^${TARGET_VERSION}`,
+    "the manager's dependency rewrite is preserved, never overwritten by previewed bytes",
   );
+  assert.deepEqual(packageJson.overrides, { "left-pad": "1.3.0" });
+  assert.equal(packageJson.designSystem.package, TARGET_PACKAGE);
+  assert.equal(packageJson.designSystem.version, TARGET_VERSION);
+  assert.ok(
+    result.written.includes(join(root, "package.json")),
+    "the refreshed package.json effect is the one that was written",
+  );
+});
+
+test("switch fails closed when the manager changes the designSystem value during the run", async (t) => {
+  const target = buildTargetManifest();
+  const registry = createRegistry({
+    packageName: TARGET_PACKAGE,
+    versions: { [TARGET_VERSION]: target },
+  });
+  const root = createConsumer(t, { source: { "src/app.tsx": APP_TSX } });
+  const injected = {
+    ...buildConsumerConfig({
+      packageName: OLD_PACKAGE,
+      version: OLD_VERSION,
+      strict: true,
+      ignore: [],
+    }),
+    strict: false,
+  };
+  const manager = makeManager({
+    onSpawn: () => {
+      writeInstalled(root, target, { bridge: true });
+      const packageJson = readJson(join(root, "package.json"));
+      packageJson.designSystem = injected;
+      writeJson(join(root, "package.json"), packageJson);
+    },
+  });
+  const sourceBefore = readFileSync(join(root, "src", "app.tsx"), "utf8");
+
+  const result = await switchDesignSystem({
+    cwd: root,
+    package: TARGET_PACKAGE,
+    version: TARGET_VERSION,
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: manager.spawnImpl,
+    confirmed: true,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.boundary, "precondition");
+  assert.equal(result.reason, "drift-after-install");
+  assert.match(result.failures.join(" "), /no longer holds the previewed configuration/);
+  assert.equal(result.written, undefined, "nothing was written");
+  // The source rewrite and the AGENTS block were not written either.
+  assert.equal(readFileSync(join(root, "src", "app.tsx"), "utf8"), sourceBefore);
+  assert.equal(existsSync(join(root, "AGENTS.md")), false);
+  assert.deepEqual(readJson(join(root, "package.json")).designSystem, injected);
+});
+
+test("switch migrates a legacy .design-system install to package.json and removes the directory", async (t) => {
+  const target = buildTargetManifest();
+  const registry = createRegistry({
+    packageName: TARGET_PACKAGE,
+    versions: { [TARGET_VERSION]: target },
+  });
+  const root = createConsumer(t, { legacy: true, source: { "src/app.tsx": APP_TSX } });
+  const manager = makeManager({ onSpawn: () => writeInstalled(root, target, { bridge: true }) });
+
+  const result = await switchDesignSystem({
+    cwd: root,
+    package: TARGET_PACKAGE,
+    version: TARGET_VERSION,
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: manager.spawnImpl,
+    confirmed: true,
+  });
+
+  assert.equal(result.ok, true, result.failures?.join(" "));
+  const legacyKinds = result.plannedChanges
+    .filter((change) => change.kind === "connect")
+    .map((change) => change.fileKind);
+  assert.deepEqual(legacyKinds, [
+    "package-json",
+    "design-system-config",
+    "root-agents",
+    "legacy-agents",
+  ]);
+  assert.deepEqual(
+    result.connectPlan.migrations.length,
+    2,
+    "both legacy artifacts are reported as migrated",
+  );
+
+  assert.equal(existsSync(join(root, ".design-system")), false, "the empty directory is retired");
+  const packageJson = readJson(join(root, "package.json"));
+  assert.equal(packageJson.designSystem.package, TARGET_PACKAGE);
+  assert.equal(packageJson.designSystem.version, TARGET_VERSION);
+  const rootAgents = readFileSync(join(root, "AGENTS.md"), "utf8");
+  assert.ok(rootAgents.includes(TARGET_PACKAGE));
+  assert.ok(rootAgents.includes("## Design system (managed)"));
 });
 
 /* -------------------------------------------------------------------------- */
@@ -1121,11 +1294,7 @@ test("switch fails closed on drift while the manager runs and writes nothing", a
   assert.match(result.note, /no files were written/i);
   assert.equal(manager.calls.length, 1);
   assert.equal(readFileSync(join(root, "src", "app.tsx"), "utf8"), injected);
-  assert.equal(existsSync(join(root, ".design-system", "config.json")), true);
-  assert.match(
-    readFileSync(join(root, ".design-system", "config.json"), "utf8"),
-    /"version": "1\.1\.0"/,
-  );
+  assert.equal(readJson(join(root, "package.json")).designSystem.version, OLD_VERSION);
 });
 
 test("switch makes no file changes when the manager fails", async (t) => {
@@ -1213,10 +1382,7 @@ test("switch rolls back its own file writes when a write fails and keeps the ins
   assert.equal(result.written.length, 1);
   assert.deepEqual(result.rolledBack, result.written);
   assert.equal(readFileSync(join(root, "src", "app.tsx"), "utf8"), APP_TSX);
-  assert.match(
-    readFileSync(join(root, ".design-system", "config.json"), "utf8"),
-    /"version": "1\.1\.0"/,
-  );
+  assert.equal(readJson(join(root, "package.json")).designSystem.version, OLD_VERSION);
   assert.match(result.note, /No rollback of the package manager was attempted/);
 });
 
@@ -1295,6 +1461,7 @@ function removeConsumer(t, options = {}) {
     oldManifest,
     source: options.source ?? {},
     css: options.css ?? null,
+    legacy: options.legacy ?? false,
     rootAgents:
       options.rootAgents === undefined
         ? generatedRootAgents("# Project\n\nSome user instructions.\n", oldManifest)
@@ -1320,9 +1487,7 @@ function removeOnSpawn(root, packageName) {
 }
 
 test("remove --dry-run fails closed on unmarked bridge imports without spawning or writing", (t) => {
-  const oldManifest = buildOldManifest();
   const root = removeConsumer(t, { css: USER_CSS });
-  writeFile(root, join(".design-system", "AGENTS.md"), generatedConsumerAgents(oldManifest));
   const manager = makeManager();
   const before = snapshot(root);
 
@@ -1346,10 +1511,8 @@ test("remove --dry-run fails closed on unmarked bridge imports without spawning 
   assertUnchanged(root, before);
 });
 
-test("remove --dry-run plans generated removals while leaving unrelated CSS byte-identical", (t) => {
-  const oldManifest = buildOldManifest();
+test("remove --dry-run plans the generated removals while leaving unrelated CSS byte-identical", (t) => {
   const root = removeConsumer(t, { css: UNRELATED_CSS });
-  writeFile(root, join(".design-system", "AGENTS.md"), generatedConsumerAgents(oldManifest));
   const manager = makeManager();
   const before = snapshot(root);
 
@@ -1367,8 +1530,21 @@ test("remove --dry-run plans generated removals while leaving unrelated CSS byte
   assert.deepEqual(result.command.args, ["uninstall", OLD_PACKAGE, "--ignore-scripts"]);
   assert.deepEqual(
     result.plannedChanges.map((change) => change.kind),
-    ["dependency", "file", "file", "file", "css", "directory"],
+    ["dependency", "file", "file", "css"],
   );
+  assert.deepEqual(
+    result.plannedChanges
+      .filter((change) => change.kind === "file")
+      .map((change) => change.fileKind),
+    ["package-json", "root-agents"],
+  );
+  const packageJsonChange = result.plannedChanges.find(
+    (change) => change.fileKind === "package-json",
+  );
+  assert.equal(packageJsonChange.path, join(root, "package.json"));
+  assert.equal(JSON.parse(packageJsonChange.before).designSystem.version, OLD_VERSION);
+  assert.equal(JSON.parse(packageJsonChange.after).designSystem, undefined);
+  assert.equal(result.packageJson.value.version, OLD_VERSION, "the checked value is reported");
   const cssChange = result.plannedChanges.find((change) => change.kind === "css");
   assert.equal(cssChange.changed, false);
   assert.equal(cssChange.after, UNRELATED_CSS);
@@ -1380,9 +1556,7 @@ test("remove --dry-run plans generated removals while leaving unrelated CSS byte
 });
 
 test("remove refuses to uninstall while unmarked bridge imports remain in the named CSS file", (t) => {
-  const oldManifest = buildOldManifest();
   const root = removeConsumer(t, { css: USER_CSS });
-  writeFile(root, join(".design-system", "AGENTS.md"), generatedConsumerAgents(oldManifest));
   const manager = makeManager({ onSpawn: removeOnSpawn(root, OLD_PACKAGE) });
   const before = snapshot(root);
 
@@ -1403,9 +1577,7 @@ test("remove refuses to uninstall while unmarked bridge imports remain in the na
 });
 
 test("remove without --css leaves a CSS file with bridge imports untouched and does not block", (t) => {
-  const oldManifest = buildOldManifest();
   const root = removeConsumer(t, { css: USER_CSS });
-  writeFile(root, join(".design-system", "AGENTS.md"), generatedConsumerAgents(oldManifest));
   const manager = makeManager({ onSpawn: removeOnSpawn(root, OLD_PACKAGE) });
 
   const result = removeDesignSystem({ cwd: root, confirmed: true, spawnImpl: manager.spawnImpl });
@@ -1423,10 +1595,8 @@ test("remove without --css leaves a CSS file with bridge imports untouched and d
   assert.match(coverageWarning.message, /--css <file>/);
 });
 
-test("remove uninstalls and deletes only generated files, preserving unrelated deps and CSS bytes", (t) => {
-  const oldManifest = buildOldManifest();
+test("remove uninstalls and removes only the generated integration, preserving unrelated deps and CSS bytes", (t) => {
   const root = removeConsumer(t, { css: UNRELATED_CSS });
-  writeFile(root, join(".design-system", "AGENTS.md"), generatedConsumerAgents(oldManifest));
   const manager = makeManager({ onSpawn: removeOnSpawn(root, OLD_PACKAGE) });
 
   const result = removeDesignSystem({
@@ -1440,19 +1610,27 @@ test("remove uninstalls and deletes only generated files, preserving unrelated d
   assert.equal(result.changed, true);
   assert.equal(manager.calls.length, 1);
   assert.deepEqual(result.command.args, ["uninstall", OLD_PACKAGE, "--ignore-scripts"]);
-  assert.equal(result.directoryRemoved, true);
+  assert.equal(result.directoryRemoved, false, "no legacy directory existed");
+  assert.deepEqual(result.removed, {
+    dependency: true,
+    packageJson: true,
+    config: false,
+    agents: false,
+    rootAgents: true,
+    css: false,
+  });
 
-  assert.equal(existsSync(join(root, ".design-system")), false);
   assert.equal(
     readFileSync(join(root, "AGENTS.md"), "utf8"),
     "# Project\n\nSome user instructions.\n",
   );
   assert.equal(readFileSync(join(root, "src", "app.css"), "utf8"), UNRELATED_CSS);
-  assert.equal(result.removed.css, false);
+  assert.equal(existsSync(join(root, ".design-system")), false);
 
   const packageJson = readJson(join(root, "package.json"));
   assert.equal(typeof packageJson.dependencies[OLD_PACKAGE], "undefined");
   assert.equal(packageJson.dependencies.react, "^19.0.0");
+  assert.equal(typeof packageJson.designSystem, "undefined");
   assert.deepEqual(result.preserved, []);
 });
 
@@ -1498,40 +1676,39 @@ test("remove blocks when a known token name is still referenced", (t) => {
   assert.equal(manager.calls.length, 0);
 });
 
-test("remove preserves an edited generated config and reports the leftover", (t) => {
-  const oldManifest = buildOldManifest();
-  const edited = `${JSON.stringify(
-    {
-      ...buildConsumerConfig({
-        packageName: OLD_PACKAGE,
-        version: OLD_VERSION,
-        strict: true,
-        ignore: [],
-      }),
-      extra: true,
-    },
-    null,
-    2,
-  )}\n`;
+test("remove preserves a hand-edited package.json designSystem value and reports the leftover", (t) => {
+  const edited = {
+    ...buildConsumerConfig({
+      packageName: OLD_PACKAGE,
+      version: OLD_VERSION,
+      strict: true,
+      ignore: [],
+    }),
+    note: "hand-edited",
+  };
   const root = removeConsumer(t, { configOverride: edited });
-  writeFile(root, join(".design-system", "AGENTS.md"), generatedConsumerAgents(oldManifest));
   const manager = makeManager({ onSpawn: removeOnSpawn(root, OLD_PACKAGE) });
 
   const result = removeDesignSystem({ cwd: root, confirmed: true, spawnImpl: manager.spawnImpl });
 
   assert.equal(result.ok, true, result.failures?.join(" "));
-  assert.equal(existsSync(join(root, ".design-system", "config.json")), true);
-  assert.equal(readFileSync(join(root, ".design-system", "config.json"), "utf8"), edited);
-  assert.equal(existsSync(join(root, ".design-system", "AGENTS.md")), false);
-  assert.equal(existsSync(join(root, ".design-system")), true);
-  assert.ok(result.preserved.some((entry) => entry.reason === "edited-generated-file"));
-  assert.equal(result.directoryRemoved, false);
+  assert.deepEqual(readJson(join(root, "package.json")).designSystem, edited);
+  assert.equal(result.removed.packageJson, false, "the edited value was not removed");
+  assert.equal(
+    result.plannedChanges.some((change) => change.fileKind === "package-json"),
+    false,
+    "an edited value is never planned for removal",
+  );
+  const preserved = result.preserved.find((entry) => entry.reason === "edited-generated-config");
+  assert.ok(preserved, "the hand-edited configuration is reported as preserved");
+  assert.match(preserved.message, /package\.json#designSystem/);
+  assert.match(preserved.message, /does not match the generated configuration/);
 });
 
-test("remove preserves an edited generated .design-system/AGENTS.md", (t) => {
+test("remove preserves an edited legacy generated .design-system/AGENTS.md", (t) => {
   const oldManifest = buildOldManifest();
   const editedAgents = `${generatedConsumerAgents(oldManifest)}\n<!-- user note -->\n`;
-  const root = removeConsumer(t);
+  const root = removeConsumer(t, { legacy: true });
   writeFile(root, join(".design-system", "AGENTS.md"), editedAgents);
   const manager = makeManager({ onSpawn: removeOnSpawn(root, OLD_PACKAGE) });
 
@@ -1540,8 +1717,32 @@ test("remove preserves an edited generated .design-system/AGENTS.md", (t) => {
   assert.equal(result.ok, true, result.failures?.join(" "));
   assert.equal(existsSync(join(root, ".design-system", "config.json")), false);
   assert.equal(readFileSync(join(root, ".design-system", "AGENTS.md"), "utf8"), editedAgents);
+  assert.ok(result.removed.config, "the byte-identical legacy config was removed");
+  assert.equal(result.removed.agents, false);
   assert.ok(result.preserved.some((entry) => entry.reason === "edited-generated-file"));
-  assert.equal(result.directoryRemoved, false);
+  assert.equal(result.directoryRemoved, false, "the preserved file keeps the directory");
+});
+
+test("remove deletes a legacy-only installation and retires the directory", (t) => {
+  const root = removeConsumer(t, { legacy: true });
+  const manager = makeManager({ onSpawn: removeOnSpawn(root, OLD_PACKAGE) });
+
+  // The legacy install has a config and an instructions file, no package.json field.
+  assert.equal(existsSync(join(root, ".design-system", "AGENTS.md")), true);
+
+  const result = removeDesignSystem({ cwd: root, confirmed: true, spawnImpl: manager.spawnImpl });
+
+  assert.equal(result.ok, true, result.failures?.join(" "));
+  assert.equal(existsSync(join(root, ".design-system")), false);
+  assert.equal(result.directoryRemoved, true);
+  assert.equal(result.removed.config, true);
+  assert.equal(result.removed.agents, true);
+  assert.equal(result.removed.packageJson, false, "a legacy install has no package.json field");
+  assert.equal(typeof readJson(join(root, "package.json")).designSystem, "undefined");
+  assert.equal(
+    readFileSync(join(root, "AGENTS.md"), "utf8"),
+    "# Project\n\nSome user instructions.\n",
+  );
 });
 
 test("remove preserves malformed managed markers without guessing", (t) => {
@@ -1588,9 +1789,7 @@ test("remove makes no file changes when the manager fails", (t) => {
 });
 
 test("remove reports a stale resolved dependency after the manager exits without writing files", (t) => {
-  const oldManifest = buildOldManifest();
   const root = removeConsumer(t, { css: UNRELATED_CSS });
-  writeFile(root, join(".design-system", "AGENTS.md"), generatedConsumerAgents(oldManifest));
   const manager = makeManager({
     onSpawn: () => {
       const packageJson = readJson(join(root, "package.json"));
@@ -1599,7 +1798,7 @@ test("remove reports a stale resolved dependency after the manager exits without
       // node_modules is intentionally left behind (a stale pnpm symlink).
     },
   });
-  const configBefore = readFileSync(join(root, ".design-system", "config.json"), "utf8");
+  const packageJsonBefore = readJson(join(root, "package.json"));
   const cssBefore = readFileSync(join(root, "src", "app.css"), "utf8");
 
   const result = removeDesignSystem({ cwd: root, confirmed: true, spawnImpl: manager.spawnImpl });
@@ -1607,16 +1806,19 @@ test("remove reports a stale resolved dependency after the manager exits without
   assert.equal(result.ok, false);
   assert.equal(result.boundary, "verify");
   assert.match(result.failures.join(" "), /stale pnpm symlink/);
-  // No generated files were removed or written.
-  assert.equal(readFileSync(join(root, ".design-system", "config.json"), "utf8"), configBefore);
+  // No generated files were removed or written: the configuration value and the
+  // managed AGENTS block are still exactly as they were.
+  const packageJsonAfter = readJson(join(root, "package.json"));
+  assert.deepEqual(packageJsonAfter.designSystem, packageJsonBefore.designSystem);
   assert.equal(readFileSync(join(root, "src", "app.css"), "utf8"), cssBefore);
-  assert.equal(existsSync(join(root, ".design-system", "AGENTS.md")), true);
+  assert.equal(
+    readFileSync(join(root, "AGENTS.md"), "utf8"),
+    generatedRootAgents("# Project\n\nSome user instructions.\n", buildOldManifest()),
+  );
 });
 
 test("remove fails closed on drift after the manager runs", (t) => {
-  const oldManifest = buildOldManifest();
   const root = removeConsumer(t, { css: UNRELATED_CSS });
-  writeFile(root, join(".design-system", "AGENTS.md"), generatedConsumerAgents(oldManifest));
   const injected = "/* injected */\n";
   const manager = makeManager({
     onSpawn: () => {
@@ -1636,7 +1838,38 @@ test("remove fails closed on drift after the manager runs", (t) => {
   assert.equal(result.boundary, "precondition");
   assert.equal(result.reason, "drift-after-remove");
   assert.equal(readFileSync(join(root, "src", "app.css"), "utf8"), injected);
-  assert.equal(existsSync(join(root, ".design-system", "config.json")), true);
+  assert.equal(readJson(join(root, "package.json")).designSystem.version, OLD_VERSION);
+});
+
+test("remove fails closed when the designSystem value changes while the manager runs", (t) => {
+  const root = removeConsumer(t);
+  const injected = {
+    ...buildConsumerConfig({
+      packageName: OLD_PACKAGE,
+      version: OLD_VERSION,
+      strict: true,
+      ignore: [],
+    }),
+    strict: false,
+  };
+  const manager = makeManager({
+    onSpawn: () => {
+      removeOnSpawn(root, OLD_PACKAGE)();
+      const packageJson = readJson(join(root, "package.json"));
+      packageJson.designSystem = injected;
+      writeJson(join(root, "package.json"), packageJson);
+    },
+  });
+  const agentsBefore = readFileSync(join(root, "AGENTS.md"), "utf8");
+
+  const result = removeDesignSystem({ cwd: root, confirmed: true, spawnImpl: manager.spawnImpl });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.boundary, "precondition");
+  assert.equal(result.reason, "drift-after-remove");
+  assert.match(result.failures.join(" "), /no longer holds the previewed configuration/);
+  assert.deepEqual(readJson(join(root, "package.json")).designSystem, injected);
+  assert.equal(readFileSync(join(root, "AGENTS.md"), "utf8"), agentsBefore);
 });
 
 /* -------------------------------------------------------------------------- */
@@ -1834,7 +2067,7 @@ test("switch expectedPlan rejects a changed package manager", async (t) => {
   assert.match(result.failures.join(" "), /package manager changed/);
 });
 
-test("switch expectedPlan rejects changed connect-file bytes (config, AGENTS, CSS)", async (t) => {
+test("switch expectedPlan rejects changed connect-file bytes (package.json, AGENTS, CSS)", async (t) => {
   const target = buildTargetManifest();
   const registry = createRegistry({
     packageName: TARGET_PACKAGE,
@@ -1843,7 +2076,7 @@ test("switch expectedPlan rejects changed connect-file bytes (config, AGENTS, CS
 
   const configRoot = createConsumer(t, { source: { "src/app.tsx": APP_TSX } });
   const configPreview = await previewSwitchPlan(t, { root: configRoot, registry });
-  const configPath = join(configRoot, ".design-system", "config.json");
+  const configPath = join(configRoot, "package.json");
   writeFileSync(configPath, `${readFileSync(configPath, "utf8")}\n`, "utf8");
   const configBefore = snapshot(configRoot);
   const configManager = makeManager();
@@ -2083,9 +2316,7 @@ test("buildLifecyclePlanMaterial accepts the preview result and the material its
 });
 
 test("remove expectedPlan executes a frozen preview and cleans the reviewed integration", (t) => {
-  const oldManifest = buildOldManifest();
   const root = removeConsumer(t, { css: UNRELATED_CSS });
-  writeFile(root, join(".design-system", "AGENTS.md"), generatedConsumerAgents(oldManifest));
 
   const preview = removeDesignSystem({ cwd: root, cssPath: "src/app.css", dryRun: true });
   assert.equal(preview.ok, true, preview.failures?.join(" "));
@@ -2102,15 +2333,14 @@ test("remove expectedPlan executes a frozen preview and cleans the reviewed inte
 
   assert.equal(result.ok, true, result.failures?.join(" "));
   assert.equal(manager.calls.length, 1);
-  assert.equal(existsSync(join(root, ".design-system")), false);
   const packageJson = readJson(join(root, "package.json"));
   assert.equal(typeof packageJson.dependencies[OLD_PACKAGE], "undefined");
+  assert.equal(typeof packageJson.designSystem, "undefined");
 });
 
 test("remove expectedPlan rejects a cleanup file edited after the preview", (t) => {
   const oldManifest = buildOldManifest();
-  const root = removeConsumer(t);
-  writeFile(root, join(".design-system", "AGENTS.md"), generatedConsumerAgents(oldManifest));
+  const root = removeConsumer(t, { legacy: true });
   const preview = removeDesignSystem({ cwd: root, dryRun: true });
   assert.equal(preview.ok, true, preview.failures?.join(" "));
 
@@ -2135,6 +2365,32 @@ test("remove expectedPlan rejects a cleanup file edited after the preview", (t) 
   assert.equal(manager.calls.length, 0);
   assertUnchanged(root, before);
   assert.match(result.failures.join(" "), /planned file change count|preserved files/);
+});
+
+test("remove expectedPlan rejects an edited package.json designSystem value after the preview", (t) => {
+  const root = removeConsumer(t);
+  const preview = removeDesignSystem({ cwd: root, dryRun: true });
+  assert.equal(preview.ok, true, preview.failures?.join(" "));
+
+  const packageJsonPath = join(root, "package.json");
+  const packageJson = readJson(packageJsonPath);
+  packageJson.designSystem = { ...packageJson.designSystem, strict: false };
+  writeJson(packageJsonPath, packageJson);
+  const before = snapshot(root);
+  const manager = makeManager();
+  const result = removeDesignSystem({
+    cwd: root,
+    confirmed: true,
+    spawnImpl: manager.spawnImpl,
+    expectedPlan: preview,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.boundary, "plan-drift");
+  assert.equal(result.reason, "plan-drift");
+  assert.equal(manager.calls.length, 0);
+  assertUnchanged(root, before);
+  assert.match(result.failures.join(" "), /preserved files|planned file change count/);
 });
 
 test("remove expectedPlan rejects changed dependency, CSS, and installed manifest state", (t) => {

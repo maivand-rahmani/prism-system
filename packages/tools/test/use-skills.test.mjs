@@ -60,6 +60,11 @@ function writeFile(root, relative, content) {
   return path;
 }
 
+/** The consumer configuration now lives in package.json under "designSystem". */
+function readDesignSystem(root) {
+  return readJson(join(root, "package.json")).designSystem ?? null;
+}
+
 function snapshot(root) {
   const out = [];
   const walk = (dir) => {
@@ -453,7 +458,19 @@ test("a confirmed run installs the DS and the frozen skill without partial state
     ),
   );
   assert.match(skill.calls[0].args.join(" "), new RegExp(`tree/${SHA_A}`));
-  assert.ok(existsSync(join(consumer, ".design-system", "config.json")));
+  assert.deepEqual(readDesignSystem(consumer), {
+    schemaVersion: 1,
+    package: SYSTEM_A.package,
+    version: SYSTEM_A.version,
+    strict: true,
+  });
+  assert.equal(existsSync(join(consumer, ".design-system", "config.json")), false);
+  assert.equal(existsSync(join(consumer, ".design-system", "AGENTS.md")), false);
+  assert.ok(
+    readFileSync(join(consumer, "AGENTS.md"), "utf8").includes(
+      "BEGIN @prism-system design system contract (managed)",
+    ),
+  );
   assert.ok(existsSync(join(consumer, ".design-system", "skills.json")));
   assert.ok(existsSync(join(consumer, ".agents", "skills", USE_SKILL_ID, "SKILL.md")));
 });
@@ -496,7 +513,11 @@ test("a requested skill failure leaves the DS ready, reports partial, and gives 
   assert.equal(result.skillSetup.status, "failed");
   assert.ok(result.failures.length > 0);
   assert.match(result.skillSetup.nextCommand, /skills add use-design-system/);
-  assert.ok(existsSync(join(consumer, ".design-system", "config.json")), "no rollback of DS setup");
+  assert.deepEqual(
+    readDesignSystem(consumer),
+    { schemaVersion: 1, package: SYSTEM_A.package, version: SYSTEM_A.version, strict: true },
+    "no rollback of DS setup",
+  );
   assert.equal(ds.calls.length, 1);
   assert.equal(failing.calls.length, 1);
 });
@@ -535,7 +556,7 @@ test("a default skill plan failure does not block the DS setup and stays partial
   assert.equal(fetchCalls.length, 0, "the runtime guard fails before any source read");
   assert.equal(skill.calls.length, 0);
   assert.equal(ds.calls.length, 1);
-  assert.ok(existsSync(join(consumer, ".design-system", "config.json")));
+  assert.equal(readDesignSystem(consumer)?.package, SYSTEM_A.package);
 });
 
 test("a supplied preview reuses the frozen version and skill revision", async (t) => {
@@ -620,7 +641,7 @@ test("a real run with no detected agent still sets up the DS and reports pending
   assert.equal(ds.calls.length, 1);
   assert.equal(skill.calls.length, 0);
   assert.equal(fetchCalls.length, 0);
-  assert.ok(existsSync(join(consumer, ".design-system", "config.json")));
+  assert.equal(readDesignSystem(consumer)?.package, SYSTEM_A.package);
 });
 
 test("a source-read failure is reported as blocked and never guessed", async (t) => {

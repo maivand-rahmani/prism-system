@@ -4,6 +4,12 @@
   "private": true,
   "description": "A minimal product fixture that consumes packed @prism-system design systems by public package name only.",
   "type": "module",
+  "designSystem": {
+    "schemaVersion": 1,
+    "package": "@prism-system/ui-system-a",
+    "version": "4.0.1",
+    "strict": true
+  },
   "dependencies": {
     "@prism-system/ui-system-a": "*",
     "@prism-system/ui-system-b": "*",

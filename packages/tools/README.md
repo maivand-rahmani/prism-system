@@ -5,9 +5,9 @@ styles in the npm registry, explicitly installs or upgrades one in a product, co
 the consumer contract, reads the installed component and token catalogs, validates strict
 usage, sets up the Tailwind v4 bridge, and diagnoses the result.
 
-- **Executable:** `prism-ds` with seventeen root commands (`search`, `info`, `install`,
-  `use`, `upgrade`, `switch`, `remove`, `connect`, `components`, `tokens`, `check`,
-  `check-usage`, `setup-tailwind`, `doctor`, `skills`, `self-update`, `recover`,
+- **Executable:** `prism-ds` with eighteen root commands (`search`, `info`, `install`,
+  `use`, `upgrade`, `switch`, `remove`, `connect`, `config`, `components`, `tokens`,
+  `check`, `check-usage`, `setup-tailwind`, `doctor`, `skills`, `self-update`, `recover`,
   `--help`). `skills` has `list`/`add`/`update`/`remove` subcommands; they are not
   separate root command names.
 - **Interactive by default:** bare `prism-ds` (no arguments) run from the product root
@@ -29,9 +29,10 @@ usage, sets up the Tailwind v4 bridge, and diagnoses the result.
   dependency and `remove` is a separate explicit operation); `self-update` installs a
   newer CLI only with `--yes`; `skills add/update/remove` may bootstrap the pinned
   `npx skills@1.7.0` and mutate only the selected skill directory; `setup-tailwind`
-  mutates only the explicitly named consumer CSS file; `connect` writes only the consumer
-  config and agent instructions; `components`/`tokens`/`check`/`check-usage`/`doctor`,
-  default `recover`, and `skills list` are offline (`check-usage` and other
+  mutates only the explicitly named consumer CSS file; `connect`/`config` write only the
+  consumer configuration (`package.json#designSystem` or `.design-system/config.json`) and
+  the managed section in the root `AGENTS.md`; `components`/`tokens`/`check`/`check-usage`/
+  `doctor`, default `recover`, and `skills list` are offline (`check-usage` and other
   scanner-backed steps may lazy-load TypeScript). The bare-TUI startup update check is
   the only automatic network read and can be disabled with `PRISM_DS_UPDATE_CHECK=0`.
   No postinstall, no source copying, no publishing, no hidden package selection, and no
@@ -234,8 +235,10 @@ equality, rendering behavior, accessibility, or runtime compatibility.
 
 Explicitly remove the selected system once it is unused. It refuses while active source
 imports or token references remain, and previews removal of the selected dependency plus
-only unchanged, attributable generated integration (consumer config, AGENTS files/managed
-blocks). Unrelated dependencies, peers, instructions, consumer CSS, and edited generated
+only unchanged, attributable generated integration (`package.json#designSystem` or
+`.design-system/config.json` when byte-identical to the generated configuration, the root
+`AGENTS.md` managed section, and attributable legacy `.design-system/` cleanup). Unrelated
+dependencies, peers, instructions, consumer CSS, and edited generated
 files are preserved; any required manual cleanup is explained instead of guessed. The
 explicit `--css <file>` names the CSS file inspected for residual imports. With no
 `--css`, no CSS file is scanned or guessed: CSS is not inspected, a `css-not-inspected`
@@ -255,11 +258,84 @@ integration are absent afterward.
 
 ### `prism-ds connect [package] --cwd <consumer-root>`
 
-Offline and configure-only. Writes only `<root>/.design-system/config.json`,
-`<root>/.design-system/AGENTS.md`, and an idempotent managed block in `<root>/AGENTS.md`
-(your own content is preserved; re-running is byte-stable). Never installs packages, edits
-dependencies, copies source, or mutates the design-system repo. Options: `--strict` /
-`--no-strict`, `--check`, `--dry-run`.
+Offline and configure-only. It writes the consumer configuration plus one managed section
+in the consumer root `AGENTS.md`, and nothing else. The configuration goes wherever it is
+already stored — the `"designSystem"` field in the consumer root `package.json`, or
+`.design-system/config.json` in the extended layout (see `prism-ds config` below) —
+so a deliberate `.design-system/config.json` is never migrated back into `package.json`.
+Your own `AGENTS.md` content outside the markers is preserved, re-running replaces the
+section in place without duplicating it, and malformed markers fail closed. It never
+installs packages, never edits `dependencies`/`devDependencies`, copies no source, and
+never mutates the design-system repository. It creates no `.design-system/` directory
+unless the extended location is the active one. `--check` and `--dry-run` write nothing
+and report the same plan.
+Options: `--strict` / `--no-strict`, `--check`, `--dry-run`.
+
+The written configuration has this shape (optional `"ignore": ["<glob>"]` is preserved):
+
+```json
+{
+  "designSystem": {
+    "schemaVersion": 1,
+    "package": "@prism-system/ui-<id>",
+    "version": "<exact>",
+    "strict": true
+  }
+}
+```
+
+**Discovery order.** An explicit `--package`, then `package.json#designSystem`, then
+`.design-system/config.json` in the extended layout, then a legacy root-level
+`.design-system/config.json` (read-only migration path), then dependency discovery when
+exactly one supported `@prism-system/ui-*` package is installed. An unsupported package, an
+unknown `schemaVersion`, a legacy config naming a different package, multiple candidates, a
+missing package, or mismatched versions fail closed.
+
+**Migrating an existing installation.** `connect` converts a legacy root-level
+`.design-system/config.json` and the older generated `.design-system/AGENTS.md` in the same
+idempotent run: the configuration moves into `package.json` and the instructions into the
+root `AGENTS.md` managed section. The `.design-system/` directory is removed only when it
+becomes empty, so `skills.json` or any consumer-owned file keeps it. Re-running `connect`
+against a current installation is byte-stable.
+
+### `prism-ds config [package-json|design-system] --cwd <consumer-root> [--check] [--dry-run] [--json]`
+
+Offline. It reports or moves where a consumer stores its design-system configuration. There
+are exactly two supported locations and both are equivalent:
+
+- `package-json` — the `"designSystem"` field in the consumer root `package.json`;
+- `design-system` — `.design-system/config.json` in the **extended layout**, which wraps the
+  *identical* subtree under the same key:
+
+```json
+{
+  "designSystem": {
+    "schemaVersion": 1,
+    "package": "@prism-system/ui-<id>",
+    "version": "<exact>",
+    "strict": true
+  }
+}
+```
+
+Only the location changes; the subtree is the same in both places, and each file describes
+itself, so a consumer can never be left with two competing configurations. A root-level
+`.design-system/config.json` without the `designSystem` wrapper is the pre-`package.json`
+legacy layout and is still migrated automatically.
+
+With no positional it reports the active location and writes nothing (exit 1 when nothing
+is configured). `config package-json` moves the configuration into `package.json#designSystem`
+and removes `.design-system/config.json`; `config design-system` does the reverse and removes
+the `package.json` field. Moving back to `package-json` also retires the `.design-system/`
+directory once it becomes empty (a `skills.json` or any consumer file keeps it) and restores
+the exact prior `package.json` bytes.
+
+Moving never installs packages, never edits dependencies, and never changes the selected
+package or version. `connect` keeps whichever location is already active, so a deliberate
+`.design-system/config.json` stays where it is. `--check` answers one question — is the
+target location active? — and exits 1 when a move is pending; it is not a general contract
+check (that is `connect --check`). `--dry-run` writes nothing, and `--json` emits
+machine-readable output only.
 
 ### `prism-ds components [name] --cwd <consumer-root>`
 
@@ -290,10 +366,12 @@ never published, and generated CSS/TypeScript artifacts are never read or execut
 
 Offline, read-only health report for a connected consumer. It aggregates, with each check
 captured independently and a stable status (`passed`, `failed`, `not_checked`,
-`not_applicable`): the consumer config, the full `doctor` diagnostics (including the
-`./tailwind.css` bridge), the public `./styles.css` export, the Tailwind v4 prerequisite,
-the CSS import order, strict usage, and required/optional component availability. The CSS
-import order is checked **only** when an explicit `--css <file>` is given; with no `--css`
+`not_applicable`): the consumer configuration (`package.json#designSystem` or
+`.design-system/config.json`), the full `doctor`
+diagnostics (including the `./tailwind.css` bridge), the public `./styles.css` export, the
+Tailwind v4 prerequisite, the CSS import order, strict usage, and required/optional
+component availability. The CSS import order is checked **only** when an explicit
+`--css <file>` is given; with no `--css`
 the report never scans for or guesses a CSS file and marks the imports `not_checked`. The
 named `--css` check is read-only. It never writes, installs, executes package code, or runs
 project scripts, and exits non-zero only when a required check fails.
@@ -338,8 +416,10 @@ compatibility scan, and `recover` when it needs the same scanner.
 Offline read-only diagnostics: realpath containment, package discovery, the installed
 version resolved through Node package resolution, the public `./manifest` and its version,
 exact identity/version invariants, the Tailwind bridge advertisement/export/file, and
-the consumer config state. With `--entry` it adds the same selected-entry prerequisite
-validation as `check`; without it no entry is scanned. It writes nothing and exits non-zero
+the consumer configuration state (`package.json#designSystem` or
+`.design-system/config.json`). With `--entry` it adds the same
+selected-entry prerequisite validation as `check`; without it no entry is scanned. It
+writes nothing and exits non-zero
 when any check fails. When it finds an applicable project-state issue, it points at the
 matching `recover` action; `doctor` and `check` remain offline and read-only.
 
@@ -412,9 +492,10 @@ access in the package; every other network call requires an explicit command.
 Turns project-state diagnostics into applicable recovery actions. The default run is
 offline, read-only, and structured: it reports the observed state and only actions valid
 for it. An optional `[package]` positional (or `--package <name>`) names the installed
-system explicitly when discovery is ambiguous. Missing or malformed configuration,
-multiple candidates, missing peers, and schema
-mismatches receive distinct guidance; an upgrade is not recommended as a universal
+system explicitly when discovery is ambiguous. Missing or malformed `package.json` →
+`designSystem` configuration receives guidance that includes migrating a detected legacy
+`.design-system/config.json` through `connect`; multiple candidates, missing peers, and
+schema mismatches receive distinct guidance; an upgrade is not recommended as a universal
 repair, and no CSS file or version is guessed. `--action <id>` selects one reported
 action; the applicable existing connect and Tailwind planners are reused, and `--dry-run`
 previews while `--yes` confirms the mutation. Completing an action is not the same as
@@ -426,17 +507,23 @@ visible.
 
 For a product repository, the public contract is:
 
-1. `.design-system/config.json` (written by `connect`/`use`/`upgrade`);
+1. the consumer configuration — `package.json` → `"designSystem"` or
+   `.design-system/config.json` in the extended layout (written by
+   `connect`/`config`/`use`/`upgrade`);
 2. the installed package's manifest at `<package>/manifest`;
 3. the installed package's `AGENTS.md`;
 4. the installed package's `README.md`;
 5. the public TypeScript API of the package;
 6. the public `./styles.css` and `./tailwind.css` subpaths.
 
-The exact installed version, the manifest version, and any configured version must match.
-Unknown manifest or config schema versions fail closed; only the current shape
-(`schemaVersion: 5`, numeric `contractVersion: 4`) is accepted. There is one shipped
-manifest shape, so readers of `schemaVersion: 4` and older must be upgraded in lockstep:
+The exact installed version, the manifest version, and any version recorded in the consumer
+configuration must match. The consumer config schema is
+`schemaVersion: 1` (`CONSUMER_SCHEMA_VERSION`); both locations hold the identical subtree,
+`connect` keeps whichever one is active, `config` moves it explicitly, and a legacy
+root-level `.design-system/config.json` is read only to migrate it. An unknown config
+`schemaVersion` fails closed. For the manifest, only the current shape (`schemaVersion: 5`, numeric
+`contractVersion: 4`) is accepted. There is one shipped manifest shape, so readers of
+`schemaVersion: 4` and older must be upgraded in lockstep:
 an older `prism-ds` cannot read a schema-5 manifest, and this tooling rejects schema 4 and
 older. The manifest's top-level `capabilities.categories` inventory (composition, forms,
 data-display) is canonical category membership, not availability: per-system support is
@@ -445,8 +532,7 @@ by intersecting the two. Custom extensions are available only as declared in
 `manifest.extensions`, and their entrypoint `requirements` are the only source for the
 selected-entry peer checks; nothing is inferred from a name. Never edit or repeat
 `capabilities` in the package-owned `design-system.source.json`, which is
-`schemaVersion: 4`. The generated manifest
-remains the authoritative design metadata; nothing duplicates it into `package.json`.
+`schemaVersion: 4`. The generated manifest remains the authoritative design metadata.
 
 ## Requirements
 

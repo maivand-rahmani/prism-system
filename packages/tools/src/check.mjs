@@ -8,9 +8,9 @@
  *
  * It aggregates, in a deterministic order:
  *
- *   1. the consumer `.design-system/config.json` (missing or invalid fails, with
- *      an actionable `connect` hint, even though `doctor` treats absent config
- *      as informational);
+ *   1. the consumer `package.json` `"designSystem"` configuration (missing or
+ *      invalid fails, with an actionable `connect` hint, even though `doctor`
+ *      treats absent config as informational);
  *   2. the full read-only `doctor` diagnostics (identity, installed package,
  *      manifest, contract metadata, and the Tailwind v4 bridge
  *      advertisement/export/file);
@@ -41,10 +41,10 @@ import { dirname, join } from "node:path";
 
 import { CONTRACT_VERSION, assertWithin, readJsonFile } from "./constants.mjs";
 import {
-  CONSUMER_CONFIG_FILENAME,
-  CONSUMER_DIRECTORY,
+  CONSUMER_CONFIG_LABEL,
   discoverConsumerPackage,
   readConsumerConfig,
+  readConsumerPackageJson,
   resolveConsumerRoot,
   resolveInstalledDesignSystem,
 } from "./consumer.mjs";
@@ -99,6 +99,20 @@ function readJsonSafe(filePath) {
   }
 }
 
+/**
+ * Read the consumer `package.json` document through the shared consumer reader,
+ * returning null when it is absent or malformed. The checks only need the
+ * declared dependencies and must never throw on a broken package.json.
+ */
+function readConsumerPackageJsonSafe(consumerRoot) {
+  if (consumerRoot === null) return null;
+  try {
+    return readConsumerPackageJson(consumerRoot)?.json ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function makeCheck({ id, label, status, required = false, detail, report }) {
   const check = { id, label, status, required, detail };
   if (report !== undefined) check.report = report;
@@ -120,12 +134,6 @@ function notChecked(options) {
 /* -------------------------------------------------------------------------- */
 /* Read-only helpers                                                          */
 /* -------------------------------------------------------------------------- */
-
-/** Read the consumer `package.json`, or null when absent/malformed. */
-function readConsumerPackageJson(consumerRoot) {
-  if (consumerRoot === null) return null;
-  return readJsonSafe(join(consumerRoot, "package.json"));
-}
 
 const DEPENDENCY_FIELDS = Object.freeze([
   "dependencies",
@@ -266,7 +274,7 @@ function checkConfig(state, rootErrorMessage) {
         label: "consumer config",
         required: true,
         detail:
-          `Missing ${CONSUMER_DIRECTORY}/${CONSUMER_CONFIG_FILENAME}. ` +
+          `Missing ${CONSUMER_CONFIG_LABEL}. ` +
           "`prism-ds check` requires a connected consumer. " +
           CONNECT_HINT,
       });
@@ -277,16 +285,16 @@ function checkConfig(state, rootErrorMessage) {
       id: CHECK_IDS.config,
       label: "consumer config",
       required: true,
-      detail: `connected to ${config.package}@${config.version} (strict ${config.strict})`,
+      detail:
+        `connected to ${config.package}@${config.version ?? "unpinned"} ` +
+        `(${config.label}, strict ${config.strict})`,
     });
   } catch (error) {
     return failed({
       id: CHECK_IDS.config,
       label: "consumer config",
       required: true,
-      detail:
-        `Invalid ${CONSUMER_DIRECTORY}/${CONSUMER_CONFIG_FILENAME}: ${error.message} ` +
-        CONNECT_HINT,
+      detail: `${error.message} ${CONNECT_HINT}`,
     });
   }
 }
@@ -415,7 +423,7 @@ function checkTailwindPrerequisite(state) {
     });
   }
 
-  const consumerPackageJson = readConsumerPackageJson(state.consumerRoot);
+  const consumerPackageJson = readConsumerPackageJsonSafe(state.consumerRoot);
   const declared = declaresDependency(consumerPackageJson, TAILWIND_PACKAGE);
   const installed = resolveInstalledPackage({
     consumerRoot: state.consumerRoot,
@@ -758,10 +766,11 @@ export function checkHelpText() {
   return [
     "Usage: prism-ds check --cwd <consumer-root> [--css <file>] [--entry <path-or-extension>]",
     "",
-    "One offline, read-only health report for a connected consumer: config, doctor",
-    "diagnostics, public stylesheet/bridge exports, strict usage, and component",
-    "availability. The CSS import order is checked only when --css <file> is given;",
-    "otherwise the report does not scan for or guess a CSS file. Nothing is written.",
+    "One offline, read-only health report for a connected consumer: the package.json",
+    "designSystem config, doctor diagnostics, public stylesheet/bridge exports, strict",
+    "usage, and component availability. The CSS import order is checked only when",
+    "--css <file> is given; otherwise the report does not scan for or guess a CSS",
+    "file. Nothing is written.",
     "",
     "With --entry the named installed extension, declared entrypoint, or contained",
     "consumer file is scanned for literal import/require specifiers and every declared",

@@ -155,9 +155,17 @@ const OPERATION_KEYS = Object.freeze(Object.keys(DEFAULT_OPERATIONS));
  * (invalid or ambiguous selection) is reported as `error` and never guessed at.
  */
 const EMPTY_DISCOVERY_REASONS = Object.freeze([
-  "no .design-system/config.json and no consumer package.json",
+  "no consumer package.json",
   "No supported @prism-system/ui-* package found in consumer dependencies",
 ]);
+
+/**
+ * Actionable suffix appended to an empty state's reason: the UI shows this
+ * message verbatim, so it must name both the configuration location and the
+ * command that writes it.
+ */
+const EMPTY_STATE_HINT =
+  "Run prism-ds connect to record the selection in package.json#designSystem.";
 
 function isPlainObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -749,6 +757,7 @@ export function createTuiOperations({
       state.reason = reason;
       if (config === null && isEmptyDiscoveryReason(reason)) {
         state.status = PROJECT_STATES.EMPTY;
+        state.reason = `${reason} ${EMPTY_STATE_HINT}`;
         return state;
       }
       return failProjectState(state, reason);
@@ -756,7 +765,11 @@ export function createTuiOperations({
 
     state.packageName = typeof discovered?.packageName === "string" ? discovered.packageName : null;
     state.source =
-      typeof discovered?.source === "string" ? discovered.source : state.config ? "config" : null;
+      typeof discovered?.source === "string"
+        ? discovered.source
+        : state.config
+          ? "designSystem"
+          : null;
 
     let verified;
     try {

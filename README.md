@@ -175,6 +175,8 @@ npx prism-ds setup-tailwind --cwd . --css app/globals.css --check
 # отчёт о состоянии продукта и офлайн-диагностика
 npx prism-ds check --cwd .
 npx prism-ds connect @prism-system/ui-system-a --cwd .
+npx prism-ds config --cwd .                     # где хранится конфигурация (только чтение)
+npx prism-ds config design-system --cwd . --dry-run
 npx prism-ds check-usage --cwd .
 npx prism-ds doctor --cwd .
 
@@ -219,10 +221,13 @@ npx prism-ds recover --cwd . --action <id> --dry-run
   сравнивают манифесты). `switch` сохраняет прежнюю зависимость и применяет только
   проверенные буквальные замены импортов/CSS; `remove` удаляет её отдельным явным
   действием и только когда активных ссылок не осталось;
-- `connect`, `components`, `tokens`, `check`, `check-usage`, `doctor`, `setup-tailwind`
-  и `recover` без `--action` — **офлайн**: не устанавливают пакеты, не меняют
-  зависимости и не копируют исходники. `connect` пишет только consumer-конфиг и
-  инструкции, `setup-tailwind` меняет только явно указанный CSS-файл, `check`/`doctor`/
+- `connect`, `config`, `components`, `tokens`, `check`, `check-usage`, `doctor`,
+  `setup-tailwind` и `recover` без `--action` — **офлайн**: не устанавливают пакеты,
+  не меняют зависимости и не копируют исходники. `connect` и `config` пишут только
+  конфигурацию продукта — поле `designSystem` в `package.json` или
+  `.design-system/config.json` в расширенной раскладке (обе локации равнозначны,
+  перемещает `config`, `connect` сохраняет активную) — и управляемую секцию в корневом
+  `AGENTS.md`; `setup-tailwind` меняет только явно указанный CSS-файл, `check`/`doctor`/
   каталоги ничего не пишут, `recover` по умолчанию только читает состояние и предлагает
   подходящие действия;
 - объявленные сетевые исключения: стартовый проверочный запрос TUI (однократный, только
@@ -237,8 +242,10 @@ npx prism-ds recover --cwd . --action <id> --dry-run
 - `self-update` обновляет только сам `prism-ds`; `recover` превращает диагностику в
   применимые действия, а завершение действия не означает, что проблема уже устранена.
 
-Публичный контракт для продукта — это `.design-system/config.json`, манифест
-`<package>/manifest` и `AGENTS.md` установленного пакета. Команды `pnpm ds:connect`
+Публичный контракт для продукта — это конфигурация (`designSystem` в `package.json` или
+`.design-system/config.json` в расширенной раскладке), управляемая секция в корневом
+`AGENTS.md`, манифест `<package>/manifest` и `AGENTS.md` установленного
+пакета. Команды `pnpm ds:connect`
 и `pnpm ds:check-usage` — это совместимые обёртки над тем же кодом.
 
 `pnpm version-packages-and-sync` и `pnpm version-packages` — это **автоматизация

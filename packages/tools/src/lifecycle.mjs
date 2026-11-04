@@ -15,14 +15,19 @@
  *      command with the selected entries' peer requirements (explicit
  *      `--with-entry` plus every extension the scan verified as actively used),
  *      literal package-prefix module/CSS-import rewrites, and the generated
- *      connect files;
+ *      connect files (the `package.json` `"designSystem"` value, the root
+ *      `AGENTS.md` managed block, and any legacy `.design-system/` retirement);
  *   5. requires explicit `confirmed: true` for mutation; a dry run never spawns
  *      or writes, and missing consent returns the plan with
  *      `boundary: "confirmation-required"`;
  *   6. verifies every file/path/manifest/dependency precondition before the
- *      manager runs and again before the first write, then installs, verifies
- *      the exact target version, writes the planned bytes with rollback of this
- *      command's own writes on failure, and post-checks the result.
+ *      manager runs, then installs and verifies the exact target version. The
+ *      `package.json` effect is never written from previewed bytes — the
+ *      manager rewrites that file — so only its `"designSystem"` value is
+ *      re-verified and the effect is rebuilt from the current bytes; all other
+ *      planned bytes are re-verified before the first write. Planned bytes are
+ *      written with rollback of this command's own writes on failure, and the
+ *      result is post-checked.
  *
  * The previous design system dependency is deliberately kept (no hidden
  * uninstall); token values cannot be compared, so appearance is reported as
@@ -31,14 +36,17 @@
  * `removeDesignSystem` removes one explicitly selected design system from a
  * consumer. It blocks when the package is still actively imported or its token
  * names are referenced, runs the fixed `npm uninstall` / `pnpm remove
- * --ignore-scripts` command, then removes only generated files that are still
- * byte-identical to their expected generated content and strips the managed
- * root-AGENTS block. User-edited files, malformed markers, unrelated
- * dependencies/peers, and user CSS are preserved and reported. Exact package
- * CSS bridge imports in an explicitly named `--css` file are never deleted or
- * rewritten (setup-tailwind records no ownership marker): they fail the plan
- * closed with manual-removal guidance, before any spawn or write, and a dry run
- * reports the same blocker with no planned changes.
+ * --ignore-scripts` command, then removes only attributable integration: the
+ * `package.json` `"designSystem"` value when it still equals the generated
+ * configuration, legacy `.design-system/config.json` / `.design-system/AGENTS.md`
+ * files that are still byte-identical to their generated content, and the
+ * managed root-AGENTS block. User-edited files, a hand-edited `"designSystem"`
+ * value, malformed markers, unrelated dependencies/peers, and user CSS are
+ * preserved and reported. Exact package CSS bridge imports in an explicitly
+ * named `--css` file are never deleted or rewritten (setup-tailwind records no
+ * ownership marker): they fail the plan closed with manual-removal guidance,
+ * before any spawn or write, and a dry run reports the same blocker with no
+ * planned changes.
  */
 
 import {
@@ -63,29 +71,32 @@ import {
   scanActiveUsage,
 } from "./active-usage.mjs";
 import {
-  CONSUMER_AGENTS_FILENAME,
-  CONSUMER_CONFIG_FILENAME,
+  CONSUMER_CONFIG_KEY,
+  CONSUMER_CONFIG_LABEL,
   CONSUMER_DIRECTORY,
+  LEGACY_CONSUMER_AGENTS_FILENAME,
+  LEGACY_CONSUMER_CONFIG_FILENAME,
   MANAGED_BLOCK_BEGIN,
   MANAGED_BLOCK_END,
+  applyConsumerConfigToPackageJson,
   buildConsumerConfig,
   buildManagedBlock,
   discoverConsumerPackage,
   normalizeRequestedPackage,
   planConnectForTarget,
   readConsumerConfig,
+  readConsumerPackageJson,
+  readDesignSystemValue,
+  refreshPackageJsonEffect,
   renderConsumerAgents,
+  renderExtendedConsumerConfig,
+  renderLegacyConsumerConfig,
   resolveConsumerPath,
   resolveConsumerRoot,
   resolveInstalledDesignSystem,
   verifyConsumerDesignSystem,
 } from "./consumer.mjs";
-import {
-  CONTRACT_VERSION,
-  DEFAULT_ENTRYPOINT_KEYS,
-  assertWithin,
-  readJsonFile,
-} from "./constants.mjs";
+import { CONTRACT_VERSION, DEFAULT_ENTRYPOINT_KEYS, assertWithin } from "./constants.mjs";
 import {
   parsePeerOverrides,
   planEntryAndPeers,
@@ -118,22 +129,35 @@ function readFileOrNull(filePath) {
   }
 }
 
-/** Read the consumer `package.json` or throw a clear failure. */
-function readConsumerPackageJson(consumerRoot) {
-  const path = resolveConsumerPath(consumerRoot, "package.json");
-  if (!existsSync(path)) {
+/**
+ * The raw `designSystem` value inside a planned `package.json` byte image.
+ *
+ * A package manager legitimately rewrites the rest of `package.json`, so the
+ * previewed bytes cannot be trusted after a spawn — but the configuration value
+ * they contained is exactly the state the preview reasoned about, and it is the
+ * only thing the write may rely on.
+ */
+function designSystemValueOfPackageJsonText(text) {
+  if (typeof text !== "string") return null;
+  const parsed = JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
+  return parsed?.[CONSUMER_CONFIG_KEY] ?? null;
+}
+
+/**
+ * Read the consumer `package.json` or throw a clear failure. The exported
+ * {@link readConsumerPackageJson} returns null when the file is absent; every
+ * lifecycle caller needs a resolved document, so the absence is a failure here.
+ */
+function requireConsumerPackageJson(consumerRoot) {
+  const packageJson = readConsumerPackageJson(consumerRoot);
+  if (packageJson === null) {
+    const path = resolveConsumerPath(consumerRoot, "package.json");
     throw new Error(`Consumer package.json not found at ${path}.`);
   }
-  let json;
-  try {
-    json = readJsonFile(path);
-  } catch (error) {
-    throw new Error(`Invalid consumer package.json ${path}: ${error.message}`);
+  if (!isPlainObject(packageJson.json)) {
+    throw new Error(`Consumer package.json ${packageJson.path} must be a JSON object.`);
   }
-  if (!isPlainObject(json)) {
-    throw new Error(`Consumer package.json ${path} must be a JSON object.`);
-  }
-  return { path, json };
+  return packageJson;
 }
 
 /** Find one declared dependency entry, or null. */
@@ -237,7 +261,14 @@ function verifyWrittenBytes(entries) {
   return failures;
 }
 
-/** Connect-plan file effects in the shared planned-change shape. */
+/**
+ * Connect-plan file effects in the shared planned-change shape.
+ *
+ * `package-json` effects additionally carry the semantic `config` they set: a
+ * package manager rewrites unrelated package.json content between the preview
+ * and the write, so that file can only be preconditioned and post-checked by
+ * the `designSystem` value, never by its bytes.
+ */
 function connectPlanChanges(connectPlan) {
   return connectPlan.files.map((file) => ({
     kind: "connect",
@@ -246,6 +277,7 @@ function connectPlanChanges(connectPlan) {
     changed: file.before !== file.after,
     before: file.before,
     after: file.after,
+    ...(file.kind === "package-json" ? { config: file.config } : {}),
   }));
 }
 
@@ -1077,7 +1109,7 @@ export function assessSwitchCompatibility({ usage, targetManifest, fromPackage, 
 function verifySwitchPreconditions({ consumerRoot, packageName, version, dependency, files }) {
   const failures = [];
   try {
-    const packageJson = readConsumerPackageJson(consumerRoot);
+    const packageJson = requireConsumerPackageJson(consumerRoot);
     const current = dependencyOf(packageJson.json, packageName);
     if (current === null) {
       failures.push(`Dependency "${packageName}" is no longer declared in ${packageJson.path}.`);
@@ -1631,7 +1663,7 @@ export async function switchDesignSystem({
 
   let dependency;
   try {
-    const packageJson = readConsumerPackageJson(consumerRoot);
+    const packageJson = requireConsumerPackageJson(consumerRoot);
     dependency = dependencyOf(packageJson.json, from.package);
     if (dependency === null) {
       throw new Error(
@@ -1677,8 +1709,13 @@ export async function switchDesignSystem({
     ...sourceChanges,
     ...connectPlanChanges(connectPlan),
   ];
-  const preconditionFiles = plannedChanges
-    .filter((change) => typeof change.path === "string")
+  const plannedPathEntries = plannedChanges.filter((change) => typeof change.path === "string");
+  // A package manager rewrites unrelated package.json content (usually a
+  // dependency entry) between planning and writing, so that effect is never
+  // preconditioned or post-checked by bytes. Only the `designSystem` value is
+  // authoritative; it is compared by value immediately before the write.
+  const preconditionFiles = plannedPathEntries
+    .filter((change) => change.fileKind !== "package-json")
     .map((change) => ({ path: change.path, before: change.before }));
 
   const planMaterial = buildSwitchPlanMaterial({
@@ -1867,9 +1904,59 @@ export async function switchDesignSystem({
     };
   }
 
+  // Rebuild the package.json effect from the file's current bytes: the manager
+  // legitimately rewrote unrelated content (the dependency entries), so the
+  // previewed bytes are not authoritative for that file. Only the previewed
+  // `designSystem` value is, and any drift there fails closed before writing.
+  const writeEntries = [];
+  for (const entry of plannedPathEntries) {
+    if (entry.fileKind !== "package-json") {
+      writeEntries.push(entry);
+      continue;
+    }
+    let liveConfig;
+    let previewedConfig;
+    try {
+      liveConfig = readDesignSystemValue(entry.path);
+      previewedConfig = designSystemValueOfPackageJsonText(entry.before);
+    } catch (error) {
+      return {
+        ok: false,
+        boundary: "precondition",
+        reason: "drift-after-install",
+        failures: [
+          "Refusing to write files: consumer state changed while the package manager ran.",
+          `${entry.path} could not be re-read: ${error.message}`,
+        ],
+        note:
+          `"${to.package}@${to.version}" was installed and verified, but no files were written. ` +
+          "The previous design system remains selected. No rollback of the manager was attempted.",
+        ...base,
+      };
+    }
+    if (JSON.stringify(liveConfig ?? null) !== JSON.stringify(previewedConfig ?? null)) {
+      return {
+        ok: false,
+        boundary: "precondition",
+        reason: "drift-after-install",
+        failures: [
+          "Refusing to write files: consumer state changed while the package manager ran.",
+          `${entry.path} (${CONSUMER_CONFIG_LABEL}) no longer holds the previewed configuration; ` +
+            "the package.json write was not applied.",
+        ],
+        note:
+          `"${to.package}@${to.version}" was installed and verified, but no files were written. ` +
+          "The previous design system remains selected. No rollback of the manager was attempted.",
+        ...base,
+      };
+    }
+    const refreshed = refreshPackageJsonEffect(entry);
+    writeEntries.push({ ...refreshed, changed: refreshed.before !== refreshed.after });
+  }
+
   const applied = applyFileChanges({
     consumerRoot,
-    entries: plannedChanges.filter((change) => typeof change.path === "string"),
+    entries: writeEntries,
     writeImpl,
   });
   if (!applied.ok) {
@@ -1890,11 +1977,25 @@ export async function switchDesignSystem({
     };
   }
 
-  const postFailures = verifyWrittenBytes(
-    plannedChanges.filter((change) => typeof change.path === "string"),
-  );
+  // The connect plan may retire the legacy `.design-system/` directory, but only
+  // when the planned legacy-file removals leave it empty (best effort, exactly
+  // like `connect`: a directory that gained a file is kept).
+  let directoryRemoved = false;
+  if (connectPlan.directory !== null && connectPlan.directory?.remove === true) {
+    try {
+      assertWithin(consumerRoot, connectPlan.directory.path, "Consumer directory path");
+      if (readdirSync(connectPlan.directory.path).length === 0) {
+        rmdirSync(connectPlan.directory.path);
+        directoryRemoved = true;
+      }
+    } catch {
+      directoryRemoved = false;
+    }
+  }
+
+  const postFailures = verifyWrittenBytes(writeEntries);
   try {
-    const packageJson = readConsumerPackageJson(consumerRoot);
+    const packageJson = requireConsumerPackageJson(consumerRoot);
     if (dependencyOf(packageJson.json, from.package) === null) {
       postFailures.push(`Dependency "${from.package}" is no longer declared after the switch.`);
     }
@@ -1931,6 +2032,7 @@ export async function switchDesignSystem({
       command,
     },
     written: applied.written,
+    directoryRemoved,
   };
 }
 
@@ -2015,8 +2117,15 @@ export function collectRemoveBlockers(usage) {
 }
 
 /**
- * Plan the generated-integration removal: only byte-identical generated files
- * are removed; every edited/malformed/unknown file is preserved and reported.
+ * Plan the generated-integration removal.
+ *
+ * `.design-system/config.json` and `.design-system/AGENTS.md` are legacy
+ * generated files: they are removed only when still byte-identical to what the
+ * previous `connect` generated, and every edited/malformed/unknown file is
+ * preserved and reported. The live `package.json` `designSystem` value is
+ * removed by value, not by bytes: it is planned only when it still equals the
+ * generated configuration (or the minimal bare-package form), because a package
+ * manager legitimately rewrites unrelated package.json content.
  *
  * The explicitly named CSS file is read but never rewritten. Because
  * `setup-tailwind` writes no ownership marker, exact package bridge imports
@@ -2051,15 +2160,18 @@ function planRemoveIntegrations({
   // generated artifact is preserved rather than guessed at.
   const configMatchesInstalled =
     config === null || installedVersion === null || config.version === installedVersion;
+  const expectedConfig =
+    config === null
+      ? null
+      : buildConsumerConfig({ packageName, version, strict, ignore: config.ignore });
   const expectedConfigs =
     version === null || !configMatchesInstalled
       ? []
       : [
-          `${JSON.stringify(
+          renderLegacyConsumerConfig({ packageName, version, strict, ignore: config?.ignore }),
+          renderExtendedConsumerConfig(
             buildConsumerConfig({ packageName, version, strict, ignore: config?.ignore }),
-            null,
-            2,
-          )}\n`,
+          ),
         ];
   const expectedAgents =
     version === null || !configMatchesInstalled
@@ -2078,21 +2190,22 @@ function planRemoveIntegrations({
   const configPath = resolveConsumerPath(
     consumerRoot,
     CONSUMER_DIRECTORY,
-    CONSUMER_CONFIG_FILENAME,
+    LEGACY_CONSUMER_CONFIG_FILENAME,
   );
   const agentsPath = resolveConsumerPath(
     consumerRoot,
     CONSUMER_DIRECTORY,
-    CONSUMER_AGENTS_FILENAME,
+    LEGACY_CONSUMER_AGENTS_FILENAME,
   );
   const rootAgentsPath = resolveConsumerPath(consumerRoot, "AGENTS.md");
+  const packageJsonPath = resolveConsumerPath(consumerRoot, "package.json");
 
   if (existsSync(configPath)) {
     const before = readFileSync(configPath, "utf8");
     if (expectedConfigs.includes(before)) {
       changes.push({
         kind: "file",
-        fileKind: "config",
+        fileKind: "design-system-config",
         path: configPath,
         changed: true,
         before,
@@ -2102,7 +2215,7 @@ function planRemoveIntegrations({
       preserved.push({
         path: configPath,
         reason: "edited-generated-file",
-        message: `${configPath} is not the expected generated config for "${packageName}"; it was preserved.`,
+        message: `${configPath} is not the expected generated design-system config for "${packageName}"; it was preserved.`,
       });
     }
   }
@@ -2111,7 +2224,7 @@ function planRemoveIntegrations({
     if (expectedAgents.includes(before)) {
       changes.push({
         kind: "file",
-        fileKind: "agents",
+        fileKind: "legacy-agents",
         path: agentsPath,
         changed: true,
         before,
@@ -2121,7 +2234,39 @@ function planRemoveIntegrations({
       preserved.push({
         path: agentsPath,
         reason: "edited-generated-file",
-        message: `${agentsPath} is not the expected generated AGENTS.md for "${packageName}"; it was preserved.`,
+        message: `${agentsPath} is not the expected generated legacy AGENTS.md for "${packageName}"; it was preserved.`,
+      });
+    }
+  }
+  // `package.json` `designSystem` is removed as a value-level operation: only a
+  // value that still equals the generated configuration (or the accepted
+  // bare-package-name form) is attributable to this tooling.
+  let packageJson = null;
+  const liveConfig = existsSync(packageJsonPath) ? readDesignSystemValue(packageJsonPath) : null;
+  if (liveConfig !== null) {
+    const matchesGenerated =
+      expectedConfig !== null &&
+      version !== null &&
+      configMatchesInstalled &&
+      JSON.stringify(liveConfig) === JSON.stringify(expectedConfig);
+    const matchesBarePackage = typeof liveConfig === "string" && liveConfig === packageName;
+    if (matchesGenerated || matchesBarePackage) {
+      const before = readFileSync(packageJsonPath, "utf8");
+      const after = applyConsumerConfigToPackageJson(before, null);
+      packageJson = { path: packageJsonPath, value: liveConfig, before, after };
+      changes.push({
+        kind: "file",
+        fileKind: "package-json",
+        path: packageJsonPath,
+        changed: true,
+        before,
+        after,
+      });
+    } else {
+      preserved.push({
+        path: packageJsonPath,
+        reason: "edited-generated-config",
+        message: `${CONSUMER_CONFIG_LABEL} in ${packageJsonPath} was left untouched because it does not match the generated configuration.`,
       });
     }
   }
@@ -2199,14 +2344,23 @@ function planRemoveIntegrations({
   }
 
   const directoryPath = resolveConsumerPath(consumerRoot, CONSUMER_DIRECTORY);
-  const removesConfig = changes.some((change) => change.fileKind === "config");
-  const removesAgents = changes.some((change) => change.fileKind === "agents");
+  // The legacy directory is retired only when it becomes empty: whatever legacy
+  // generated file is actually planned for removal keeps the prediction generic
+  // (a single leftover file must still let the directory go).
+  const removedLegacyNames = [
+    ...(changes.some((change) => change.fileKind === "design-system-config")
+      ? [LEGACY_CONSUMER_CONFIG_FILENAME]
+      : []),
+    ...(changes.some((change) => change.fileKind === "legacy-agents")
+      ? [LEGACY_CONSUMER_AGENTS_FILENAME]
+      : []),
+  ];
   let directory = null;
-  if (removesConfig && removesAgents && existsSync(directoryPath)) {
-    // Predict the directory state after the two planned removals: it may be
+  if (removedLegacyNames.length > 0 && existsSync(directoryPath)) {
+    // Predict the directory state after the planned removals: it may be
     // removed only when nothing else remains.
     const remaining = readdirSync(directoryPath).filter(
-      (name) => name !== CONSUMER_CONFIG_FILENAME && name !== CONSUMER_AGENTS_FILENAME,
+      (name) => !removedLegacyNames.includes(name),
     );
     if (remaining.length === 0) {
       directory = {
@@ -2225,7 +2379,7 @@ function planRemoveIntegrations({
     }
   }
 
-  return { changes, preserved, warnings, css, directory, blockers };
+  return { changes, preserved, warnings, css, directory, blockers, packageJson };
 }
 
 /**
@@ -2233,6 +2387,11 @@ function planRemoveIntegrations({
  *
  * Options mirror the catalog lifecycle naming: `cwd`, `package`, `cssPath`,
  * `dryRun`. `confirmed: true` is required for any dependency or file mutation.
+ * The integration cleanup is attribution-safe: `package.json` `"designSystem"` is
+ * removed only while it still equals the generated configuration (compared by
+ * value, then re-verified immediately before the write because the manager
+ * rewrites that file), and legacy `.design-system/` files only while they are
+ * still byte-identical to their generated content.
  * `cssPath` is the only CSS input: no CSS file is scanned or guessed, and with
  * no non-empty `cssPath` the plan carries a `css-not-inspected` compatibility
  * warning, leaves CSS unchanged, and never blocks removal by itself.
@@ -2358,7 +2517,7 @@ export function removeDesignSystem({
 
   let packageJson;
   try {
-    packageJson = readConsumerPackageJson(consumerRoot);
+    packageJson = requireConsumerPackageJson(consumerRoot);
   } catch (error) {
     if (expectedMaterial !== null) {
       return planDriftResult({
@@ -2683,6 +2842,7 @@ export function removeDesignSystem({
     usage,
     plannedChanges,
     preserved: integration.preserved,
+    packageJson: integration.packageJson,
     compatibility,
     planMaterial,
     dryRun,
@@ -2704,13 +2864,17 @@ export function removeDesignSystem({
     };
   }
 
-  const preconditionFiles = fileChanges.map((change) => ({
-    path: change.path,
-    before: change.before,
-  }));
+  // The package.json `designSystem` effect is compared by value, never by bytes:
+  // the manager legitimately rewrites dependency entries in that file.
+  const preconditionFiles = fileChanges
+    .filter((change) => change.fileKind !== "package-json")
+    .map((change) => ({
+      path: change.path,
+      before: change.before,
+    }));
   const preSpawnFailures = [];
   try {
-    const current = readConsumerPackageJson(consumerRoot);
+    const current = requireConsumerPackageJson(consumerRoot);
     const declared = dependencyOf(current.json, packageName);
     if (declared === null) {
       preSpawnFailures.push(
@@ -2778,7 +2942,7 @@ export function removeDesignSystem({
 
   const absenceFailures = [];
   try {
-    const current = readConsumerPackageJson(consumerRoot);
+    const current = requireConsumerPackageJson(consumerRoot);
     if (dependencyOf(current.json, packageName) !== null) {
       absenceFailures.push(`"${packageName}" is still declared in ${current.path} after removal.`);
     }
@@ -2825,7 +2989,59 @@ export function removeDesignSystem({
     };
   }
 
-  const applied = applyFileChanges({ consumerRoot, entries: fileChanges, writeImpl });
+  // `package.json` `designSystem` is written by value: after the manager ran, the
+  // file legitimately differs from the preview, so only the configuration value
+  // is compared, and the effect is rebuilt from the current bytes. The stale
+  // previewed effect is dropped, not applied first.
+  const writeEntries = fileChanges.filter((change) => change.fileKind !== "package-json");
+  if (integration.packageJson !== null) {
+    let liveConfig;
+    try {
+      liveConfig = readDesignSystemValue(integration.packageJson.path);
+    } catch (error) {
+      return {
+        ok: false,
+        boundary: "precondition",
+        reason: "drift-after-remove",
+        failures: [
+          "Refusing to write files: consumer state changed while the manager ran.",
+          `${integration.packageJson.path} could not be re-read: ${error.message}`,
+        ],
+        note:
+          `"${packageName}" was removed from the dependencies, but no generated files were ` +
+          "touched. No rollback of the manager was attempted.",
+        ...base,
+      };
+    }
+    if (
+      JSON.stringify(liveConfig ?? null) !== JSON.stringify(integration.packageJson.value ?? null)
+    ) {
+      return {
+        ok: false,
+        boundary: "precondition",
+        reason: "drift-after-remove",
+        failures: [
+          "Refusing to write files: consumer state changed while the manager ran.",
+          `${CONSUMER_CONFIG_LABEL} in ${integration.packageJson.path} no longer holds the ` +
+            "previewed configuration; it was left untouched.",
+        ],
+        note:
+          `"${packageName}" was removed from the dependencies, but no generated files were ` +
+          "touched. No rollback of the manager was attempted.",
+        ...base,
+      };
+    }
+    const currentText = readFileSync(integration.packageJson.path, "utf8");
+    const planned = integration.changes.find((change) => change.fileKind === "package-json");
+    writeEntries.push({
+      ...planned,
+      before: currentText,
+      after: applyConsumerConfigToPackageJson(currentText, null),
+      changed: true,
+    });
+  }
+
+  const applied = applyFileChanges({ consumerRoot, entries: writeEntries, writeImpl });
   if (!applied.ok) {
     return {
       ok: false,
@@ -2855,9 +3071,9 @@ export function removeDesignSystem({
     }
   }
 
-  const postFailures = verifyWrittenBytes(fileChanges);
+  const postFailures = verifyWrittenBytes(writeEntries);
   try {
-    const current = readConsumerPackageJson(consumerRoot);
+    const current = requireConsumerPackageJson(consumerRoot);
     if (dependencyOf(current.json, packageName) !== null) {
       postFailures.push(`Dependency "${packageName}" is declared again after removal.`);
     }
@@ -2889,8 +3105,9 @@ export function removeDesignSystem({
     directoryRemoved,
     removed: {
       dependency: true,
-      config: integration.changes.some((change) => change.fileKind === "config"),
-      agents: integration.changes.some((change) => change.fileKind === "agents"),
+      packageJson: integration.packageJson !== null,
+      config: integration.changes.some((change) => change.fileKind === "design-system-config"),
+      agents: integration.changes.some((change) => change.fileKind === "legacy-agents"),
       rootAgents: integration.changes.some((change) => change.fileKind === "root-agents"),
       css: integration.css !== null && integration.css.changed,
     },

@@ -17,5 +17,5 @@ Product rules:
 - Never import `@prism-system/ui-core` internals or workspace source paths; the
   fixture is validated against packed artifacts, not the monorepo.
 
-`pnpm ds:connect` appends a managed design-system contract block to this file.
-Keep your own content outside that block.
+`pnpm ds:connect` writes the `designSystem` field in `package.json` and appends a managed
+design-system contract section to this file. Keep your own content outside that section.

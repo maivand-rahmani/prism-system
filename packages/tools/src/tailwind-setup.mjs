@@ -13,9 +13,9 @@
  *   - a dry run never writes.
  *
  * Setup requires a *connected or uniquely identified* installed design
- * system. Discovery reuses the published consumer contract (explicit
- * `.design-system/config.json`, then `package.json` `designSystem` metadata,
- * then a single supported `@prism-system/ui-*` dependency); anything ambiguous
+ * system. Discovery reuses the published consumer contract (`package.json`
+ * `designSystem` field, then a legacy `.design-system/config.json`, then a
+ * single supported `@prism-system/ui-*` dependency); anything ambiguous
  * fails closed. The installed package is resolved through Node package
  * resolution from the consumer root and read only through its public `exports`
  * (never package internals).

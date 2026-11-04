@@ -103,8 +103,10 @@ npx prism-ds switch <target> [version] --cwd <consumer-root> --yes [--css <expli
   `check --entry` (or `doctor --entry`) afterward. A missing peer of an unused extension
   is not a product failure.
 - The tool performs only exact literal replacements it can determine — import specifiers,
-  the explicit CSS file, and the consumer config. It never rewrites JSX, props, component
-  usage, or product UI, and it does not translate API calls between systems.
+  the explicit CSS file, and the consumer configuration (`package.json#designSystem` or
+  `.design-system/config.json`, whichever location the consumer uses). It never rewrites
+  JSX, props, component usage, or product UI, and it does not translate API calls between
+  systems.
 - The previous package dependency is preserved; it is not removed automatically. Do not
   remove it in the same step.
 - A completed package-manager mutation is not rolled back automatically. If the switch

@@ -526,9 +526,15 @@ function buildUpgradePreview({ packageName, fromVersion, toVersion, command, dif
 
 /**
  * Deterministic planned file effects of one target-version connect plan. Each
- * managed config/AGENTS file carries its exact kind, absolute path, before/after
- * content, and changed flag so previews, JSON output, and the TUI comparison
- * material all see the same byte-level effects.
+ * managed file carries its exact kind, absolute path, before/after content, and
+ * changed flag so previews, JSON output, and the TUI comparison material all see
+ * the same byte-level effects.
+ *
+ * A `package-json` effect additionally carries the `config` it sets. The whole
+ * file is never authoritative for drift (the package manager legitimately
+ * rewrites unrelated package.json content between the preview and the confirmed
+ * run); the semantic `designSystem` value is, so callers that compare a previewed
+ * plan against a live one must see it here.
  */
 function connectPlanChanges(connectPlan) {
   return connectPlan.files.map((file) => ({
@@ -538,6 +544,7 @@ function connectPlanChanges(connectPlan) {
     changed: file.before !== file.after,
     before: file.before,
     after: file.after,
+    ...(file.kind === "package-json" ? { config: file.config ?? null } : {}),
   }));
 }
 
@@ -793,8 +800,9 @@ export async function installDesignSystem({
  * `dryRun` resolves the exact target and manager command (and, with `tailwind`,
  * the planned CSS import diff) without spawning or writing anything. It also
  * builds the target-version connect plan from the validated registry manifest
- * (exact config/AGENTS before/after content), so the preview shows the same
- * bytes a later connect would write. `tailwind` requires `cssPath` and
+ * (exact package.json `"designSystem"` and root-AGENTS before/after effects), so
+ * the preview shows the same bytes a later connect would write. `tailwind`
+ * requires `cssPath` and
  * preflights a current target, an installed Tailwind v4, and the CSS file before
  * any dependency mutation; the real Tailwind setup runs only after a successful
  * install and connect.
@@ -1001,8 +1009,9 @@ export async function runUseDesignSystem({
  * the validated registry target *before* any package-manager mutation, producing
  * deterministic component and token removals/additions plus a preview. A dry run
  * resolves and checks the target and manager, returning the exact manager command
- * and the target-version connect plan (exact config/AGENTS before/after content)
- * without spawning or writing. On a real run it uses the same fixed npm/pnpm path
+ * and the target-version connect plan (exact package.json `"designSystem"` and
+ * root-AGENTS before/after effects) without spawning or writing. On a real run it
+ * uses the same fixed npm/pnpm path
  * as `use`, verifies the exact installed identity/version, then reconnects.
  *
  * `expectedConnectPlan` is an optional write precondition: after the upgrade and

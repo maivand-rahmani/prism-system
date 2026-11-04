@@ -5,7 +5,7 @@ Package-local instructions. Read the repository root `AGENTS.md` first.
 ## Identity
 
 `@prism-system/tools` is the **published tooling** for `@prism-system` design systems. It
-ships the `prism-ds` executable with seventeen root commands:
+ships the `prism-ds` executable with eighteen root commands:
 
 ```text
 search         npm Registry search for supported @prism-system/ui-* styles (network, read-only)
@@ -15,7 +15,8 @@ use            install, verify, connect, optional usage check, optional Tailwind
 upgrade        explicitly upgrade to an exact version, diff the manifest, re-connect (mutates dependencies)
 switch         move a consumer to another exact system release after a compatibility review (mutates dependencies; retains the previous dependency)
 remove         remove the selected system and its attributable integration once no active references remain (mutates dependencies)
-connect        configure an already-installed style in a consumer (offline; writes config/AGENTS only)
+connect        configure an already-installed style in a consumer (offline; writes only the consumer configuration and the root AGENTS.md managed section)
+config         show or move where a consumer stores its design-system configuration (offline; writes only the package.json field and/or .design-system/config.json)
 components     read the installed style's component catalog (offline, manifest-only)
 tokens         read the installed style's token catalog (offline, manifest-only)
 check          one offline read-only consumer health report (offline)
@@ -44,7 +45,8 @@ commands only read an installed package's public `./manifest`.
 
 This package owns:
 
-- the consumer contract implementation (`connect`) and generated config/AGENTS content;
+- the consumer contract implementation and its storage location (`connect`, `config`) and
+  the generated consumer configuration plus root `AGENTS.md` managed section;
 - the strict usage checker (`check-usage`) and its rule catalog;
 - read-only diagnostics (`doctor`) and the aggregated offline health report (`check`);
 - the offline component catalog (`components`) and the token catalog (`tokens`);
@@ -74,8 +76,9 @@ This package must never:
   explicit `search`/`info`/`install`/`use`/`upgrade`/`switch`/`remove`/`skills`/
   `self-update` invocation — the one automatic exception is the bounded, nonblocking,
   read-only TUI startup update check (`PRISM_DS_UPDATE_CHECK=0` disables it);
-- edit consumer files outside an explicit command's owned surface (`connect`'s config and
-  AGENTS files, `setup-tailwind`'s explicitly named CSS file, `switch`'s reviewed literal
+- edit consumer files outside an explicit command's owned surface (`connect`/`config`'s
+  consumer configuration field or file and root `AGENTS.md` managed section,
+  `setup-tailwind`'s explicitly named CSS file, `switch`'s reviewed literal
   module/CSS substitutions, `remove`'s attributable integration cleanup);
 - replace or delete a skill installation without confirmed, verified managed content, or
   write skills outside the explicitly selected scope and agent;
@@ -118,8 +121,16 @@ consumer root and read only through its public `exports` (notably `./manifest`).
   instead of implying CSS was checked. `--dry-run` resolves and plans without spawning or
   writing, and a mutation is never rolled back automatically. None of them touch the
   design-systems source repository.
-- `connect` stays offline and writes only the consumer config/AGENTS files; it never edits
-  dependencies.
+- `connect` stays offline and writes only the consumer configuration — the
+  `package.json#designSystem` field or `.design-system/config.json`, whichever location is
+  already active (a legacy root-level file is migrated) — and the root `AGENTS.md` managed
+  section; it never edits dependencies.
+- `config` stays offline and only reads or moves the configuration between
+  `package.json#designSystem` and `.design-system/config.json` (extended layout): it writes
+  only those two paths, retires `.design-system/` only when it becomes empty, and never
+  installs packages, edits dependencies, or changes the selected package or version.
+  `--check` reports only whether the target location is active; `connect --check` remains
+  the contract check.
 - `setup-tailwind` stays offline and edits only the explicitly named `--css` file inside
   `--cwd`; it never installs or edits dependencies, and its `--dry-run`/read-only check
   never writes.
@@ -170,7 +181,7 @@ consumer root and read only through its public `exports` (notably `./manifest`).
   scanner-backed operations: the strict usage checker (`check-usage`, and the usage step
   of `check`/`use --check-usage`), the explicit selected-entry scan (`--entry`,
   `--with-entry`), the `switch` compatibility scan, and any `recover` scan that needs it.
-  `connect`, `doctor`, `components`, `tokens`, `check` without scanner steps,
+  `connect`, `config`, `doctor`, `components`, `tokens`, `check` without scanner steps,
   `setup-tailwind`, `search`, `info`, `install`, `use` without `--check-usage`, `upgrade`,
   `remove`, `skills`, and `self-update` must not require it eagerly.
 - The pinned Skills CLI bootstrap is resolved at explicit `skills add/update/remove` time
@@ -181,7 +192,12 @@ consumer root and read only through its public `exports` (notably `./manifest`).
 
 ## Consumer contract
 
-- `.design-system/config.json` schema version is authoritative (`CONSUMER_SCHEMA_VERSION`).
+- `package.json` → `designSystem` schema version is authoritative
+  (`CONSUMER_SCHEMA_VERSION`). Both locations hold the identical subtree: the
+  `package.json#designSystem` field or `.design-system/config.json` in the extended layout,
+  which wraps the same subtree as `{ "designSystem": { ... } }`. `connect` keeps whichever
+  location is already active, `config` moves it explicitly, and a legacy root-level
+  `.design-system/config.json` is read only to migrate it.
 - The shipped manifest export subpath and target (`./manifest` →
   `./design-system.json`) are the public contract. Never import package internals.
 - The current schema/contract shape (`schemaVersion: 5`, numeric `contractVersion: 4`)
@@ -197,7 +213,8 @@ consumer root and read only through its public `exports` (notably `./manifest`).
 - Exact version/identity equality fails closed; unknown schema versions fail closed.
 - Writes are contained to the real `--cwd` root, atomic, and idempotent. Malformed managed
   markers fail closed. Skill installations live in the selected agent scope, never in the
-  consumer contract files; `connect`/`switch`/`remove` neither read nor write them.
+  consumer contract files; `connect`/`config`/`switch`/`remove` neither read nor write
+  them.
 
 ## Maintainer commands stay out
 

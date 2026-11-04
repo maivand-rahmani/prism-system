@@ -182,7 +182,7 @@ function previewFor(action) {
     command,
     plannedChanges: manager
       ? [{ kind: "dependency", manager, command }]
-      : [{ kind: "connect", path: "/consumer/demo-app/.design-system/config.json", changed: true }],
+      : [{ kind: "package-json", path: "/consumer/demo-app/package.json", changed: true }],
     diff:
       action.kind === "upgrade"
         ? {
@@ -661,14 +661,14 @@ test("use preview clearly separates install-and-connect and never executes befor
       plannedChanges: [
         ...previewFor(action).plannedChanges,
         {
-          kind: "config",
-          path: "/consumer/demo-app/.design-system/config.json",
+          kind: "package-json",
+          path: "/consumer/demo-app/package.json",
           changed: true,
           before: configBefore,
           after: configAfter,
         },
         {
-          kind: "agents",
+          kind: "root-agents",
           path: "/consumer/demo-app/AGENTS.md",
           changed: true,
           before: null,
@@ -712,7 +712,7 @@ test("use preview clearly separates install-and-connect and never executes befor
     await press(app, "down");
   }
   assert.match(app.lastFrame(), /Exact managed file content · 2 files/);
-  assert.match(app.lastFrame(), /\.design-system\/config\.json/);
+  assert.match(app.lastFrame(), /\/consumer\/demo-app\/package\.json/);
   assert.equal(executed.length, 0);
 
   await press(app, "v");
@@ -731,8 +731,8 @@ test("use preview clearly separates install-and-connect and never executes befor
   await settle(app);
   assert.match(
     app.lastFrame().replace(/\s/g, ""),
-    /PATH\/consumer\/demo-app\/\.design-s.*ystem\/config\.json/,
-    `the modal's wrapped path remains readable after a narrow resize:\n${app.lastFrame()}`,
+    /\/consumer\/demo-app\/package\.json/,
+    `the modal's path remains readable after a narrow resize:\n${app.lastFrame()}`,
   );
   assert.match(app.lastFrame(), /DIFF 1\/2/);
   assert.match(app.lastFrame().replace(/[│]/g, ""), /Esc\s+close/i);
@@ -748,7 +748,7 @@ test("use preview clearly separates install-and-connect and never executes befor
     () => /\/consumer\/demo-app\/AGENTS\.md/.test(app.lastFrame() ?? ""),
     "next managed-file diff",
   );
-  assert.match(app.lastFrame(), /DIFF 2\/2 · AGENTS · CHANGED/);
+  assert.match(app.lastFrame(), /DIFF 2\/2 · ROOT AGENTS \(MANAGED\)/);
   for (
     let index = 0;
     index < 80 && !/AGENTS_AFTER_MARKER/.test(app.lastFrame() ?? "");
@@ -1490,8 +1490,8 @@ test("upgrade requires a user-entered exact version and shows the manifest diff 
           plannedChanges: [
             ...previewFor(action).plannedChanges,
             {
-              kind: "config",
-              path: "/consumer/demo-app/.design-system/config.json",
+              kind: "package-json",
+              path: "/consumer/demo-app/package.json",
               changed: true,
               before: upgradeConfigBefore,
               after: upgradeConfigAfter,
@@ -1554,7 +1554,7 @@ test("upgrade requires a user-entered exact version and shows the manifest diff 
 
   await press(app, "right");
   assert.match(app.lastFrame(), /PATH\s+\/consumer\/AGENTS\.md/);
-  assert.match(app.lastFrame(), /DIFF 2\/2 · ROOT AGENTS · CHANGED/);
+  assert.match(app.lastFrame(), /DIFF 2\/2 · ROOT AGENTS \(MANAGED\)/);
   assert.match(app.lastFrame(), /UPGRADE_ROOT_BEFORE_EXACT/);
   assert.doesNotMatch(app.lastFrame(), /UPGRADE_ROOT_AFTER_EXACT_SENTINEL/);
 
@@ -2443,7 +2443,12 @@ test("recovery keeps guidance separate and requires confirmation for an applicab
             packageName: "@prism-system/ui-a",
             version: "1.2.3",
             files: [
-              { path: "/consumer/demo-app/.design-system/config.json", before: null, after: "{}" },
+              {
+                kind: "package-json",
+                path: "/consumer/demo-app/package.json",
+                before: null,
+                after: "{}",
+              },
             ],
           },
           material: { actionId: "connect" },

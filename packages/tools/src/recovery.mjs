@@ -12,6 +12,10 @@
  *     single-file planner/writer), with an explicit drift guard on the
  *     previewed plan.
  *
+ * Consumer configuration is read from the root `package.json` `"designSystem"`
+ * field. A legacy `.design-system/config.json` is still read as a read-only
+ * migration path, and its own path is reported when it is the active source.
+ *
  * Missing packages, malformed/schema-mismatched config, missing peers, and
  * unknown errors become guidance only: an exact safe `prism-ds` command and a
  * reason, never a blind upgrade/latest and never an arbitrary command string.
@@ -27,9 +31,11 @@ import { join } from "node:path";
 
 import { readJsonFile } from "./constants.mjs";
 import {
-  CONSUMER_CONFIG_FILENAME,
+  CONSUMER_CONFIG_KEY,
+  CONSUMER_CONFIG_LABEL,
   CONSUMER_DIRECTORY,
   CONSUMER_SCHEMA_VERSION,
+  LEGACY_CONSUMER_CONFIG_FILENAME,
   connectDesignSystem,
   isSupportedPackageName,
   normalizeRequestedPackage,
@@ -88,7 +94,14 @@ function addState(states, id, status, detail, extra = {}) {
 
 function makeDiagnosis() {
   return {
-    config: { status: "unknown", detail: null, package: null, version: null },
+    config: {
+      status: "unknown",
+      detail: null,
+      package: null,
+      version: null,
+      path: null,
+      label: null,
+    },
     selection: {
       status: "unknown",
       detail: null,
@@ -179,15 +192,16 @@ export function collectRecoveryReport({
       states,
       "containment",
       "ok",
-      ".design-system, AGENTS.md, and package.json stay inside --cwd",
+      "package.json, AGENTS.md, and the optional .design-system state directory stay inside --cwd",
     );
   } catch (error) {
     addState(states, "containment", "issue", error.message, { severity: "blocker" });
   }
 
   const packageJsonPath = join(consumerRoot, "package.json");
+  const packageJsonExists = existsSync(packageJsonPath);
   let consumerPackageJson = readJsonSafe(packageJsonPath);
-  if (!existsSync(packageJsonPath)) {
+  if (!packageJsonExists) {
     addState(states, "package-json", "issue", `Missing ${packageJsonPath}.`, {
       severity: "blocker",
     });
@@ -201,10 +215,47 @@ export function collectRecoveryReport({
   if (!isPlainObject(consumerPackageJson)) consumerPackageJson = null;
 
   // Consumer config: distinguish absent, malformed, schema mismatch, and other
-  // invalid states structurally (never by matching error text).
-  const configPath = join(consumerRoot, CONSUMER_DIRECTORY, CONSUMER_CONFIG_FILENAME);
-  const configExists = existsSync(configPath);
-  const rawConfig = configExists ? readJsonSafe(configPath) : null;
+  // invalid states structurally (never by matching error text). The primary
+  // location is `package.json#designSystem`; a legacy `.design-system/config.json`
+  // is still read as a read-only migration path. `.design-system/` is optional,
+  // so a missing directory is not a problem.
+  let legacyConfigPath = null;
+  try {
+    legacyConfigPath = resolveConsumerPath(
+      consumerRoot,
+      CONSUMER_DIRECTORY,
+      LEGACY_CONSUMER_CONFIG_FILENAME,
+    );
+  } catch {
+    // Containment was already reported as a blocker; never read outside --cwd.
+    legacyConfigPath = null;
+  }
+  const legacyConfigExists = legacyConfigPath !== null && existsSync(legacyConfigPath);
+  const legacyRawConfig = legacyConfigExists ? readJsonSafe(legacyConfigPath) : null;
+  const packageJsonConfig =
+    consumerPackageJson !== null &&
+    consumerPackageJson[CONSUMER_CONFIG_KEY] !== undefined &&
+    consumerPackageJson[CONSUMER_CONFIG_KEY] !== null
+      ? consumerPackageJson[CONSUMER_CONFIG_KEY]
+      : null;
+  // `.design-system/config.json` has two supported shapes: the extended layout
+  // wraps the configuration as `{ "designSystem": { … } }`, while the legacy
+  // layout stores it at the file root. Unwrap so both diagnose identically.
+  const fileConfigWrapped =
+    isPlainObject(legacyRawConfig) && isPlainObject(legacyRawConfig[CONSUMER_CONFIG_KEY]);
+  const fileConfig = fileConfigWrapped ? legacyRawConfig[CONSUMER_CONFIG_KEY] : legacyRawConfig;
+  const fileConfigLabel =
+    legacyConfigPath === null
+      ? null
+      : fileConfigWrapped
+        ? `${legacyConfigPath}#${CONSUMER_CONFIG_KEY}`
+        : legacyConfigPath;
+  const configLabel =
+    packageJsonConfig !== null
+      ? `${packageJsonPath}#${CONSUMER_CONFIG_KEY}`
+      : (fileConfigLabel ?? CONSUMER_CONFIG_LABEL);
+  const configPath = packageJsonConfig !== null ? packageJsonPath : legacyConfigPath;
+  const rawConfig = packageJsonConfig !== null ? packageJsonConfig : fileConfig;
   let config = null;
   let configError = null;
   try {
@@ -212,43 +263,72 @@ export function collectRecoveryReport({
   } catch (error) {
     configError = error.message;
   }
-  if (!configExists) {
-    diagnosis.config = {
-      status: "missing",
-      detail: `Missing ${CONSUMER_DIRECTORY}/${CONSUMER_CONFIG_FILENAME}; run connect.`,
-      package: null,
-      version: null,
-    };
-    addState(states, "consumer-config", "issue", diagnosis.config.detail, {
-      severity: "blocker",
-      kind: "connection-missing",
-    });
+  if (packageJsonConfig === null && !legacyConfigExists) {
+    if (packageJsonExists && consumerPackageJson === null) {
+      const detail = configError ?? `Invalid JSON in ${packageJsonPath}.`;
+      diagnosis.config = {
+        status: "malformed",
+        detail,
+        package: null,
+        version: null,
+        path: packageJsonPath,
+        label: `${packageJsonPath}#${CONSUMER_CONFIG_KEY}`,
+      };
+      addState(states, "consumer-config", "issue", detail, {
+        severity: "blocker",
+        kind: "config-malformed",
+      });
+    } else {
+      diagnosis.config = {
+        status: "missing",
+        detail: `Missing ${CONSUMER_CONFIG_LABEL}; run connect.`,
+        package: null,
+        version: null,
+        path: null,
+        label: CONSUMER_CONFIG_LABEL,
+      };
+      addState(states, "consumer-config", "issue", diagnosis.config.detail, {
+        severity: "blocker",
+        kind: "connection-missing",
+      });
+    }
   } else if (rawConfig === null) {
     diagnosis.config = {
       status: "malformed",
-      detail: configError ?? `Invalid JSON in ${configPath}.`,
+      detail: configError ?? `Invalid JSON in ${configLabel}.`,
       package: null,
       version: null,
+      path: configPath,
+      label: configLabel,
     };
     addState(states, "consumer-config", "issue", diagnosis.config.detail, {
       severity: "blocker",
       kind: "config-malformed",
     });
-  } else if (rawConfig.schemaVersion !== CONSUMER_SCHEMA_VERSION) {
+  } else if (isPlainObject(rawConfig) && rawConfig.schemaVersion !== CONSUMER_SCHEMA_VERSION) {
     diagnosis.config = {
       status: "schema-mismatch",
       detail:
         `Consumer config schemaVersion ${JSON.stringify(rawConfig.schemaVersion ?? null)} is not ` +
-        `the supported ${CONSUMER_SCHEMA_VERSION}.`,
+        `the supported ${CONSUMER_SCHEMA_VERSION} (${configLabel}).`,
       package: typeof rawConfig.package === "string" ? rawConfig.package : null,
       version: typeof rawConfig.version === "string" ? rawConfig.version : null,
+      path: configPath,
+      label: configLabel,
     };
     addState(states, "consumer-config", "issue", diagnosis.config.detail, {
       severity: "blocker",
       kind: "config-schema-mismatch",
     });
   } else if (configError !== null) {
-    diagnosis.config = { status: "invalid", detail: configError, package: null, version: null };
+    diagnosis.config = {
+      status: "invalid",
+      detail: configError,
+      package: null,
+      version: null,
+      path: configPath,
+      label: configLabel,
+    };
     addState(states, "consumer-config", "issue", configError, {
       severity: "blocker",
       kind: "config-invalid",
@@ -256,9 +336,11 @@ export function collectRecoveryReport({
   } else {
     diagnosis.config = {
       status: "ok",
-      detail: `${config.package}@${config.version}`,
+      detail: `${config.package}@${config.version ?? "unpinned"} (${config.label})`,
       package: config.package,
       version: config.version,
+      path: config.path,
+      label: config.label,
     };
     addState(states, "consumer-config", "ok", diagnosis.config.detail);
   }
@@ -325,7 +407,8 @@ export function collectRecoveryReport({
       status: "multiple",
       detail:
         `Multiple supported @prism-system/ui-* packages found (${candidates.join(", ")}); ` +
-        "select one explicitly or add .design-system/config.json.",
+        "select one explicitly or add the " +
+        `"${CONSUMER_CONFIG_KEY}" field to package.json.`,
       packageName: null,
       source: null,
       candidates,
@@ -454,7 +537,7 @@ export function collectRecoveryReport({
     } else if (diagnosis.config.status === "missing") {
       diagnosis.connection = {
         status: "missing",
-        detail: `No ${CONSUMER_DIRECTORY}/${CONSUMER_CONFIG_FILENAME}; the installed package is not connected.`,
+        detail: `No ${CONSUMER_CONFIG_LABEL}; the installed package is not connected.`,
       };
       addState(states, "connection", "issue", diagnosis.connection.detail, {
         severity: "blocker",
@@ -786,8 +869,8 @@ export function buildRecoverySuggestions(report, context = {}) {
         id: "repair-config",
         label: "Repair the consumer config",
         reason:
-          `${config.detail} Fix or remove ` +
-          `${CONSUMER_DIRECTORY}/${CONSUMER_CONFIG_FILENAME} and run connect again.`,
+          `${config.detail} Fix or remove the consumer configuration ` +
+          `(${config.label ?? CONSUMER_CONFIG_LABEL}) and run connect again.`,
         args: ["doctor", "--cwd", root],
         kind: "manual",
       }),
@@ -798,7 +881,9 @@ export function buildRecoverySuggestions(report, context = {}) {
       suggestion({
         id: "upgrade-cli",
         label: "Upgrade prism-ds in lockstep",
-        reason: `${config.detail} Upgrade prism-ds to the version that matches this config schema.`,
+        reason:
+          `${config.detail} Upgrade prism-ds to the version that supports the ` +
+          `${config.label ?? CONSUMER_CONFIG_LABEL} schema.`,
         args: ["self-update", "--check", "--cwd", root],
         kind: "manual",
       }),

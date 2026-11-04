@@ -7,8 +7,8 @@
  *
  * These exercise the exported `planTailwindSetup` / `setupTailwind` /
  * `mergeBridgeImports` helpers against real temporary consumer fixtures: a
- * connected `.design-system/config.json`, an installed design system, and an
- * installed Tailwind package. Nothing is installed and nothing is run.
+ * connected `package.json` `designSystem` field, an installed design system,
+ * and an installed Tailwind package. Nothing is installed and nothing is run.
  */
 
 import assert from "node:assert/strict";
@@ -71,24 +71,21 @@ function createConsumer(t, options = {}) {
   const dependencies = { [PACKAGE_NAME]: systemVersion };
   if (tailwind !== null) dependencies.tailwindcss = tailwind;
   if (extraDependency) dependencies[extraDependency] = "1.0.0";
-  writeJson(join(root, "package.json"), {
+  const consumerPackage = {
     name: "consumer-app",
     version: "0.0.0",
     private: true,
     dependencies,
-  });
-
+  };
   if (withConfig) {
-    writeJson(join(root, ".design-system", "config.json"), {
-      $schema:
-        "https://github.com/maivand-rahmani/prism-system/schemas/design-system-consumer.schema.json",
+    consumerPackage.designSystem = {
       schemaVersion: 1,
       package: PACKAGE_NAME,
       version: configVersion,
-      manifest: "./manifest",
       strict: true,
-    });
+    };
   }
+  writeJson(join(root, "package.json"), consumerPackage);
 
   const systemDir = join(root, "node_modules", ...PACKAGE_NAME.split("/"));
   const exportsMap = { "./manifest": "./design-system.json" };

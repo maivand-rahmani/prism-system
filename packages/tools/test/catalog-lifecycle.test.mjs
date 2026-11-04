@@ -178,23 +178,23 @@ function createConsumer(
 
   const dependencies = { [packageName]: dependencyVersion };
   if (tailwind !== null) dependencies.tailwindcss = tailwind;
-  writeJson(join(root, "package.json"), {
+  const consumerPackage = {
     name: "consumer-app",
     version: "0.0.0",
     private: true,
     packageManager,
     dependencies,
-  });
-
+  };
   if (connected && manifest) {
-    writeJson(join(root, ".design-system", "config.json"), {
+    // The current configuration location: package.json "designSystem".
+    consumerPackage.designSystem = {
       schemaVersion: 1,
       package: packageName,
       version: manifest.version,
-      manifest: "./manifest",
       strict: true,
-    });
+    };
   }
+  writeJson(join(root, "package.json"), consumerPackage);
 
   if (manifest) writeInstalled(root, manifest, { bridge });
 
@@ -326,7 +326,7 @@ test("use --dry-run plans without spawning or writing", async (t) => {
   );
   assert.deepEqual(
     result.plannedChanges.map((change) => change.kind),
-    ["dependency", "connect", "connect", "connect"],
+    ["dependency", "connect", "connect"],
   );
   assert.equal(manager.calls.length, 0);
   assertUnchanged(consumer.root, before);
@@ -587,10 +587,7 @@ test("a Tailwind setup failure after install/connect retains the earlier work", 
   assert.match(result.failures.join(" "), /does not expose "\.\/tailwind\.css"/);
 
   // The install and connect really persisted; the CSS file was untouched.
-  assert.equal(
-    readFileSync(join(consumer.root, ".design-system", "config.json"), "utf8").includes(V4_VERSION),
-    true,
-  );
+  assert.equal(readJson(join(consumer.root, "package.json")).designSystem.version, V4_VERSION);
   assert.equal(
     readFileSync(join(consumer.root, "src", "app.css"), "utf8"),
     "body { margin: 0; }\n",
@@ -684,7 +681,7 @@ test("upgrade --dry-run reports removals/additions and the exact command without
   );
   assert.deepEqual(
     result.plannedChanges.map((change) => change.kind),
-    ["dependency", "connect", "connect", "connect"],
+    ["dependency", "connect", "connect"],
   );
   assert.equal(manager.calls.length, 0);
   assertUnchanged(consumer.root, before);
@@ -911,11 +908,11 @@ test("upgrade updates, verifies the exact version, and reconnects", async (t) =>
   assert.equal(result.connect.ok, true);
   assert.equal(manager.calls.length, 1);
 
-  const config = JSON.parse(
-    readFileSync(join(consumer.root, ".design-system", "config.json"), "utf8"),
-  );
+  const config = readJson(join(consumer.root, "package.json")).designSystem;
   assert.equal(config.version, "2.0.0");
   assert.equal(config.package, systemAManifest.package);
+  assert.equal(config.strict, true);
+  assert.equal(existsSync(join(consumer.root, ".design-system")), false);
 });
 
 /* -------------------------------------------------------------------------- */
@@ -943,25 +940,27 @@ test("use --dry-run returns the exact target connect plan and the real run write
   assert.equal(preview.ok, true, preview.failures?.join(" "));
   assert.deepEqual(
     preview.connectPlan.files.map((file) => file.kind),
-    ["config", "agents", "root-agents"],
+    ["package-json", "root-agents"],
   );
   assert.deepEqual(
     preview.connectPlan.files.map((file) => file.path),
-    [
-      join(consumer.root, ".design-system", "config.json"),
-      join(consumer.root, ".design-system", "AGENTS.md"),
-      join(consumer.root, "AGENTS.md"),
-    ],
+    [join(consumer.root, "package.json"), join(consumer.root, "AGENTS.md")],
   );
-  const config = JSON.parse(preview.connectPlan.files[0].after);
+  const packageJsonEffect = preview.connectPlan.files[0];
+  const config = JSON.parse(packageJsonEffect.after).designSystem;
   assert.equal(config.package, systemAManifest.package);
   assert.equal(config.version, V4_VERSION);
   assert.equal(config.strict, true);
-  assert.equal(preview.connectPlan.files[0].before, null);
+  assert.deepEqual(packageJsonEffect.config, config);
+  assert.equal(
+    readJson(join(consumer.root, "package.json")).dependencies[systemAManifest.package],
+    "1.1.0",
+    "the preview never mutates the consumer package.json",
+  );
 
   // plannedChanges carries the same exact file material, not just paths.
   const connectChanges = preview.plannedChanges.filter((change) => change.kind === "connect");
-  assert.equal(connectChanges.length, 3);
+  assert.equal(connectChanges.length, 2);
   for (const [index, change] of connectChanges.entries()) {
     const file = preview.connectPlan.files[index];
     assert.equal(change.path, file.path);
@@ -969,9 +968,20 @@ test("use --dry-run returns the exact target connect plan and the real run write
     assert.equal(change.before, file.before);
     assert.equal(change.after, file.after);
     assert.equal(change.changed, true);
+    if (file.kind === "package-json") {
+      assert.deepEqual(
+        change.config,
+        file.config,
+        "the designSystem value travels with the effect",
+      );
+    } else {
+      assert.equal(change.config, undefined);
+    }
   }
   assert.equal(manager.calls.length, 0);
-  assert.equal(existsSync(join(consumer.root, ".design-system", "config.json")), false);
+  assert.equal(existsSync(join(consumer.root, "AGENTS.md")), false);
+  assert.equal(existsSync(join(consumer.root, ".design-system")), false);
+  assert.equal(readJson(join(consumer.root, "package.json")).designSystem, undefined);
 
   // The real run uses the previewed plan as its write precondition and writes
   // exactly those bytes.
@@ -1043,8 +1053,8 @@ test("use fails closed without overwriting a managed file changed during install
 
   // The injected file is untouched and reconnect created nothing.
   assert.equal(readFileSync(join(consumer.root, "AGENTS.md"), "utf8"), injected);
-  assert.equal(existsSync(join(consumer.root, ".design-system", "config.json")), false);
-  assert.equal(existsSync(join(consumer.root, ".design-system", "AGENTS.md")), false);
+  assert.equal(readJson(join(consumer.root, "package.json")).designSystem, undefined);
+  assert.equal(existsSync(join(consumer.root, ".design-system")), false);
 });
 
 test("upgrade --dry-run returns the target connect plan and reconnects with those bytes when unchanged", async (t) => {
@@ -1070,13 +1080,19 @@ test("upgrade --dry-run returns the target connect plan and reconnects with thos
 
   assert.equal(preview.ok, true, preview.failures?.join(" "));
   const configChange = preview.plannedChanges.find(
-    (change) => change.kind === "connect" && change.fileKind === "config",
+    (change) => change.kind === "connect" && change.fileKind === "package-json",
   );
-  assert.ok(configChange, "the planned config effect is reported with its file kind");
-  assert.equal(configChange.path, join(consumer.root, ".design-system", "config.json"));
-  assert.match(configChange.before, /"version": "1\.1\.0"/);
-  assert.match(configChange.after, /"version": "2\.0\.0"/);
+  assert.ok(configChange, "the planned package.json effect is reported with its file kind");
+  assert.equal(configChange.path, join(consumer.root, "package.json"));
+  assert.equal(JSON.parse(configChange.before).designSystem.version, "1.1.0");
+  assert.equal(JSON.parse(configChange.after).designSystem.version, "2.0.0");
+  assert.equal(configChange.config.version, "2.0.0");
   assert.equal(configChange.changed, true);
+  assert.equal(
+    preview.connectPlan.files.map((file) => file.kind).includes("legacy-config"),
+    false,
+    "a package.json-configured consumer plans no legacy migration",
+  );
 
   const realManager = makeManager({
     onSpawn: () => writeInstalled(consumer.root, upgradeTo, { bridge: false }),
@@ -1154,10 +1170,7 @@ test("upgrade fails closed without overwriting a managed file changed during the
     "2.0.0",
   );
   assert.equal(readFileSync(join(consumer.root, "AGENTS.md"), "utf8"), injected);
-  assert.equal(
-    JSON.parse(readFileSync(join(consumer.root, ".design-system", "config.json"), "utf8")).version,
-    "1.1.0",
-  );
+  assert.equal(readJson(join(consumer.root, "package.json")).designSystem.version, "1.1.0");
 });
 
 /* -------------------------------------------------------------------------- */

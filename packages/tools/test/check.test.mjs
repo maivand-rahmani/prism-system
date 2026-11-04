@@ -64,6 +64,9 @@ function toWritableRelative(target) {
 function createConsumer(t, options = {}) {
   const {
     withConfig = true,
+    configSource = "package-json",
+    configOverride = null,
+    rawConfig = null,
     includeManifestStyles = true,
     manifestStylesTarget = "./dist/index.css",
     includePackageStyles = true,
@@ -100,23 +103,28 @@ function createConsumer(t, options = {}) {
 
   const dependencies = { [packageName]: version };
   if (tailwindDeclared) dependencies.tailwindcss = tailwind ?? "4.1.0";
-  writeJson(join(root, "package.json"), {
+  const config = {
+    schemaVersion: 1,
+    package: packageName,
+    version,
+    strict: true,
+  };
+  const effectiveConfig = configOverride === null ? config : { ...config, ...configOverride };
+  const packageJson = {
     name: "consumer-app",
     version: "0.0.0",
     private: true,
     dependencies,
-  });
+  };
+  if (withConfig && rawConfig === null && configSource === "package-json") {
+    packageJson.designSystem = effectiveConfig;
+  }
+  writeJson(join(root, "package.json"), packageJson);
 
-  if (withConfig) {
-    writeJson(join(root, ".design-system", "config.json"), {
-      $schema:
-        "https://github.com/maivand-rahmani/prism-system/schemas/design-system-consumer.schema.json",
-      schemaVersion: 1,
-      package: packageName,
-      version,
-      manifest: "./manifest",
-      strict: true,
-    });
+  if (rawConfig !== null) {
+    writeFile(root, ".design-system/config.json", rawConfig);
+  } else if (withConfig && configSource === "legacy") {
+    writeJson(join(root, ".design-system", "config.json"), effectiveConfig);
   }
 
   const exportsMap = { "./manifest": "./design-system.json" };
@@ -334,9 +342,50 @@ test("a missing consumer config fails check with a connect hint", (t) => {
   assert.equal(result.ok, false);
   const config = checkById(result, CHECK_IDS.config);
   assert.equal(config.status, CHECK_STATUS.FAILED);
+  assert.match(config.detail, /Missing package\.json#designSystem/);
   assert.match(config.detail, /prism-ds connect/);
   // Doctor still treats absent config as informational, so it can pass.
   assert.equal(checkById(result, CHECK_IDS.doctor).status, CHECK_STATUS.PASSED);
+});
+
+test("a legacy .design-system/config.json still satisfies check and doctor", (t) => {
+  const { root } = createConsumer(t, { configSource: "legacy" });
+
+  const result = checkDesignSystem({ cwd: root });
+
+  assert.equal(result.ok, true, JSON.stringify(failedRequired(result)));
+  const config = checkById(result, CHECK_IDS.config);
+  assert.equal(config.status, CHECK_STATUS.PASSED);
+  assert.match(config.detail, /config\.json/);
+  assert.equal(checkById(result, CHECK_IDS.doctor).status, CHECK_STATUS.PASSED);
+});
+
+test("an invalid package.json designSystem field fails with its label and a connect hint", (t) => {
+  const { root } = createConsumer(t, {
+    configOverride: { schemaVersion: 1, package: "not-a-system" },
+  });
+
+  const result = checkDesignSystem({ cwd: root });
+
+  assert.equal(result.ok, false);
+  const config = checkById(result, CHECK_IDS.config);
+  assert.equal(config.status, CHECK_STATUS.FAILED);
+  assert.match(config.detail, /Invalid consumer config .*package\.json#designSystem/);
+  assert.match(config.detail, /prism-ds connect/);
+});
+
+test("a schema-mismatched package.json designSystem field fails check", (t) => {
+  const { root } = createConsumer(t, {
+    configOverride: { schemaVersion: 99 },
+  });
+
+  const result = checkDesignSystem({ cwd: root });
+
+  assert.equal(result.ok, false);
+  const config = checkById(result, CHECK_IDS.config);
+  assert.equal(config.status, CHECK_STATUS.FAILED);
+  assert.match(config.detail, /schemaVersion/);
+  assert.match(config.detail, /prism-ds connect/);
 });
 
 test("strict usage findings fail check", (t) => {

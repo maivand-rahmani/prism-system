@@ -24,7 +24,12 @@ const SYSTEM_TABS = [
 const CATEGORY_NAMES = new Set(["composition", "forms", "data-display"]);
 
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
-const MANAGED_FILE_KINDS = new Set(["config", "agents", "root-agents"]);
+const MANAGED_FILE_KINDS = new Set([
+  "package-json",
+  "root-agents",
+  "design-system-config",
+  "legacy-agents",
+]);
 // Runeframe swaps out the current screen subtree while a registered modal is open.
 // Keep the pending approval across that unmount so closing a read-only diff returns
 // to the same confirmation instead of the app's initial view.
@@ -309,6 +314,19 @@ function skillCommandText(command) {
     .join(" ");
 }
 
+const MANAGED_FILE_LABELS = new Map([
+  ["package-json", "package.json (designSystem)"],
+  ["root-agents", "AGENTS.md (managed section)"],
+  ["design-system-config", ".design-system/config.json"],
+  ["legacy-agents", "legacy AGENTS.md"],
+]);
+
+function managedFileEffectText(kind, changed, path, retired = kind === "legacy-agents") {
+  const label = MANAGED_FILE_LABELS.get(kind) ?? "Managed file";
+  const action = retired ? " removed" : changed ? " update" : " check";
+  return `${label}${action} · ${displayValue(path)}`;
+}
+
 function plannedEffectText(effect) {
   if (!isRecord(effect)) return String(effect);
   if (effect.kind === "dependency") {
@@ -318,16 +336,24 @@ function plannedEffectText(effect) {
     return `CSS ${effect.changed ? "update" : "check"} · ${displayValue(effect.path)}`;
   }
   if (effect.kind === "connect") {
+    const fileKind = typeof effect.fileKind === "string" ? effect.fileKind : null;
+    if (fileKind !== null && MANAGED_FILE_LABELS.has(fileKind)) {
+      return managedFileEffectText(
+        fileKind,
+        effect.changed === true,
+        effect.path,
+        effect.after === null,
+      );
+    }
     return `Configuration file · ${displayValue(effect.path)}`;
   }
   if (MANAGED_FILE_KINDS.has(effect.kind)) {
-    const label =
-      effect.kind === "root-agents"
-        ? "Root AGENTS file"
-        : effect.kind === "agents"
-          ? "AGENTS file"
-          : "Managed config";
-    return `${label} ${effect.changed ? "update" : "check"} · ${displayValue(effect.path)}`;
+    return managedFileEffectText(
+      effect.kind,
+      effect.changed === true,
+      effect.path,
+      effect.after === null,
+    );
   }
   return `${displayValue(effect.kind)} · ${displayValue(effect.path)}`;
 }
@@ -374,9 +400,10 @@ function fileReviewEffectsOf(pending) {
 }
 
 function managedFileKindLabel(kind) {
-  if (kind === "root-agents") return "ROOT AGENTS";
-  if (kind === "agents") return "AGENTS";
-  if (kind === "config") return "CONFIG";
+  if (kind === "package-json") return "PACKAGE.JSON";
+  if (kind === "root-agents") return "ROOT AGENTS (MANAGED)";
+  if (kind === "design-system-config") return "DESIGN-SYSTEM CONFIG";
+  if (kind === "legacy-agents") return "LEGACY AGENTS (REMOVED)";
   if (kind === "css") return "CSS FILE";
   return "SOURCE FILE";
 }

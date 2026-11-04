@@ -270,7 +270,8 @@ export async function readSkillsStore({ scope, cwd, homeDir }) {
 
 /**
  * Atomically write the prism-ds skills metadata store inside its scope root.
- * Never touches any other file (in particular `.design-system/config.json`).
+ * Never touches any other file (in particular the consumer configuration in
+ * `package.json` under `designSystem`).
  */
 export async function writeSkillsStore({ scope, cwd, homeDir }, store) {
   const failures = collectSkillsStoreFailures(store);

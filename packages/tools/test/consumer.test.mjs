@@ -32,6 +32,8 @@ import {
   connectDesignSystem,
   planConnect,
   planConnectForTarget,
+  renderConsumerAgents,
+  renderLegacyConsumerConfig,
   resolveInstalledDesignSystem,
   verifyConsumerDesignSystem,
 } from "../src/consumer.mjs";
@@ -96,24 +98,22 @@ function createConsumer(t, options = {}) {
   else delete manifest.exports["./tailwind.css"];
   if (typeof mutateManifest === "function") mutateManifest(manifest);
 
-  writeJson(join(root, "package.json"), {
+  const consumerPackage = {
     name: "consumer-app",
     version: "0.0.0",
     private: true,
     dependencies: { [packageName]: version },
-  });
-
+  };
   if (withConfig) {
-    writeJson(join(root, ".design-system", "config.json"), {
-      $schema:
-        "https://github.com/maivand-rahmani/prism-system/schemas/design-system-consumer.schema.json",
+    // The current configuration location: package.json "designSystem".
+    consumerPackage.designSystem = {
       schemaVersion: 1,
       package: packageName,
       version,
-      manifest: "./manifest",
       strict: true,
-    });
+    };
   }
+  writeJson(join(root, "package.json"), consumerPackage);
 
   const exportsMap = { "./manifest": "./design-system.json" };
   exportsMap["./styles.css"] = "./dist/index.css";
@@ -162,17 +162,33 @@ test("connect, verify, and doctor succeed and advertise the Tailwind bridge", (t
   const result = connectDesignSystem({ cwd: root });
   assert.equal(result.ok, true, result.failures.join(" "));
   assert.equal(result.changed, true);
+  assert.deepEqual(result.migrations, []);
 
-  const config = readJson(join(root, ".design-system", "config.json"));
-  assert.equal(config.package, packageName);
-  assert.equal(config.version, version);
+  const config = readJson(join(root, "package.json")).designSystem;
+  assert.deepEqual(config, {
+    schemaVersion: 1,
+    package: packageName,
+    version,
+    strict: true,
+  });
+  assert.equal(
+    existsSync(join(root, ".design-system")),
+    false,
+    "connect creates no .design-system directory",
+  );
 
-  const agents = readFileSync(join(root, ".design-system", "AGENTS.md"), "utf8");
+  const agents = readFileSync(join(root, "AGENTS.md"), "utf8");
+  assert.ok(agents.includes("BEGIN @prism-system design system contract (managed)"));
   assert.ok(agents.includes("- Contract version: `4`"), agents);
   assert.ok(
     agents.includes(`${packageName}/tailwind.css`),
     "instructions must include the Tailwind bridge import",
   );
+  assert.ok(
+    agents.includes("package.json` under `designSystem"),
+    "instructions point at the package.json field",
+  );
+  assert.ok(!agents.includes(".design-system/config.json"));
 
   const doctor = collectDoctorReport({ cwd: root });
   assert.equal(doctor.ok, true, JSON.stringify(failedChecks(doctor)));
@@ -382,7 +398,8 @@ test("connect plans and writes only inside the consumer root", (t) => {
 
   const result = connectDesignSystem({ cwd: root });
   assert.equal(result.ok, true, result.failures.join(" "));
-  assert.equal(existsSync(join(root, ".design-system", "config.json")), true);
+  assert.equal(typeof readJson(join(root, "package.json")).designSystem, "object");
+  assert.equal(existsSync(join(root, ".design-system")), false);
 });
 
 test("connect refuses an external .design-system symlink and writes nothing", (t) => {
@@ -429,7 +446,11 @@ test("planConnectForTarget plans exact target content before install and matches
   assert.equal(target.strict, true);
   assert.deepEqual(
     target.files.map((file) => file.kind),
-    ["config", "agents", "root-agents"],
+    ["package-json", "root-agents"],
+  );
+  assert.deepEqual(
+    target.files.map((file) => file.path),
+    [join(root, "package.json"), join(root, "AGENTS.md")],
   );
   for (const file of target.files) {
     assert.ok(
@@ -439,22 +460,31 @@ test("planConnectForTarget plans exact target content before install and matches
     assert.equal(file.changed, file.before !== file.after);
   }
 
-  // Exact planned content: config identity/strict, contract instructions, and
-  // the appended managed block.
-  const config = JSON.parse(target.files[0].after);
-  assert.equal(config.package, packageName);
-  assert.equal(config.version, version);
-  assert.equal(config.strict, true);
-  assert.equal(config.manifest, "./manifest");
-  assert.equal(target.files[0].before, null);
-  assert.match(target.files[1].after, /Contract version: `4`/);
-  assert.match(target.files[2].after, /BEGIN @prism-system design system contract/);
+  // Exact planned content: the package.json field identity/strict plus the
+  // appended managed block. User content outside the block is never touched.
+  const packageJsonEffect = target.files[0];
+  assert.equal(packageJsonEffect.before, readFileSync(join(root, "package.json"), "utf8"));
+  assert.deepEqual(packageJsonEffect.config, {
+    schemaVersion: 1,
+    package: packageName,
+    version,
+    strict: true,
+  });
+  const config = JSON.parse(packageJsonEffect.after).designSystem;
+  assert.deepEqual(config, packageJsonEffect.config);
+  assert.match(target.files[1].after, /BEGIN @prism-system design system contract/);
 
   // The pre-install target plan is materially identical to the plan connect
   // recomputes from the installed package (same paths, before, and after).
   const installedPlan = planConnect({ cwd: root });
   const material = (plan) =>
-    plan.files.map(({ kind, path, before, after }) => ({ kind, path, before, after }));
+    plan.files.map(({ kind, path, before, after, config: plannedConfig }) => ({
+      kind,
+      path,
+      before,
+      after,
+      config: plannedConfig ?? null,
+    }));
   assert.deepEqual(material(target), material(installedPlan));
 
   // Given the target plan as the write precondition, connect writes exactly the
@@ -468,14 +498,15 @@ test("planConnectForTarget plans exact target content before install and matches
 
 test("planConnectForTarget preserves configured strict/ignore semantics", (t) => {
   const { root, packageName, version, manifest } = createConsumer(t, { withConfig: true });
-  writeJson(join(root, ".design-system", "config.json"), {
+  const packageJson = readJson(join(root, "package.json"));
+  packageJson.designSystem = {
     schemaVersion: 1,
     package: packageName,
     version,
-    manifest: "./manifest",
     strict: false,
     ignore: ["dist/**"],
-  });
+  };
+  writeJson(join(root, "package.json"), packageJson);
 
   const target = planConnectForTarget({
     consumerRoot: root,
@@ -484,11 +515,14 @@ test("planConnectForTarget preserves configured strict/ignore semantics", (t) =>
     manifest,
   });
   assert.equal(target.strict, false);
-  const config = JSON.parse(target.files[0].after);
+  const config = target.files[0].config;
   assert.equal(config.strict, false);
   assert.deepEqual(config.ignore, ["dist/**"]);
+  // The rendered package.json carries the same round-tripped value.
+  assert.deepEqual(JSON.parse(target.files[0].after).designSystem, config);
 
-  // An explicit strict argument overrides the config exactly like planConnect.
+  // An explicit strict argument overrides the config exactly like planConnect,
+  // while the consumer's ignore globs are still preserved.
   const explicit = planConnectForTarget({
     consumerRoot: root,
     package: packageName,
@@ -497,7 +531,8 @@ test("planConnectForTarget preserves configured strict/ignore semantics", (t) =>
     strict: true,
   });
   assert.equal(explicit.strict, true);
-  assert.equal(JSON.parse(explicit.files[0].after).strict, true);
+  assert.equal(explicit.files[0].config.strict, true);
+  assert.deepEqual(explicit.files[0].config.ignore, ["dist/**"]);
 });
 
 test("planConnectForTarget fails closed on a mismatched target manifest", (t) => {
@@ -541,36 +576,260 @@ test("connect refuses to overwrite managed files that changed after the plan", (
   assert.match(result.failures.join(" "), /root-agents/);
   // The injected change is preserved and no other managed file was created.
   assert.equal(readFileSync(join(root, "AGENTS.md"), "utf8"), injected);
-  assert.equal(existsSync(join(root, ".design-system", "config.json")), false);
-  assert.equal(existsSync(join(root, ".design-system", "AGENTS.md")), false);
+  assert.equal(readJson(join(root, "package.json")).designSystem, undefined);
+  assert.equal(existsSync(join(root, ".design-system")), false);
   // The fresh plan is reported so the caller can preview and confirm again.
   assert.ok(
     result.plan.files.some((file) => file.kind === "root-agents" && file.before === injected),
   );
 });
 
-test("connect fails closed when a managed config appears after the plan", (t) => {
+test("connect fails closed when the designSystem value changes after the plan", (t) => {
   const { root, packageName, version } = createConsumer(t);
   const plan = planConnect({ cwd: root });
 
-  const injected = `${JSON.stringify(
-    {
-      schemaVersion: 1,
-      package: packageName,
-      version,
-      manifest: "./manifest",
-      strict: false,
-    },
-    null,
-    2,
-  )}\n`;
-  writeFile(root, ".design-system/config.json", injected);
+  const packageJson = readJson(join(root, "package.json"));
+  const injected = {
+    schemaVersion: 1,
+    package: packageName,
+    version,
+    strict: false,
+  };
+  packageJson.designSystem = injected;
+  writeJson(join(root, "package.json"), packageJson);
 
   const result = connectDesignSystem({ cwd: root, expectedPlan: plan });
 
   assert.equal(result.ok, false);
   assert.equal(result.boundary, "precondition");
-  assert.match(result.failures.join(" "), /config .*before/);
-  assert.equal(readFileSync(join(root, ".design-system", "config.json"), "utf8"), injected);
+  assert.match(result.failures.join(" "), /designSystem configuration/);
+  assert.match(result.failures.join(" "), /strict mode changed/);
+  assert.deepEqual(readJson(join(root, "package.json")).designSystem, injected);
   assert.equal(existsSync(join(root, "AGENTS.md")), false);
+});
+
+test("connect fails closed when a legacy config appears after the plan", (t) => {
+  const { root, packageName, version } = createConsumer(t);
+  const plan = planConnect({ cwd: root });
+
+  const injected = renderLegacyConsumerConfig({ packageName, version, strict: true });
+  writeFile(root, join(".design-system", "config.json"), injected);
+
+  const result = connectDesignSystem({ cwd: root, expectedPlan: plan });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.boundary, "precondition");
+  assert.match(result.failures.join(" "), /managed file count changed/);
+  assert.equal(readFileSync(join(root, ".design-system", "config.json"), "utf8"), injected);
+  assert.equal(readJson(join(root, "package.json")).designSystem, undefined);
+  assert.equal(existsSync(join(root, "AGENTS.md")), false);
+});
+
+test("connect migrates a legacy .design-system install into package.json and root AGENTS.md", (t) => {
+  const { root, packageName, version } = createConsumer(t);
+
+  writeFile(
+    root,
+    join(".design-system", "config.json"),
+    renderLegacyConsumerConfig({ packageName, version, strict: true }),
+  );
+  writeFile(
+    root,
+    join(".design-system", "AGENTS.md"),
+    renderConsumerAgents({ packageName, version, strict: true, contractVersion: CONTRACT_VERSION }),
+  );
+  const userAgents = "# Project notes\n\nKeep this line exactly.\n";
+  writeFile(root, "AGENTS.md", userAgents);
+
+  const result = connectDesignSystem({ cwd: root });
+
+  assert.equal(result.ok, true, result.failures.join(" "));
+  assert.equal(result.changed, true);
+  assert.ok(
+    result.migrations.some((line) => line.includes("moved .design-system/config.json")),
+    result.migrations.join("\n"),
+  );
+  assert.ok(
+    result.migrations.some((line) =>
+      line.includes("removed the generated .design-system/AGENTS.md"),
+    ),
+    result.migrations.join("\n"),
+  );
+
+  // The legacy configuration now lives in package.json and the legacy files are
+  // retired with the directory they lived in.
+  assert.deepEqual(readJson(join(root, "package.json")).designSystem, {
+    schemaVersion: 1,
+    package: packageName,
+    version,
+    strict: true,
+  });
+  assert.equal(existsSync(join(root, ".design-system")), false);
+
+  // User-authored instructions are byte-preserved; only the managed block is added.
+  const agents = readFileSync(join(root, "AGENTS.md"), "utf8");
+  assert.ok(agents.startsWith(userAgents), "user content is preserved as the file prefix");
+  assert.ok(agents.includes("BEGIN @prism-system design system contract (managed)"));
+  assert.ok(agents.includes("END @prism-system design system contract (managed)"));
+  assert.ok(
+    agents.includes(`consumes \`${packageName}@${version}\` as its visual source of truth`),
+    agents,
+  );
+
+  const recheck = connectDesignSystem({ cwd: root, check: true });
+  assert.equal(recheck.ok, true);
+  assert.equal(recheck.changed, false, "migration is idempotent");
+});
+
+test("connect --check and --dry-run write nothing and ignore unrelated package.json edits", (t) => {
+  const { root, packageName, version } = createConsumer(t);
+  const packageJsonBefore = readFileSync(join(root, "package.json"), "utf8");
+  const plan = planConnect({ cwd: root });
+
+  const checked = connectDesignSystem({ cwd: root, check: true });
+  assert.equal(checked.ok, true);
+  assert.equal(checked.changed, true);
+  assert.deepEqual(
+    checked.changes.map((change) => change.kind),
+    ["package-json", "root-agents"],
+  );
+  const dry = connectDesignSystem({ cwd: root, dryRun: true });
+  assert.equal(dry.ok, true);
+  assert.equal(dry.changed, false);
+  assert.equal(readFileSync(join(root, "package.json"), "utf8"), packageJsonBefore);
+  assert.equal(existsSync(join(root, "AGENTS.md")), false);
+  assert.equal(existsSync(join(root, ".design-system")), false);
+
+  // A package manager legitimately rewrites unrelated package.json content
+  // between the preview and the confirmed run; the designSystem value is
+  // unchanged, so that is not plan drift and the new content is preserved.
+  const packageJson = readJson(join(root, "package.json"));
+  packageJson.scripts = { build: "tsc" };
+  writeJson(join(root, "package.json"), packageJson);
+
+  const result = connectDesignSystem({ cwd: root, expectedPlan: plan });
+  assert.equal(result.ok, true, result.failures.join(" "));
+  const written = readJson(join(root, "package.json"));
+  assert.deepEqual(written.scripts, { build: "tsc" });
+  assert.deepEqual(written.designSystem, {
+    schemaVersion: 1,
+    package: packageName,
+    version,
+    strict: true,
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Configuration location                                                     */
+/* -------------------------------------------------------------------------- */
+
+test("connect can store the configuration in .design-system/config.json", (t) => {
+  const { root, packageName, version } = createConsumer(t);
+
+  const result = connectDesignSystem({ cwd: root, location: "design-system" });
+  assert.equal(result.ok, true, result.failures.join(" "));
+  assert.equal(result.plan.location, "design-system");
+  assert.equal(result.changed, true);
+
+  // The extended file wraps the identical subtree as package.json.
+  assert.deepEqual(readJson(join(root, ".design-system", "config.json")), {
+    designSystem: { schemaVersion: 1, package: packageName, version, strict: true },
+  });
+  assert.equal(
+    readJson(join(root, "package.json")).designSystem,
+    undefined,
+    "the package.json field must be removed: one configuration, one location",
+  );
+
+  // Idempotent, and never migrated back by a plain connect.
+  const rerun = connectDesignSystem({ cwd: root });
+  assert.equal(rerun.ok, true, rerun.failures.join(" "));
+  assert.equal(rerun.changed, false, "a second connect must be a no-op");
+  assert.equal(rerun.plan.location, "design-system");
+  assert.ok(existsSync(join(root, ".design-system", "config.json")));
+  assert.equal(readJson(join(root, "package.json")).designSystem, undefined);
+
+  // Read-only commands resolve the extended location.
+  const doctor = collectDoctorReport({ cwd: root });
+  assert.equal(doctor.ok, true, JSON.stringify(failedChecks(doctor)));
+  const configCheck = doctor.checks.find((check) => check.label === "consumer config");
+  assert.ok(configCheck, JSON.stringify(doctor.checks));
+  assert.match(configCheck.detail, /\.design-system[\\/]config\.json#designSystem/);
+});
+
+test("the configuration moves between both locations without touching anything else", (t) => {
+  const { root, packageName, version } = createConsumer(t, {
+    files: { "AGENTS.md": "# Team rules\n\nKeep this.\n" },
+  });
+  const packagePath = join(root, "package.json");
+  connectDesignSystem({ cwd: root });
+  const packageAfterConnect = readFileSync(packagePath, "utf8");
+  const agentsAfterConnect = readFileSync(join(root, "AGENTS.md"), "utf8");
+
+  const moved = connectDesignSystem({ cwd: root, location: "design-system" });
+  assert.equal(moved.ok, true, moved.failures.join(" "));
+  assert.equal(readJson(join(root, ".design-system", "config.json")).designSystem.version, version);
+  assert.ok(readFileSync(packagePath, "utf8").includes('"name": "consumer-app"'));
+  assert.ok(!readFileSync(packagePath, "utf8").includes("designSystem"));
+
+  const back = connectDesignSystem({ cwd: root, location: "package-json" });
+  assert.equal(back.ok, true, back.failures.join(" "));
+  assert.deepEqual(readJson(packagePath).designSystem, {
+    schemaVersion: 1,
+    package: packageName,
+    version,
+    strict: true,
+  });
+  assert.equal(
+    readFileSync(packagePath, "utf8"),
+    packageAfterConnect,
+    "moving back must restore the exact package.json bytes",
+  );
+  assert.equal(existsSync(join(root, ".design-system")), false, "the emptied directory is retired");
+  assert.equal(readFileSync(join(root, "AGENTS.md"), "utf8"), agentsAfterConnect);
+});
+
+test("a configuration in both locations fails closed until an explicit location is given", (t) => {
+  const { root, packageName, version } = createConsumer(t, { withConfig: true });
+  writeJson(join(root, ".design-system", "config.json"), {
+    designSystem: { schemaVersion: 1, package: packageName, version, strict: true },
+  });
+
+  const ambiguous = connectDesignSystem({ cwd: root });
+  assert.equal(ambiguous.ok, false);
+  assert.match(ambiguous.failures.join(" "), /configured in both/);
+  assert.match(ambiguous.failures.join(" "), /prism-ds config/);
+
+  const resolved = connectDesignSystem({ cwd: root, location: "package-json" });
+  assert.equal(resolved.ok, true, resolved.failures.join(" "));
+  assert.equal(existsSync(join(root, ".design-system", "config.json")), false);
+  assert.equal(readJson(join(root, "package.json")).designSystem.version, version);
+});
+
+test("a legacy root-level config converts to the extended layout in place", (t) => {
+  const { root, packageName, version } = createConsumer(t);
+  writeFile(
+    root,
+    ".design-system/config.json",
+    renderLegacyConsumerConfig({ packageName, version, strict: false }),
+  );
+
+  const result = connectDesignSystem({ cwd: root, location: "design-system" });
+  assert.equal(result.ok, true, result.failures.join(" "));
+  assert.deepEqual(readJson(join(root, ".design-system", "config.json")), {
+    designSystem: { schemaVersion: 1, package: packageName, version, strict: false },
+  });
+  assert.equal(
+    readJson(join(root, "package.json")).designSystem,
+    undefined,
+    "the legacy file is converted, not duplicated into package.json",
+  );
+  assert.match(result.migrations.join(" "), /extended designSystem layout/);
+});
+
+test("an unknown configuration location is rejected", (t) => {
+  const { root } = createConsumer(t);
+  const result = connectDesignSystem({ cwd: root, location: "sometimes" });
+  assert.equal(result.ok, false);
+  assert.match(result.failures.join(" "), /Unsupported configuration location/);
 });

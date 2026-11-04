@@ -24,7 +24,15 @@
 
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -254,25 +262,22 @@ function createConsumer(
 
   const dependencies = { [manifest.package]: manifest.version };
   if (tailwind !== null) dependencies.tailwindcss = tailwind;
-  writeJson(join(root, "package.json"), {
+  const consumerPackage = {
     name: "consumer-app",
     version: "0.0.0",
     private: true,
     packageManager: "npm@10.0.0",
     dependencies,
-  });
-
+  };
   if (connected) {
-    writeJson(join(root, ".design-system", "config.json"), {
-      $schema:
-        "https://github.com/maivand-rahmani/prism-system/schemas/design-system-consumer.schema.json",
+    consumerPackage.designSystem = {
       schemaVersion: 1,
       package: manifest.package,
       version: manifest.version,
-      manifest: "./manifest",
       strict: true,
-    });
+    };
   }
+  writeJson(join(root, "package.json"), consumerPackage);
 
   const packageDir = join(root, "node_modules", ...manifest.package.split("/"));
   const exportsMap = { "./manifest": "./design-system.json" };
@@ -371,17 +376,18 @@ test("root help states the read-only and CSS-mutating boundaries precisely", asy
   const help = result.stdout;
   assert.equal(help, helpText());
 
-  // The six offline commands never edit dependencies; `connect` is named as the
-  // only one that writes, and only its consumer config/AGENTS files.
+  // The offline commands never edit dependencies; `connect` writes only its
+  // consumer config/AGENTS files, `config` only moves that configuration, and
+  // the rest are read-only.
   assert.match(
     help,
     /connect\/check-usage\/doctor\/\s+offline and never edit dependencies \(connect writes/,
   );
   assert.match(
     help,
-    /components\/tokens\/check\/\s+only its consumer config\/AGENTS files; the others/,
+    /config\/components\/tokens\/check\/\s+only the consumer config\/AGENTS files; config only/,
   );
-  assert.match(help, /the others\s+are read-only\)\./);
+  assert.match(help, /moves that configuration; the rest are read-only\)\./);
 
   // `setup-tailwind` is described separately as the only CSS-file editor.
   assert.match(
@@ -665,6 +671,48 @@ test("check fails a missing consumer config", async (t) => {
 });
 
 /* -------------------------------------------------------------------------- */
+/* connect                                                                    */
+/* -------------------------------------------------------------------------- */
+
+test("connect writes package.json#designSystem and migrates a legacy config", async (t) => {
+  const { root } = createConsumer(t, { manifest: SYSTEM_A });
+  const legacyConfigPath = join(root, ".design-system", "config.json");
+  writeJson(legacyConfigPath, {
+    schemaVersion: 1,
+    package: SYSTEM_A.package,
+    version: SYSTEM_A.version,
+    manifest: "./manifest",
+    strict: true,
+  });
+
+  const dryRun = await runBin(["connect", "--cwd", root, "--dry-run"]);
+  assert.equal(dryRun.exitCode, 0, dryRun.stderr);
+  assert.match(dryRun.stdout, /would write package-json/);
+  assert.match(
+    dryRun.stdout,
+    /would migrate: moved \.design-system\/config\.json to package\.json#designSystem/,
+  );
+  assert.equal(existsSync(legacyConfigPath), true, "a dry run writes nothing");
+  assert.equal(readJson(join(root, "package.json")).designSystem, undefined);
+
+  const applied = await runBin(["connect", "--cwd", root]);
+  assert.equal(applied.exitCode, 0, applied.stderr);
+  assert.match(applied.stdout, /Connected @prism-system\/ui-system-a@/);
+  assert.match(applied.stdout, /migration: moved \.design-system\/config\.json to package\.json/);
+  assert.equal(readJson(join(root, "package.json")).designSystem.package, SYSTEM_A.package);
+  assert.match(
+    readFileSync(join(root, "AGENTS.md"), "utf8"),
+    /BEGIN @prism-system design system contract \(managed\)/,
+  );
+  assert.equal(existsSync(join(root, ".design-system")), false);
+
+  const again = await runBin(["connect", "--cwd", root]);
+  assert.equal(again.exitCode, 0, again.stderr);
+  assert.match(again.stdout, /Already connected @prism-system\/ui-system-a@/);
+  assert.match(again.stdout, /\(no changes\)/);
+});
+
+/* -------------------------------------------------------------------------- */
 /* setup-tailwind                                                             */
 /* -------------------------------------------------------------------------- */
 
@@ -889,7 +937,7 @@ test("use --dry-run --json plans dependency and connect changes", async (t) => {
   assert.equal(report.tailwind, null);
   assert.deepEqual(
     report.plannedChanges.map((change) => change.kind),
-    ["dependency", "connect", "connect", "connect"],
+    ["dependency", "connect", "connect"],
   );
   assert.deepEqual(snapshot(root), before, "use dry run must not mutate");
 });
@@ -969,7 +1017,7 @@ test("upgrade --dry-run --json reports the manifest diff and exact command", asy
   assert.deepEqual(report.command.args, INSTALL_ARGS(V4_PACKAGE, "2.0.0", registry.registry));
   assert.deepEqual(
     report.plannedChanges.map((change) => change.kind),
-    ["dependency", "connect", "connect", "connect"],
+    ["dependency", "connect", "connect"],
   );
   assert.deepEqual(snapshot(root), before, "upgrade dry run must not mutate");
 });
@@ -1104,4 +1152,100 @@ test("upgrade argument validation happens before any network", async (t) => {
   ]);
   assert.equal(invalid.exitCode, 1);
   assert.deepEqual(invalid.networkAttempts, [], "no registry request for an invalid version");
+});
+
+/* -------------------------------------------------------------------------- */
+/* config                                                                     */
+/* -------------------------------------------------------------------------- */
+
+test("config reports the active location and exits non-zero when unconfigured", async (t) => {
+  const { root } = createConsumer(t, { manifest: SYSTEM_A });
+
+  const unconfigured = await runBin(["config", "--cwd", root]);
+  assert.equal(unconfigured.exitCode, 1);
+  assert.match(unconfigured.stdout, /No design system configuration found/);
+
+  const connected = createConsumer(t, { manifest: SYSTEM_A, connected: true });
+  const report = await runBin(["config", "--cwd", connected.root]);
+  assert.equal(report.exitCode, 0);
+  assert.match(report.stdout, /Configuration location: package\.json#designSystem/);
+});
+
+test("config moves the configuration between both locations", async (t) => {
+  const { root } = createConsumer(t, { manifest: SYSTEM_A, connected: true });
+
+  const move = await runBin(["config", "design-system", "--cwd", root]);
+  assert.equal(move.exitCode, 0);
+  assert.match(
+    move.stdout,
+    /Moved the design system configuration to \.design-system[\\/]config\.json/,
+  );
+  assert.deepEqual(
+    readJson(join(root, ".design-system", "config.json")).designSystem.package,
+    SYSTEM_A.package,
+  );
+  assert.equal(readJson(join(root, "package.json")).designSystem, undefined);
+
+  const back = await runBin(["config", "package-json", "--cwd", root]);
+  assert.equal(back.exitCode, 0);
+  assert.equal(readJson(join(root, "package.json")).designSystem.package, SYSTEM_A.package);
+  assert.equal(existsSync(join(root, ".design-system")), false);
+});
+
+test("config --check reports whether the target location is active", async (t) => {
+  const { root } = createConsumer(t, { manifest: SYSTEM_A, connected: true });
+
+  const active = await runBin(["config", "package-json", "--cwd", root, "--check"]);
+  assert.equal(active.exitCode, 0);
+  assert.match(active.stdout, /Configuration is stored in package\.json#designSystem/);
+
+  const pending = await runBin(["config", "design-system", "--cwd", root, "--check"]);
+  assert.equal(pending.exitCode, 1);
+  assert.match(pending.stdout, /Configuration is not stored in \.design-system/);
+});
+
+test("config --dry-run reports the move and writes nothing", async (t) => {
+  const { root } = createConsumer(t, { manifest: SYSTEM_A, connected: true });
+  const before = readFileSync(join(root, "package.json"), "utf8");
+
+  const dry = await runBin(["config", "design-system", "--cwd", root, "--dry-run"]);
+  assert.equal(dry.exitCode, 0);
+  assert.match(dry.stdout, /would write design-system-config/);
+  assert.match(dry.stdout, /Dry run: nothing was written\./);
+  assert.equal(readFileSync(join(root, "package.json"), "utf8"), before);
+  assert.equal(existsSync(join(root, ".design-system")), false);
+});
+
+test("config --json emits the machine-readable result", async (t) => {
+  const { root } = createConsumer(t, { manifest: SYSTEM_A, connected: true });
+
+  const report = await runBin(["config", "--cwd", root, "--json"]);
+  assert.equal(report.exitCode, 0);
+  const parsedReport = JSON.parse(report.stdout);
+  assert.equal(parsedReport.mode, "report");
+  assert.equal(parsedReport.location, "package-json");
+  assert.equal(parsedReport.package, SYSTEM_A.package);
+
+  const move = await runBin(["config", "design-system", "--cwd", root, "--json"]);
+  assert.equal(move.exitCode, 0);
+  const parsedMove = JSON.parse(move.stdout);
+  assert.equal(parsedMove.mode, "move");
+  assert.equal(parsedMove.ok, true);
+  assert.equal(parsedMove.plan.location, "design-system");
+});
+
+test("config rejects an unknown location and documents itself", async (t) => {
+  const { root } = createConsumer(t, { manifest: SYSTEM_A, connected: true });
+  const invalid = await runBin(["config", "sometimes", "--cwd", root]);
+  assert.equal(invalid.exitCode, 1);
+  assert.match(invalid.stderr, /Unsupported configuration location/);
+
+  const help = await runBin(["config", "--help"]);
+  assert.equal(help.exitCode, 0);
+  assert.match(help.stdout, /Usage: prism-ds config \[package-json\|design-system\]/);
+  assert.match(help.stdout, /package-json\s+Store the configuration in package\.json#designSystem/);
+
+  const noTarget = await runBin(["config", "--cwd", root, "--check"]);
+  assert.equal(noTarget.exitCode, 1);
+  assert.match(noTarget.stderr, /needs a target location/);
 });
