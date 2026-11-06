@@ -136,6 +136,13 @@ generated `tokens.css` plus exactly the declared component stylesheets in canoni
 descriptor order. Removing a capability removes all of those entries. Never add empty
 stubs; an omitted optional entry means unavailable from that system.
 
+Icons are a separate optional catalog, not an optional component. Add, replace, or remove
+one glyph in its own `src/icons/<Name>.tsx`, keep the `${Name}Icon` export and `IconProps`
+stable, update the descriptor `icons.names` in canonical order, keep real exports from the
+reserved `./icons` entrypoint, and regenerate the manifest. Availability is the generated
+`publicApi["./icons"]`, never a top-level field or the core vocabulary. See the local
+[icons reference](./references/icons.md).
+
 Regenerate the TypeScript/CSS/Tailwind bridge/manifest through the repository's
 `pnpm ds:manifest <id> --write` command. Never hand-edit generated token artifacts or
 `design-system.json`, and never add a `capabilities` block to the source descriptor

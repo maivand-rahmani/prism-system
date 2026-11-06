@@ -15,6 +15,11 @@ remain authoritative. The shipped manifest (`schemaVersion: 5`) carries the
 architecture plan (`docs/plans/motion-3d-and-project-components.md`) records the
 implemented stages and the remaining runtime QA.
 
+Icons are a separate optional catalog, not custom components or extensions. An icon
+never enters `entrypoints`/`extensions` as a component and never becomes a canonical
+name; it is declared through `design-system.source.json` `icons` and published from the
+reserved `./icons` entrypoint as `${Name}Icon`. See `skills/references/icons.md`.
+
 ## Existing component treatment
 
 A dimensional or animated `Button` remains `Button` when its semantics and public

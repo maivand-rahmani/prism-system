@@ -42,6 +42,16 @@ capabilities are requests only. Actual implementation, runtime map, public expor
 component entry, descriptor, and generated manifest must agree; absent optional entries
 mean unavailable.
 
+Icons are a separate optional catalog of fifty semantic names, never components and never
+a capability category. Core owns only the vocabulary, `IconProps`/`IconComponent`, and the
+`${Name}Icon` export convention; each system owns its glyphs, color inheritance, stroke,
+default size, and optional motion. A declaring system publishes real exports from the
+reserved `./icons` entrypoint and lists a canonical subset in the descriptor `icons`
+section; the generated manifest exposes availability as `publicApi["./icons"]` (there is
+no top-level icons field and the manifest stays schema 5). A system without `./icons`
+ships no icons, and tools must never infer availability from core. See the icons
+reference (`skills/references/icons.md`).
+
 ## Package sources and generated artifacts
 
 Edit `tokens.source.json` as the sole token source. Generated TypeScript token exports,

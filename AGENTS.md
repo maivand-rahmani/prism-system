@@ -144,6 +144,30 @@ There is exactly one current shipped manifest shape. Current tooling requires
 schema 4 must be upgraded in lockstep, and an older published `prism-ds` cannot read a
 schema-5 manifest. Upgrade `prism-ds` together with the installed system.
 
+## The shared icon catalog
+
+Icons are a separate optional catalog, not components and not capability categories.
+`@prism-system/ui-core` owns only the neutral vocabulary and prop shape: the exact fifty
+canonical `ICON_NAMES`, `ICON_CATEGORIES`, `IconName`, `IconProps`, `IconComponent`, and
+the stable `${Name}Icon` export convention. Core contains no SVG path data, no Lucide
+dependency, no color, stroke, default visual size, or motion.
+
+A design system that ships icons declares a nonempty canonical subset in its
+`design-system.source.json` `icons` section and publishes one real component per name
+from the reserved `./icons` entrypoint. The generated manifest does **not** gain a new
+top-level field: availability is exactly the verified `publicApi["./icons"]` list of
+canonical `${Name}Icon` exports, and the entrypoint's `requirements` describe its real
+dependencies. Keeping schema 5 means released `prism-ds` readers still accept the
+manifest; they simply do not expose the new catalog command. A system without an
+`./icons` entrypoint ships no icons, and tools must never treat the core vocabulary as
+availability.
+
+- A new package from `templates/design-system` ships all fifty icons by default.
+- System PLR ships all fifty and is the first complete example.
+- System A and System B declare no icons; their absence is valid.
+- Replacing Lucide with a custom drawing keeps the public name, props, and
+  `${Name}Icon` export unchanged.
+
 ## Styling ownership
 
 The design system is responsible for:
@@ -193,6 +217,10 @@ which covers declared effects, custom extensions, and their entrypoint requireme
 - The current contract (version 4) is defined in `@prism-system/ui-core` and implemented
   by `@prism-system/ui-system-a` and `@prism-system/ui-system-b`. Each system declares
   its real optional capabilities in its generated `design-system.json` manifest.
+- `@prism-system/ui-system-plr` implements the full required and optional contract and
+  ships all fifty icons from `./icons`; System A and System B ship no icons. The shared
+  icon vocabulary, types, and export convention live in core; glyphs, colors, stroke,
+  sizing, and motion live in each system.
 - System B additionally ships declared custom extensions (`KeyboardScene`,
   `InteractiveWorkflowMap`) in separate public entrypoints with optional peers; System A
   declares none. `prism-ds` reads declared extensions and entrypoint requirements from the
@@ -201,11 +229,12 @@ which covers declared effects, custom extensions, and their entrypoint requireme
   `pnpm ds:create`, `pnpm ds:register`, `pnpm ds:check`, `pnpm ds:manifest`,
   `pnpm ds:sync-versions`, and `pnpm ds:release` commands, and the
   `config/design-systems.json` registry. Showcase and Reference App integrate registered
-  systems from that registry.
-- `@prism-system/tools` ships the consumer `prism-ds` CLI with eighteen root commands:
+  systems from that registry. A generated package ships the full fifty-icon catalog by
+  default, with its own `./icons` entrypoint and Lucide dependency.
+- `@prism-system/tools` ships the consumer `prism-ds` CLI with nineteen root commands:
   explicit network reads (`search`, `info`), dependency-mutating commands (`install`,
   `use`, `upgrade`, `switch`, `remove`), configuration (`connect`, `config`), catalog reads
-  (`components`, `tokens`), Tailwind v4 setup (`setup-tailwind`), offline checks
+  (`components`, `icons`, `tokens`), Tailwind v4 setup (`setup-tailwind`), offline checks
   (`check`, `check-usage`, `doctor`), skill management (`skills list/add/update/remove`),
   CLI self-update (`self-update`), and project recovery (`recover`). `switch` reviews
   actual usage against the target manifest, blocks on missing support, exposes dynamic
@@ -276,6 +305,7 @@ npx prism-ds upgrade <package-or-id> <exact-version> --cwd <consumer-root> [--wi
 npx prism-ds switch <target> [version] --cwd <consumer-root> [--css <file>] [--with-entry <value>] [--peer <name@version>] [--dry-run|--yes]
 npx prism-ds remove [package] --cwd <consumer-root> [--css <file>] [--dry-run|--yes]
 npx prism-ds components [name] --cwd <consumer-root>
+npx prism-ds icons [name] --cwd <consumer-root>
 npx prism-ds tokens [group] --cwd <consumer-root>
 npx prism-ds check --cwd <consumer-root> [--css <file>] [--entry <path-or-extension>]
 npx prism-ds setup-tailwind --cwd <consumer-root> --css <file> [--dry-run|--check]

@@ -185,6 +185,11 @@ the user declines, report the Prism CLI check as skipped, never as passed.
 - Contract availability is only the presence of a key in `manifest.components`;
   custom extensions are available only as declared in `manifest.extensions`;
   `capabilities.categories` is canonical category membership, not availability.
+- Icons are optional and separate from components: availability is the real
+  `publicApi["./icons"]` list of canonical `${Name}Icon` exports. A system without the
+  `./icons` entrypoint ships no icons; never assume the fifty core names are importable.
+  Discover with `prism-ds icons [name]`, import only from the declared icon entrypoint,
+  and treat missing icons as a switch compatibility blocker.
 - If the installed package, `designSystem` field, manifest, and declarations disagree,
   fail closed, report the inconsistency, and do not patch the package or assume the
   conflicting capability works.

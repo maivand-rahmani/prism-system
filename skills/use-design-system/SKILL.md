@@ -65,6 +65,12 @@ system, or a newer manifest. Current shipped manifests are `schemaVersion: 5`
 (`contractVersion: 4`); tools that only understand schema 4 or older cannot read them and
 must be upgraded in lockstep with the package.
 
+Icons are optional and separate from components. Discover them from
+`publicApi["./icons"]`, `prism-ds icons [name]`, or the live `/showcase/<id>/icons`
+catalog; never assume the fifty core names are available. Import only from the declared
+`./icons` entrypoint, keep decorative icons hidden, and give meaningful icons a label or
+name the icon-only control itself. See the local [icons reference](./references/icons.md).
+
 The commands below assume `prism-ds` is already available in the consumer (installed as
 a dev dependency or on `node_modules/.bin`). `@prism-system/tools` is optional tooling,
 not a requirement to consume a released package: when it is absent, ground the work in

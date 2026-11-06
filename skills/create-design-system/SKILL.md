@@ -162,6 +162,15 @@ generated manifest agree; never create empty stubs. Regenerate generated token a
 the manifest only with `pnpm ds:manifest <id> --write`; never hand-edit generated files or
 add a `capabilities` block to the descriptor.
 
+Icons are separate from the component contract. The template already generates all fifty
+canonical icons from Lucide under `src/icons/`, the reserved `./icons` entrypoint, the
+`lucide-react` dependency, and the descriptor `icons` declaration. Keep the public
+`${Name}Icon` names and `IconProps`, review stroke/optical size/theme fit, and replace
+individual glyphs without changing consumer imports. Do not add icons to
+`REQUIRED_COMPONENTS`, `OPTIONAL_COMPONENTS`, `DesignSystem.components`, or
+`capabilities.categories`; availability is generated into `publicApi["./icons"]`. See the
+local [icons reference](./references/icons.md) and the workspace `docs/v4/icons.md`.
+
 Implement depth and motion on an existing component in its existing folder and API.
 Declare the real implemented effect in that component's descriptor `effects` (`features`,
 `rendering`, `reducedMotion`, optional fallback); a missing declaration means undeclared,

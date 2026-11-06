@@ -32,17 +32,24 @@ import { fileURLToPath } from "node:url";
 export const SKILL_REFERENCE_SOURCES = Object.freeze({
   "create-design-system": Object.freeze([
     "design-interview",
+    "icons",
     "lifecycle",
     "visual-effects-and-custom-components",
   ]),
-  "modify-design-system": Object.freeze(["lifecycle", "visual-effects-and-custom-components"]),
+  "modify-design-system": Object.freeze([
+    "icons",
+    "lifecycle",
+    "visual-effects-and-custom-components",
+  ]),
   "switch-design-system": Object.freeze([
     "consumer-workflows",
+    "icons",
     "lifecycle",
     "visual-effects-and-custom-components",
   ]),
   "use-design-system": Object.freeze([
     "consumer-workflows",
+    "icons",
     "lifecycle",
     "visual-effects-and-custom-components",
   ]),

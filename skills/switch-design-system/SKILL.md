@@ -133,6 +133,12 @@ npx prism-ds check --cwd <consumer-root> [--css <explicit-file>] [--entry <path-
   `manifest.extensions`, verify the selected entry's requirements offline with
   `check --entry` (or `doctor --entry`), and install only what that entry actually
   requires with explicit user approval.
+- Treat icons as a separate optional catalog. Check `publicApi["./icons"]` or
+  `prism-ds icons` for the target's real availability; a missing icon is a compatibility
+  blocker, not a renamed import. `switch --dry-run` auto-selects the target `./icons`
+  entrypoint when icon imports are found and reports computed/dynamic icon usage as
+  unverified. Do not copy or rewrite icon source; apply only reviewed literal module
+  substitutions. See the local [icons reference](./references/icons.md).
 - Run `check` again after repairs; run `check-usage` separately only when usage validation
   is all that is needed.
 
