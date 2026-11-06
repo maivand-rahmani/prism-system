@@ -154,7 +154,9 @@
   font-size: var(--maivand-plr-typography-size-lg);
 }
 :where(.maivand-plr-ui).maivand-plr-button-icon {
-  min-width: 40px;
+  flex-shrink: 0;
+  min-block-size: var(--maivand-plr-spacing-scale-12);
+  min-inline-size: var(--maivand-plr-spacing-scale-12);
   padding: 0;
 }
 :where(.maivand-plr-ui).maivand-plr-spinner {

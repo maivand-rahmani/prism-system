@@ -30,6 +30,9 @@ restyle or replace `Stack` itself.
 
 ## Interaction and access
 
+- `Button size="icon"` has a minimum target of `3rem` in each dimension (48 × 48 CSS px
+  at a 16px root font size) and does not shrink in flex layouts. Longer content can expand it;
+  give icon-only buttons an accessible name on the button itself.
 - Interactive controls provide a visible keyboard focus state and a short hover/press response.
 - Selection, completion, disabled, invalid, loading, and open states remain distinct without
   depending on color alone.
