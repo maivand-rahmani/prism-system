@@ -1,5 +1,13 @@
 # Changelog — @prism-system/ui-system-a
 
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [530ae84]
+- Updated dependencies [0938ef8]
+  - @prism-system/ui-core@3.1.0
+
 ## 4.0.1
 
 ### Patch Changes

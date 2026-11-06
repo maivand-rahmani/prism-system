@@ -1,5 +1,31 @@
 # @prism-system/ui-system-plr
 
+## 0.3.0
+
+### Minor Changes
+
+- 0938ef8: Add the shared fifty-icon Prism catalog. Core now exports the canonical
+  `ICON_NAMES`, `ICON_CATEGORIES`, `IconName`, `IconProps`, and `IconComponent`
+  contract without any SVG, colors, or Lucide dependency. `@prism-system/ui-system-plr`
+  ships all fifty icons from its `./icons` entrypoint, inherits the system's ink and
+  themes, and validates its declaration against the real source and build exports.
+  The template now generates the same fifty-icon entrypoint, and `prism-ds` gains an
+  offline `icons [name] --cwd <root> [--json]` catalog plus icon-aware check-usage,
+  switch, check, and doctor behavior. The shipped manifest stays schema 5: icon
+  availability is the real `publicApi["./icons"]` list, so released readers continue
+  to accept the manifest and simply do not expose the new catalog command.
+
+### Patch Changes
+
+- 530ae84: Support dependency updates and local CLI self-updates at pnpm workspace roots, and
+  verify the current installed package after pnpm replaces its link. Align Radix overlay
+  dependencies so nested dialogs and selects share the same dismissal layer in supported
+  installations. Give PLR icon buttons a 3rem minimum target in both dimensions and prevent
+  them from shrinking in flex layouts.
+- Updated dependencies [530ae84]
+- Updated dependencies [0938ef8]
+  - @prism-system/ui-core@3.1.0
+
 ## 0.2.0
 
 ### Minor Changes
