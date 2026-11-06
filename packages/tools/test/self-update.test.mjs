@@ -12,7 +12,16 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { test } from "node:test";
@@ -27,6 +36,7 @@ import {
   isUpdateCheckDisabled,
   planSelfUpdate,
   readCliPackageInfo,
+  resolveInstalledCliRoot,
   selfUpdate,
 } from "../src/self-update.mjs";
 
@@ -397,6 +407,89 @@ test("planSelfUpdate preserves a production section and uses pnpm when declared"
   ]);
 });
 
+test("planSelfUpdate adds -w only for a local pnpm workspace root", async (t) => {
+  const root = createConsumer(t, {
+    dependencies: { [CLI_PACKAGE_NAME]: "1.0.0" },
+    packageManager: "pnpm@12.5.1",
+    lockfile: "pnpm-lock.yaml",
+  });
+  writeFile(root, "pnpm-workspace.yaml", 'packages:\n  - "apps/*"\n  - "packages/*"\n');
+  const installedDir = installFakeCli(root, "1.0.0");
+
+  const plan = await planSelfUpdate({
+    cwd: root,
+    packageRoot: installedDir,
+    targetVersion: NEWER,
+  });
+
+  assert.equal(plan.ok, true, plan.failures?.join(" "));
+  assert.equal(plan.scope, "local");
+  assert.deepEqual(plan.command.args, [
+    "add",
+    "-w",
+    "--save-prod",
+    "--save-exact",
+    "--ignore-scripts",
+    "--registry=https://registry.npmjs.org",
+    `${CLI_PACKAGE_NAME}@${NEWER}`,
+  ]);
+  assert.match(plan.advice, /pnpm add -w --save-prod/);
+});
+
+test("a local self-update of a pnpm workspace member never targets the root", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "prism-self-update-ws-"));
+  t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
+  writeFile(root, "pnpm-workspace.yaml", 'packages:\n  - "apps/*"\n  - "packages/*"\n');
+  const member = join(root, "packages", "app");
+  writeJson(join(member, "package.json"), {
+    name: "workspace-member",
+    version: "0.0.0",
+    private: true,
+    packageManager: "pnpm@12.5.1",
+    dependencies: { [CLI_PACKAGE_NAME]: "1.0.0" },
+  });
+  const installedDir = installFakeCli(member, "1.0.0");
+
+  const plan = await planSelfUpdate({
+    cwd: member,
+    packageRoot: installedDir,
+    targetVersion: NEWER,
+  });
+
+  assert.equal(plan.ok, true, plan.failures?.join(" "));
+  assert.equal(plan.scope, "local");
+  assert.equal(plan.cwd, member);
+  assert.equal(plan.command.args.includes("-w"), false);
+});
+
+test("a global pnpm self-update inside a workspace never gains -w", async (t) => {
+  const root = createConsumer(t, {
+    dependencies: { [CLI_PACKAGE_NAME]: "1.0.0" },
+    packageManager: "pnpm@12.5.1",
+    lockfile: "pnpm-lock.yaml",
+  });
+  writeFile(root, "pnpm-workspace.yaml", 'packages:\n  - "apps/*"\n  - "packages/*"\n');
+  const installedDir = installFakeCli(root, "1.0.0");
+
+  const plan = await planSelfUpdate({
+    cwd: root,
+    global: true,
+    manager: "pnpm",
+    packageRoot: installedDir,
+    targetVersion: NEWER,
+  });
+
+  assert.equal(plan.ok, true, plan.failures?.join(" "));
+  assert.equal(plan.scope, "global");
+  assert.deepEqual(plan.command.args, [
+    "add",
+    "--global",
+    "--ignore-scripts",
+    "--registry=https://registry.npmjs.org",
+    `${CLI_PACKAGE_NAME}@${NEWER}`,
+  ]);
+});
+
 test("planSelfUpdate global requires an explicit manager when the root is unverified", async (t) => {
   const root = createConsumer(t, { dependencies: { [CLI_PACKAGE_NAME]: "1.0.0" } });
   const installedDir = installFakeCli(root, "1.0.0");
@@ -583,6 +676,41 @@ test("selfUpdate dry-run plans the exact command without spawning or writing", a
   assert.equal(result.plannedChanges[0].command.manager, "npm");
 });
 
+test("selfUpdate dry-run in a pnpm workspace root shows -w and writes nothing", async (t) => {
+  const root = createConsumer(t, {
+    devDependencies: { [CLI_PACKAGE_NAME]: "1.0.0" },
+    packageManager: "pnpm@12.5.1",
+    lockfile: "pnpm-lock.yaml",
+  });
+  writeFile(root, "pnpm-workspace.yaml", 'packages:\n  - "apps/*"\n  - "packages/*"\n');
+  const installedDir = installFakeCli(root, "1.0.0");
+  const before = snapshotTree(root);
+  const spawnCalls = [];
+
+  const result = await selfUpdate({
+    cwd: root,
+    packageRoot: installedDir,
+    targetVersion: NEWER,
+    dryRun: true,
+    spawnImpl: captureSpawn(spawnCalls),
+  });
+
+  assert.equal(result.ok, true, result.failures?.join(" "));
+  assert.equal(result.state, "dry-run");
+  assert.equal(result.changed, false);
+  assert.deepEqual(result.plannedChanges[0].command.args, [
+    "add",
+    "-w",
+    "--save-dev",
+    "--save-exact",
+    "--ignore-scripts",
+    "--registry=https://registry.npmjs.org",
+    `${CLI_PACKAGE_NAME}@${NEWER}`,
+  ]);
+  assert.equal(spawnCalls.length, 0);
+  assert.deepEqual(snapshotTree(root), before);
+});
+
 test("selfUpdate blocks on expected-plan drift before any spawn", async (t) => {
   const root = createConsumer(t, { devDependencies: { [CLI_PACKAGE_NAME]: "1.0.0" } });
   const installedDir = installFakeCli(root, "1.0.0");
@@ -641,6 +769,49 @@ test("selfUpdate runs the exact planned argv, post-verifies, and reports verifie
   assert.equal(spawnCalls[0].command, expected.command);
   assert.deepEqual(spawnCalls[0].args, expected.args);
   assert.equal(spawnCalls[0].options.cwd, root);
+});
+
+test("selfUpdate verifies the replaced local link instead of a cached realpath", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "prism-self-update-link-"));
+  t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
+  writeJson(join(root, "package.json"), {
+    name: "consumer-app",
+    version: "0.0.0",
+    private: true,
+    packageManager: "pnpm@12.5.1",
+    dependencies: { [CLI_PACKAGE_NAME]: "1.0.0" },
+  });
+  const link = join(root, "node_modules", "@prism-system", "tools");
+  const oldDir = join(root, "store", "old");
+  const newDir = join(root, "store", "new");
+  writeJson(join(oldDir, "package.json"), { name: CLI_PACKAGE_NAME, version: "1.0.0" });
+  writeJson(join(newDir, "package.json"), { name: CLI_PACKAGE_NAME, version: NEWER });
+  mkdirSync(dirname(link), { recursive: true });
+  const linkType = process.platform === "win32" ? "junction" : "dir";
+  symlinkSync(oldDir, link, linkType);
+
+  const before = resolveInstalledCliRoot({ cwd: root });
+  assert.equal(before.packageJson.version, "1.0.0");
+
+  const spawnCalls = [];
+  const result = await selfUpdate({
+    cwd: root,
+    packageRoot: oldDir,
+    targetVersion: NEWER,
+    confirmed: true,
+    spawnImpl: captureSpawn(spawnCalls, {
+      onSpawn: () => {
+        // pnpm-style update: the project link now points at the new version.
+        unlinkSync(link);
+        symlinkSync(newDir, link, linkType);
+      },
+    }),
+  });
+
+  assert.equal(result.ok, true, result.failures?.join(" "));
+  assert.equal(result.state, "verified");
+  assert.equal(result.postVerify.installedVersion, NEWER);
+  assert.equal(spawnCalls.length, 1);
 });
 
 test("selfUpdate reports a manager failure and a post-verify mismatch without rollback promises", async (t) => {

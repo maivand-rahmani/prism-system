@@ -6,10 +6,16 @@
  * an explicit, internally constructed command. It supports npm and pnpm only,
  * never defaults silently, never uses user-supplied arguments, never enables
  * lifecycle scripts, and never uses a shell on POSIX.
+ *
+ * pnpm may refuse a root-local `add` unless the command is explicit about
+ * targeting that workspace root. The workspace-root flag is added only when the
+ * selected consumer root itself declares a pnpm workspace; a workspace member
+ * directory and a plain project keep the ordinary command. pnpm's removal
+ * command has no equivalent root guard, so `remove` stays unchanged.
  */
 
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import { readJsonFile } from "./constants.mjs";
@@ -23,11 +29,40 @@ export const SUPPORTED_LOCKFILES = Object.freeze({
   "pnpm-lock.yaml": "pnpm",
 });
 
+/** The only file pnpm reads to declare a workspace root. */
+export const PNPM_WORKSPACE_MANIFEST = "pnpm-workspace.yaml";
+
 /** Safe argument pattern: no whitespace, quotes, or shell metacharacters. */
 const SAFE_ARG_PATTERN = /^[A-Za-z0-9@/._:=+~-]+$/;
 
 function isPlainObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * True only when the selected directory itself declares a pnpm workspace.
+ *
+ * This deliberately never walks up: a member package inside a workspace must
+ * continue to target that member, while the workspace root must be addressed
+ * explicitly. Only `pnpm-workspace.yaml` is a valid workspace manifest; pnpm
+ * does not use npm's `workspaces` field, and a `.yml` spelling is rejected by
+ * pnpm rather than accepted as a root.
+ */
+export function isPnpmWorkspaceRoot(consumerRoot) {
+  if (typeof consumerRoot !== "string" || consumerRoot.trim() === "") return false;
+  try {
+    return statSync(join(consumerRoot, PNPM_WORKSPACE_MANIFEST)).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function packageManagerDetection(manager, source, consumerRoot) {
+  return {
+    manager,
+    source,
+    workspaceRoot: manager === "pnpm" && isPnpmWorkspaceRoot(consumerRoot),
+  };
 }
 
 /** Reject any argument that could carry shell syntax or whitespace. */
@@ -65,7 +100,10 @@ export function parsePackageManagerField(value) {
  * Detect the consumer package manager from `packageManager`, or from exactly one
  * supported lockfile. Missing, unsupported, or ambiguous managers fail closed.
  *
- * @returns {{ manager: string, source: string }}
+ * `workspaceRoot` is true only for pnpm when the same consumer root contains a
+ * `pnpm-workspace.yaml`; callers use it to make a root-local mutation explicit.
+ *
+ * @returns {{ manager: string, source: string, workspaceRoot: boolean }}
  */
 export function detectPackageManager({ consumerRoot } = {}) {
   if (typeof consumerRoot !== "string" || consumerRoot === "") {
@@ -87,7 +125,7 @@ export function detectPackageManager({ consumerRoot } = {}) {
 
   if (pkg.packageManager !== undefined && pkg.packageManager !== null) {
     const { manager } = parsePackageManagerField(pkg.packageManager);
-    return { manager, source: "packageManager" };
+    return packageManagerDetection(manager, "packageManager", consumerRoot);
   }
 
   const lockfiles = Object.entries(SUPPORTED_LOCKFILES).filter(([file]) =>
@@ -105,7 +143,7 @@ export function detectPackageManager({ consumerRoot } = {}) {
         "Set packageManager explicitly to choose one.",
     );
   }
-  return { manager: lockfiles[0][1], source: lockfiles[0][0] };
+  return packageManagerDetection(lockfiles[0][1], lockfiles[0][0], consumerRoot);
 }
 
 /**
@@ -115,6 +153,11 @@ export function detectPackageManager({ consumerRoot } = {}) {
  * `extraPackages` are already-validated `name@exact-version` peer specs derived
  * from the selected entry's declared requirement ranges; each is passed through
  * the same safe-argument check and appended to the same fixed command.
+ *
+ * `workspaceRoot` is set by the caller only when the selected consumer root is
+ * a pnpm workspace root. It adds pnpm's explicit `-w` (`--workspace-root`) so a
+ * root-local install is not rejected with ERR_PNPM_ADDING_TO_ROOT. npm never
+ * receives the flag, and member/plain directories pass `false`.
  *
  * @returns {{ manager: string, verb: string, args: string[] }}
  */
@@ -126,6 +169,7 @@ export function buildInstallCommand({
   exact = false,
   registry,
   extraPackages = [],
+  workspaceRoot = false,
 } = {}) {
   if (!SUPPORTED_MANAGERS.includes(manager)) {
     throw new Error(`Unsupported package manager ${JSON.stringify(manager)}.`);
@@ -139,8 +183,10 @@ export function buildInstallCommand({
     const spec = assertSafeArgument(extra, "peer install target");
     if (!extras.includes(spec)) extras.push(spec);
   }
+  const workspaceRootArgs = manager === "pnpm" && workspaceRoot === true ? ["-w"] : [];
   const args = [
     verb,
+    ...workspaceRootArgs,
     saveDev ? "--save-dev" : "--save-prod",
     ...(exact ? ["--save-exact"] : []),
     "--ignore-scripts",
@@ -165,6 +211,10 @@ export function quoteWindowsArgument(value) {
  * one already-selected package from the consumer manifest with lifecycle
  * scripts disabled; there are no user-supplied extra arguments and no registry
  * or scope arguments. The caller verifies absence afterwards.
+ *
+ * pnpm's workspace-root guard applies to `add`, not `remove`: removing an
+ * explicitly selected dependency from the root package is already unambiguous,
+ * so no workspace-root flag is added here.
  *
  * @returns {{ manager: string, verb: string, args: string[] }}
  */

@@ -154,6 +154,9 @@ with one save mode (`--save-dev`/`--save-prod`, default prod), optional `--save-
 `<package>@<version>` argument. No user-supplied extra arguments, no shell on POSIX, and a
 constrained `cmd.exe /d /s /c` adapter on Windows. After a zero exit it verifies the
 installed package through the public `./manifest` export and exact identity/version checks.
+When the selected `--cwd` is itself a pnpm workspace root (`pnpm-workspace.yaml`), the
+command includes `-w` to target that root explicitly. A workspace member or standalone
+project keeps its own target; the tool does not redirect it to a parent workspace.
 
 With `--with-entry <extension|entrypoint|consumer-file>` it additionally selects one or
 more entries and plans their declared requirements: an installed peer that satisfies the
@@ -433,7 +436,8 @@ compatibility scan, and `recover` when it needs the same scanner.
 ### `prism-ds doctor [package] --cwd <consumer-root> [--entry <path-or-extension>]`
 
 Offline read-only diagnostics: realpath containment, package discovery, the installed
-version resolved through Node package resolution, the public `./manifest` and its version,
+version resolved from the current package link or a Node resolution fallback, the public
+`./manifest` and its version,
 exact identity/version invariants, the Tailwind bridge advertisement/export/file, and
 the consumer configuration state (`package.json#designSystem` or
 `.design-system/config.json`). With `--entry` it adds the same
@@ -495,6 +499,8 @@ advice instead of a guessed global mutation. `--check` is a read-only report;
 `--dry-run` previews the exact command; `--yes` is required to mutate. A post-install
 verification that cannot run is reported as partial, never as success, and a completed
 package-manager mutation is never rolled back automatically.
+For a local pnpm installation at a workspace root, the planned update includes `-w`;
+workspace members and global installations are not redirected to that root.
 
 **TUI startup exception:** bare `prism-ds` may perform one bounded (2500 ms),
 nonblocking, read-only update check when it starts. Set `PRISM_DS_UPDATE_CHECK=0` to

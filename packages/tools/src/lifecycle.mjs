@@ -1653,6 +1653,7 @@ export async function switchDesignSystem({
       extraPackages: peers
         .filter((peer) => peer.action === "install")
         .map((peer) => `${peer.name}@${peer.version}`),
+      workspaceRoot: detection.workspaceRoot,
     });
   } catch (error) {
     if (expectedMaterial !== null) {

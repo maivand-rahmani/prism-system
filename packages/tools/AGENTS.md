@@ -91,8 +91,9 @@ This package must never:
 - copy component source or styling into a consumer;
 - publish or version a package.
 
-The installed design-system package is resolved through Node package resolution from the
-consumer root and read only through its public `exports` (notably `./manifest`).
+The installed design-system package is resolved from the consumer's current direct
+`node_modules` link, with Node package resolution as a fallback for hoisted installations.
+It is read only through its public `exports` (notably `./manifest`).
 
 ## Network and mutation boundaries
 
@@ -112,7 +113,9 @@ consumer root and read only through its public `exports` (notably `./manifest`).
   registry first, detect npm/pnpm (never a silent default), run a fixed command with
   `--ignore-scripts`, no user-supplied extra arguments, and no shell on POSIX (a
   constrained `cmd.exe /d /s /c` adapter on Windows), then verify the installed package
-  before they connect. `switch` retains the previous dependency and additionally applies
+  before they connect. A pnpm `add` targeting the selected workspace root includes `-w`;
+  a workspace member is never redirected to its parent. The same rule applies to a local
+  CLI `self-update`. `switch` retains the previous dependency and additionally applies
   only the reviewed literal module/CSS import substitutions and managed integration
   changes; `remove` removes only the selected dependency plus unchanged, attributable
   integration, never product UI or arbitrary files. Because `setup-tailwind` writes no

@@ -37,11 +37,13 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { readJsonFile, resolveRealPath } from "./constants.mjs";
+import { resolveDirectInstalledPackageDir } from "./consumer.mjs";
 import {
   SUPPORTED_MANAGERS,
   assertSafeArgument,
   buildInstallCommand,
   detectPackageManager,
+  isPnpmWorkspaceRoot,
   spawnInstall,
 } from "./package-manager.mjs";
 import {
@@ -185,21 +187,26 @@ export async function resolveLatestCliVersion({
 }
 
 /**
- * Resolve `@prism-system/tools` through Node package resolution from a consumer
- * root and report whether the consumer declares it. Returns null when the
- * package is not resolvable. Read-only.
+ * Resolve `@prism-system/tools` from a consumer root and report whether the
+ * consumer declares it. The current direct `node_modules` link is realpath'd
+ * first so a pnpm replacement is observed after an update; Node package
+ * resolution remains the fallback for hoisted/ancestor layouts. Returns null
+ * when the package is not resolvable. Read-only.
  */
 export function resolveInstalledCliRoot({ cwd } = {}) {
   if (typeof cwd !== "string" || cwd.trim() === "") return null;
   const consumerRoot = resolve(cwd);
-  let packageJsonPath;
-  try {
-    const requireFromConsumer = createRequire(join(consumerRoot, "package.json"));
-    packageJsonPath = requireFromConsumer.resolve(`${CLI_PACKAGE_NAME}/package.json`);
-  } catch {
-    return null;
+  let root = resolveDirectInstalledPackageDir(consumerRoot, CLI_PACKAGE_NAME);
+  if (root === null) {
+    let packageJsonPath;
+    try {
+      const requireFromConsumer = createRequire(join(consumerRoot, "package.json"));
+      packageJsonPath = requireFromConsumer.resolve(`${CLI_PACKAGE_NAME}/package.json`);
+    } catch {
+      return null;
+    }
+    root = resolveRealPath(dirname(packageJsonPath));
   }
-  const root = resolveRealPath(dirname(packageJsonPath));
   let packageJson;
   try {
     packageJson = readJsonFile(join(root, "package.json"));
@@ -441,9 +448,11 @@ function buildUpdateAdvice({ installation, current, latest, available }) {
     }
     const section = installation.section === "devDependencies" ? "--save-dev" : "--save-prod";
     const verb = manager === "npm" ? "install" : "add";
+    const workspaceRootFlag =
+      manager === "pnpm" && isPnpmWorkspaceRoot(installation.cwd) ? "-w " : "";
     return (
       `A newer prism-ds (${latest}) is available. Update the local dependency with ` +
-      `"prism-ds self-update --cwd ${cwd}" (${manager} ${verb} ${section} ${target}).`
+      `"prism-ds self-update --cwd ${cwd}" (${manager} ${verb} ${workspaceRootFlag}${section} ${target}).`
     );
   }
   if (kind === "global") {
@@ -853,6 +862,7 @@ export async function planSelfUpdate({
         exact: true,
         registry: registryBase,
         extraPackages: [],
+        workspaceRoot: resolvedManager === "pnpm" && isPnpmWorkspaceRoot(commandCwd),
       });
       command = { manager: built.manager, verb: built.verb, scope: "local", args: built.args };
     }

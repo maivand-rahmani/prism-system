@@ -19,8 +19,10 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -932,4 +934,147 @@ test("an unknown configuration location is rejected", (t) => {
   const result = connectDesignSystem({ cwd: root, location: "sometimes" });
   assert.equal(result.ok, false);
   assert.match(result.failures.join(" "), /Unsupported configuration location/);
+});
+
+/* -------------------------------------------------------------------------- */
+/* Current install wins over a cached module-resolution realpath              */
+/* -------------------------------------------------------------------------- */
+
+function writeVersionedInstalledPackage(dir, packageName, version) {
+  writeJson(join(dir, "package.json"), {
+    name: packageName,
+    version,
+    exports: { "./manifest": "./design-system.json" },
+  });
+  writeJson(join(dir, "design-system.json"), { package: packageName, version });
+}
+
+function writeInstalledCopy(consumerRoot, packageName, version) {
+  const dir = join(consumerRoot, "node_modules", ...packageName.split("/"));
+  writeVersionedInstalledPackage(dir, packageName, version);
+  return dir;
+}
+
+function writeConsumerPackage(dir, name = "consumer-app") {
+  writeJson(join(dir, "package.json"), { name, version: "0.0.0", private: true });
+  return dir;
+}
+
+test("installed resolution follows a replaced pnpm-style link, not a cached realpath", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "prism-link-"));
+  t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
+  const packageName = "@prism-system/ui-link-fresh";
+  const link = join(root, "node_modules", ...packageName.split("/"));
+  const oldDir = join(root, "store", "old");
+  const newDir = join(root, "store", "new");
+  writeConsumerPackage(root);
+  writeVersionedInstalledPackage(oldDir, packageName, "0.1.1");
+  writeVersionedInstalledPackage(newDir, packageName, "0.2.0");
+  mkdirSync(dirname(link), { recursive: true });
+  const linkType = process.platform === "win32" ? "junction" : "dir";
+  symlinkSync(oldDir, link, linkType);
+
+  const before = resolveInstalledDesignSystem({ consumerRoot: root, packageName });
+  assert.equal(before.packageJson.version, "0.1.1");
+  assert.equal(before.manifest.version, "0.1.1");
+
+  // pnpm updates the project link to a new versioned target after an upgrade.
+  unlinkSync(link);
+  symlinkSync(newDir, link, linkType);
+
+  const after = resolveInstalledDesignSystem({ consumerRoot: root, packageName });
+  assert.equal(after.packageJson.version, "0.2.0");
+  assert.equal(after.manifest.version, "0.2.0");
+  assert.equal(realpathSync(after.packageDir), realpathSync(newDir));
+});
+
+test("resolution falls back to a valid installed ancestor node_modules package", (t) => {
+  const outer = mkdtempSync(join(tmpdir(), "prism-ancestor-"));
+  t.after(() => rmSync(outer, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
+  const packageName = "@prism-system/ui-ancestor";
+  writeConsumerPackage(outer, "outer-app");
+  const ancestorDir = writeInstalledCopy(outer, packageName, "0.3.0");
+  const consumerRoot = writeConsumerPackage(join(outer, "app"), "child-app");
+
+  const installed = resolveInstalledDesignSystem({ consumerRoot, packageName });
+  assert.equal(installed.packageJson.version, "0.3.0");
+  assert.equal(installed.manifest.version, "0.3.0");
+  assert.equal(realpathSync(installed.packageDir), realpathSync(ancestorDir));
+});
+
+test("a direct install wins over a different ancestor copy", (t) => {
+  const outer = mkdtempSync(join(tmpdir(), "prism-direct-wins-"));
+  t.after(() => rmSync(outer, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
+  const packageName = "@prism-system/ui-direct-wins";
+  writeConsumerPackage(outer, "outer-app");
+  const ancestorDir = writeInstalledCopy(outer, packageName, "0.1.1");
+  const consumerRoot = writeConsumerPackage(join(outer, "app"), "child-app");
+  const directDir = writeInstalledCopy(consumerRoot, packageName, "0.2.0");
+
+  const installed = resolveInstalledDesignSystem({ consumerRoot, packageName });
+  assert.equal(installed.packageJson.version, "0.2.0");
+  assert.equal(installed.manifest.version, "0.2.0");
+  assert.equal(realpathSync(installed.packageDir), realpathSync(directDir));
+  assert.notEqual(realpathSync(installed.packageDir), realpathSync(ancestorDir));
+});
+
+test("a broken direct install fails closed without falling back to an ancestor copy", (t) => {
+  const packageName = "@prism-system/ui-direct-broken";
+
+  for (const variant of ["missing-manifest", "invalid-exports"]) {
+    const outer = mkdtempSync(join(tmpdir(), "prism-direct-broken-"));
+    t.after(() => rmSync(outer, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
+    writeConsumerPackage(outer, "outer-app");
+    writeInstalledCopy(outer, packageName, "0.1.1");
+    const consumerRoot = writeConsumerPackage(join(outer, "app"), "child-app");
+    const directDir = join(consumerRoot, "node_modules", ...packageName.split("/"));
+    writeJson(join(directDir, "package.json"), {
+      name: packageName,
+      version: "0.2.0",
+      exports: {
+        "./manifest": variant === "invalid-exports" ? "./other.json" : "./design-system.json",
+      },
+    });
+    if (variant === "invalid-exports") {
+      writeJson(join(directDir, "design-system.json"), { package: packageName, version: "0.2.0" });
+    }
+
+    assert.throws(
+      () => resolveInstalledDesignSystem({ consumerRoot, packageName }),
+      variant === "missing-manifest" ? /missing its manifest/ : /must expose/,
+      `${variant} must fail closed instead of resolving the ancestor 0.1.1 copy`,
+    );
+
+    // The older ancestor install is still valid; it must not have been used.
+    const ancestor = resolveInstalledDesignSystem({ consumerRoot: outer, packageName });
+    assert.equal(ancestor.packageJson.version, "0.1.1");
+  }
+});
+
+test("a direct manifest link outside the package directory is rejected", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "prism-manifest-escape-"));
+  t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
+  const packageName = "@prism-system/ui-manifest-escape";
+  writeConsumerPackage(root);
+  const packageDir = join(root, "node_modules", ...packageName.split("/"));
+  writeJson(join(packageDir, "package.json"), {
+    name: packageName,
+    version: "0.2.0",
+    exports: { "./manifest": "./design-system.json" },
+  });
+  const outsideManifest = join(root, "outside", "design-system.json");
+  writeFile(root, "outside/design-system.json", "{ not json }\n");
+
+  try {
+    symlinkSync(outsideManifest, join(packageDir, "design-system.json"), "file");
+  } catch {
+    t.skip("file symlinks are not available in this environment");
+    return;
+  }
+
+  assert.throws(
+    () => resolveInstalledDesignSystem({ consumerRoot: root, packageName }),
+    /escapes/,
+    "the real manifest target must stay inside the installed package directory",
+  );
 });

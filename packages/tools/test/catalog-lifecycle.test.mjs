@@ -213,6 +213,11 @@ function createConsumer(
   return { root, packageName };
 }
 
+function writePnpmWorkspace(root, patterns = ["apps/*", "packages/*"]) {
+  const lines = patterns.map((pattern) => `  - "${pattern}"`).join("\n");
+  writeFileSync(join(root, "pnpm-workspace.yaml"), `packages:\n${lines}\n`, "utf8");
+}
+
 /** A fake package manager that records calls and never executes anything. */
 function makeManager({ onSpawn, status = 0 } = {}) {
   const calls = [];
@@ -1424,4 +1429,149 @@ test("--with-entry accepts a contained consumer file and selects the referenced 
   );
   assert.equal(manager.calls.length, 0);
   assertUnchanged(consumer.root, before);
+});
+
+/* -------------------------------------------------------------------------- */
+/* pnpm workspace-root targeting                                             */
+/* -------------------------------------------------------------------------- */
+
+test("pnpm workspace root adds -w to install/use/upgrade dry runs without writing", async (t) => {
+  const registry = createRegistry({
+    packageName: systemAManifest.package,
+    versions: { "2.0.0": upgradeTo },
+  });
+  const consumer = createConsumer(t, {
+    packageName: systemAManifest.package,
+    manifest: upgradeFrom,
+    packageManager: "pnpm@12.5.1",
+  });
+  writePnpmWorkspace(consumer.root);
+  const manager = makeManager();
+  const before = snapshot(consumer.root);
+  const expectedArgs = [
+    "add",
+    "-w",
+    "--save-prod",
+    "--ignore-scripts",
+    `--registry=${registry.registry}`,
+    `${systemAManifest.package}@2.0.0`,
+  ];
+
+  const install = await installDesignSystem({
+    cwd: consumer.root,
+    package: systemAManifest.package,
+    version: "2.0.0",
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: manager.spawnImpl,
+    dryRun: true,
+  });
+  assert.equal(install.ok, true, install.failures?.join(" "));
+  assert.deepEqual(install.command.args, expectedArgs);
+
+  const use = await runUseDesignSystem({
+    cwd: consumer.root,
+    package: systemAManifest.package,
+    version: "2.0.0",
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: manager.spawnImpl,
+    dryRun: true,
+  });
+  assert.equal(use.ok, true, use.failures?.join(" "));
+  assert.deepEqual(use.install.command.args, expectedArgs);
+
+  const upgrade = await upgradeDesignSystem({
+    cwd: consumer.root,
+    package: systemAManifest.package,
+    version: "2.0.0",
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: manager.spawnImpl,
+    dryRun: true,
+  });
+  assert.equal(upgrade.ok, true, upgrade.failures?.join(" "));
+  assert.deepEqual(upgrade.command.args, expectedArgs);
+
+  assert.equal(manager.calls.length, 0);
+  assertUnchanged(consumer.root, before);
+});
+
+test("a pnpm workspace member keeps the ordinary add command without -w", async (t) => {
+  const registry = createRegistry({
+    packageName: systemAManifest.package,
+    versions: { "2.0.0": upgradeTo },
+  });
+  const parent = mkdtempSync(join(tmpdir(), "prism-workspace-"));
+  t.after(() => rmSync(parent, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
+  writePnpmWorkspace(parent);
+  const child = join(parent, "packages", "app");
+  mkdirSync(child, { recursive: true });
+  writeJson(join(child, "package.json"), {
+    name: "workspace-member",
+    version: "0.0.0",
+    private: true,
+    packageManager: "pnpm@12.5.1",
+    dependencies: { [systemAManifest.package]: "1.1.0" },
+  });
+  writeInstalled(child, upgradeFrom);
+  const manager = makeManager();
+  const before = snapshot(parent);
+
+  const result = await installDesignSystem({
+    cwd: child,
+    package: systemAManifest.package,
+    version: "2.0.0",
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: manager.spawnImpl,
+    dryRun: true,
+  });
+
+  assert.equal(result.ok, true, result.failures?.join(" "));
+  assert.equal(result.manager, "pnpm");
+  assert.deepEqual(result.command.args, [
+    "add",
+    "--save-prod",
+    "--ignore-scripts",
+    `--registry=${registry.registry}`,
+    `${systemAManifest.package}@2.0.0`,
+  ]);
+  assert.equal(manager.calls.length, 0);
+  assertUnchanged(parent, before);
+});
+
+test("plain pnpm and npm consumers never receive a workspace-root flag", async (t) => {
+  const registry = createRegistry({
+    packageName: systemAManifest.package,
+    versions: { [V4_VERSION]: systemAManifest },
+  });
+
+  for (const [label, packageManager, verb] of [
+    ["plain pnpm", "pnpm@12.5.1", "add"],
+    ["npm", "npm@10.0.0", "install"],
+  ]) {
+    const consumer = createConsumer(t, {
+      packageName: systemAManifest.package,
+      packageManager,
+    });
+    const manager = makeManager();
+    const before = snapshot(consumer.root);
+
+    const result = await installDesignSystem({
+      cwd: consumer.root,
+      package: systemAManifest.package,
+      version: V4_VERSION,
+      registry: registry.registry,
+      fetchImpl: registry.fetchImpl,
+      spawnImpl: manager.spawnImpl,
+      dryRun: true,
+    });
+
+    assert.equal(result.ok, true, `${label}: ${result.failures?.join(" ")}`);
+    assert.equal(result.command.args[0], verb, label);
+    assert.equal(result.command.args.includes("-w"), false, label);
+    assert.equal(manager.calls.length, 0, label);
+    assertUnchanged(consumer.root, before);
+  }
 });

@@ -259,6 +259,7 @@ function createConsumer(
     configOverride,
     rootAgents = null,
     extraDependencies = {},
+    packageManager = "npm@10.0.0",
   } = {},
 ) {
   const root = mkdtempSync(join(tmpdir(), "prism-lifecycle-"));
@@ -268,7 +269,7 @@ function createConsumer(
     name: "consumer-app",
     version: "0.0.0",
     private: true,
-    packageManager: "npm@10.0.0",
+    packageManager,
     dependencies: { [oldManifest.package]: `^${oldManifest.version}`, ...extraDependencies },
   };
   // A legacy consumer is a pre-package.json install: the configuration and the
@@ -510,6 +511,44 @@ test("switch --dry-run plans exact dependency, source, and connect bytes without
   const warningCodes = result.compatibility.warnings.map((warning) => warning.code);
   assert.ok(warningCodes.includes("old-dependency-retained"));
   assert.ok(warningCodes.includes("appearance-unknown"));
+  assert.equal(manager.calls.length, 0);
+  assertUnchanged(root, before);
+});
+
+test("switch at a pnpm workspace root plans -w and stays read-only", async (t) => {
+  const target = buildTargetManifest();
+  const registry = createRegistry({
+    packageName: TARGET_PACKAGE,
+    versions: { [TARGET_VERSION]: target },
+  });
+  const root = createConsumer(t, {
+    packageManager: "pnpm@12.5.1",
+    source: { "src/app.tsx": APP_TSX },
+  });
+  writeFile(root, "pnpm-workspace.yaml", 'packages:\n  - "apps/*"\n  - "packages/*"\n');
+  const manager = makeManager();
+  const before = snapshot(root);
+
+  const result = await switchDesignSystem({
+    cwd: root,
+    package: TARGET_PACKAGE,
+    version: TARGET_VERSION,
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: manager.spawnImpl,
+    dryRun: true,
+  });
+
+  assert.equal(result.ok, true, result.failures?.join(" "));
+  assert.equal(result.reason, "dry-run");
+  assert.deepEqual(result.command.args, [
+    "add",
+    "-w",
+    "--save-prod",
+    "--ignore-scripts",
+    `--registry=${registry.registry}`,
+    `${TARGET_PACKAGE}@${TARGET_VERSION}`,
+  ]);
   assert.equal(manager.calls.length, 0);
   assertUnchanged(root, before);
 });
@@ -1646,6 +1685,7 @@ function removeConsumer(t, options = {}) {
     source: options.source ?? {},
     css: options.css ?? null,
     legacy: options.legacy ?? false,
+    packageManager: options.packageManager,
     rootAgents:
       options.rootAgents === undefined
         ? generatedRootAgents("# Project\n\nSome user instructions.\n", oldManifest)
@@ -1691,6 +1731,21 @@ test("remove --dry-run fails closed on unmarked bridge imports without spawning 
   );
   assert.match(result.failures.join(" "), /cannot be proven tool-managed/);
   assert.match(result.failures.join(" "), /manually/);
+  assert.equal(manager.calls.length, 0);
+  assertUnchanged(root, before);
+});
+
+test("remove at a pnpm workspace root keeps the fixed remove command without -w", (t) => {
+  const root = removeConsumer(t, { packageManager: "pnpm@12.5.1" });
+  writeFile(root, "pnpm-workspace.yaml", 'packages:\n  - "apps/*"\n  - "packages/*"\n');
+  const manager = makeManager();
+  const before = snapshot(root);
+
+  const result = removeDesignSystem({ cwd: root, dryRun: true });
+
+  assert.equal(result.ok, true, result.failures?.join(" "));
+  assert.equal(result.manager, "pnpm");
+  assert.deepEqual(result.command.args, ["remove", OLD_PACKAGE, "--ignore-scripts"]);
   assert.equal(manager.calls.length, 0);
   assertUnchanged(root, before);
 });

@@ -28,9 +28,10 @@
  * conflicting configs, multiple candidates, a missing package, or mismatched
  * versions fail closed.
  *
- * The installed package and its public `./manifest` export are resolved through
- * Node package resolution from the consumer root, never by hardcoding a
- * monorepo layout or importing package internals. Verification requires exact
+ * The installed package and its public `./manifest` export are resolved from the
+ * consumer's current package installation, with Node package resolution as the
+ * fallback for hoisted layouts — never by hardcoding a monorepo layout or
+ * importing package internals. Verification requires exact
  * equality among the consumer config version (when present), the installed
  * `package.json` version, the shipped `design-system.json` version, and the
  * package identity. The shipped manifest must declare the current metadata —
@@ -65,6 +66,7 @@ import {
   SYSTEM_ID_PATTERN,
   assertWithin,
   readJsonFile,
+  resolveRealPath,
   toPackageName,
 } from "./constants.mjs";
 import { collectManifestFailures, detectManifestContract } from "./manifest.mjs";
@@ -610,11 +612,41 @@ function findPackageDirectory(manifestPath, packageName) {
 }
 
 /**
- * Resolve an installed design system through Node package resolution from the
- * consumer root and read its public `./manifest` export. Never imports package
- * internals, hardcodes a monorepo layout, or reads the design-systems source.
+ * Resolve the installed package directory through the consumer's own
+ * `node_modules` entry and follow that symlink/junction now, bypassing Node's
+ * process-wide resolution cache.
+ *
+ * pnpm replaces a dependency with a new `.pnpm/<pkg>@<version>` target during
+ * upgrade. `require.resolve()` can keep returning the previous target for the
+ * rest of the process. The incoming `node_modules` link is the current installed
+ * entry, so it is realpath'd on every call. Returns null when the package is not
+ * linked directly under the consumer root, leaving hoisted/ancestor layouts to
+ * Node resolution.
  */
-export function resolveInstalledDesignSystem({ consumerRoot, packageName }) {
+export function resolveDirectInstalledPackageDir(consumerRoot, packageName) {
+  const direct = join(consumerRoot, "node_modules", ...packageName.split("/"));
+  try {
+    if (!statSync(join(direct, "package.json")).isFile()) return null;
+  } catch {
+    return null;
+  }
+  return resolveRealPath(direct);
+}
+
+/**
+ * Locate an installed package directory and its public manifest path. The direct
+ * consumer `node_modules` entry wins because it reflects the current on-disk
+ * install; Node resolution remains the fallback for hoisted/ancestor layouts.
+ */
+function resolveInstalledPackageLocation(consumerRoot, packageName) {
+  const directPackageDir = resolveDirectInstalledPackageDir(consumerRoot, packageName);
+  if (directPackageDir !== null) {
+    return {
+      packageDir: directPackageDir,
+      manifestPath: resolveRealPath(join(directPackageDir, MANIFEST_EXPORT_TARGET)),
+    };
+  }
+
   const requireFromConsumer = createRequire(join(consumerRoot, "package.json"));
   const manifestSpecifier = `${packageName}${MANIFEST_EXPORT_SUBPATH.replace(/^\./, "")}`;
   let manifestPath;
@@ -633,6 +665,16 @@ export function resolveInstalledDesignSystem({ consumerRoot, packageName }) {
       `Installed "${packageName}" could not be located from its manifest at ${manifestPath}.`,
     );
   }
+  return { packageDir, manifestPath };
+}
+
+/**
+ * Resolve an installed design system from the consumer's current package
+ * installation and read its public `./manifest` export. Never imports package
+ * internals, hardcodes a monorepo layout, or reads the design-systems source.
+ */
+export function resolveInstalledDesignSystem({ consumerRoot, packageName }) {
+  const { packageDir, manifestPath } = resolveInstalledPackageLocation(consumerRoot, packageName);
   const packageJsonPath = join(packageDir, "package.json");
   let packageJson;
   try {

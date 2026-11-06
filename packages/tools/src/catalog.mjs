@@ -656,6 +656,7 @@ export async function installDesignSystem({
       extraPackages: peers
         .filter((peer) => peer.action === "install")
         .map((peer) => `${peer.name}@${peer.version}`),
+      workspaceRoot: detection.workspaceRoot,
     });
   } catch (error) {
     return {
@@ -1131,6 +1132,7 @@ export async function upgradeDesignSystem({
       extraPackages: peers
         .filter((peer) => peer.action === "install")
         .map((peer) => `${peer.name}@${peer.version}`),
+      workspaceRoot: detection.workspaceRoot,
     });
   } catch (error) {
     return {
