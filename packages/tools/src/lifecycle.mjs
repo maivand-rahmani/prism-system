@@ -13,10 +13,11 @@
  *      target, or when usage cannot be verified (dynamic/computed cases);
  *   4. plans exact byte-level changes: the fixed `--ignore-scripts` install
  *      command with the selected entries' peer requirements (explicit
- *      `--with-entry` plus every extension the scan verified as actively used),
- *      literal package-prefix module/CSS-import rewrites, and the generated
- *      connect files (the `package.json` `"designSystem"` value, the root
- *      `AGENTS.md` managed block, and any legacy `.design-system/` retirement);
+ *      `--with-entry` plus every extension the scan verified as actively used
+ *      and the reserved icon entrypoint when icon usage was found), literal
+ *      package-prefix module/CSS-import rewrites, and the generated connect
+ *      files (the `package.json` `"designSystem"` value, the root `AGENTS.md`
+ *      managed block, and any legacy `.design-system/` retirement);
  *   5. requires explicit `confirmed: true` for mutation; a dry run never spawns
  *      or writes, and missing consent returns the plan with
  *      `boundary: "confirmation-required"`;
@@ -96,7 +97,13 @@ import {
   resolveInstalledDesignSystem,
   verifyConsumerDesignSystem,
 } from "./consumer.mjs";
-import { CONTRACT_VERSION, DEFAULT_ENTRYPOINT_KEYS, assertWithin } from "./constants.mjs";
+import {
+  CONTRACT_VERSION,
+  DEFAULT_ENTRYPOINT_KEYS,
+  ICON_ENTRYPOINT,
+  assertWithin,
+  iconExportName,
+} from "./constants.mjs";
 import {
   parsePeerOverrides,
   planEntryAndPeers,
@@ -844,6 +851,29 @@ function usedExtensionEntries(usage) {
   return [...byName.values()];
 }
 
+/**
+ * The reserved icon entrypoint the active-usage scan verified, deduplicated by
+ * entrypoint in first-seen order. Every used icon comes from the single
+ * reserved `./icons` entrypoint, so at most one entry is returned; the entry's
+ * `name` is the entrypoint key the entry planner selects. Compatibility
+ * assessment runs before planning and blocks any used icon the target does not
+ * publish, so a returned entrypoint is safe to select.
+ */
+function usedIconEntries(usage) {
+  const sites = Array.isArray(usage?.icons) ? usage.icons : [];
+  const byEntrypoint = new Map();
+  for (const site of sites) {
+    const entrypoint = typeof site.entrypoint === "string" ? site.entrypoint : ICON_ENTRYPOINT;
+    if (byEntrypoint.has(entrypoint)) continue;
+    byEntrypoint.set(entrypoint, {
+      name: entrypoint,
+      entrypoint,
+      file: typeof site.file === "string" ? site.file : null,
+    });
+  }
+  return [...byEntrypoint.values()];
+}
+
 /** Material option block for a switch plan. */
 function switchOptionsMaterial({ usage, strict, ignore, withEntry, peerSpecs }) {
   return {
@@ -883,6 +913,7 @@ function coverageOf(usage, targetTokens) {
     sizes: usage.counts.sizes,
     members: usage.counts.members,
     extensions: usage.counts.extensions,
+    icons: usage.counts.icons ?? 0,
     unverified: usage.counts.unverified,
     tokenReferences: usage.counts.tokenReferences,
     publicApiAccesses: usage.counts.publicApiAccesses,
@@ -1020,6 +1051,28 @@ export function assessSwitchCompatibility({ usage, targetManifest, fromPackage, 
       pushBlocker(
         "changed-extension-entrypoint",
         `Extension "${site.name}" moved from "${site.entrypoint}" to "${target.entrypoint}" and cannot be rewritten automatically (${where(site)}).`,
+        site,
+      );
+    }
+  }
+  for (const site of usage.icons ?? []) {
+    const targetIcon = targetModel.icons.get(site.name);
+    if (targetIcon === undefined) {
+      pushBlocker(
+        "missing-icon",
+        `Icon "${iconExportName(site.name)}" used at ${where(site)} is not declared by "${toPackage}".`,
+        site,
+      );
+      continue;
+    }
+    if (
+      site.entrypoint !== null &&
+      targetModel.iconEntrypoint !== null &&
+      site.entrypoint !== targetModel.iconEntrypoint
+    ) {
+      pushBlocker(
+        "changed-icon-entrypoint",
+        `Icon "${site.name}" moved from "${site.entrypoint}" to "${targetModel.iconEntrypoint}" and cannot be rewritten automatically (${where(site)}).`,
         site,
       );
     }
@@ -1517,14 +1570,14 @@ export async function switchDesignSystem({
   try {
     explicitEntries = normalizeExplicitEntries(withEntry);
     const explicitSet = new Set(explicitEntries);
-    autoSelectedEntries = usedExtensionEntries(usage).filter(
+    autoSelectedEntries = [...usedExtensionEntries(usage), ...usedIconEntries(usage)].filter(
       (entry) => !explicitSet.has(entry.name),
     );
-    // Verified used extensions are planned exactly like an explicit
-    // `--with-entry`, so a declared requirement of an imported extension can
-    // never be skipped. The conservative root/tokens defaults stay selected
-    // only when no entry was given explicitly, preserving the previous
-    // no-flag behavior.
+    // Verified used extensions and the reserved icon entrypoint are planned
+    // exactly like an explicit `--with-entry`, so a declared requirement of an
+    // imported extension or the icon catalog can never be skipped. The
+    // conservative root/tokens defaults stay selected only when no entry was
+    // given explicitly, preserving the previous no-flag behavior.
     entryPlan = planEntryAndPeers({
       consumerRoot,
       packageName: to.package,

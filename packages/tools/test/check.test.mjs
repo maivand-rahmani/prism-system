@@ -79,6 +79,11 @@ function createConsumer(t, options = {}) {
     tailwindTargetExists = packageTailwindTarget === "./dist/tailwind.css",
     tailwind = null,
     tailwindDeclared = tailwind !== null,
+    icons = null,
+    iconsTarget = "./dist/icons.mjs",
+    packageIconsTarget = iconsTarget,
+    iconsTargetExists = true,
+    includePackageIcons = icons !== null,
     mutateManifest = null,
     packageExports = {},
     files = {},
@@ -99,6 +104,11 @@ function createConsumer(t, options = {}) {
   else delete manifest.exports["./styles.css"];
   if (includeManifestTailwind) manifest.exports["./tailwind.css"] = manifestTailwindTarget;
   else delete manifest.exports["./tailwind.css"];
+  if (icons !== null) {
+    manifest.entrypoints["./icons"] = { requirements: [] };
+    manifest.exports["./icons"] = iconsTarget;
+    manifest.publicApi["./icons"] = icons.map((name) => `${name}Icon`);
+  }
   if (typeof mutateManifest === "function") mutateManifest(manifest);
 
   const dependencies = { [packageName]: version };
@@ -130,6 +140,7 @@ function createConsumer(t, options = {}) {
   const exportsMap = { "./manifest": "./design-system.json" };
   if (includePackageStyles) exportsMap["./styles.css"] = packageStylesTarget;
   if (includePackageTailwind) exportsMap["./tailwind.css"] = packageTailwindTarget;
+  if (includePackageIcons) exportsMap["./icons"] = packageIconsTarget;
   Object.assign(exportsMap, packageExports);
 
   const systemDir = join(root, "node_modules", ...packageName.split("/"));
@@ -147,6 +158,12 @@ function createConsumer(t, options = {}) {
     const tailwindRelative = toWritableRelative(packageTailwindTarget);
     if (tailwindRelative !== null) {
       writeFile(systemDir, tailwindRelative, "/* tailwind bridge */\n");
+    }
+  }
+  if (includePackageIcons && iconsTargetExists) {
+    const iconsRelative = toWritableRelative(packageIconsTarget);
+    if (iconsRelative !== null) {
+      writeFile(systemDir, iconsRelative, "/* icons */\n");
     }
   }
 
@@ -223,6 +240,10 @@ test("a connected consumer without Tailwind or CSS passes", (t) => {
   assert.equal(checkById(result, CHECK_IDS.cssImports).status, CHECK_STATUS.NOT_CHECKED);
   assert.equal(checkById(result, CHECK_IDS.usage).status, CHECK_STATUS.PASSED);
   assert.equal(checkById(result, CHECK_IDS.components).status, CHECK_STATUS.PASSED);
+  const icons = checkById(result, CHECK_IDS.icons);
+  assert.equal(icons.status, CHECK_STATUS.NOT_CHECKED);
+  assert.equal(icons.required, false);
+  assert.match(icons.detail, /no icon catalog declared/);
 });
 
 /* -------------------------------------------------------------------------- */
@@ -424,6 +445,72 @@ test("required components pass and an absent optional is not a failure", (t) => 
     components.report.unavailable.includes("Skeleton"),
     "an undeclared optional is reported unavailable, not failed",
   );
+});
+
+/* -------------------------------------------------------------------------- */
+/* Icon catalog                                                               */
+/* -------------------------------------------------------------------------- */
+
+test("a system without an icon catalog reports an optional not-checked row", (t) => {
+  const { root } = createConsumer(t);
+
+  const result = checkDesignSystem({ cwd: root });
+
+  const icons = checkById(result, CHECK_IDS.icons);
+  assert.equal(icons.status, CHECK_STATUS.NOT_CHECKED);
+  assert.equal(icons.required, false);
+  assert.match(icons.detail, /no icon catalog declared \(absence means unavailable\)/);
+  assert.equal(icons.report.supported, false);
+  assert.equal(icons.report.counts.available, 0);
+  assert.equal(result.ok, true, JSON.stringify(failedRequired(result)));
+});
+
+test("a shipped icon catalog passes and reports its canonical counts", (t) => {
+  const iconNames = ["ArrowLeft", "Plus", "Search", "Download", "Info", "User"];
+  const { root } = createConsumer(t, { icons: iconNames });
+
+  const result = checkDesignSystem({ cwd: root });
+
+  const icons = checkById(result, CHECK_IDS.icons);
+  assert.equal(icons.status, CHECK_STATUS.PASSED);
+  assert.equal(icons.required, true);
+  assert.match(icons.detail, /6 available of 50 canonical/);
+  assert.match(icons.detail, /\.\/icons -> \.\/dist\/icons\.mjs/);
+  assert.equal(icons.report.counts.available, iconNames.length);
+  assert.equal(icons.report.counts.total, 50);
+  assert.equal(result.ok, true, JSON.stringify(failedRequired(result)));
+});
+
+test("an icon catalog without its package export target fails", (t) => {
+  const { root } = createConsumer(t, {
+    icons: ["ArrowLeft"],
+    includePackageIcons: false,
+  });
+
+  const result = checkDesignSystem({ cwd: root });
+
+  const icons = checkById(result, CHECK_IDS.icons);
+  assert.equal(icons.status, CHECK_STATUS.FAILED);
+  assert.match(icons.detail, /must expose/);
+  assert.equal(result.ok, false);
+});
+
+test("a malformed icon public API fails the icon row", (t) => {
+  const { root } = createConsumer(t, {
+    mutateManifest: (manifest) => {
+      manifest.entrypoints["./icons"] = { requirements: [] };
+      manifest.exports["./icons"] = "./dist/icons.mjs";
+      manifest.publicApi["./icons"] = ["arrow-left"];
+    },
+    packageExports: { "./icons": "./dist/icons.mjs" },
+  });
+
+  const result = checkDesignSystem({ cwd: root });
+
+  const icons = checkById(result, CHECK_IDS.icons);
+  assert.equal(icons.status, CHECK_STATUS.FAILED);
+  assert.match(icons.detail, /canonical/);
+  assert.equal(result.ok, false);
 });
 
 /* -------------------------------------------------------------------------- */

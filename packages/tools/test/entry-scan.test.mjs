@@ -423,7 +423,9 @@ test("an undeclared code export is not a selectable entry", (t) => {
 test("root and non-extension declared entrypoints are selected by exact specifier", (t) => {
   const manifest = syntheticManifest({ id: "custom", version: "1.0.0" });
   manifest.entrypoints["."] = {
-    requirements: [{ name: "react", kind: "peer", range: "^18.0.0", optional: false }],
+    requirements: [
+      { name: "@prism-system/absent-peer", kind: "peer", range: "^1.0.0", optional: false },
+    ],
   };
   manifest.entrypoints["./motion"] = {
     requirements: [{ name: "motion", kind: "peer", range: "^12.0.0", optional: true }],
@@ -444,7 +446,7 @@ test("root and non-extension declared entrypoints are selected by exact specifie
   assert.deepEqual(selection.entries[0].selectedEntrypoints, [".", "./motion"]);
   assert.deepEqual(
     selection.requirements.map((requirement) => requirement.name),
-    ["react", "motion"],
+    ["@prism-system/absent-peer", "motion"],
   );
 
   const result = collectEntryPrerequisites({
@@ -458,11 +460,11 @@ test("root and non-extension declared entrypoints are selected by exact specifie
   assert.deepEqual(
     result.report.requirements.map((requirement) => [requirement.name, requirement.status]),
     [
-      ["react", "missing"],
+      ["@prism-system/absent-peer", "missing"],
       ["motion", "missing"],
     ],
   );
-  assert.match(result.failures.join(" "), /"react".*not installed/);
+  assert.match(result.failures.join(" "), /"@prism-system\/absent-peer".*not installed/);
   assert.match(result.failures.join(" "), /"motion".*not installed/);
 });
 

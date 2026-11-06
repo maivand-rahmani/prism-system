@@ -103,6 +103,7 @@ export function helpText() {
     `  ${CLI_NAME} check-usage --cwd <root> [options]`,
     `  ${CLI_NAME} doctor [package] --cwd <root>`,
     `  ${CLI_NAME} components [name] --cwd <root> [--json]`,
+    `  ${CLI_NAME} icons [name] --cwd <root> [--json]`,
     `  ${CLI_NAME} tokens [group] --cwd <root> [--json]`,
     `  ${CLI_NAME} check --cwd <root> [--css <file>] [--json]`,
     `  ${CLI_NAME} setup-tailwind --cwd <root> --css <file> [--dry-run] [--check] [--json]`,
@@ -128,6 +129,7 @@ export function helpText() {
     "  check-usage     Deterministically validate strict usage with the TypeScript AST.",
     "  doctor          Read-only diagnostics: containment, discovery, manifest, config.",
     "  components      Offline component catalog of the installed style.",
+    "  icons           Offline icon catalog of the installed style.",
     "  tokens          Offline token catalog of the installed style.",
     "  check           One offline read-only health report for a connected consumer.",
     "  setup-tailwind  Write the Tailwind v4 bridge imports into one explicit CSS file.",
@@ -159,8 +161,8 @@ export function helpText() {
     "                                   (Node >= 22.20), preview + --yes only; installs",
     "                                   instructions only, never dependencies.",
     "  connect/check-usage/doctor/      offline and never edit dependencies (connect writes",
-    "  config/components/tokens/check/  only the consumer config/AGENTS files; config only",
-    "                                   moves that configuration; the rest are read-only).",
+    "  config/components/icons/tokens/  only the consumer config/AGENTS files; config only",
+    "  check                            moves that configuration; the rest are read-only).",
     "  setup-tailwind                   offline; the only command that edits its explicitly",
     "                                   named --css file, and it writes nothing in --dry-run",
     "                                   or --check.",
@@ -384,6 +386,31 @@ export function componentsHelpText() {
     "  --cwd <path>          Consumer root (required; never defaults to a repo root).",
     "  --json                Emit stable JSON.",
     "  -h, --help            Show this help.",
+    "",
+  ].join("\n");
+}
+
+export function iconsHelpText() {
+  return [
+    `Usage: ${CLI_NAME} icons [name] --cwd <consumer-root> [--json]`,
+    "",
+    "Offline, read-only icon catalog for the design system installed in a consumer.",
+    "It reads only the installed package's public ./manifest export. Availability is",
+    "the real publicApi['./icons'] list (canonical NameIcon exports), never the fixed",
+    "catalog in @prism-system/ui-core. A system without ./icons has no available icons.",
+    "",
+    "Arguments:",
+    "  [name]                Optional canonical name (Search), public export name",
+    "                        (SearchIcon), or unique case-insensitive name. A known but",
+    "                        undeclared icon is reported unavailable; an unknown name fails.",
+    "",
+    "Options:",
+    "  --cwd <path>          Consumer root (required; never defaults to a repo root).",
+    "  --json                Emit stable JSON.",
+    "  -h, --help            Show this help.",
+    "",
+    "Exit code is zero when the catalog is read successfully, including a system that",
+    "declares no icons. It is non-zero for an unknown icon name or an invalid manifest.",
     "",
   ].join("\n");
 }
@@ -1746,6 +1773,111 @@ export async function runTokensCommand(argv) {
 }
 
 /* -------------------------------------------------------------------------- */
+/* icons                                                                      */
+/* -------------------------------------------------------------------------- */
+
+function reportIconCatalog(result) {
+  const lines = [
+    `${result.package}@${result.version} — icon catalog (contract version ${result.contractVersion})`,
+  ];
+  if (!result.supported) {
+    lines.push(
+      "  no icon catalog declared; absence means unavailable " +
+        `(0 available, ${result.counts.unavailable} canonical names undefined by this system)`,
+    );
+  } else {
+    lines.push(`  entrypoint: ${result.entrypoint} → ${result.importPath}`);
+    lines.push(
+      `  ${result.counts.available} available, ${result.counts.unavailable} unavailable ` +
+        `of ${result.counts.total} canonical icons`,
+    );
+    lines.push("");
+    for (const [category, entry] of Object.entries(result.categories)) {
+      if (entry.names.length === 0) continue;
+      lines.push(`  ${category} (${entry.available.length}/${entry.names.length})`);
+      for (const icon of result.icons) {
+        if (icon.category !== category || !icon.available) continue;
+        lines.push(`    ${icon.name}  ${icon.exportName}`);
+      }
+    }
+    if (result.unavailable.length > 0) {
+      lines.push("");
+      lines.push(`  unavailable: ${result.unavailable.join(", ")}`);
+    }
+    const requirements = result.icons.find((icon) => icon.available)?.requirements ?? [];
+    if (requirements.length > 0) {
+      lines.push("");
+      lines.push("  entrypoint requirements:");
+      for (const requirement of requirements) {
+        lines.push(
+          `    ${requirement.name}  [${requirement.kind}] ${requirement.range}` +
+            `${requirement.optional ? " optional" : ""}`,
+        );
+      }
+    }
+  }
+  if (result.requested) {
+    const requested = result.requested;
+    lines.push("");
+    lines.push(
+      `Requested ${requested.name}: ${requested.available ? "available" : "unavailable"}` +
+        (requested.reason === "no-icon-catalog"
+          ? " (this system declares no icon catalog)"
+          : requested.reason === "not-declared"
+            ? " (known canonical name, but this system does not publish it)"
+            : ""),
+    );
+    if (requested.available) {
+      lines.push(`  export: ${requested.exportName}`);
+      lines.push(`  import: ${requested.importStatement}`);
+      for (const requirement of requested.requirements) {
+        lines.push(
+          `  ${requirement.name}  [${requirement.kind}] ${requirement.range}` +
+            `${requirement.optional ? " optional" : ""}`,
+        );
+      }
+    }
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
+export async function runIconsCommand(argv) {
+  let parsed;
+  try {
+    parsed = parseOptions(argv, {
+      maxPositionals: 1,
+      booleans: ["json"],
+      values: ["cwd"],
+    });
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  if (parsed.options.help) {
+    process.stdout.write(iconsHelpText());
+    return;
+  }
+  let result;
+  try {
+    const { listDesignSystemIcons } = await import("./icons.mjs");
+    result = listDesignSystemIcons({
+      cwd: parsed.options.cwd,
+      name: parsed.positionals[0],
+    });
+  } catch (error) {
+    reportCommandFailure("Icon catalog failed", error);
+    return;
+  }
+  if (parsed.options.json) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  }
+  process.stdout.write(`${reportIconCatalog(result)}\n`);
+}
+
+/* -------------------------------------------------------------------------- */
 /* check                                                                      */
 /* -------------------------------------------------------------------------- */
 
@@ -3031,6 +3163,10 @@ export async function runCli(argv) {
   }
   if (command === "components") {
     await runComponentsCommand(rest);
+    return;
+  }
+  if (command === "icons") {
+    await runIconsCommand(rest);
     return;
   }
   if (command === "tokens") {

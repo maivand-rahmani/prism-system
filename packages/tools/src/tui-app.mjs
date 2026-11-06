@@ -20,6 +20,7 @@ const SYSTEM_TABS = [
   { id: "components", label: "Components" },
   { id: "tokens", label: "Tokens" },
   { id: "checks", label: "Checks" },
+  { id: "icons", label: "Icons" },
 ];
 const CATEGORY_NAMES = new Set(["composition", "forms", "data-display"]);
 
@@ -760,6 +761,11 @@ function TuiApp({ services }) {
   const [tokenGroup, setTokenGroup] = useState(null);
   const [tokenQuery, setTokenQuery] = useState("");
   const [tokenDraft, setTokenDraft] = useState("");
+  const [iconCatalog, setIconCatalog] = useState(null);
+  const [iconError, setIconError] = useState(null);
+  const [iconQuery, setIconQuery] = useState("");
+  const [iconDraft, setIconDraft] = useState("");
+  const [selectedIconName, setSelectedIconName] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchDraft, setSearchDraft] = useState("");
   const [catalogLoaded, setCatalogLoaded] = useState(false);
@@ -1035,14 +1041,36 @@ function TuiApp({ services }) {
     [services, tokenCatalog, tokenError],
   );
 
+  const loadIconCatalog = useCallback(
+    (force = false) => {
+      if (!force && (iconCatalog || iconError)) return;
+      try {
+        const result = services.listIcons({});
+        if (!result?.ok) {
+          setIconError(failuresOf(result).join(" ") || "Icon catalog could not be read.");
+          return;
+        }
+        setIconCatalog(result);
+        const firstAvailable = Array.isArray(result.icons)
+          ? result.icons.find((icon) => icon?.available === true)
+          : null;
+        setSelectedIconName(firstAvailable?.name ?? null);
+      } catch (error) {
+        setIconError(messageOf(error));
+      }
+    },
+    [iconCatalog, iconError, services],
+  );
+
   const selectTab = useCallback(
     (tab) => {
       setActiveTab(tab);
       setNotice(null);
       if (tab === "components") loadComponentCatalog();
       if (tab === "tokens") loadTokenCatalog();
+      if (tab === "icons") loadIconCatalog();
     },
-    [loadComponentCatalog, loadTokenCatalog],
+    [loadComponentCatalog, loadIconCatalog, loadTokenCatalog],
   );
 
   const cycleTokenGroup = useCallback(
@@ -1936,7 +1964,7 @@ function TuiApp({ services }) {
           return true;
         }
       } else if (project?.status === "connected" && view === "main") {
-        if (event.key >= "1" && event.key <= "4") {
+        if (event.key >= "1" && event.key <= "5") {
           selectTab(SYSTEM_TABS[Number(event.key) - 1].id);
           return true;
         }
@@ -2022,6 +2050,18 @@ function TuiApp({ services }) {
             setView("css-input");
             return true;
           }
+        } else if (activeTab === "icons") {
+          if (event.key === "/") {
+            setIconDraft(iconQuery);
+            setView("icon-search");
+            return true;
+          }
+          if (event.key === "l") {
+            setIconCatalog(null);
+            setIconError(null);
+            loadIconCatalog(true);
+            return true;
+          }
         }
       } else if (project?.status === "error" && event.key === "p") {
         readProjectState();
@@ -2058,6 +2098,8 @@ function TuiApp({ services }) {
         tokenQuery,
         tokenCatalog,
         tokenGroup,
+        iconQuery,
+        iconCatalog,
         cycleTokenGroup,
         openManagedFilePreview,
         openManifestDiffPreview,
@@ -2082,6 +2124,7 @@ function TuiApp({ services }) {
         openSkillAgentInput,
         selectTab,
         loadComponentCatalog,
+        loadIconCatalog,
         loadTokenCatalog,
         runCheckAction,
         exit,
@@ -2099,6 +2142,7 @@ function TuiApp({ services }) {
       if (
         view !== "search-input" &&
         view !== "token-search" &&
+        view !== "icon-search" &&
         view !== "upgrade-input" &&
         view !== "css-input" &&
         view !== "use-agent-input" &&
@@ -2617,6 +2661,128 @@ function TuiApp({ services }) {
     ]);
   };
 
+  const renderIcons = () => {
+    if (iconError) {
+      return paragraph([
+        line(
+          [
+            statusBadge("error", "Icon catalog unavailable", "status"),
+            h(Text, { key: "error", wrap: "wrap" }, iconError),
+          ],
+          { key: "icon-error" },
+        ),
+      ]);
+    }
+    if (!iconCatalog)
+      return h(Text, { dimColor: true }, "Reading the installed public manifest icon catalog…");
+
+    const icons = Array.isArray(iconCatalog.icons) ? iconCatalog.icons : [];
+    const availableIcons = icons.filter((icon) => icon?.available === true);
+    const unavailableCount = icons.length - availableIcons.length;
+    const query = iconQuery.trim().toLowerCase();
+    const visibleIcons = query
+      ? availableIcons.filter((icon) => {
+          const haystack = [icon.name, icon.exportName, icon.category, icon.importPath]
+            .filter((value) => typeof value === "string")
+            .join(" ")
+            .toLowerCase();
+          return haystack.includes(query);
+        })
+      : availableIcons;
+    const selectedIcon =
+      visibleIcons.find((icon) => icon.name === selectedIconName) ?? visibleIcons[0] ?? null;
+    const iconItems = visibleIcons.map((icon) => ({
+      id: `icon-${icon.name}`,
+      label: `${icon.name}  ${icon.exportName}`,
+      description: `Category: ${displayValue(icon.category)} · ${displayValue(icon.importPath)}`,
+    }));
+
+    return paragraph([
+      h(Heading, { key: "title" }, "Icon catalog"),
+      h(
+        Text,
+        { key: "counts", dimColor: true },
+        `${availableIcons.length} available · ${unavailableCount} unavailable`,
+      ),
+      !iconCatalog.supported &&
+        line(
+          [
+            statusBadge("info", "No icon catalog", "status"),
+            h(
+              Text,
+              { key: "unsupported", wrap: "wrap" },
+              "No icon catalog is declared by this design system.",
+            ),
+          ],
+          { key: "icon-unsupported" },
+        ),
+      iconCatalog.supported &&
+        h(
+          Text,
+          { key: "caveat", wrap: "wrap" },
+          "Only icons published by the installed public ./icons entrypoint are listed and importable.",
+        ),
+      iconCatalog.supported &&
+        h(
+          Text,
+          { key: "count", dimColor: true },
+          `${visibleIcons.length}/${availableIcons.length} icon names${query ? ` · filter: ${query}` : ""}`,
+        ),
+      iconCatalog.supported &&
+        (iconItems.length > 0
+          ? h(List, {
+              key: "icon-list",
+              items: iconItems,
+              selectedId: selectedIcon ? `icon-${selectedIcon.name}` : undefined,
+              onSelect: (id) => {
+                const icon = iconItems.find((item) => item.id === id);
+                if (!icon) return;
+                setSelectedIconName(icon.id.slice("icon-".length));
+              },
+              maxVisible: Math.max(2, Math.min(10, rows - (compact ? 12 : 14))),
+            })
+          : h(
+              Text,
+              { key: "empty", dimColor: true },
+              query
+                ? "No icon names match this filter."
+                : "This system publishes no available icon names.",
+            )),
+      iconCatalog.supported &&
+        selectedIcon &&
+        paragraph(
+          [
+            rule("SELECTED ICON", "icon-detail-rule"),
+            h(Heading, { key: "icon-name", compact: true }, selectedIcon.exportName),
+            catalogDetail(
+              "IMPORT",
+              selectedIcon.importStatement ?? "Not importable; this icon is not published.",
+              "icon-import",
+            ),
+            catalogDetail(
+              "ENTRYPOINT",
+              `${displayValue(selectedIcon.entrypoint)} · ${displayValue(selectedIcon.importPath)}`,
+              "icon-entrypoint",
+            ),
+            catalogDetail("CATEGORY", selectedIcon.category, "icon-category"),
+            catalogDetail(
+              "REQUIREMENTS",
+              extensionRequirementsText(selectedIcon),
+              "icon-requirements",
+            ),
+          ],
+          { key: "icon-details", marginTop: 1 },
+        ),
+      h(
+        Text,
+        { key: "manifest-note", dimColor: true },
+        iconCatalog.supported
+          ? "Availability reflects this installed public manifest; unavailable canonical names are not importable."
+          : "The shared icon vocabulary is not a catalog; this system does not publish icon exports.",
+      ),
+    ]);
+  };
+
   const renderChecks = () => {
     const kind = checkKind;
     const summary = checkResult ? detailSummary(checkResult, kind) : [];
@@ -3050,6 +3216,10 @@ function TuiApp({ services }) {
     setTokenQuery(value);
     setView("main");
   };
+  const applyIconFilter = (value = iconDraft) => {
+    setIconQuery(value);
+    setView("main");
+  };
   const submitUpgrade = (value = upgradeVersion) => {
     const exactVersion = value.trim();
     if (!EXACT_VERSION.test(exactVersion)) {
@@ -3479,6 +3649,7 @@ function TuiApp({ services }) {
     if (activeTab === "systems") return renderConnectedSystem();
     if (activeTab === "components") return renderComponents();
     if (activeTab === "tokens") return renderTokens();
+    if (activeTab === "icons") return renderIcons();
     return renderChecks();
   };
 
@@ -3516,6 +3687,25 @@ function TuiApp({ services }) {
           placeholder: "Name, path, CSS variable, or Tailwind mapping",
           onChange: setTokenDraft,
           onSubmit: applyTokenFilter,
+          onCancel: () => setView("main"),
+          maxLength: 120,
+        }),
+      ]);
+    }
+    if (view === "icon-search") {
+      return paragraph([
+        h(Heading, { key: "title" }, "Filter icon names"),
+        h(
+          Text,
+          { key: "copy", dimColor: true },
+          "Search the loaded public manifest icon names and exports; nothing is fetched.",
+        ),
+        h(TextInputCompat, {
+          key: "input",
+          value: iconDraft,
+          placeholder: "Canonical name, export name, or category",
+          onChange: setIconDraft,
+          onSubmit: applyIconFilter,
           onCancel: () => setView("main"),
           maxLength: 120,
         }),
@@ -3688,6 +3878,7 @@ function TuiApp({ services }) {
   const isInputView = [
     "search-input",
     "token-search",
+    "icon-search",
     "upgrade-input",
     "css-input",
     "use-agent-input",
@@ -3759,6 +3950,7 @@ function TuiApp({ services }) {
     confirm: "Apply",
     "submit-search": "Search",
     "apply-filter": "Filter",
+    "apply-icon-filter": "Filter",
     "preview-upgrade": "Preview",
     "check-css": "Check CSS",
     install: "Install",
@@ -3779,6 +3971,8 @@ function TuiApp({ services }) {
     "next-group": "Next group",
     "search-tokens": "Filter",
     "reload-tokens": "Reload",
+    "search-icons": "Filter",
+    "reload-icons": "Reload",
     "run-check": "Check",
     "run-doctor": "Doctor",
     "run-usage": "Usage",
@@ -3855,6 +4049,10 @@ function TuiApp({ services }) {
       });
     } else if (view === "token-search") {
       addFooterAction("apply-filter", "Enter", "Apply filter", () => applyTokenFilter(), {
+        variant: "primary",
+      });
+    } else if (view === "icon-search") {
+      addFooterAction("apply-icon-filter", "Enter", "Apply filter", () => applyIconFilter(), {
         variant: "primary",
       });
     } else if (view === "upgrade-input") {
@@ -4074,7 +4272,7 @@ function TuiApp({ services }) {
           });
           addFooterAction("refresh-project", "p", "Refresh state", readProjectState);
         }
-      } else {
+      } else if (activeTab === "checks") {
         addFooterAction("run-check", "c", "Run check", () => void runCheckAction("check"), {
           variant: "primary",
         });
@@ -4085,6 +4283,38 @@ function TuiApp({ services }) {
           setView("css-input");
         });
         addFooterAction("refresh-project", "p", "Refresh state", readProjectState);
+      } else if (activeTab === "icons") {
+        if (iconError) {
+          addFooterAction(
+            "reload-icons",
+            "l",
+            "Reload catalog",
+            () => {
+              setIconError(null);
+              setIconCatalog(null);
+              loadIconCatalog(true);
+            },
+            { variant: "primary" },
+          );
+          addFooterAction("refresh-project", "p", "Refresh state", readProjectState);
+        } else {
+          addFooterAction(
+            "search-icons",
+            "/",
+            "Filter names",
+            () => {
+              setIconDraft(iconQuery);
+              setView("icon-search");
+            },
+            { variant: "primary" },
+          );
+          addFooterAction("reload-icons", "l", "Reload", () => {
+            setIconError(null);
+            setIconCatalog(null);
+            loadIconCatalog(true);
+          });
+          addFooterAction("refresh-project", "p", "Refresh state", readProjectState);
+        }
       }
     } else if (catalogLoaded) {
       const selected =
@@ -4373,7 +4603,7 @@ function TuiApp({ services }) {
             columns < 48
               ? SYSTEM_TABS.map((tab, index) => ({
                   ...tab,
-                  label: `${index + 1} ${["Sys", "Comp", "Tok", "Check"][index]}`,
+                  label: `${index + 1} ${["Sys", "Comp", "Tok", "Check", "Icons"][index]}`,
                 }))
               : SYSTEM_TABS.map((tab, index) => ({ ...tab, label: `${index + 1} ${tab.label}` })),
           activeTabId: activeTab,
@@ -4403,9 +4633,11 @@ function TuiApp({ services }) {
     componentSection,
     selectedExtensionName ?? "",
     tokenGroup ?? "",
+    selectedIconName ?? "",
     checkKind ?? "",
     catalogLoaded,
     tokenQuery,
+    iconQuery,
     operation?.status ?? "",
     operation?.label ?? "",
   ].join("-");

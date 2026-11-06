@@ -6,13 +6,24 @@
  * Run directly:
  *   node --test scripts/check-all.test.mjs
  *
- * These tests cover the harness's pure helpers and fail-closed directory
- * behavior only. They never build, pack, install, or touch `TEMP/`: every
- * fixture lives in a fresh unique OS temp directory removed by its own test.
+ * These tests cover the harness's pure helpers, fail-closed directory
+ * behavior, packed icon verification, and one explicit generated-template
+ * build. They never run the full lifecycle harness, pack, install, or touch
+ * `TEMP/`: every fixture lives in a fresh unique OS temp directory removed by
+ * its own test.
  */
 
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
@@ -24,6 +35,7 @@ import {
   REQUIRED_COMPONENT_NAMES,
   assertCapabilityInventory,
   assertClientEntryBoundary,
+  assertPackedIconArtifacts,
   buildRuntimeProbeSource,
   buildTailwindProbeCss,
   buildTailwindProbeSource,
@@ -31,11 +43,14 @@ import {
   collectRepoVersionState,
   createUniqueRunDirectory,
   cssVariableValue,
+  isCanonicalIconExportSet,
   semanticUtilityClass,
   semanticUtilityRule,
   startsWithClientDirective,
 } from "./check-all.mjs";
-import { CAPABILITY_CATEGORIES } from "./design-system-manifest.mjs";
+import { CAPABILITY_CATEGORIES, ICON_EXPORT_NAMES } from "./design-system-manifest.mjs";
+
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const REQUIRED = [
   "Button",
@@ -369,6 +384,222 @@ test("buildRuntimeProbeSource embeds the packages and the consumer node_modules 
   assert.match(source, /manifest\.schemaVersion !== 5/);
   assert.match(source, /manifest capabilities categories mismatch/);
   assert.match(source, /"data-display":/);
+});
+
+/* -------------------------------------------------------------------------- */
+/* Optional icon catalog                                                      */
+/* -------------------------------------------------------------------------- */
+
+test("buildTypecheckSource proves icon props, ref, and renderability", () => {
+  const source = buildTypecheckSource([
+    {
+      namespace: "Generated",
+      id: "lifecycle-demo",
+      packageName: "@prism-system/ui-lifecycle-demo",
+      tokensExport: "lifecycleDemoTokens",
+      optional: [],
+      icons: [...ICON_EXPORT_NAMES],
+    },
+  ]);
+  assert.match(
+    source,
+    /import \{ SearchIcon as GeneratedIcon \} from "@prism-system\/ui-lifecycle-demo\/icons";/,
+  );
+  assert.match(source, /type IconComponent,/);
+  assert.match(source, /type IconProps,/);
+  assert.match(source, /const GeneratedIconProps: IconProps =/);
+  assert.match(source, /React\.createRef<SVGSVGElement>\(\)/);
+  assert.match(source, /const GeneratedIconComponent: IconComponent = GeneratedIcon;/);
+  assert.match(source, /<GeneratedIcon \{\.\.\.GeneratedIconProps\} ref=\{GeneratedIconRef\} \/>/);
+  assert.match(source, /icons: \[GeneratedIcon\]/);
+  assert.match(source, /iconElements: \[GeneratedIconElement\]/);
+});
+
+test("buildTypecheckSource rejects an empty declared icon list", () => {
+  assert.throws(
+    () =>
+      buildTypecheckSource([
+        {
+          namespace: "Broken",
+          id: "broken",
+          packageName: "@prism-system/ui-broken",
+          tokensExport: "brokenTokens",
+          optional: [],
+          icons: [],
+        },
+      ]),
+    /nonempty icons list/,
+  );
+});
+
+test("buildRuntimeProbeSource resolves and checks the ./icons entrypoint", () => {
+  const source = buildRuntimeProbeSource(
+    [
+      {
+        packageName: "@prism-system/ui-lifecycle-demo",
+        version: "0.1.0",
+        tokensExport: "lifecycleDemoTokens",
+        icons: ["CloseIcon", "SearchIcon"],
+      },
+    ],
+    "C:\\consumer",
+  );
+  assert.match(source, /subpaths\.push\("\.\/icons"\)/);
+  assert.match(source, /iconExports/);
+  assert.match(source, /entry\.packageName \+ "\/icons"/);
+  assert.match(source, /missing declared exports/);
+});
+
+test("isCanonicalIconExportSet accepts only the exact fifty canonical exports", () => {
+  assert.equal(isCanonicalIconExportSet([...ICON_EXPORT_NAMES]), true);
+  assert.equal(isCanonicalIconExportSet([...ICON_EXPORT_NAMES].reverse()), true);
+  assert.equal(isCanonicalIconExportSet(ICON_EXPORT_NAMES.slice(1)), false);
+  assert.equal(isCanonicalIconExportSet([...ICON_EXPORT_NAMES, "ExtraIcon"]), false);
+  assert.equal(isCanonicalIconExportSet([...ICON_EXPORT_NAMES.slice(0, -1), "SearchIcon"]), false);
+  assert.equal(isCanonicalIconExportSet(undefined), false);
+});
+
+function writeIconCatalogFixture(t, { extra = false, omit = null } = {}) {
+  const dir = tempRoot(t, "prism-packed-icons-");
+  const declared = ["CloseIcon", "SearchIcon"];
+  mkdirSync(join(dir, "dist", "icons"), { recursive: true });
+  writeFileSync(
+    join(dir, "dist", "icons", "index.d.ts"),
+    `${declared.map((name) => `declare const ${name}: unknown;`).join("\n")}\nexport { ${declared.join(", ")} };\n`,
+    "utf8",
+  );
+  writeFileSync(
+    join(dir, "dist", "icons", "index.mjs"),
+    `${declared.map((name) => `const ${name} = () => null;`).join("\n")}\nexport { ${declared.join(", ")} };\n`,
+    "utf8",
+  );
+  writeFileSync(
+    join(dir, "dist", "icons", "index.js"),
+    `"use strict";\nmodule.exports = { ${declared.join(", ")} };\n`,
+    "utf8",
+  );
+  const manifest = {
+    entrypoints: { "./icons": { requirements: [] } },
+    publicApi: { "./icons": [...declared] },
+  };
+  const pkg = {
+    exports: {
+      "./icons": {
+        types: "./dist/icons/index.d.ts",
+        import: "./dist/icons/index.mjs",
+        require: "./dist/icons/index.js",
+      },
+    },
+  };
+  if (omit) rmSync(join(dir, "dist", "icons", omit));
+  if (extra) {
+    writeFileSync(
+      join(dir, "dist", "icons", "index.mjs"),
+      `${declared.map((name) => `const ${name} = () => null;`).join("\n")}\nconst ExtraIcon = () => null;\nexport { ${declared.join(", ")}, ExtraIcon };\n`,
+      "utf8",
+    );
+  }
+  return { dir, manifest, pkg };
+}
+
+test("assertPackedIconArtifacts verifies shipped artifacts and publicApi equality", (t) => {
+  const { dir, manifest, pkg } = writeIconCatalogFixture(t);
+  assert.doesNotThrow(() =>
+    assertPackedIconArtifacts({ label: "fixture", extractedDir: dir, pkg, manifest }),
+  );
+});
+
+test("assertPackedIconArtifacts fails on missing artifacts or extra exports", (t) => {
+  const missing = writeIconCatalogFixture(t, { omit: "index.js" });
+  assert.throws(
+    () =>
+      assertPackedIconArtifacts({
+        label: "fixture",
+        extractedDir: missing.dir,
+        pkg: missing.pkg,
+        manifest: missing.manifest,
+      }),
+    /fixture packed artifact is missing dist\/icons\/index\.js/,
+  );
+
+  const extra = writeIconCatalogFixture(t, { extra: true });
+  assert.throws(
+    () =>
+      assertPackedIconArtifacts({
+        label: "fixture",
+        extractedDir: extra.dir,
+        pkg: extra.pkg,
+        manifest: extra.manifest,
+      }),
+    /Extra: ExtraIcon/,
+  );
+});
+
+test("the generated template ships fifty icons and builds the icons entrypoint", (t) => {
+  const coreTypes = join(REPO_ROOT, "packages", "core", "dist", "index.d.ts");
+  if (!existsSync(coreTypes)) {
+    t.skip("packages/core/dist is not built; run pnpm build before the lifecycle test");
+    return;
+  }
+  const modulesSource = join(REPO_ROOT, "packages", "system-plr", "node_modules");
+  if (!existsSync(join(modulesSource, "lucide-react"))) {
+    t.skip("system-plr/node_modules/lucide-react is not installed");
+    return;
+  }
+
+  const root = tempRoot(t, "prism-generated-icons-");
+  const create = spawnSync(
+    process.execPath,
+    [
+      join(REPO_ROOT, "scripts", "create-design-system.mjs"),
+      "icons-check",
+      "--output",
+      root,
+      "--no-register",
+    ],
+    { cwd: REPO_ROOT, encoding: "utf8" },
+  );
+  assert.equal(create.status, 0, create.stderr || create.stdout);
+
+  const packageDir = join(root, "packages", "icons-check");
+  assert.ok(existsSync(join(packageDir, "src", "icons", "index.ts")));
+  const pkg = JSON.parse(readFileSync(join(packageDir, "package.json"), "utf8"));
+  assert.deepEqual(pkg.exports["./icons"], {
+    types: "./dist/icons/index.d.ts",
+    import: "./dist/icons/index.mjs",
+    require: "./dist/icons/index.js",
+  });
+  const manifest = JSON.parse(readFileSync(join(packageDir, "design-system.json"), "utf8"));
+  assert.ok(manifest.entrypoints["./icons"]);
+  assert.equal(manifest.publicApi["./icons"].length, 50);
+  assert.deepEqual([...manifest.publicApi["./icons"]].sort(), [...ICON_EXPORT_NAMES].sort());
+  assert.match(
+    readFileSync(join(packageDir, "src", "styles", "index.css"), "utf8"),
+    /@import "\.\.\/icons\/icons\.css";/,
+  );
+
+  const link = join(packageDir, "node_modules");
+  symlinkSync(modulesSource, link, process.platform === "win32" ? "junction" : "dir");
+  const build = spawnSync("pnpm", ["--config.verify-deps-before-run=false", "run", "build"], {
+    cwd: packageDir,
+    encoding: "utf8",
+    shell: true,
+  });
+  assert.equal(build.status, 0, `${build.stdout ?? ""}${build.stderr ?? ""}`);
+  for (const artifact of ["index.d.ts", "index.mjs", "index.js"]) {
+    assert.ok(
+      existsSync(join(packageDir, "dist", "icons", artifact)),
+      `generated build is missing dist/icons/${artifact}`,
+    );
+  }
+  assert.doesNotThrow(() =>
+    assertPackedIconArtifacts({
+      label: "generated template",
+      extractedDir: packageDir,
+      pkg,
+      manifest,
+    }),
+  );
 });
 
 /* -------------------------------------------------------------------------- */

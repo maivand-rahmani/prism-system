@@ -18,6 +18,7 @@ import { test } from "node:test";
 import {
   ACTIVE_USAGE_LIMITATIONS,
   buildTokenIndex,
+  buildUsageModel,
   collectActiveSourceFiles,
   scanActiveUsage,
 } from "../src/active-usage.mjs";
@@ -37,6 +38,14 @@ function scannerManifest() {
   manifest.tokens.groups.spacing = ["scale.4"];
   manifest.tokens.groups.themes = ["light.color.text.primary"];
   manifest.publicApi = { ".": ["Button", "Alert"], "./tokens": [] };
+  return manifest;
+}
+
+function scannerManifestWithIcons() {
+  const manifest = scannerManifest();
+  manifest.exports["./icons"] = "./dist/icons/index.mjs";
+  manifest.entrypoints["./icons"] = { requirements: [] };
+  manifest.publicApi["./icons"] = ["ArrowLeftIcon", "SearchIcon"];
   return manifest;
 }
 
@@ -115,6 +124,86 @@ test("scan detects module references, aliases, JSX props, members, and known tok
   assert.equal(usage.limitations, ACTIVE_USAGE_LIMITATIONS);
   // The unrelated import/component is never flagged.
   assert.ok(!JSON.stringify(usage.components).includes("Unrelated"));
+});
+
+test("scan records icon imports, aliases, and namespace members", (t) => {
+  const root = createConsumer(t, {
+    "src/icons.tsx": [
+      'import { SearchIcon } from "@prism-system/ui-scan/icons";',
+      'import { ArrowLeftIcon as Left } from "@prism-system/ui-scan/icons";',
+      'import * as Icons from "@prism-system/ui-scan/icons";',
+      "",
+      "export const a = SearchIcon;",
+      "export const b = <Left />;",
+      "export const c = <Icons.SearchIcon />;",
+      "export const d = Icons.ArrowLeftIcon;",
+      "",
+    ].join("\n"),
+  });
+  const manifest = scannerManifestWithIcons();
+  const usage = scanActiveUsage({
+    consumerRoot: root,
+    packageName: PACKAGE,
+    manifest,
+  });
+
+  assert.deepEqual(
+    usage.icons.map((site) => [site.name, site.entrypoint, site.file]),
+    [
+      ["Search", "./icons", "src/icons.tsx"],
+      ["ArrowLeft", "./icons", "src/icons.tsx"],
+      ["Search", "./icons", "src/icons.tsx"],
+      ["ArrowLeft", "./icons", "src/icons.tsx"],
+    ],
+  );
+  assert.equal(usage.counts.icons, 4);
+  assert.deepEqual(usage.unverified, []);
+
+  const model = buildUsageModel(manifest);
+  assert.equal(model.iconEntrypoint, "./icons");
+  assert.equal(model.iconImportPath, `${PACKAGE}/icons`);
+  assert.deepEqual([...model.icons.keys()].sort(), ["ArrowLeft", "Search"]);
+  assert.deepEqual(model.icons.get("Search"), { name: "Search", exportName: "SearchIcon" });
+  assert.equal(buildUsageModel(scannerManifest()).icons.size, 0);
+  assert.equal(buildUsageModel(scannerManifest()).iconEntrypoint, null);
+  assert.equal(buildUsageModel(scannerManifest()).iconImportPath, null);
+});
+
+test("scan reports computed icon access and dynamic icon module access as unverified", (t) => {
+  const root = createConsumer(t, {
+    "src/dynamic-icons.ts": [
+      'import * as Icons from "@prism-system/ui-scan/icons";',
+      'const name = "SearchIcon";',
+      "export const icon = Icons[name];",
+      "export const lazy = import(`@prism-system/ui-scan/icons/${name}`);",
+      "",
+    ].join("\n"),
+    "src/literal-icons.ts": [
+      'export const icons = import("@prism-system/ui-scan/icons");',
+      "",
+    ].join("\n"),
+  });
+  const usage = scanActiveUsage({
+    consumerRoot: root,
+    packageName: PACKAGE,
+    manifest: scannerManifestWithIcons(),
+  });
+
+  assert.deepEqual(usage.icons, []);
+  assert.equal(usage.counts.icons, 0);
+  const dynamic = usage.unverified.filter((item) => item.code === "dynamic-module");
+  assert.equal(dynamic.length, 2, JSON.stringify(usage.unverified));
+  for (const item of dynamic) {
+    assert.equal(item.file.startsWith("src/"), true);
+    assert.ok(item.line >= 1);
+  }
+  assert.deepEqual(usage.unverified.map((item) => item.code).sort(), [
+    "computed-icon-access",
+    "dynamic-module",
+    "dynamic-module",
+  ]);
+  const computed = usage.unverified.find((item) => item.code === "computed-icon-access");
+  assert.equal(computed.file, "src/dynamic-icons.ts");
 });
 
 test("scan plans only exact package-prefix rewrites when a target package is given", (t) => {

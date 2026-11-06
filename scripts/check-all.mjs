@@ -12,17 +12,20 @@
  *   4. run the packed-tools check as a child process
  *      (`scripts/check-tools.mjs`) for the full packed `prism-ds` CLI lifecycle;
  *   5. generate a fresh package from the canonical template into TEMP only
- *      (`ds:create --output <temp> --no-register`), build it, and pack it;
+ *      (`ds:create --output <temp> --no-register`), assert its full fifty-icon
+ *      `./icons` catalog and manifest entrypoint, and build it;
  *   6. pack and inspect ui-core, System A, System B, the fresh generated
  *      package, and `@prism-system/tools`; verify the packed client boundary
  *      (root ESM/CJS entries open with `"use client"`, `./tokens` entries
- *      never carry it);
+ *      never carry it) and every declared `./icons` catalog artifact;
  *   7. hydrate isolated TEMP consumers from the packed artifacts only and
  *      typecheck every public import: the 29 required exports, each
  *      system's declared optional set, the flat Card parts Server Components
- *      import by name, the `@prism-system/ui-core` contract names, `./manifest`,
+ *      import by name, the declared `./icons` catalog (props, ref, and
+ *      renderability), the `@prism-system/ui-core` contract names, `./manifest`,
  *      `./tokens`, `./styles.css`, and `./tailwind.css`;
- *   8. resolve and load the packed public exports at runtime from a consumer;
+ *   8. resolve and load the packed public exports (including `./icons`) at
+ *      runtime from a consumer;
  *   9. install the exact `tailwindcss@4.3.3` + `@tailwindcss/cli@4.3.3`
  *      toolchain into this run's TEMP directory (`npm install --ignore-scripts
  *      --no-save --no-package-lock`) and compile a real consumer stylesheet
@@ -83,9 +86,11 @@ import {
   CAPABILITY_CATEGORY_KEYS,
   DESIGN_SYSTEM_MANIFEST_FILENAME,
   DESIGN_SYSTEM_MANIFEST_SCHEMA_VERSION,
+  ICON_EXPORT_NAMES,
   MANIFEST_EXPORT_SUBPATH,
   OPTIONAL_COMPONENTS,
   REQUIRED_COMPONENTS,
+  collectRuntimeExportNames,
 } from "./design-system-manifest.mjs";
 import { collectPackedCustomFailures } from "./check-custom-components.mjs";
 
@@ -108,6 +113,19 @@ const TOOLS_PACKAGE_NAME = "@prism-system/tools";
 const TOOLS_PACKAGE_DIR = join(ROOT, "packages", "tools");
 
 const SYSTEM_IDS = ["system-a", "system-b"];
+
+/** The optional icon catalog's one reserved entrypoint and exact targets. */
+const ICONS_ENTRYPOINT = "./icons";
+const ICONS_EXPORT_TARGET = Object.freeze({
+  types: "./dist/icons/index.d.ts",
+  import: "./dist/icons/index.mjs",
+  require: "./dist/icons/index.js",
+});
+const ICONS_PACKED_ARTIFACTS = Object.freeze([
+  "dist/icons/index.d.ts",
+  "dist/icons/index.mjs",
+  "dist/icons/index.js",
+]);
 
 /** The canonical 29 required component names, in contract order. */
 export const REQUIRED_COMPONENT_NAMES = Object.freeze([...REQUIRED_COMPONENTS]);
@@ -261,6 +279,75 @@ export function semanticUtilityRule(cssText, utilityClass) {
   return match ? match[1] : null;
 }
 
+/** Exact structural comparison for a conditional `exports` target. */
+function sameExportTarget(actual, expected) {
+  if (actual === null || typeof actual !== "object" || Array.isArray(actual)) return false;
+  const actualKeys = Object.keys(actual).sort();
+  const expectedKeys = Object.keys(expected).sort();
+  if (JSON.stringify(actualKeys) !== JSON.stringify(expectedKeys)) return false;
+  return expectedKeys.every((key) => actual[key] === expected[key]);
+}
+
+/** True only for the exact fifty canonical `${Name}Icon` exports, in any order. */
+export function isCanonicalIconExportSet(names) {
+  if (!Array.isArray(names) || names.length !== ICON_EXPORT_NAMES.length) return false;
+  const unique = new Set(names);
+  return (
+    unique.size === ICON_EXPORT_NAMES.length && ICON_EXPORT_NAMES.every((name) => unique.has(name))
+  );
+}
+
+/**
+ * Verify a packed package's optional `./icons` entrypoint: exact export targets,
+ * every built JS/DTS artifact shipped, and `publicApi["./icons"]` equal to the
+ * actual runtime names of each artifact. A package with no icon entrypoint is
+ * valid and skipped.
+ */
+export function assertPackedIconArtifacts({ label, extractedDir, pkg, manifest }) {
+  const declared = manifest?.publicApi?.[ICONS_ENTRYPOINT];
+  const exportTarget = pkg?.exports?.[ICONS_ENTRYPOINT];
+  if (declared === undefined && exportTarget === undefined) return;
+
+  assert(
+    isPlainObject(exportTarget) && sameExportTarget(exportTarget, ICONS_EXPORT_TARGET),
+    `${label} package.json exports["${ICONS_ENTRYPOINT}"] must be exactly ` +
+      `${JSON.stringify(ICONS_EXPORT_TARGET)}`,
+  );
+  assert(
+    Array.isArray(declared) && declared.length > 0,
+    `${label} package.json publishes "${ICONS_ENTRYPOINT}" but manifest.publicApi["${ICONS_ENTRYPOINT}"] is missing`,
+  );
+  assert(
+    isPlainObject(manifest?.entrypoints?.[ICONS_ENTRYPOINT]),
+    `${label} manifest.entrypoints["${ICONS_ENTRYPOINT}"] is missing`,
+  );
+  const unknown = declared.filter((name) => !ICON_EXPORT_NAMES.includes(name));
+  assert(
+    unknown.length === 0,
+    `${label} manifest.publicApi["${ICONS_ENTRYPOINT}"] contains non-canonical exports: ${unknown.join(", ")}`,
+  );
+
+  const expected = new Set(declared);
+  for (const relativePath of ICONS_PACKED_ARTIFACTS) {
+    const artifactPath = join(extractedDir, relativePath);
+    assert(existsSync(artifactPath), `${label} packed artifact is missing ${relativePath}`);
+    const actual = collectRuntimeExportNames(artifactPath, extractedDir);
+    const missing = [...expected].filter((name) => !actual.has(name));
+    const extra = [...actual].filter((name) => !expected.has(name));
+    assert(
+      missing.length === 0 && extra.length === 0,
+      `${label} packed artifact ${relativePath} does not match manifest.publicApi["${ICONS_ENTRYPOINT}"].` +
+        `${missing.length > 0 ? ` Missing: ${missing.join(", ")}.` : ""}${
+          extra.length > 0 ? ` Extra: ${extra.join(", ")}.` : ""
+        }`,
+    );
+  }
+}
+
+function isPlainObject(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 /**
  * Verify a shipped manifest's generated capability-category inventory against
  * the single canonical definition: exact category keys, exact required/optional
@@ -401,9 +488,10 @@ export function collectRepoVersionState(root) {
  * The consumer TypeScript source that typechecks every public import of the
  * packed packages: all 29 required exports, the declared optionals, the flat
  * Card parts a Server Component must import by name, the ui-core contract
- * names, `./manifest`, `./tokens`, `./styles.css`, and `./tailwind.css`.
+ * names, `./manifest`, `./tokens`, `./icons` (when declared), `./styles.css`,
+ * and `./tailwind.css`.
  *
- * @param {{namespace: string, id: string, packageName: string, optional: string[]}[]} systems
+ * @param {{namespace: string, id: string, packageName: string, optional: string[], icons?: string[]}[]} systems
  */
 export function buildTypecheckSource(systems) {
   if (systems.length === 0) throw new Error("buildTypecheckSource requires at least one system");
@@ -411,12 +499,26 @@ export function buildTypecheckSource(systems) {
     if (typeof system.tokensExport !== "string" || system.tokensExport.length === 0) {
       throw new Error(`buildTypecheckSource requires a tokensExport for ${system.namespace}`);
     }
+    if (system.icons !== undefined && (!Array.isArray(system.icons) || system.icons.length === 0)) {
+      throw new Error(
+        `buildTypecheckSource requires a nonempty icons list or none for ${system.namespace}`,
+      );
+    }
   }
   const namespaces = systems.map((system) => system.namespace);
+  const iconSystems = systems.filter((system) => Array.isArray(system.icons));
+  const iconProbeName = (system) =>
+    system.icons.includes("SearchIcon") ? "SearchIcon" : system.icons[0];
   const lines = [
     'import * as React from "react";',
     ...systems.map(
       (system) => `import * as ${system.namespace} from ${JSON.stringify(system.packageName)};`,
+    ),
+    ...iconSystems.map(
+      (system) =>
+        `import { ${iconProbeName(system)} as ${system.namespace}Icon } from ${JSON.stringify(
+          `${system.packageName}/icons`,
+        )};`,
     ),
     "import {",
     "  OPTIONAL_COMPONENTS,",
@@ -425,6 +527,7 @@ export function buildTypecheckSource(systems) {
     "  type DesignSystemComponentName,",
     "  type DesignSystemComponents,",
     "  type DesignSystem,",
+    ...(iconSystems.length > 0 ? ["  type IconComponent,", "  type IconProps,"] : []),
     '} from "@prism-system/ui-core";',
     ...systems.map(
       (system, index) =>
@@ -469,6 +572,28 @@ export function buildTypecheckSource(systems) {
       lines.push(`  ${name}: ${system.namespace}.${name},`);
     }
     lines.push("};", "");
+  }
+
+  const iconProbes = [];
+  for (const system of iconSystems) {
+    const ns = system.namespace;
+    const icon = `${ns}Icon`;
+    lines.push(
+      `const ${ns}IconProps: IconProps = { size: 20, label: "Search", decorative: false };`,
+      `const ${ns}IconRef = React.createRef<SVGSVGElement>();`,
+      `const ${ns}IconComponent: IconComponent = ${icon};`,
+      `const ${ns}IconElement = (`,
+      `  <${icon} {...${ns}IconProps} ref={${ns}IconRef} />`,
+      `);`,
+      "",
+    );
+    iconProbes.push({
+      element: `${ns}IconElement`,
+      ref: `${ns}IconRef`,
+      component: `${ns}IconComponent`,
+      props: `${ns}IconProps`,
+      icon,
+    });
   }
 
   const cardProbes = [];
@@ -525,6 +650,15 @@ export function buildTypecheckSource(systems) {
       .join(", ")}],`,
     `  manifests: [${systems.map((_system, index) => `manifest${index}`).join(", ")}],`,
     `  tokens: [${systems.map((system) => system.tokensExport).join(", ")}],`,
+    ...(iconProbes.length > 0
+      ? [
+          `  icons: [${iconProbes.map((probe) => probe.icon).join(", ")}],`,
+          `  iconElements: [${iconProbes.map((probe) => probe.element).join(", ")}],`,
+          `  iconRefs: [${iconProbes.map((probe) => probe.ref).join(", ")}],`,
+          `  iconComponents: [${iconProbes.map((probe) => probe.component).join(", ")}],`,
+          `  iconProps: [${iconProbes.map((probe) => probe.props).join(", ")}],`,
+        ]
+      : []),
     "} satisfies Record<string, unknown>;",
     "",
   );
@@ -546,11 +680,13 @@ const require = createRequire(import.meta.url);
 const consumerRoot = ${JSON.stringify(consumerRoot)};
 const nodeModulesPrefix = join(consumerRoot, "node_modules") + sep;
 const packages = ${JSON.stringify(packages, null, 2)};
-const report = { ok: true, errors: [], resolved: {}, manifestVersions: {}, tokenExports: {}, designSystemVersions: {} };
+const report = { ok: true, errors: [], resolved: {}, manifestVersions: {}, tokenExports: {}, designSystemVersions: {}, iconExports: {} };
 const fail = (message) => report.errors.push(message);
 
 for (const entry of packages) {
-  for (const subpath of [".", "./manifest", "./tokens", "./styles.css", "./tailwind.css"]) {
+  const subpaths = [".", "./manifest", "./tokens", "./styles.css", "./tailwind.css"];
+  if (Array.isArray(entry.icons)) subpaths.push("./icons");
+  for (const subpath of subpaths) {
     const specifier = subpath === "." ? entry.packageName : entry.packageName + "/" + subpath.slice(2);
     try {
       const resolved = require.resolve(specifier);
@@ -598,6 +734,22 @@ for (const entry of packages) {
     }
   } catch (error) {
     fail(entry.packageName + "/tokens: " + error.message);
+  }
+  if (Array.isArray(entry.icons)) {
+    try {
+      const icons = await import(entry.packageName + "/icons");
+      const found = entry.icons.filter((name) => icons[name] !== undefined);
+      report.iconExports[entry.packageName] = found;
+      if (found.length !== entry.icons.length) {
+        fail(entry.packageName + "/icons is missing declared exports");
+      }
+      const firstIcon = icons[entry.icons[0]];
+      if (typeof firstIcon !== "object" && typeof firstIcon !== "function") {
+        fail(entry.packageName + "/icons does not export renderable icon components");
+      }
+    } catch (error) {
+      fail(entry.packageName + "/icons: " + error.message);
+    }
   }
   try {
     const system = await import(entry.packageName);
@@ -809,6 +961,7 @@ const typecheckSystems = [
     packageName: GENERATED_PACKAGE_NAME,
     tokensExport: generatedTarget.tokensExport,
     optional: [],
+    icons: [...ICON_EXPORT_NAMES],
   },
 ];
 
@@ -975,23 +1128,85 @@ async function main() {
           REQUIRED_COMPONENT_NAMES.every((name) => declared.includes(name)),
         `fresh template must declare exactly the 29 required components: ${declared.join(", ")}`,
       );
+
+      // The template ships the full icon catalog from its own entrypoint.
+      assert(
+        existsSync(join(generatedTarget.packageDir, "src", "icons", "index.ts")),
+        "fresh template is missing src/icons/index.ts",
+      );
+      assert(
+        sameExportTarget(pkg.exports?.[ICONS_ENTRYPOINT], ICONS_EXPORT_TARGET),
+        `fresh template package.json exports["${ICONS_ENTRYPOINT}"] must be exactly ` +
+          `${JSON.stringify(ICONS_EXPORT_TARGET)}`,
+      );
+      assert(
+        typeof pkg.dependencies?.["lucide-react"] === "string",
+        "fresh template must declare the lucide-react dependency",
+      );
+      assert(
+        isPlainObject(manifest.entrypoints?.[ICONS_ENTRYPOINT]),
+        `fresh template manifest is missing entrypoints["${ICONS_ENTRYPOINT}"]`,
+      );
+      const iconRequirements = manifest.entrypoints[ICONS_ENTRYPOINT].requirements ?? [];
+      assert(
+        iconRequirements.some((requirement) => requirement.name === "lucide-react"),
+        `fresh template entrypoints["${ICONS_ENTRYPOINT}"] must require lucide-react`,
+      );
+      const generatedIcons = manifest.publicApi?.[ICONS_ENTRYPOINT];
+      assert(
+        isCanonicalIconExportSet(generatedIcons),
+        `fresh template publicApi["${ICONS_ENTRYPOINT}"] must contain exactly the 50 canonical ` +
+          `icon exports (received ${Array.isArray(generatedIcons) ? generatedIcons.length : "none"})`,
+      );
+      assert(
+        readFileSync(
+          join(generatedTarget.packageDir, "src", "styles", "index.css"),
+          "utf8",
+        ).includes('@import "../icons/icons.css";'),
+        'fresh template src/styles/index.css must import "../icons/icons.css"',
+      );
     });
 
     runCheck("build the fresh generated package in TEMP", () => {
       const link = join(generatedTarget.packageDir, "node_modules");
       if (!existsSync(link)) {
-        symlinkSync(
-          join(ROOT, "packages", "system-a", "node_modules"),
-          link,
-          process.platform === "win32" ? "junction" : "dir",
+        // System PLR has every dependency the template needs, including
+        // lucide-react; System A remains a fallback only when PLR is absent.
+        const plrModules = join(ROOT, "packages", "system-plr", "node_modules");
+        const systemAModules = join(ROOT, "packages", "system-a", "node_modules");
+        const modulesSource = existsSync(join(plrModules, "lucide-react"))
+          ? plrModules
+          : systemAModules;
+        assert(
+          existsSync(modulesSource),
+          "no installed workspace node_modules is available for the generated package",
         );
+        if (modulesSource !== plrModules) {
+          log(
+            "NOTE system-plr/node_modules (lucide-react) is unavailable; falling back to " +
+              "system-a/node_modules, so the icon build will fail if lucide cannot be resolved",
+          );
+        }
+        symlinkSync(modulesSource, link, process.platform === "win32" ? "junction" : "dir");
       }
-      const build = runPnpm(["run", "build"], { cwd: generatedTarget.packageDir });
+      // The generated package is outside the workspace but has a real,
+      // pre-linked node_modules tree. Disable pnpm's automatic dependency
+      // verification so it never tries to resolve the template's
+      // `workspace:*` dependency against this TEMP directory.
+      const build = runPnpm(["--config.verify-deps-before-run=false", "run", "build"], {
+        cwd: generatedTarget.packageDir,
+      });
       assert(build.status === 0, `generated template build failed: ${output(build)}`);
       assert(
         existsSync(join(generatedTarget.packageDir, "dist")),
         "generated template build produced no dist/",
       );
+      for (const artifact of ICONS_PACKED_ARTIFACTS) {
+        assert(
+          existsSync(join(generatedTarget.packageDir, artifact)),
+          `generated template build is missing ${artifact}`,
+        );
+      }
     });
 
     /* ---------------------------------------------------------------------- */
@@ -1085,6 +1300,21 @@ async function main() {
           manifest,
         });
         assert(customFailures.length === 0, customFailures.join("; "));
+
+        // The optional icon catalog must be a real packed artifact whose
+        // manifest publicApi equals the actual built exports.
+        assertPackedIconArtifacts({
+          label: target.id,
+          extractedDir: extracted,
+          pkg,
+          manifest,
+        });
+        if (target === generatedTarget) {
+          assert(
+            isCanonicalIconExportSet(manifest.publicApi?.[ICONS_ENTRYPOINT]),
+            "fresh generated package must pack exactly the 50 canonical icon exports",
+          );
+        }
 
         // The consumer matrix is intentionally NOT part of ds:check-all: it
         // requires network installs of the two approved React rows. Say so
@@ -1268,11 +1498,15 @@ async function main() {
         version: "0.0.0",
         private: true,
       });
-      const packages = [...systemTargets, generatedTarget].map((target) => ({
-        packageName: target.packageName,
-        version: target.version,
-        tokensExport: target.tokensExport,
-      }));
+      const packages = [...systemTargets, generatedTarget].map((target) => {
+        const icons = target.manifest?.publicApi?.[ICONS_ENTRYPOINT];
+        return {
+          packageName: target.packageName,
+          version: target.version,
+          tokensExport: target.tokensExport,
+          ...(Array.isArray(icons) && icons.length > 0 ? { icons } : {}),
+        };
+      });
       writeFile(dir, "runtime-probe.mjs", buildRuntimeProbeSource(packages, dir));
       for (const target of [...systemTargets, generatedTarget]) {
         stagePackedPackage(dir, target.packageName, target.extractedPackageDir);
@@ -1287,6 +1521,13 @@ async function main() {
       for (const name of ["react", "react-dom"]) {
         stageInstalledDependency(dir, name, systemPackageJson);
       }
+      // The generated icon entrypoint imports its declared runtime glyph
+      // dependency, exactly like a real consumer install would.
+      stageInstalledDependency(
+        dir,
+        "lucide-react",
+        join(ROOT, "packages", "system-plr", "package.json"),
+      );
 
       const probe = runNode(["runtime-probe.mjs"], { cwd: dir });
       assert(probe.status === 0, `runtime probe failed:\n${output(probe)}`);
@@ -1305,6 +1546,14 @@ async function main() {
           report.tokenExports[target.packageName] === "object",
           `${target.id} tokens export missing at runtime`,
         );
+        const icons = target.manifest?.publicApi?.[ICONS_ENTRYPOINT];
+        if (Array.isArray(icons) && icons.length > 0) {
+          assert(
+            JSON.stringify([...report.iconExports[target.packageName]].sort()) ===
+              JSON.stringify([...icons].sort()),
+            `${target.id} runtime icons export mismatch`,
+          );
+        }
       }
     });
 

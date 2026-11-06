@@ -34,11 +34,13 @@ import {
   renderLegacyConsumerConfig,
 } from "../src/consumer.mjs";
 import {
+  assessSwitchCompatibility,
   buildLifecyclePlanMaterial,
   inspectDesignSystemUsage,
   removeDesignSystem,
   switchDesignSystem,
 } from "../src/lifecycle.mjs";
+import { scanActiveUsage } from "../src/active-usage.mjs";
 import { addSyntheticExtension, readJson, syntheticManifest } from "./manifest-fixture.mjs";
 
 const OLD_PACKAGE = "@prism-system/ui-switch-old";
@@ -110,6 +112,25 @@ function buildTargetManifest({ version = TARGET_VERSION, mutate = null } = {}) {
   });
   if (mutate !== null) mutate(manifest);
   return manifest;
+}
+
+/**
+ * Publish a canonical icon subset from the reserved `./icons` entrypoint: the
+ * real entrypoint, export target, and verified `${Name}Icon` public API list.
+ */
+function addSyntheticIcons(manifest, { names = ["Search", "ArrowLeft"], requirements = [] } = {}) {
+  manifest.entrypoints["./icons"] = { requirements };
+  manifest.exports["./icons"] = "./dist/icons/index.mjs";
+  manifest.publicApi["./icons"] = names.map((name) => `${name}Icon`).sort();
+  return manifest;
+}
+
+function buildOldManifestWithIcons(options) {
+  return addSyntheticIcons(buildOldManifest(), options);
+}
+
+function buildTargetManifestWithIcons(options) {
+  return addSyntheticIcons(buildTargetManifest(), options);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -378,6 +399,14 @@ const SCENE_TSX = [
   "export function Scene() {",
   "  return <KeyboardScene />;",
   "}",
+  "",
+].join("\n");
+
+/** A consumer source that imports two canonical icons from the old system. */
+const ICONS_TSX = [
+  `import { SearchIcon, ArrowLeftIcon } from "${OLD_PACKAGE}/icons";`,
+  "",
+  "export const icons = [SearchIcon, ArrowLeftIcon];",
   "",
 ].join("\n");
 
@@ -962,6 +991,79 @@ test("switch honors explicit --with-entry without an import and never double-sel
   assert.equal(mergedManager.calls.length, 0);
 });
 
+test("switch auto-selects the icon entrypoint and plans its declared peer", async (t) => {
+  const ICON_PEER = "icon-runtime";
+  const ICON_PEER_VERSION = "2.1.0";
+  const target = buildTargetManifestWithIcons({
+    requirements: [{ name: ICON_PEER, kind: "peer", range: ICON_PEER_VERSION, optional: false }],
+  });
+  const registry = createRegistry({
+    packageName: TARGET_PACKAGE,
+    versions: { [TARGET_VERSION]: target },
+  });
+  const oldManifest = buildOldManifestWithIcons();
+  const root = createConsumer(t, { oldManifest, source: { "src/icons.tsx": ICONS_TSX } });
+  const manager = makeManager();
+  const before = snapshot(root);
+
+  const result = await switchDesignSystem({
+    cwd: root,
+    package: TARGET_PACKAGE,
+    version: TARGET_VERSION,
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: manager.spawnImpl,
+    dryRun: true,
+  });
+
+  assert.equal(result.ok, true, result.failures?.join(" "));
+  assert.deepEqual(result.autoSelectedEntries, [
+    { name: "./icons", entrypoint: "./icons", file: "src/icons.tsx" },
+  ]);
+  assert.deepEqual(result.compatibility.blockers, []);
+  assert.equal(result.compatibility.coverage.icons, 2);
+  assert.equal(result.usage.counts.icons, 2);
+  assert.equal(
+    result.entrySelection.requested.filter((entry) => entry === "./icons").length,
+    1,
+    "the icon entrypoint appears exactly once",
+  );
+  assert.equal(
+    result.entrySelection.entries.filter((entry) => entry.entrypoint === "./icons").length,
+    1,
+    "the icon entrypoint is selected exactly once",
+  );
+  const peer = result.peers.find((entry) => entry.name === ICON_PEER);
+  assert.equal(peer.action, "install");
+  assert.equal(peer.version, ICON_PEER_VERSION);
+  assert.equal(peer.source, "exact-range");
+  assert.deepEqual(result.command.args, [
+    ...INSTALL_ARGS(TARGET_PACKAGE, TARGET_VERSION, registry.registry),
+    `${ICON_PEER}@${ICON_PEER_VERSION}`,
+  ]);
+  assert.equal(manager.calls.length, 0);
+  assertUnchanged(root, before);
+
+  // An explicit --with-entry for the same entrypoint is never double-selected.
+  const explicitRoot = createConsumer(t, { oldManifest, source: { "src/icons.tsx": ICONS_TSX } });
+  const explicitManager = makeManager();
+  const explicit = await switchDesignSystem({
+    cwd: explicitRoot,
+    package: TARGET_PACKAGE,
+    version: TARGET_VERSION,
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: explicitManager.spawnImpl,
+    dryRun: true,
+    withEntry: ["./icons"],
+  });
+  assert.equal(explicit.ok, true, explicit.failures?.join(" "));
+  assert.deepEqual(explicit.autoSelectedEntries, []);
+  assert.deepEqual(explicit.entrySelection.requested, ["./icons"]);
+  assert.equal(explicit.entrySelection.entries.length, 1);
+  assert.equal(explicitManager.calls.length, 0);
+});
+
 test("switch expectedPlan rejects a removed imported extension before spawning", async (t) => {
   const target = buildScenePeerTarget({ range: SCENE_PEER_VERSION });
   const registry = createRegistry({
@@ -1113,6 +1215,88 @@ test("switch blocks a used extension missing from the target", async (t) => {
     },
   });
   assert.ok(result.compatibility.blockers.some((blocker) => blocker.code === "missing-extension"));
+});
+
+test("switch to a target that publishes the used icons passes", async (t) => {
+  const target = buildTargetManifestWithIcons({ names: ["Search", "ArrowLeft"] });
+  const registry = createRegistry({
+    packageName: TARGET_PACKAGE,
+    versions: { [TARGET_VERSION]: target },
+  });
+  const root = createConsumer(t, {
+    oldManifest: buildOldManifestWithIcons(),
+    source: { "src/icons.tsx": ICONS_TSX },
+  });
+  const manager = makeManager();
+
+  const result = await switchDesignSystem({
+    cwd: root,
+    package: TARGET_PACKAGE,
+    version: TARGET_VERSION,
+    registry: registry.registry,
+    fetchImpl: registry.fetchImpl,
+    spawnImpl: manager.spawnImpl,
+    dryRun: true,
+  });
+
+  assert.equal(result.ok, true, result.failures?.join(" "));
+  assert.deepEqual(result.compatibility.blockers, []);
+  assert.equal(result.compatibility.coverage.icons, 2);
+  assert.equal(manager.calls.length, 0);
+});
+
+test("switch blocks a used icon missing from the target icon catalog", async (t) => {
+  const result = await blockedSwitch(t, {
+    oldManifest: buildOldManifestWithIcons(),
+    target: buildTargetManifestWithIcons({ names: ["Search"] }),
+    source: { "src/icons.tsx": ICONS_TSX },
+  });
+  const missing = result.compatibility.blockers.filter(
+    (blocker) => blocker.code === "missing-icon",
+  );
+  assert.equal(missing.length, 1, JSON.stringify(result.compatibility.blockers));
+  assert.match(missing[0].message, /ArrowLeftIcon/);
+  assert.equal(missing[0].file, "src/icons.tsx");
+  assert.equal(missing[0].line, 1);
+});
+
+test("switch blocks icon usage when the target publishes no icon catalog", async (t) => {
+  const result = await blockedSwitch(t, {
+    oldManifest: buildOldManifestWithIcons(),
+    target: buildTargetManifest(),
+    source: { "src/icons.tsx": ICONS_TSX },
+  });
+  const codes = result.compatibility.blockers.map((blocker) => blocker.code);
+  assert.ok(codes.includes("missing-icon"), JSON.stringify(codes));
+  assert.ok(codes.includes("missing-public-path"), JSON.stringify(codes));
+});
+
+test("switch blocks a used icon whose entrypoint differs from the target", (t) => {
+  const oldManifest = buildOldManifestWithIcons();
+  const root = createConsumer(t, {
+    oldManifest,
+    source: { "src/icons.tsx": ICONS_TSX },
+  });
+  const usage = scanActiveUsage({
+    consumerRoot: root,
+    packageName: OLD_PACKAGE,
+    manifest: oldManifest,
+  });
+  assert.equal(usage.icons.length, 2);
+  usage.icons = usage.icons.map((site) => ({ ...site, entrypoint: "./legacy-icons" }));
+
+  const compatibility = assessSwitchCompatibility({
+    usage,
+    targetManifest: buildTargetManifestWithIcons(),
+    fromPackage: OLD_PACKAGE,
+    toPackage: TARGET_PACKAGE,
+  });
+
+  assert.deepEqual(
+    compatibility.blockers.map((blocker) => blocker.code),
+    ["changed-icon-entrypoint", "changed-icon-entrypoint"],
+  );
+  assert.equal(compatibility.coverage.icons, 2);
 });
 
 test("switch blocks a used token missing from the target and a renamed token reference", async (t) => {

@@ -2,11 +2,11 @@
 
 Published tooling for `@prism-system` design systems. It finds and inspects published
 styles in the npm registry, explicitly installs or upgrades one in a product, configures
-the consumer contract, reads the installed component and token catalogs, validates strict
+the consumer contract, reads the installed component, icon, and token catalogs, validates strict
 usage, sets up the Tailwind v4 bridge, and diagnoses the result.
 
-- **Executable:** `prism-ds` with eighteen root commands (`search`, `info`, `install`,
-  `use`, `upgrade`, `switch`, `remove`, `connect`, `config`, `components`, `tokens`,
+- **Executable:** `prism-ds` with nineteen root commands (`search`, `info`, `install`,
+  `use`, `upgrade`, `switch`, `remove`, `connect`, `config`, `components`, `icons`, `tokens`,
   `check`, `check-usage`, `setup-tailwind`, `doctor`, `skills`, `self-update`, `recover`,
   `--help`). `skills` has `list`/`add`/`update`/`remove` subcommands; they are not
   separate root command names.
@@ -23,7 +23,9 @@ usage, sets up the Tailwind v4 bridge, and diagnoses the result.
   `design-system.source.json` descriptor is `schemaVersion: 4` and is never shipped;
   this tooling never sees it. The manifest's `entrypoints`, `extensions`, and `effects`
   metadata is the only source for the custom-extension catalog and selected-entry
-  requirements; nothing is inferred from a name.
+  requirements; nothing is inferred from a name. Icons are read only from the reserved
+  `./icons` entrypoint's real `publicApi` exports; the fixed core vocabulary is never
+  treated as availability, and a system without that entrypoint ships no icons.
 - **Explicit boundaries:** `search`/`info` are network read-only; `install`/`use`/
   `upgrade`/`switch`/`remove` mutate consumer dependencies (`switch` retains the previous
   dependency and `remove` is a separate explicit operation); `self-update` installs a
@@ -75,8 +77,8 @@ a child terminal; argument commands and `--help` remain plain CLI invocations.
 
 The main screen reflects the project state: with nothing installed it offers the
 read-only catalog (browse, search, inspect a release); an installed-but-unconfigured
-package offers Configure / Connect; a connected project gets tabs `1`–`4` for Systems,
-Components, Tokens, and Checks. Press `m` for **Manage**, which groups:
+package offers Configure / Connect; a connected project gets tabs `1`–`5` for Systems,
+Components, Tokens, Checks, and Icons. Press `m` for **Manage**, which groups:
 
 - **System lifecycle** (`s`) — switch to another exact release after a usage-aware
   compatibility review, or remove an unused system as a separate operation;
@@ -354,6 +356,21 @@ unknown name is rejected. The example route is
 derived from the validated manifest `id` as `/showcase/<id>`. The TUI Components view reads
 the same catalog and shows its extension section only for a system that declares one.
 
+### `prism-ds icons [name] --cwd <consumer-root>`
+
+Offline, read-only icon catalog for the installed design system, read only through its
+public `./manifest` (no package code is executed, nothing is written or installed). The
+catalog is the real `publicApi["./icons"]` list of canonical `${Name}Icon` exports, plus
+the reserved `./icons` entrypoint's requirements; it is never inferred from the shared
+vocabulary in `@prism-system/ui-core`. A system with no `./icons` entrypoint reports
+`supported: false`, zero available icons, and the fifty known-but-unavailable canonical
+names, so the absence is explicit rather than fabricated availability. `[name]` accepts a
+canonical name (`Search`), a public export name (`SearchIcon`), or a unique
+case-insensitive name; a known but undeclared icon is reported unavailable, and an unknown
+name is rejected. Text output groups available icons by canonical category and shows the
+entrypoint, public import path, and requirements; `--json` returns the same catalog in a
+stable machine-readable shape. The TUI Icons view reads the same catalog.
+
 ### `prism-ds tokens [group] --cwd <consumer-root>`
 
 Offline, read-only catalog of semantic token names mapped to the CSS custom properties and
@@ -369,8 +386,10 @@ captured independently and a stable status (`passed`, `failed`, `not_checked`,
 `not_applicable`): the consumer configuration (`package.json#designSystem` or
 `.design-system/config.json`), the full `doctor`
 diagnostics (including the `./tailwind.css` bridge), the public `./styles.css` export, the
-Tailwind v4 prerequisite, the CSS import order, strict usage, and required/optional
-component availability. The CSS import order is checked **only** when an explicit
+Tailwind v4 prerequisite, the CSS import order, strict usage, required/optional
+component availability, and the optional icon catalog. A system without icons is never
+failed for that absence; a declared icon catalog must match its real `publicApi["./icons"]`
+exports and package export target. The CSS import order is checked **only** when an explicit
 `--css <file>` is given; with no `--css`
 the report never scans for or guesses a CSS file and marks the imports `not_checked`. The
 named `--css` check is read-only. It never writes, installs, executes package code, or runs

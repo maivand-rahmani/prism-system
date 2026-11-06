@@ -4,7 +4,9 @@
  * This is the runtime, fail-closed counterpart of
  * `schemas/design-system.schema.json`. It is shared by the registry `info` path
  * and the consumer install/connect verification path so both reject the same
- * malformed manifests. It imports only `constants.mjs` and `semver.mjs` (never
+ * malformed manifests. It also validates the reserved `./icons` entrypoint: an
+ * icon catalog is available only when that entrypoint exists and its public API
+ * is exactly canonical `${Name}Icon` exports. It imports only `constants.mjs` and `semver.mjs` (never
  * `consumer.mjs` or `registry.mjs`), so it can be reused without a cycle and
  * without reading the design-systems source repository.
  */
@@ -30,6 +32,9 @@ import {
   EXTENSION_FIELDS,
   EXTENSION_NAME_PATTERN,
   EXTENSION_REQUIRED_FIELDS,
+  ICON_ENTRYPOINT,
+  ICON_EXPORT_SUFFIX,
+  isCanonicalIconExportName,
   MANIFEST_SCHEMA_VERSION,
   NON_CODE_EXPORT_KEYS,
   OPTIONAL_COMPONENTS,
@@ -391,6 +396,59 @@ export function collectExtensionsFailures(value, { entrypoints, publicApi } = {}
         `publicApi.${extension.entrypoint} must include the extension export ${JSON.stringify(name)}.`,
       );
     }
+  }
+  return failures;
+}
+
+/**
+ * Collect the reserved `./icons` entrypoint violations. Icons are not a
+ * manifest field and not components: the only availability evidence is the real
+ * `publicApi["./icons"]` export list. When that entrypoint is present it must be
+ * a nonempty list of canonical `${Name}Icon` exports, and no other entrypoint
+ * may publish a canonical icon export.
+ *
+ * @param {{ entrypoints?: unknown, publicApi?: unknown }} [catalog]
+ * @param {string[]} [failures]
+ * @returns {string[]}
+ */
+export function collectIconEntrypointFailures({ entrypoints, publicApi } = {}, failures = []) {
+  if (isPlainObject(publicApi)) {
+    for (const [key, names] of Object.entries(publicApi)) {
+      if (key === ICON_ENTRYPOINT || !Array.isArray(names)) continue;
+      const misplaced = names.filter((name) => isCanonicalIconExportName(name));
+      if (misplaced.length > 0) {
+        failures.push(
+          `publicApi[${JSON.stringify(key)}] publishes canonical icon export(s) ${misplaced.join(
+            ", ",
+          )}; every icon export must come from the single reserved "${ICON_ENTRYPOINT}" entrypoint.`,
+        );
+      }
+    }
+  }
+  if (!isPlainObject(entrypoints) || !hasOwn(entrypoints, ICON_ENTRYPOINT)) return failures;
+  if (!isPlainObject(publicApi) || !Array.isArray(publicApi[ICON_ENTRYPOINT])) {
+    failures.push(
+      `publicApi[${JSON.stringify(ICON_ENTRYPOINT)}] is required for the icon entrypoint.`,
+    );
+    return failures;
+  }
+  const names = publicApi[ICON_ENTRYPOINT];
+  if (!isUniqueStringArray(names)) {
+    failures.push(
+      `publicApi[${JSON.stringify(ICON_ENTRYPOINT)}] must be an array of unique non-empty strings.`,
+    );
+    return failures;
+  }
+  if (names.length === 0) {
+    failures.push(`publicApi[${JSON.stringify(ICON_ENTRYPOINT)}] must publish at least one icon.`);
+    return failures;
+  }
+  const invalid = names.filter((name) => !isCanonicalIconExportName(name));
+  if (invalid.length > 0) {
+    failures.push(
+      `publicApi[${JSON.stringify(ICON_ENTRYPOINT)}] must contain only canonical ` +
+        `"${ICON_EXPORT_SUFFIX}"-suffixed icon exports; invalid: ${invalid.join(", ")}.`,
+    );
   }
   return failures;
 }
@@ -766,6 +824,10 @@ function collectCurrentManifestFailures(manifest, { packageName, version } = {})
     }
   }
   collectPublicApiFailures(manifest.publicApi, { entrypoints: manifest.entrypoints }, failures);
+  collectIconEntrypointFailures(
+    { entrypoints: manifest.entrypoints, publicApi: manifest.publicApi },
+    failures,
+  );
   if (hasOwn(manifest, "extensions")) {
     collectExtensionsFailures(
       manifest.extensions,

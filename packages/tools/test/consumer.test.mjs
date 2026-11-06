@@ -78,6 +78,11 @@ function createConsumer(t, options = {}) {
     manifestTailwindTarget = "./dist/tailwind.css",
     packageTailwindTarget = "./dist/tailwind.css",
     tailwindTargetExists = packageTailwindTarget === "./dist/tailwind.css",
+    icons = null,
+    iconsTarget = "./dist/icons.mjs",
+    packageIconsTarget = iconsTarget,
+    iconsTargetExists = true,
+    includePackageIcons = icons !== null,
     withConfig = false,
     mutateManifest = null,
     files = {},
@@ -96,6 +101,11 @@ function createConsumer(t, options = {}) {
   manifest.name = "Bridge";
   if (includeManifestTailwind) manifest.exports["./tailwind.css"] = manifestTailwindTarget;
   else delete manifest.exports["./tailwind.css"];
+  if (icons !== null) {
+    manifest.entrypoints["./icons"] = { requirements: [] };
+    manifest.exports["./icons"] = iconsTarget;
+    manifest.publicApi["./icons"] = icons.map((name) => `${name}Icon`);
+  }
   if (typeof mutateManifest === "function") mutateManifest(manifest);
 
   const consumerPackage = {
@@ -118,6 +128,7 @@ function createConsumer(t, options = {}) {
   const exportsMap = { "./manifest": "./design-system.json" };
   exportsMap["./styles.css"] = "./dist/index.css";
   if (includePackageTailwind) exportsMap["./tailwind.css"] = packageTailwindTarget;
+  if (includePackageIcons) exportsMap["./icons"] = packageIconsTarget;
 
   const systemDir = join(root, "node_modules", ...packageName.split("/"));
   writeJson(join(systemDir, "package.json"), {
@@ -133,6 +144,14 @@ function createConsumer(t, options = {}) {
         ? manifestTailwindTarget.slice(2)
         : "dist/tailwind.css";
     writeFile(systemDir, relativeTarget, "/* tailwind bridge */\n");
+  }
+  if (
+    includePackageIcons &&
+    iconsTargetExists &&
+    iconsTarget.startsWith("./") &&
+    !iconsTarget.includes("..")
+  ) {
+    writeFile(systemDir, iconsTarget.slice(2), "/* icons */\n");
   }
   for (const [relative, content] of Object.entries(files)) writeFile(root, relative, content);
 
@@ -308,6 +327,87 @@ test("a Tailwind bridge target escaping the package fails doctor", (t) => {
   const bridge = doctor.checks.find((check) => check.label === "tailwind bridge");
   assert.ok(bridge && !bridge.ok);
   assert.match(bridge.detail, /escapes/);
+});
+
+/* -------------------------------------------------------------------------- */
+/* Icon catalog                                                               */
+/* -------------------------------------------------------------------------- */
+
+test("doctor reports an absent icon catalog as information", (t) => {
+  const { root } = createConsumer(t);
+  const doctor = collectDoctorReport({ cwd: root });
+  assert.equal(doctor.ok, true, JSON.stringify(failedChecks(doctor)));
+  const icons = doctor.checks.find((check) => check.label === "icon catalog");
+  assert.ok(icons, JSON.stringify(doctor.checks));
+  assert.equal(icons.ok, true);
+  assert.equal(icons.detail, "no icon catalog declared (absence means unavailable)");
+});
+
+test("doctor verifies a shipped icon catalog target and count", (t) => {
+  const { root } = createConsumer(t, { icons: ["ArrowLeft", "Plus", "Info"] });
+  const doctor = collectDoctorReport({ cwd: root });
+  assert.equal(doctor.ok, true, JSON.stringify(failedChecks(doctor)));
+  const icons = doctor.checks.find((check) => check.label === "icon catalog");
+  assert.ok(icons && icons.ok, JSON.stringify(doctor.checks));
+  assert.equal(icons.detail, "./icons -> ./dist/icons.mjs (3 icons)");
+});
+
+test("doctor accepts a conditional ./icons export with real import target", (t) => {
+  const { root, systemDir } = createConsumer(t, { icons: ["ArrowLeft"] });
+  const target = {
+    types: "./dist/icons/index.d.ts",
+    import: "./dist/icons/index.mjs",
+    require: "./dist/icons/index.js",
+  };
+  const manifestPath = join(systemDir, "design-system.json");
+  const manifest = readJson(manifestPath);
+  manifest.exports["./icons"] = target;
+  writeJson(manifestPath, manifest);
+  const packagePath = join(systemDir, "package.json");
+  const pkg = readJson(packagePath);
+  pkg.exports["./icons"] = target;
+  writeJson(packagePath, pkg);
+  writeFile(systemDir, "dist/icons/index.mjs", "export const ArrowLeftIcon = null;\n");
+  writeFile(systemDir, "dist/icons/index.js", "exports.ArrowLeftIcon = null;\n");
+  writeFile(systemDir, "dist/icons/index.d.ts", "export declare const ArrowLeftIcon: unknown;\n");
+
+  const doctor = collectDoctorReport({ cwd: root });
+  assert.equal(doctor.ok, true, JSON.stringify(failedChecks(doctor)));
+  const icons = doctor.checks.find((check) => check.label === "icon catalog");
+  assert.ok(icons && icons.ok, JSON.stringify(doctor.checks));
+  assert.match(icons.detail, /\.\/dist\/icons\/index\.mjs \(1 icons\)/);
+});
+
+test("a missing icon export target file fails doctor", (t) => {
+  const { root } = createConsumer(t, { icons: ["ArrowLeft"], iconsTargetExists: false });
+  const doctor = collectDoctorReport({ cwd: root });
+  assert.equal(doctor.ok, false);
+  const icons = doctor.checks.find((check) => check.label === "icon catalog");
+  assert.ok(icons && !icons.ok);
+  assert.match(icons.detail, /contained regular file/);
+});
+
+test("a package.json without the ./icons export fails doctor", (t) => {
+  const { root } = createConsumer(t, { icons: ["ArrowLeft"], includePackageIcons: false });
+  const doctor = collectDoctorReport({ cwd: root });
+  assert.equal(doctor.ok, false);
+  const icons = doctor.checks.find((check) => check.label === "icon catalog");
+  assert.ok(icons && !icons.ok);
+  assert.match(icons.detail, /must expose/);
+});
+
+test("a malformed icon public API fails doctor", (t) => {
+  const { root } = createConsumer(t, {
+    icons: ["ArrowLeft"],
+    mutateManifest: (manifest) => {
+      manifest.publicApi["./icons"] = ["arrow-left"];
+    },
+  });
+  const doctor = collectDoctorReport({ cwd: root });
+  assert.equal(doctor.ok, false);
+  const icons = doctor.checks.find((check) => check.label === "icon catalog");
+  assert.ok(icons && !icons.ok);
+  assert.match(icons.detail, /canonical/);
 });
 
 /* -------------------------------------------------------------------------- */

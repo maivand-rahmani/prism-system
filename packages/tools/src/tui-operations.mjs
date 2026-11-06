@@ -27,6 +27,7 @@
  *                           only when called).
  *   listComponents()        offline public-manifest catalog, including
  *                           extensions and their entrypoint requirements.
+ *   listIcons()             offline public-manifest icon catalog.
  *   listTokens()            offline public-manifest token catalog.
  *   runCheck()              offline read-only consumer health report; an
  *                           explicit `entry` selects entry prerequisites.
@@ -80,6 +81,7 @@ import {
   verifyConsumerDesignSystem,
 } from "./consumer.mjs";
 import { collectDoctorReport } from "./doctor.mjs";
+import { listDesignSystemIcons } from "./icons.mjs";
 import { switchDesignSystem, removeDesignSystem } from "./lifecycle.mjs";
 import { getSkillCatalogEntry, listSkillCatalog } from "./skill-catalog.mjs";
 import { listInstalledSkills, SKILL_AGENT_IDS, SKILL_SCOPE_VALUES } from "./skill-inventory.mjs";
@@ -125,6 +127,7 @@ const DEFAULT_OPERATIONS = Object.freeze({
   switch: switchDesignSystem,
   remove: removeDesignSystem,
   components: listDesignSystemComponents,
+  icons: listDesignSystemIcons,
   tokens: listDesignSystemTokens,
   check: checkDesignSystem,
   doctor: collectDoctorReport,
@@ -818,6 +821,14 @@ export function createTuiOperations({
       return ops.components({ cwd: resolvedCwd, name });
     } catch (error) {
       return failure("components", error);
+    }
+  }
+
+  function listIcons({ name } = {}) {
+    try {
+      return ops.icons({ cwd: resolvedCwd, name });
+    } catch (error) {
+      return failure("icons", error);
     }
   }
 
@@ -1615,6 +1626,7 @@ export function createTuiOperations({
     searchSystems,
     inspectSystem,
     listComponents,
+    listIcons,
     listTokens,
     runCheck,
     runDoctor,

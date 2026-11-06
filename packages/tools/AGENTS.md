@@ -5,7 +5,7 @@ Package-local instructions. Read the repository root `AGENTS.md` first.
 ## Identity
 
 `@prism-system/tools` is the **published tooling** for `@prism-system` design systems. It
-ships the `prism-ds` executable with eighteen root commands:
+ships the `prism-ds` executable with nineteen root commands:
 
 ```text
 search         npm Registry search for supported @prism-system/ui-* styles (network, read-only)
@@ -18,6 +18,7 @@ remove         remove the selected system and its attributable integration once 
 connect        configure an already-installed style in a consumer (offline; writes only the consumer configuration and the root AGENTS.md managed section)
 config         show or move where a consumer stores its design-system configuration (offline; writes only the package.json field and/or .design-system/config.json)
 components     read the installed style's component catalog (offline, manifest-only)
+icons          read the installed style's icon catalog and public imports (offline, manifest-only)
 tokens         read the installed style's token catalog (offline, manifest-only)
 check          one offline read-only consumer health report (offline)
 setup-tailwind make one explicit consumer CSS file load the Tailwind v4 bridge (offline; edits that file only)
@@ -50,6 +51,8 @@ This package owns:
 - the strict usage checker (`check-usage`) and its rule catalog;
 - read-only diagnostics (`doctor`) and the aggregated offline health report (`check`);
 - the offline component catalog (`components`) and the token catalog (`tokens`);
+- the offline icon catalog (`icons`), derived only from the installed manifest's
+  verified `publicApi["./icons"]` and entrypoint requirements;
 - the extension catalog and the selected-entry prerequisite scan/peer planning
   (`--with-entry`, `--peer`, `--entry`);
 - the Tailwind v4 setup planner/writer (`setup-tailwind`);
@@ -209,6 +212,10 @@ consumer root and read only through its public `exports` (notably `./manifest`).
   second availability list, and category availability is derived by intersecting the two.
   Custom extensions are available only as declared in `manifest.extensions`; their
   entrypoint `requirements` are the only source for selected-entry peer checks.
+  Icons are available only through the reserved `./icons` entrypoint: availability is
+  exactly the verified `publicApi["./icons"]` list of canonical `${Name}Icon` exports,
+  never a top-level field or the shared core vocabulary. A system without that
+  entrypoint ships no icons, and that absence is valid.
   `tokens` reads the token catalog of the installed current-contract system.
 - Exact version/identity equality fails closed; unknown schema versions fail closed.
 - Writes are contained to the real `--cwd` root, atomic, and idempotent. Malformed managed

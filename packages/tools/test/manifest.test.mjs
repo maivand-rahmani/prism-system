@@ -11,7 +11,7 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -21,6 +21,7 @@ import {
   MANIFEST_SCHEMA_VERSION,
   OPTIONAL_COMPONENTS,
   REQUIRED_COMPONENTS,
+  iconExportName,
 } from "../src/constants.mjs";
 import {
   collectManifestFailures,
@@ -35,7 +36,9 @@ import {
   readCurrentManifest,
   readJson,
   repoRoot,
+  syntheticManifest,
 } from "./manifest-fixture.mjs";
+import { validateDesignSystemManifest as validateReleasedManifest } from "./fixtures/legacy-schema5-reader/manifest.mjs";
 
 const systemAManifest = readCurrentManifest(
   join(repoRoot, "packages", "system-a", "design-system.json"),
@@ -49,6 +52,19 @@ function withoutOptionalComponents(manifest) {
   const clone = structuredClone(manifest);
   for (const name of OPTIONAL_COMPONENTS) delete clone.components[name];
   return clone;
+}
+
+/** A synthetic current manifest that publishes a real `./icons` entrypoint. */
+function iconManifest(names = ["Search", "Plus"]) {
+  const manifest = syntheticManifest({
+    id: "icons",
+    version: "1.0.0",
+    packageName: "@prism-system/ui-icons",
+  });
+  manifest.entrypoints["./icons"] = { requirements: [] };
+  manifest.exports["./icons"] = "./dist/icons/index.mjs";
+  manifest.publicApi["./icons"] = names.map((name) => iconExportName(name));
+  return manifest;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -351,6 +367,138 @@ test("optional component metadata fields are accepted and validated", () => {
   assert.ok(
     failures.includes("components.Button.description must be a non-empty string."),
     failures.join(" "),
+  );
+});
+
+/* -------------------------------------------------------------------------- */
+/* Icon entrypoint                                                            */
+/* -------------------------------------------------------------------------- */
+
+test("a valid icon catalog is accepted and a missing one is valid", () => {
+  const withoutIcons = syntheticManifest();
+  assert.deepEqual(collectManifestFailures(withoutIcons), []);
+  assert.equal("./icons" in withoutIcons.entrypoints, false);
+
+  const twoIcons = iconManifest();
+  assert.deepEqual(collectManifestFailures(twoIcons), []);
+  assert.deepEqual(twoIcons.publicApi["./icons"], ["SearchIcon", "PlusIcon"]);
+});
+
+test("the icon entrypoint requires a nonempty public API", () => {
+  const empty = iconManifest([]);
+  assert.ok(
+    collectManifestFailures(empty).includes('publicApi["./icons"] must publish at least one icon.'),
+    collectManifestFailures(empty).join(" "),
+  );
+
+  const missing = iconManifest();
+  delete missing.publicApi["./icons"];
+  assert.ok(
+    collectManifestFailures(missing).includes(
+      'publicApi["./icons"] is required for the icon entrypoint.',
+    ),
+    collectManifestFailures(missing).join(" "),
+  );
+});
+
+test("the icon public API accepts only canonical NameIcon exports", () => {
+  const nonCanonical = iconManifest();
+  nonCanonical.publicApi["./icons"] = ["Search", "PlusIcon"];
+  const failures = collectManifestFailures(nonCanonical);
+  assert.ok(
+    failures.includes(
+      'publicApi["./icons"] must contain only canonical "Icon"-suffixed icon exports; invalid: Search.',
+    ),
+    failures.join(" "),
+  );
+});
+
+test("canonical icon exports are confined to the reserved icon entrypoint", () => {
+  const manifest = iconManifest();
+  manifest.publicApi["."] = ["Button", "SearchIcon"];
+  const failures = collectManifestFailures(manifest);
+  assert.ok(
+    failures.some(
+      (failure) =>
+        failure.includes('publicApi["."] publishes canonical icon export(s) SearchIcon') &&
+        failure.includes(
+          'every icon export must come from the single reserved "./icons" entrypoint',
+        ),
+    ),
+    failures.join(" "),
+  );
+});
+
+/* -------------------------------------------------------------------------- */
+/* Released-reader compatibility                                              */
+/* -------------------------------------------------------------------------- */
+
+test("the released schema-5 reader accepts the generated PLR icon manifest", () => {
+  const plrDir = join(repoRoot, "packages", "system-plr");
+  const manifest = readJson(join(plrDir, "design-system.json"));
+  const releasedArgs = { packageName: manifest.package, version: manifest.version };
+
+  // The icon catalog adds no manifest field: it rides the schema-5 `./icons`
+  // code entrypoint, verified public API, and real conditional exports.
+  assert.equal(manifest.schemaVersion, MANIFEST_SCHEMA_VERSION);
+  assert.equal(manifest.contractVersion, CONTRACT_VERSION);
+  assert.equal("icons" in manifest.docs, false);
+  assert.equal("icons" in manifest, false);
+  assert.deepEqual(manifest.exports["./icons"], {
+    types: "./dist/icons/index.d.ts",
+    import: "./dist/icons/index.mjs",
+    require: "./dist/icons/index.js",
+  });
+  assert.ok(manifest.entrypoints["./icons"], "the icon code entrypoint is declared");
+  assert.ok(
+    manifest.entrypoints["./icons"].requirements.some(
+      (requirement) =>
+        requirement.name === "lucide-react" &&
+        requirement.kind === "dependency" &&
+        requirement.optional === false,
+    ),
+    "the icon entrypoint declares its real dependency",
+  );
+  assert.equal(manifest.publicApi["./icons"].length, 50);
+  assert.equal(new Set(manifest.publicApi["./icons"]).size, 50);
+  for (const name of manifest.publicApi["./icons"]) {
+    assert.match(name, /Icon$/);
+  }
+
+  // The current validator and the actual released reader both fully accept it.
+  assert.deepEqual(collectManifestFailures(manifest), []);
+  assert.doesNotThrow(() => validateReleasedManifest(manifest, releasedArgs));
+
+  // The shipped manifest and source schemas also reject the removed docs field.
+  const manifestSchema = readJson(join(repoRoot, "schemas", "design-system.schema.json"));
+  const sourceSchema = readJson(join(repoRoot, "schemas", "design-system.source.schema.json"));
+  assert.equal("icons" in manifestSchema.properties.docs.properties, false);
+  assert.equal("icons" in sourceSchema.properties.docs.properties, false);
+  for (const key of Object.keys(manifest.docs)) {
+    assert.ok(
+      key in manifestSchema.properties.docs.properties,
+      `manifest docs.${key} is allowed by the shipped schema`,
+    );
+  }
+
+  // ICONS.md remains a real, published document linked from the package docs.
+  assert.ok(existsSync(join(plrDir, "ICONS.md")));
+  assert.ok(readJson(join(plrDir, "package.json")).files.includes("ICONS.md"));
+  for (const doc of ["README.md", "AGENTS.md", "USAGE.md"]) {
+    assert.match(
+      readFileSync(join(plrDir, doc), "utf8"),
+      /\[ICONS\.md\]\(\.\/ICONS\.md\)/,
+      `${doc} links ICONS.md`,
+    );
+  }
+
+  // Reintroducing docs.icons must fail before it can break released readers.
+  const reintroduced = structuredClone(manifest);
+  reintroduced.docs.icons = "./ICONS.md";
+  assert.ok(collectManifestFailures(reintroduced).includes("docs.icons is not allowed."));
+  assert.throws(
+    () => validateReleasedManifest(reintroduced, releasedArgs),
+    /docs\.icons is not allowed/,
   );
 });
 

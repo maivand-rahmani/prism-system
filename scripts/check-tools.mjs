@@ -10,8 +10,9 @@
  *      published `@prism-system/tools` package;
  *   2. assert the packed Tailwind bridge / stylesheet / manifest artifacts;
  *   3. drive isolated consumers from the packed artifacts: connect, doctor,
- *      components, tokens, check, setup-tailwind, check-usage, recover advice,
- *      offline skills inventory, idempotency, and the declared optional sets;
+ *      components, icons, tokens, check, setup-tailwind, check-usage, recover
+ *      advice, offline skills inventory, idempotency, and the declared optional
+ *      sets;
  *   4. exercise the read-only registry catalog and the dependency-mutating
  *      commands (`install`/`use`/`upgrade`) plus `switch`/`remove` dry-run
  *      previews against a local in-process registry serving the packed
@@ -48,7 +49,13 @@ import { dirname, join, relative, sep } from "node:path";
 
 import { readJsonFile, repoRoot } from "./register-design-system.mjs";
 import { validateDesignSystem } from "./validate-design-system.mjs";
-import { CAPABILITY_CATEGORIES, CAPABILITY_CATEGORY_KEYS } from "./design-system-manifest.mjs";
+import {
+  CAPABILITY_CATEGORIES,
+  CAPABILITY_CATEGORY_KEYS,
+  ICON_EXPORT_NAMES,
+  ICON_EXPORT_SUFFIX,
+  ICON_NAMES,
+} from "./design-system-manifest.mjs";
 import { inspectTarball } from "./prepare-release.mjs";
 
 const ROOT = repoRoot();
@@ -62,6 +69,17 @@ const REGISTRY_DIR = join(TEMP, "registry");
 const LOG_PATH = join(TEMP, "check-tools.log");
 
 const SYSTEM_IDS = ["system-a", "system-b"];
+
+/**
+ * The one registered system that declares an icon catalog. Its packed artifact
+ * is checked separately from the A/B lifecycle matrix, which stays icon-free:
+ * `icons` availability is the verified `publicApi["./icons"]` list, never the
+ * core vocabulary and never a top-level manifest field.
+ */
+const ICON_SYSTEM_ID = "system-plr";
+const ICON_SYSTEM_PACKAGE = "@prism-system/ui-system-plr";
+const ICON_ENTRYPOINT = "./icons";
+
 const TOOLS_PACKAGE_NAME = "@prism-system/tools";
 const TOOLS_PACKAGE_DIR = join(ROOT, "packages", "tools");
 const TOOLS_EXTRACT = join(EXTRACT_DIR, "tools");
@@ -145,6 +163,8 @@ const REPO_MUTATION_WATCH = [
   "packages/system-a/design-system.json",
   "packages/system-b/package.json",
   "packages/system-b/design-system.json",
+  "packages/system-plr/package.json",
+  "packages/system-plr/design-system.json",
   "packages/tools/package.json",
   "packages/tools/src/cli.mjs",
 ];
@@ -176,6 +196,7 @@ const TOOLS_COMMANDS = [
   "connect",
   "config",
   "components",
+  "icons",
   "tokens",
   "check",
   "check-usage",
@@ -393,6 +414,27 @@ const targets = SYSTEM_IDS.map((id) => ({
   extractDir: join(EXTRACT_DIR, id),
 }));
 
+/**
+ * The icon-catalog target is packed and inspected independently so `icons` is
+ * verified against a real shipped `./icons` entrypoint without widening the
+ * component/lifecycle matrix asserted for systems A and B.
+ */
+const iconTarget = {
+  id: ICON_SYSTEM_ID,
+  packageName: ICON_SYSTEM_PACKAGE,
+  packageDir: join(ROOT, "packages", ICON_SYSTEM_ID),
+  extractDir: join(EXTRACT_DIR, ICON_SYSTEM_ID),
+};
+
+runCheck("pack the icon-catalog system", () => {
+  assert(
+    existsSync(join(iconTarget.packageDir, "dist")),
+    `${ICON_SYSTEM_ID} is not built; run "pnpm build" first`,
+  );
+  const pack = runPnpm(["pack", "--pack-destination", PACK_DIR], { cwd: iconTarget.packageDir });
+  assert(pack.status === 0, `pnpm pack failed for ${ICON_SYSTEM_ID}: ${output(pack)}`);
+});
+
 runCheck("extract and inspect the packed system artifacts", () => {
   for (const target of targets) {
     const tarball = readdirSync(PACK_DIR).find(
@@ -429,6 +471,82 @@ runCheck("extract and inspect the packed system artifacts", () => {
     target.manifest = manifest;
     target.version = pkg.version;
   }
+});
+
+runCheck("extract and inspect the packed icon-catalog system", () => {
+  const tarball = readdirSync(PACK_DIR).find(
+    (name) => name.includes(iconTarget.id) && name.endsWith(".tgz"),
+  );
+  assert(tarball, `no tarball produced for ${iconTarget.id}`);
+  const tarballPath = join(PACK_DIR, tarball);
+  const inspection = inspectTarball(tarballPath);
+  assert(inspection.ok, `tarball inspection failed for ${iconTarget.id}: ${inspection.detail}`);
+  mkdirSync(iconTarget.extractDir, { recursive: true });
+  const extract = runTar(["-xzf", tarballPath, "-C", iconTarget.extractDir]);
+  assert(extract.status === 0, `failed to extract ${iconTarget.id}: ${output(extract)}`);
+
+  const extractedDir = join(iconTarget.extractDir, "package");
+  iconTarget.extractedPackageDir = extractedDir;
+  const pkg = readJsonFile(join(extractedDir, "package.json"));
+  const manifest = readJsonFile(join(extractedDir, "design-system.json"));
+  assert(pkg.name === iconTarget.packageName, `${iconTarget.id} packed package identity mismatch`);
+  assert(
+    manifest.package === iconTarget.packageName,
+    `${iconTarget.id} manifest identity mismatch`,
+  );
+  assert(manifest.version === pkg.version, `${iconTarget.id} manifest/package version mismatch`);
+  assert(manifest.schemaVersion === 5, `${iconTarget.id} manifest must be schemaVersion 5`);
+  assert(
+    manifest.contractVersion === 4,
+    `${iconTarget.id} manifest must declare contractVersion 4`,
+  );
+  assert(
+    manifest.icons === undefined,
+    `${iconTarget.id} manifest must not gain a top-level "icons" field`,
+  );
+  assert(
+    typeof pkg.exports?.[ICON_ENTRYPOINT] !== "undefined",
+    `${iconTarget.id} must publish the ${ICON_ENTRYPOINT} entrypoint`,
+  );
+
+  // The entrypoint's real requirements are manifest data, not inferred from the
+  // icon names; PLR depends on Lucide for its glyphs.
+  const requirements = manifest.entrypoints?.[ICON_ENTRYPOINT]?.requirements;
+  assert(
+    Array.isArray(requirements) && requirements.length > 0,
+    `${iconTarget.id} ${ICON_ENTRYPOINT} entrypoint must declare its requirements`,
+  );
+  const lucide = requirements.find((requirement) => requirement?.name === "lucide-react");
+  assert(lucide, `${iconTarget.id} ${ICON_ENTRYPOINT} requirements must include lucide-react`);
+  assert(lucide.kind === "dependency", `${iconTarget.id} lucide-react requirement kind`);
+  assert(
+    typeof lucide.range === "string" && lucide.range.trim().length > 0,
+    `${iconTarget.id} lucide-react requirement range`,
+  );
+  assert(lucide.optional === false, `${iconTarget.id} lucide-react requirement must be required`);
+
+  // Availability is only the verified canonical export list: no invented names,
+  // no duplicates, and no `NameIcon` export implied outside the catalog.
+  const declaredIcons = manifest.publicApi?.[ICON_ENTRYPOINT];
+  assert(
+    Array.isArray(declaredIcons) && declaredIcons.length > 0,
+    `${iconTarget.id} must declare publicApi["${ICON_ENTRYPOINT}"]`,
+  );
+  assert(
+    new Set(declaredIcons).size === declaredIcons.length,
+    `${iconTarget.id} publicApi["${ICON_ENTRYPOINT}"] must be unique`,
+  );
+  const canonicalExports = new Set(ICON_EXPORT_NAMES);
+  const nonCanonical = declaredIcons.filter((name) => !canonicalExports.has(name));
+  assert(
+    nonCanonical.length === 0,
+    `${iconTarget.id} publicApi["${ICON_ENTRYPOINT}"] must contain only canonical ` +
+      `NameIcon exports, invalid: ${nonCanonical.join(", ")}`,
+  );
+
+  iconTarget.declaredIcons = declaredIcons;
+  iconTarget.manifest = manifest;
+  iconTarget.version = pkg.version;
 });
 
 runCheck("packed systems ship a real Tailwind bridge and stylesheet", () => {
@@ -545,6 +663,7 @@ runCheck("pack and inspect the @prism-system/tools artifact", () => {
     "package/bin/prism-ds.mjs",
     "package/src/cli.mjs",
     "package/src/components.mjs",
+    "package/src/icons.mjs",
     "package/src/tokens.mjs",
     "package/src/check.mjs",
     "package/src/tailwind-setup.mjs",
@@ -994,6 +1113,112 @@ for (const target of targets) {
     verifyConsumer(target);
   });
 }
+
+runCheck("packed icons reports the declared catalog offline", () => {
+  const dir = makeConsumer("icon-catalog", {
+    packageName: iconTarget.packageName,
+    version: iconTarget.version,
+    sourceDir: iconTarget.extractedPackageDir,
+  });
+  const before = hashTree(dir);
+  const declared = iconTarget.declaredIcons;
+  const expectedAvailable = ICON_NAMES.filter((name) =>
+    declared.includes(`${name}${ICON_EXPORT_SUFFIX}`),
+  );
+
+  const catalog = runPackedTools(["icons", "--cwd", dir, "--json"]);
+  assert(catalog.status === 0, `icons failed: ${output(catalog)}`);
+  const parsed = JSON.parse(catalog.stdout);
+  assert(parsed.ok === true, "icons ok");
+  assert(parsed.contractVersion === 4, "icons contractVersion");
+  assert(parsed.supported === true, "icons supported");
+  assert(parsed.entrypoint === ICON_ENTRYPOINT, "icons entrypoint");
+  assert(
+    parsed.importPath === `${iconTarget.packageName}/icons`,
+    `icons importPath: ${parsed.importPath}`,
+  );
+  assert(
+    parsed.counts.available === declared.length,
+    `icons available count must equal the declared publicApi list (${declared.length})`,
+  );
+  assert(parsed.counts.total === ICON_EXPORT_NAMES.length, "icons canonical total");
+  assert(
+    parsed.counts.unavailable === parsed.counts.total - declared.length,
+    "icons unavailable count",
+  );
+  assert(
+    JSON.stringify(parsed.available) === JSON.stringify(expectedAvailable),
+    "icons available names must be the declared canonical names in canonical order",
+  );
+  for (const icon of parsed.icons) {
+    if (!icon.available) {
+      assert(icon.importStatement === null, `${icon.name} unavailable importStatement`);
+      continue;
+    }
+    assert(declared.includes(icon.exportName), `${icon.name} exportName must be declared`);
+    assert(icon.entrypoint === ICON_ENTRYPOINT, `${icon.name} entrypoint`);
+    assert(icon.importPath === parsed.importPath, `${icon.name} importPath`);
+    assert(
+      icon.importStatement === `import { ${icon.exportName} } from "${parsed.importPath}";`,
+      `${icon.name} importStatement`,
+    );
+  }
+
+  const requested = runPackedTools(["icons", "Search", "--cwd", dir, "--json"]);
+  assert(requested.status === 0, `icons Search failed: ${output(requested)}`);
+  const requestedIcon = JSON.parse(requested.stdout).requested;
+  assert(requestedIcon?.name === "Search", "icons requested name");
+  assert(requestedIcon?.exportName === "SearchIcon", "icons requested exportName");
+  assert(requestedIcon?.available === true, "icons requested availability");
+  assert(requestedIcon?.reason === null, "icons requested reason");
+  assert(
+    requestedIcon?.importStatement ===
+      `import { SearchIcon } from "${iconTarget.packageName}/icons";`,
+    `icons requested importStatement: ${requestedIcon?.importStatement}`,
+  );
+
+  const unknown = runPackedTools(["icons", "Nope", "--cwd", dir, "--json"]);
+  assert(unknown.status !== 0, "unknown icon must fail closed");
+  assert(/Unknown icon/.test(output(unknown)), "unknown icon diagnostic");
+
+  assert(hashTree(dir) === before, "icons must be read-only");
+});
+
+runCheck("packed icons reports absence without implying availability", () => {
+  const target = targets[0];
+  const dir = makeConsumer("icon-absent", {
+    packageName: target.packageName,
+    version: target.version,
+    sourceDir: target.extractedPackageDir,
+  });
+  const before = hashTree(dir);
+
+  const catalog = runPackedTools(["icons", "--cwd", dir, "--json"]);
+  assert(catalog.status === 0, `icons failed for ${target.id}: ${output(catalog)}`);
+  const parsed = JSON.parse(catalog.stdout);
+  assert(parsed.ok === true, `${target.id} icons ok`);
+  assert(parsed.supported === false, `${target.id} icons must report no catalog`);
+  assert(parsed.entrypoint === null, `${target.id} absent icons entrypoint`);
+  assert(parsed.importPath === null, `${target.id} absent icons importPath`);
+  assert(parsed.counts.available === 0, `${target.id} absent icons available count`);
+  assert(parsed.counts.unavailable === parsed.counts.total, `${target.id} absent icons count`);
+  assert(parsed.available.length === 0, `${target.id} absent icons available list`);
+  for (const icon of parsed.icons) {
+    assert(icon.available === false, `${target.id} ${icon.name} must stay unavailable`);
+    assert(icon.entrypoint === null, `${target.id} ${icon.name} entrypoint`);
+    assert(icon.importPath === null, `${target.id} ${icon.name} importPath`);
+    assert(icon.importStatement === null, `${target.id} ${icon.name} importStatement`);
+  }
+
+  const requested = runPackedTools(["icons", "Search", "--cwd", dir, "--json"]);
+  assert(requested.status === 0, `icons Search failed for ${target.id}: ${output(requested)}`);
+  const requestedIcon = JSON.parse(requested.stdout).requested;
+  assert(requestedIcon?.available === false, `${target.id} requested icon must stay unavailable`);
+  assert(requestedIcon?.reason === "no-icon-catalog", `${target.id} requested icon reason`);
+  assert(requestedIcon?.importStatement === null, `${target.id} requested importStatement`);
+
+  assert(hashTree(dir) === before, `${target.id} icons must be read-only`);
+});
 
 runCheck("connect migrates a legacy .design-system install in one run", () => {
   const target = targets[0];

@@ -21,8 +21,9 @@
 import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-import { CONTRACT_VERSION, assertWithin } from "./constants.mjs";
+import { CONTRACT_VERSION, ICON_ENTRYPOINT, assertWithin } from "./constants.mjs";
 import { collectEntryPrerequisites } from "./entry-scan.mjs";
+import { buildIconCatalog } from "./icons.mjs";
 import { detectManifestContract } from "./manifest.mjs";
 import {
   CONSUMER_CONFIG_LABEL,
@@ -108,6 +109,79 @@ function verifyTailwindBridge({ installed, packageName }) {
     );
   }
   return targetPath;
+}
+
+/**
+ * Verify the reserved `./icons` icon-catalog export, read-only: the shipped
+ * manifest must advertise the entrypoint target, `package.json` must expose the
+ * same target, and that target must be a contained regular file inside the
+ * package directory. Returns the package-relative target string.
+ */
+export function verifyIconExport({ installed, packageName }) {
+  const manifestExports = isPlainObject(installed.manifest?.exports)
+    ? installed.manifest.exports
+    : {};
+  const declaredTarget = manifestExports[ICON_ENTRYPOINT];
+  if (declaredTarget === undefined) {
+    throw new Error(
+      `Shipped manifest does not advertise ${JSON.stringify(ICON_ENTRYPOINT)} in its exports map.`,
+    );
+  }
+  const packageExports = isPlainObject(installed.packageJson.exports)
+    ? installed.packageJson.exports
+    : {};
+  const publicTarget = packageExports[ICON_ENTRYPOINT];
+  if (JSON.stringify(publicTarget) !== JSON.stringify(declaredTarget)) {
+    throw new Error(
+      `Installed "${packageName}" must expose ${JSON.stringify(
+        ICON_ENTRYPOINT,
+      )} exactly as the manifest declares it ${JSON.stringify(
+        declaredTarget,
+      )} (received ${JSON.stringify(publicTarget ?? null)}).`,
+    );
+  }
+  const targetPathValue = iconTargetPath(declaredTarget);
+  if (targetPathValue === null) {
+    throw new Error(
+      `Shipped manifest exports[${JSON.stringify(
+        ICON_ENTRYPOINT,
+      )}] must contain a "./"-relative code target (received ${JSON.stringify(
+        declaredTarget ?? null,
+      )}).`,
+    );
+  }
+  const targetPath = assertWithin(
+    installed.packageDir,
+    join(installed.packageDir, targetPathValue),
+    `Icon catalog target for "${packageName}"`,
+  );
+  if (!existsSync(targetPath) || !statSync(targetPath).isFile()) {
+    throw new Error(
+      `Installed "${packageName}" exposes ${JSON.stringify(
+        ICON_ENTRYPOINT,
+      )} -> ${JSON.stringify(targetPathValue)}, but that target is not a contained regular file.`,
+    );
+  }
+  return targetPathValue;
+}
+
+/**
+ * Pick the real code target from a conditional package export. Asset/types
+ * entries are not the runtime module; prefer the import target, then module,
+ * default, require, and finally types.
+ */
+function iconTargetPath(target) {
+  if (typeof target === "string") {
+    return target.startsWith("./") && target.length > 2 ? target : null;
+  }
+  if (!isPlainObject(target)) return null;
+  for (const condition of ["import", "module", "default", "require", "types"]) {
+    const value = target[condition];
+    if (typeof value === "string" && value.startsWith("./") && value.length > 2) {
+      return value;
+    }
+  }
+  return null;
 }
 
 /**
@@ -236,6 +310,31 @@ export function collectDoctorReport({ cwd, package: explicitPackage, entry } = {
     }
   }
 
+  // Reserved icon catalog: optional. Absence means unavailable and is
+  // informational; when declared, the public API and its package export target
+  // must be valid and contained.
+  if (detectManifestContract(installed.manifest) === CONTRACT_VERSION) {
+    try {
+      const catalog = buildIconCatalog({ manifest: installed.manifest });
+      if (!catalog.supported) {
+        checks.push(info("icon catalog", "no icon catalog declared (absence means unavailable)"));
+      } else {
+        const iconTarget = verifyIconExport({
+          installed,
+          packageName: discovered.packageName,
+        });
+        checks.push(
+          info(
+            "icon catalog",
+            `${ICON_ENTRYPOINT} -> ${iconTarget} (${catalog.counts.available} icons)`,
+          ),
+        );
+      }
+    } catch (error) {
+      checks.push(failure("icon catalog", error.message));
+    }
+  }
+
   // Optional explicit entry prerequisites: an installed extension, a declared
   // entrypoint, or a contained consumer source file. Read-only literal scan.
   if (typeof entry === "string" && entry.trim() !== "") {
@@ -271,8 +370,9 @@ export function doctorHelpText() {
     "",
     "Read-only diagnostics for a consumer repository: target containment, discovered",
     "package and identity, installed package version (through Node package resolution),",
-    "public ./manifest availability and version, exact invariants, the package.json",
-    "designSystem config state, and optional entry prerequisites for a named extension,",
+    "public ./manifest availability and version, exact invariants, the Tailwind v4",
+    "bridge, the optional reserved ./icons icon catalog, the package.json designSystem",
+    "config state, and optional entry prerequisites for a named extension,",
     "declared entrypoint, or contained consumer source file (literal import scan;",
     "nothing is executed).",
     "",

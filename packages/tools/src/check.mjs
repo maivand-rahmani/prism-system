@@ -27,7 +27,10 @@
  *      or reordering (or a setup prerequisite/path fails). It never writes.
  *   6. strict usage findings (`checkUsage({ strict: true })`);
  *   7. required/optional component availability (absent optional capabilities
- *      are reported, never treated as a failure).
+ *      are reported, never treated as a failure);
+ *   8. the optional reserved `./icons` icon catalog: a system without icons is
+ *      reported `not_checked`, while a declared catalog is verified against its
+ *      public API and package export target.
  *
  * Every check is captured independently: a failure in one never aborts the
  * report, and each returns a stable status — `passed`, `failed`, `not_checked`,
@@ -39,7 +42,7 @@ import { existsSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
-import { CONTRACT_VERSION, assertWithin, readJsonFile } from "./constants.mjs";
+import { CONTRACT_VERSION, ICON_ENTRYPOINT, assertWithin, readJsonFile } from "./constants.mjs";
 import {
   CONSUMER_CONFIG_LABEL,
   discoverConsumerPackage,
@@ -48,10 +51,11 @@ import {
   resolveConsumerRoot,
   resolveInstalledDesignSystem,
 } from "./consumer.mjs";
-import { collectDoctorReport } from "./doctor.mjs";
+import { collectDoctorReport, verifyIconExport } from "./doctor.mjs";
 import { collectEntryPrerequisites } from "./entry-scan.mjs";
 import { checkUsage } from "./usage.mjs";
 import { buildComponentCatalog } from "./components.mjs";
+import { buildIconCatalog } from "./icons.mjs";
 import { TAILWIND_PACKAGE, setupTailwind } from "./tailwind-setup.mjs";
 import { detectManifestContract } from "./manifest.mjs";
 import { parseExactSemver } from "./semver.mjs";
@@ -74,6 +78,7 @@ export const CHECK_IDS = Object.freeze({
   cssImports: "css-imports",
   usage: "usage",
   components: "components",
+  icons: "icons",
   entry: "entry",
 });
 
@@ -622,6 +627,56 @@ function checkComponents(state) {
   }
 }
 
+function checkIcons(state) {
+  if (state.consumerRoot === null) {
+    return notChecked({
+      id: CHECK_IDS.icons,
+      label: "icon availability",
+      detail: "Consumer root could not be resolved.",
+    });
+  }
+  if (state.installed === null) {
+    return failed({
+      id: CHECK_IDS.icons,
+      label: "icon availability",
+      required: true,
+      detail: state.resolveError ?? "The installed design system could not be resolved.",
+    });
+  }
+  try {
+    const catalog = buildIconCatalog({ manifest: state.installed.manifest });
+    if (!catalog.supported) {
+      return notChecked({
+        id: CHECK_IDS.icons,
+        label: "icon availability",
+        required: false,
+        detail: "no icon catalog declared (absence means unavailable)",
+        report: catalog,
+      });
+    }
+    const target = verifyIconExport({
+      installed: state.installed,
+      packageName: state.packageName,
+    });
+    return passed({
+      id: CHECK_IDS.icons,
+      label: "icon availability",
+      required: true,
+      detail:
+        `${catalog.counts.available} available of ${catalog.counts.total} canonical icons ` +
+        `(${ICON_ENTRYPOINT} -> ${target})`,
+      report: catalog,
+    });
+  } catch (error) {
+    return failed({
+      id: CHECK_IDS.icons,
+      label: "icon availability",
+      required: true,
+      detail: error.message,
+    });
+  }
+}
+
 function checkEntryPrerequisites(state, entry) {
   if (typeof entry !== "string" || entry.trim() === "") {
     return notChecked({
@@ -728,6 +783,7 @@ export function checkDesignSystem({ cwd, cssPath, entry } = {}) {
   checks.push(checkCssImports(state, cssPath));
   checks.push(checkUsageCheck(state));
   checks.push(checkComponents(state));
+  checks.push(checkIcons(state));
   checks.push(checkEntryPrerequisites(state, entry));
 
   const counts = {
@@ -768,9 +824,10 @@ export function checkHelpText() {
     "",
     "One offline, read-only health report for a connected consumer: the package.json",
     "designSystem config, doctor diagnostics, public stylesheet/bridge exports, strict",
-    "usage, and component availability. The CSS import order is checked only when",
-    "--css <file> is given; otherwise the report does not scan for or guess a CSS",
-    "file. Nothing is written.",
+    "usage, component availability, and the optional icon catalog. The CSS import order",
+    "is checked only when --css <file> is given; otherwise the report does not scan for",
+    "or guess a CSS file. A system without a reserved ./icons public API is reported as",
+    "not checked, never as a failure. Nothing is written.",
     "",
     "With --entry the named installed extension, declared entrypoint, or contained",
     "consumer file is scanned for literal import/require specifiers and every declared",

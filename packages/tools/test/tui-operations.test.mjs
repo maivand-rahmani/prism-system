@@ -31,6 +31,7 @@ const OPERATION_NAMES = Object.freeze([
   "switch",
   "remove",
   "components",
+  "icons",
   "tokens",
   "check",
   "doctor",
@@ -560,6 +561,7 @@ test("getProjectState reports an error when the consumer root cannot be resolved
 test("catalog and check methods route to the offline operations with exact arguments", () => {
   const { tui, calls } = createHarness({
     components: ({ cwd, name }) => ({ ok: true, cwd, name, components: [] }),
+    icons: ({ cwd, name }) => ({ ok: true, cwd, name, icons: [] }),
     tokens: ({ cwd, group }) => ({ ok: true, cwd, group, groups: [] }),
     check: ({ cwd, cssPath }) => ({ ok: true, cwd, cssPath, checks: [] }),
     doctor: ({ cwd }) => ({ ok: true, cwd, checks: [] }),
@@ -572,6 +574,13 @@ test("catalog and check methods route to the offline operations with exact argum
   assert.equal(calls.components[0][0].name, "Button");
   tui.listComponents();
   assert.equal(calls.components[1][0].name, undefined);
+
+  const icons = tui.listIcons({ name: "Search" });
+  assert.equal(icons.ok, true);
+  assert.equal(calls.icons[0][0].cwd, RESOLVED_CWD);
+  assert.equal(calls.icons[0][0].name, "Search");
+  tui.listIcons();
+  assert.equal(calls.icons[1][0].name, undefined);
 
   const tokens = tui.listTokens({ group: "radius" });
   assert.equal(tokens.ok, true);
@@ -607,6 +616,9 @@ test("read-only methods wrap thrown failures instead of crashing the UI", () => 
     components: () => {
       throw new Error("not installed");
     },
+    icons: () => {
+      throw new Error("no icon entrypoint");
+    },
     tokens: () => {
       throw new Error("missing prefixes");
     },
@@ -627,6 +639,11 @@ test("read-only methods wrap thrown failures instead of crashing the UI", () => 
     ok: false,
     boundary: "tokens",
     failures: ["missing prefixes"],
+  });
+  assert.deepEqual(tui.listIcons(), {
+    ok: false,
+    boundary: "icons",
+    failures: ["no icon entrypoint"],
   });
   assert.deepEqual(tui.runDoctor(), {
     ok: false,

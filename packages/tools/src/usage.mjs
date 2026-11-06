@@ -14,7 +14,9 @@
  *     shadows, including variant prefixes);
  *   - static visual overrides and unverifiable/dynamic/spread inline `style`
  *     values;
- *   - obvious local primitive replacements when duplication is disallowed.
+ *   - obvious local primitive replacements when duplication is disallowed;
+ *   - icon imports from the reserved `./icons` entrypoint that are missing,
+ *     unknown, non-canonical, or not statically verifiable.
  *
  * Strict-mode findings are errors (non-zero exit); non-strict findings are
  * warnings (zero exit). A clean run exits zero.
@@ -27,7 +29,12 @@ import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, relative, sep } from "node:path";
 
-import { COMPONENT_NAMES, CONTRACT_VERSION } from "./constants.mjs";
+import {
+  COMPONENT_NAMES,
+  CONTRACT_VERSION,
+  ICON_ENTRYPOINT,
+  iconNameFromExportName,
+} from "./constants.mjs";
 import { detectManifestContract } from "./manifest.mjs";
 import {
   CONSUMER_DIRECTORY,
@@ -67,6 +74,9 @@ export const RULE_IDS = Object.freeze({
   styleExpression: "no-style-expression",
   unverifiableStyle: "no-unverifiable-style",
   primitiveDuplication: "no-primitive-duplication",
+  missingIconCatalog: "missing-icon-catalog",
+  unknownIcon: "unknown-icon",
+  unverifiedIconImport: "unverified-icon-import",
 });
 
 /** Directories never scanned. */
@@ -534,6 +544,27 @@ export function loadUsageContext({ cwd, ignore, strict } = {}) {
   const configIgnore = discovered.config ? discovered.config.ignore : [];
   const cliIgnore = normalizeIgnoreGlobs(consumerRoot, ignore, "cli");
   const ignoreGlobs = [...new Set([...configIgnore, ...cliIgnore])];
+  const manifest = installed.manifest;
+  const manifestPackage =
+    typeof manifest?.package === "string" ? manifest.package : discovered.packageName;
+  // Icons are available only through the reserved `./icons` entrypoint. The
+  // generated `publicApi["./icons"]` list is the sole availability evidence: a
+  // system without the entrypoint ships no icons, and the core vocabulary is
+  // never treated as an availability list.
+  const entrypoints = isPlainObject(manifest?.entrypoints) ? manifest.entrypoints : {};
+  const iconEntrypoint = Object.prototype.hasOwnProperty.call(entrypoints, ICON_ENTRYPOINT)
+    ? ICON_ENTRYPOINT
+    : null;
+  const declaredIconExports =
+    iconEntrypoint !== null &&
+    isPlainObject(manifest?.publicApi) &&
+    Array.isArray(manifest.publicApi[ICON_ENTRYPOINT])
+      ? manifest.publicApi[ICON_ENTRYPOINT].filter((name) => typeof name === "string")
+      : [];
+  const iconExports = new Set(declaredIconExports);
+  const iconNames = new Set(
+    declaredIconExports.map((name) => iconNameFromExportName(name)).filter((name) => name !== null),
+  );
   return {
     consumerRoot,
     packageName: discovered.packageName,
@@ -543,6 +574,10 @@ export function loadUsageContext({ cwd, ignore, strict } = {}) {
     ignoreGlobs,
     manifest: installed.manifest,
     componentNames: componentNamesForManifest(installed.manifest),
+    iconImportPath: `${manifestPackage}/icons`,
+    iconEntrypoint,
+    iconExports,
+    iconNames,
   };
 }
 
@@ -625,13 +660,37 @@ function readPropertyName(name, tsModule) {
  * or relative import must not duplicate. When omitted it defaults to every
  * canonical name; the consumer checker passes the declared set derived from the
  * installed manifest.
+ *
+ * `iconImportPath`, `iconEntrypoint`, `iconExports`, and `iconNames` describe
+ * the installed system's real icon catalog (`publicApi["./icons"]`). Icon
+ * checking runs only when `iconImportPath` is provided, so a standalone caller
+ * without manifest context never guesses a catalog.
  */
-export function checkSourceText({ fileName, text, rules, strict, componentNames }) {
+export function checkSourceText({
+  fileName,
+  text,
+  rules,
+  strict,
+  componentNames,
+  iconImportPath,
+  iconEntrypoint,
+  iconExports,
+  iconNames,
+}) {
   const ts = getTypeScript();
   const canonical = componentNames === undefined ? CANONICAL_COMPONENTS : new Set(componentNames);
   const scriptKind = fileName.toLowerCase().endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   const sourceFile = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, scriptKind);
   const findings = [];
+  const availableIconExports =
+    iconExports instanceof Set
+      ? iconExports
+      : new Set(Array.isArray(iconExports) ? iconExports : []);
+  const availableIconNames =
+    iconNames instanceof Set ? iconNames : new Set(Array.isArray(iconNames) ? iconNames : []);
+  const iconCheckingEnabled = typeof iconImportPath === "string" && iconImportPath.length > 0;
+  const hasIconCatalog = iconEntrypoint === ICON_ENTRYPOINT;
+  const iconNamespaces = new Set();
 
   const positionOf = (pos) => {
     const lc = sourceFile.getLineAndCharacterOfPosition(pos);
@@ -649,6 +708,214 @@ export function checkSourceText({ fileName, text, rules, strict, componentNames 
       token,
     });
   };
+
+  const isAvailableIconExport = (exportName) => {
+    if (availableIconExports.has(exportName)) return true;
+    const canonicalName = iconNameFromExportName(exportName);
+    return canonicalName !== null && availableIconNames.has(canonicalName);
+  };
+
+  const reportMissingIconCatalog = (pos) => {
+    report({
+      pos,
+      ruleId: RULE_IDS.missingIconCatalog,
+      message:
+        `"${iconImportPath}" is imported, but the installed design system declares no ` +
+        `"${ICON_ENTRYPOINT}" entrypoint and therefore ships no icons.`,
+      token: iconImportPath,
+    });
+  };
+
+  const reportUnknownIconExport = (exportName, pos, { defaultImport = false } = {}) => {
+    if (defaultImport) {
+      report({
+        pos,
+        ruleId: RULE_IDS.unknownIcon,
+        message:
+          `Default import from "${iconImportPath}" is not verifiable: ` +
+          "the icon entrypoint has no default export.",
+        token: exportName,
+      });
+      return;
+    }
+    const canonicalName = iconNameFromExportName(exportName);
+    const message =
+      canonicalName === null
+        ? `"${exportName}" is not a canonical "Icon"-suffixed export of "${iconImportPath}".`
+        : `Icon "${canonicalName}" is canonical, but the installed design system does not ` +
+          `publish "${exportName}" from "${ICON_ENTRYPOINT}".`;
+    report({ pos, ruleId: RULE_IDS.unknownIcon, message, token: exportName });
+  };
+
+  const checkIconExportName = (exportName, pos) => {
+    if (isAvailableIconExport(exportName)) return;
+    reportUnknownIconExport(exportName, pos);
+  };
+
+  const isIconTemplatePrefix = (headText) =>
+    headText === iconImportPath ||
+    headText.startsWith(`${iconImportPath}/`) ||
+    headText.includes(`${iconImportPath}/`) ||
+    headText.endsWith(iconImportPath);
+
+  const matchesIconSpecifierExpression = (expr) => {
+    if (ts.isStringLiteral(expr) || ts.isNoSubstitutionTemplateLiteral(expr)) {
+      return expr.text === iconImportPath;
+    }
+    if (ts.isTemplateExpression(expr)) return isIconTemplatePrefix(expr.head.text);
+    return false;
+  };
+
+  const checkIconImportDeclaration = (node) => {
+    if (!iconCheckingEnabled || !ts.isStringLiteral(node.moduleSpecifier)) return;
+    if (node.moduleSpecifier.text !== iconImportPath) return;
+    if (!hasIconCatalog) {
+      reportMissingIconCatalog(node.moduleSpecifier.getStart(sourceFile));
+      return;
+    }
+    const clause = node.importClause;
+    if (!clause) return;
+    if (clause.name) {
+      reportUnknownIconExport(clause.name.text, clause.name.getStart(sourceFile), {
+        defaultImport: true,
+      });
+    }
+    const bindings = clause.namedBindings;
+    if (!bindings) return;
+    if (ts.isNamedImports(bindings)) {
+      for (const element of bindings.elements) {
+        const imported = element.propertyName ?? element.name;
+        checkIconExportName(imported.text, imported.getStart(sourceFile));
+      }
+      return;
+    }
+    if (ts.isNamespaceImport(bindings)) iconNamespaces.add(bindings.name.text);
+  };
+
+  const checkIconExportDeclaration = (node) => {
+    if (!iconCheckingEnabled || !ts.isStringLiteral(node.moduleSpecifier)) return;
+    if (node.moduleSpecifier.text !== iconImportPath) return;
+    if (!hasIconCatalog) {
+      reportMissingIconCatalog(node.moduleSpecifier.getStart(sourceFile));
+      return;
+    }
+    const clause = node.exportClause;
+    if (clause === undefined) {
+      report({
+        pos: node.getStart(sourceFile),
+        ruleId: RULE_IDS.unverifiedIconImport,
+        message:
+          `"export *" from "${iconImportPath}" re-exports icons that cannot be verified ` +
+          "against the installed icon catalog.",
+        token: "export *",
+      });
+      return;
+    }
+    if (ts.isNamespaceExport(clause)) {
+      report({
+        pos: clause.getStart(sourceFile),
+        ruleId: RULE_IDS.unverifiedIconImport,
+        message:
+          `"export * as ${clause.name.text}" from "${iconImportPath}" cannot be verified ` +
+          "against the installed icon catalog.",
+        token: `export * as ${clause.name.text}`,
+      });
+      return;
+    }
+    if (ts.isNamedExports(clause)) {
+      for (const element of clause.elements) {
+        const exported = element.propertyName ?? element.name;
+        checkIconExportName(exported.text, exported.getStart(sourceFile));
+      }
+    }
+  };
+
+  const checkIconImportEquals = (node) => {
+    if (!iconCheckingEnabled) return;
+    const reference = node.moduleReference;
+    if (!ts.isExternalModuleReference(reference) || !ts.isStringLiteral(reference.expression)) {
+      return;
+    }
+    if (reference.expression.text !== iconImportPath) return;
+    if (!hasIconCatalog) {
+      reportMissingIconCatalog(reference.expression.getStart(sourceFile));
+      return;
+    }
+    iconNamespaces.add(node.name.text);
+  };
+
+  const checkIconCallExpression = (node) => {
+    if (!iconCheckingEnabled || !ts.isCallExpression(node)) return;
+    const expression = node.expression;
+    const isDynamicImport = expression.kind === ts.SyntaxKind.ImportKeyword;
+    const isRequire = ts.isIdentifier(expression) && expression.text === "require";
+    if (!isDynamicImport && !isRequire) return;
+    const [specifier] = node.arguments;
+    if (!specifier || !matchesIconSpecifierExpression(specifier)) return;
+    if (!hasIconCatalog) {
+      reportMissingIconCatalog(specifier.getStart(sourceFile));
+      return;
+    }
+    const call = isDynamicImport ? "import()" : "require()";
+    report({
+      pos: node.getStart(sourceFile),
+      ruleId: RULE_IDS.unverifiedIconImport,
+      message:
+        `${call} of "${iconImportPath}" cannot be resolved statically against the ` +
+        "installed icon catalog.",
+      token: specifier.getText(sourceFile),
+    });
+  };
+
+  const checkIconNamespaceUsage = (node) => {
+    if (!iconCheckingEnabled || !hasIconCatalog) return;
+    if (ts.isPropertyAccessExpression(node)) {
+      if (!ts.isIdentifier(node.expression) || !iconNamespaces.has(node.expression.text)) return;
+      checkIconExportName(node.name.text, node.name.getStart(sourceFile));
+      return;
+    }
+    if (!ts.isElementAccessExpression(node)) return;
+    if (!ts.isIdentifier(node.expression) || !iconNamespaces.has(node.expression.text)) return;
+    const argument = node.argumentExpression;
+    if (ts.isStringLiteral(argument) || ts.isNoSubstitutionTemplateLiteral(argument)) {
+      checkIconExportName(argument.text, argument.getStart(sourceFile));
+      return;
+    }
+    report({
+      pos: node.getStart(sourceFile),
+      ruleId: RULE_IDS.unverifiedIconImport,
+      message:
+        `Computed member access on the "${iconImportPath}" namespace cannot be verified ` +
+        "against the installed icon catalog.",
+      token: node.getText(sourceFile),
+    });
+  };
+
+  if (iconCheckingEnabled && hasIconCatalog) {
+    // Namespace bindings must be known before member usage is visited: a static
+    // import may appear after the code that uses it.
+    const collectIconNamespaces = (node) => {
+      if (
+        ts.isImportDeclaration(node) &&
+        ts.isStringLiteral(node.moduleSpecifier) &&
+        node.moduleSpecifier.text === iconImportPath
+      ) {
+        const bindings = node.importClause?.namedBindings;
+        if (bindings && ts.isNamespaceImport(bindings)) iconNamespaces.add(bindings.name.text);
+      } else if (ts.isImportEqualsDeclaration(node)) {
+        const reference = node.moduleReference;
+        if (
+          ts.isExternalModuleReference(reference) &&
+          ts.isStringLiteral(reference.expression) &&
+          reference.expression.text === iconImportPath
+        ) {
+          iconNamespaces.add(node.name.text);
+        }
+      }
+      ts.forEachChild(node, collectIconNamespaces);
+    };
+    collectIconNamespaces(sourceFile);
+  }
 
   const checkClassFragment = (fragmentText, fragmentStart) => {
     const tokens = fragmentText.split(/\s+/).filter((token) => token.length > 0);
@@ -914,6 +1181,11 @@ export function checkSourceText({ fileName, text, rules, strict, componentNames 
       }
     }
     checkPrimitiveDuplication(node);
+    if (ts.isImportDeclaration(node)) checkIconImportDeclaration(node);
+    else if (ts.isExportDeclaration(node)) checkIconExportDeclaration(node);
+    else if (ts.isImportEqualsDeclaration(node)) checkIconImportEquals(node);
+    checkIconCallExpression(node);
+    checkIconNamespaceUsage(node);
     ts.forEachChild(node, visit);
   };
   visit(sourceFile);
@@ -947,6 +1219,10 @@ export function checkUsage({ cwd, ignore, strict } = {}) {
       rules: context.rules,
       strict: context.strict,
       componentNames: context.componentNames,
+      iconImportPath: context.iconImportPath,
+      iconEntrypoint: context.iconEntrypoint,
+      iconExports: context.iconExports,
+      iconNames: context.iconNames,
     });
     findings.push(...fileFindings);
   }

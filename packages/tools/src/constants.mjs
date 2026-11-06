@@ -91,6 +91,113 @@ export const OPTIONAL_COMPONENTS = Object.freeze([
 export const COMPONENT_NAMES = Object.freeze([...REQUIRED_COMPONENTS, ...OPTIONAL_COMPONENTS]);
 
 /**
+ * The five canonical icon groups, in presentation order. Membership is
+ * presentation metadata only: an icon is available only when the installed
+ * manifest's real `./icons` public API publishes it.
+ */
+export const ICON_CATEGORIES = Object.freeze({
+  navigation: Object.freeze([
+    "ArrowLeft",
+    "ArrowRight",
+    "ArrowUp",
+    "ArrowDown",
+    "ChevronLeft",
+    "ChevronRight",
+    "ChevronUp",
+    "ChevronDown",
+    "Menu",
+    "Home",
+  ]),
+  actions: Object.freeze([
+    "Plus",
+    "Minus",
+    "Close",
+    "Check",
+    "Search",
+    "Filter",
+    "Settings",
+    "Edit",
+    "Trash",
+    "Copy",
+  ]),
+  files: Object.freeze([
+    "Download",
+    "Upload",
+    "Share",
+    "Link",
+    "ExternalLink",
+    "File",
+    "Folder",
+    "Image",
+    "Calendar",
+    "Clock",
+  ]),
+  feedback: Object.freeze([
+    "Info",
+    "Help",
+    "Warning",
+    "Error",
+    "Success",
+    "Loading",
+    "Eye",
+    "EyeOff",
+    "Lock",
+    "Unlock",
+  ]),
+  interface: Object.freeze([
+    "User",
+    "Users",
+    "Mail",
+    "Bell",
+    "Heart",
+    "Star",
+    "MoreHorizontal",
+    "MoreVertical",
+    "Refresh",
+    "LogOut",
+  ]),
+});
+
+/** All fifty canonical icon names, in canonical order. */
+export const ICON_NAMES = Object.freeze([
+  ...ICON_CATEGORIES.navigation,
+  ...ICON_CATEGORIES.actions,
+  ...ICON_CATEGORIES.files,
+  ...ICON_CATEGORIES.feedback,
+  ...ICON_CATEGORIES.interface,
+]);
+
+/** The one reserved public icon entrypoint. */
+export const ICON_ENTRYPOINT = "./icons";
+/** The one stable suffix every public icon component export uses. */
+export const ICON_EXPORT_SUFFIX = "Icon";
+
+/** The public component export name for a canonical icon name. */
+export function iconExportName(name) {
+  return `${name}${ICON_EXPORT_SUFFIX}`;
+}
+
+/** The canonical icon name behind a public export, or `null`. */
+export function iconNameFromExportName(value) {
+  if (typeof value !== "string" || !value.endsWith(ICON_EXPORT_SUFFIX)) return null;
+  const name = value.slice(0, -ICON_EXPORT_SUFFIX.length);
+  return ICON_NAMES.includes(name) ? name : null;
+}
+
+/** Whether a value is exactly a canonical public icon export name. */
+export function isCanonicalIconExportName(value) {
+  return iconNameFromExportName(value) !== null;
+}
+
+/** The canonical group of an icon name, or `null`. */
+export function iconCategoryOf(name) {
+  for (const [category, names] of Object.entries(ICON_CATEGORIES)) {
+    if (names.includes(name)) return category;
+  }
+  return null;
+}
+
+/**
  * The exact `capabilities.categories` keys every current manifest declares, in
  * canonical order. The categories are the generated grouping inventory, not a
  * per-system support list: whether a name is available is decided only by its

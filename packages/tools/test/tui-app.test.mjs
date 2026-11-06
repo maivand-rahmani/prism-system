@@ -112,6 +112,64 @@ function componentCatalog() {
   };
 }
 
+function iconCatalog() {
+  return {
+    ok: true,
+    package: "@prism-system/ui-a",
+    version: "1.2.3",
+    contractVersion: 4,
+    id: "system-a",
+    name: "System A",
+    showcase: { route: "/showcase/system-a/icons" },
+    supported: true,
+    entrypoint: "./icons",
+    importPath: "@prism-system/ui-a/icons",
+    counts: { total: 3, available: 2, unavailable: 1 },
+    icons: [
+      {
+        name: "ArrowLeft",
+        exportName: "ArrowLeftIcon",
+        category: "navigation",
+        available: true,
+        entrypoint: "./icons",
+        importPath: "@prism-system/ui-a/icons",
+        importStatement: 'import { ArrowLeftIcon } from "@prism-system/ui-a/icons";',
+        requirements: [{ name: "lucide-react", kind: "peer", range: "^0.468.0", optional: false }],
+      },
+      {
+        name: "Search",
+        exportName: "SearchIcon",
+        category: "actions",
+        available: true,
+        entrypoint: "./icons",
+        importPath: "@prism-system/ui-a/icons",
+        importStatement: 'import { SearchIcon } from "@prism-system/ui-a/icons";',
+        requirements: [{ name: "lucide-react", kind: "peer", range: "^0.468.0", optional: false }],
+      },
+      {
+        name: "Home",
+        exportName: "HomeIcon",
+        category: "navigation",
+        available: false,
+        entrypoint: "./icons",
+        importPath: "@prism-system/ui-a/icons",
+        importStatement: null,
+        requirements: [{ name: "lucide-react", kind: "peer", range: "^0.468.0", optional: false }],
+      },
+    ],
+    available: ["ArrowLeft", "Search"],
+    unavailable: ["Home"],
+    categories: {
+      navigation: { names: ["ArrowLeft", "Home"], available: ["ArrowLeft"], unavailable: ["Home"] },
+      actions: { names: ["Search"], available: ["Search"], unavailable: [] },
+      files: { names: [], available: [], unavailable: [] },
+      feedback: { names: [], available: [], unavailable: [] },
+      interface: { names: [], available: [], unavailable: [] },
+    },
+    requested: null,
+  };
+}
+
 function tokenCatalog() {
   return {
     ok: true,
@@ -218,6 +276,7 @@ function makeServices(overrides = {}) {
       },
     }),
     listComponents: () => componentCatalog(),
+    listIcons: () => iconCatalog(),
     listTokens: () => tokenCatalog(),
     runCheck: () => ({ ok: true, status: "passed", summary: "3 passed, 0 failed", checks: [] }),
     runDoctor: () => ({
@@ -1269,6 +1328,133 @@ test("tokens use returned groups and mappings, filter locally, and never show fa
   await settle(app);
   assert.match(app.lastFrame(), /filter: spacing\.scale/);
   assert.match(app.lastFrame(), /spacing\.scale\.4/);
+  app.unmount();
+});
+
+test("icons load lazily on the fifth tab and list only available canonical names", async () => {
+  let iconReads = 0;
+  const app = start(
+    makeServices({
+      getProjectState: connectedState,
+      listIcons: () => {
+        iconReads += 1;
+        return iconCatalog();
+      },
+    }),
+  );
+  await settle(app);
+  assert.equal(iconReads, 0, "icon catalog does not load on connected mount");
+  assert.match(app.lastFrame(), /Icons/);
+
+  await press(app, "5");
+  await settle(app);
+  assert.equal(iconReads, 1);
+  assert.match(app.lastFrame(), /Icon catalog/);
+  assert.match(app.lastFrame(), /ArrowLeft\s+ArrowLeftIcon/);
+  assert.match(app.lastFrame(), /Search\s+SearchIcon/);
+  assert.doesNotMatch(bodyFrame(app.lastFrame()), /Home\s+HomeIcon/);
+  assert.match(footerFrame(app.lastFrame()), /Filter names\s+\(\/\)/i);
+  assert.match(footerFrame(app.lastFrame()), /Reload\s+\(l\)/i);
+  app.unmount();
+});
+
+test("icons filter locally with / and show the selected import and entrypoint requirements", async () => {
+  const app = start(makeServices({ getProjectState: connectedState }), { columns: 80, rows: 20 });
+  await settle(app);
+  await press(app, "5");
+  await settle(app);
+  await press(app, "/");
+  assert.match(app.lastFrame(), /Filter icon names/);
+  await typeText(app, "search");
+  await press(app, "enter");
+  await settle(app);
+  assert.match(app.lastFrame(), /filter: search/);
+  assert.match(app.lastFrame(), /Search\s+SearchIcon/);
+  assert.doesNotMatch(bodyFrame(app.lastFrame()), /ArrowLeft/);
+  assert.match(footerFrame(app.lastFrame()), /Filter names\s+\(\/\)/i);
+
+  const detailFrames = await collectScrollableFrames(app, [
+    { pattern: /lucide-react@\^0\.468\.0/, description: "selected icon requirement details" },
+  ]);
+  const details = detailFrames.replace(/\s+/g, " ");
+  assert.match(details, /SELECTED ICON/);
+  assert.match(details, /SearchIcon/);
+  assert.match(details, /import \{ SearchIcon \} from "@prism-system\/ui-a\/icons"/);
+  assert.match(details, /ENTRYPOINT\s+\.\/icons.*@prism-system\/ui-a\/icons/);
+  assert.match(details, /lucide-react@\^0\.468\.0.*peer/);
+  app.unmount();
+});
+
+test("icons reload with l without leaving the tab", async () => {
+  let iconReads = 0;
+  const app = start(
+    makeServices({
+      getProjectState: connectedState,
+      listIcons: () => {
+        iconReads += 1;
+        return iconCatalog();
+      },
+    }),
+  );
+  await settle(app);
+  await press(app, "5");
+  await settle(app);
+  assert.equal(iconReads, 1);
+  await press(app, "l");
+  await settle(app);
+  assert.equal(iconReads, 2);
+  assert.match(app.lastFrame(), /ArrowLeft\s+ArrowLeftIcon/);
+  assert.match(footerFrame(app.lastFrame()), /Reload\s+\(l\)/i);
+  app.unmount();
+});
+
+test("a system without an icon catalog shows neutral guidance instead of an error", async () => {
+  const base = iconCatalog();
+  const app = start(
+    makeServices({
+      getProjectState: connectedState,
+      listIcons: () => ({
+        ...base,
+        supported: false,
+        entrypoint: null,
+        importPath: null,
+        counts: { total: base.icons.length, available: 0, unavailable: base.icons.length },
+        icons: base.icons.map((icon) => ({
+          ...icon,
+          available: false,
+          entrypoint: null,
+          importPath: null,
+          importStatement: null,
+        })),
+        available: [],
+        unavailable: base.icons.map((icon) => icon.name),
+      }),
+    }),
+  );
+  await settle(app);
+  await press(app, "5");
+  await settle(app);
+  const frame = app.lastFrame();
+  assert.match(frame, /No icon catalog is declared by this design system\./);
+  assert.match(frame, /0 available · 3 unavailable/);
+  assert.doesNotMatch(frame, /Icon catalog unavailable/);
+  assert.doesNotMatch(bodyFrame(frame), /No icon names match this filter/);
+  assert.doesNotMatch(bodyFrame(frame), /publishes no available icon names/);
+  app.unmount();
+});
+
+test("narrow terminals keep the fifth Icons tab discoverable", async () => {
+  const app = start(makeServices({ getProjectState: connectedState }), {
+    columns: 46,
+    rows: 18,
+  });
+  await settle(app);
+  assert.match(app.lastFrame(), /1 Sys/);
+  assert.match(app.lastFrame(), /4 Check/);
+  assert.match(app.lastFrame(), /5 Icons/);
+  await press(app, "5");
+  await settle(app);
+  assert.match(app.lastFrame(), /Icon catalog/);
   app.unmount();
 });
 

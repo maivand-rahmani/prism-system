@@ -44,9 +44,11 @@ import {
   componentsHelpText,
   helpText,
   helpTextForUse,
+  iconsHelpText,
   installHelpText,
   runCheckCommand,
   runComponentsCommand,
+  runIconsCommand,
   runSetupTailwindCommand,
   runTokensCommand,
   runUpgradeCommand,
@@ -54,13 +56,28 @@ import {
   tokensHelpText,
   upgradeHelpText,
 } from "../src/cli.mjs";
-import { currentManifest, readJson, repoRoot } from "./manifest-fixture.mjs";
+import { iconExportName } from "../src/constants.mjs";
+import { currentManifest, readJson, repoRoot, syntheticManifest } from "./manifest-fixture.mjs";
 
 const binPath = join(repoRoot, "packages", "tools", "bin", "prism-ds.mjs");
 
 const SYSTEM_A = currentManifest(
   readJson(join(repoRoot, "packages", "system-a", "design-system.json")),
 );
+
+/** A synthetic installed system with a small real icon catalog. */
+const SYSTEM_ICONS = (() => {
+  const manifest = syntheticManifest({
+    id: "cli-icons",
+    version: "2.0.0",
+    packageName: "@prism-system/ui-cli-icons",
+  });
+  manifest.entrypoints["./icons"] = { requirements: [] };
+  manifest.exports["./icons"] = "./dist/icons/index.mjs";
+  manifest.publicApi["./icons"] = ["Search", "Check", "Plus"].map((name) => iconExportName(name));
+  return manifest;
+})();
+const SYSTEM_ICON_NAMES = ["Plus", "Check", "Search"];
 
 const V4_PACKAGE = SYSTEM_A.package;
 /** The live V4 System A version; the fixture manifest version is authoritative. */
@@ -357,6 +374,7 @@ test("root help lists every command and the dependency-mutating boundary", async
     "check-usage",
     "doctor",
     "components",
+    "icons",
     "tokens",
     "check",
     "setup-tailwind",
@@ -385,7 +403,7 @@ test("root help states the read-only and CSS-mutating boundaries precisely", asy
   );
   assert.match(
     help,
-    /config\/components\/tokens\/check\/\s+only the consumer config\/AGENTS files; config only/,
+    /config\/components\/icons\/tokens\/\s+only the consumer config\/AGENTS files; config only/,
   );
   assert.match(help, /moves that configuration; the rest are read-only\)\./);
 
@@ -438,6 +456,7 @@ test("mutation help documents --with-entry/--peer and check/doctor document --en
 test("every new command serves its own --help", async () => {
   const cases = [
     ["components", componentsHelpText],
+    ["icons", iconsHelpText],
     ["tokens", tokensHelpText],
     ["check", checkHelpText],
     ["setup-tailwind", setupTailwindHelpText],
@@ -475,6 +494,10 @@ test("offline commands require --cwd and setup-tailwind requires --css", async (
   const components = await runBin(["components"]);
   assert.equal(components.exitCode, 1);
   assert.match(`${components.stdout}${components.stderr}`, /requires an explicit --cwd/);
+
+  const icons = await runBin(["icons"]);
+  assert.equal(icons.exitCode, 1);
+  assert.match(`${icons.stdout}${icons.stderr}`, /requires an explicit --cwd/);
 
   const tokens = await runBin(["tokens"]);
   assert.equal(tokens.exitCode, 1);
@@ -575,6 +598,58 @@ test("components rejects an unknown name and prints a human catalog", async (t) 
   assert.match(text.stdout, /composition: 7\/8 available; unavailable: Section/);
   assert.match(text.stdout, /forms: 6\/6 available/);
   assert.match(text.stdout, /Button\s+\[required\] available/);
+});
+
+/* -------------------------------------------------------------------------- */
+/* icons                                                                      */
+/* -------------------------------------------------------------------------- */
+
+test("icons reports the installed icon catalog offline as stable JSON", async (t) => {
+  const { root, packageName } = createConsumer(t, { manifest: SYSTEM_ICONS });
+  const before = snapshot(root);
+
+  const result = await runBin(["icons", "--cwd", root, "--json"]);
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.stderr, "");
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.ok, true);
+  assert.equal(report.supported, true);
+  assert.equal(report.package, packageName);
+  assert.equal(report.contractVersion, 4);
+  assert.equal(report.showcase.route, `/showcase/${SYSTEM_ICONS.id}/icons`);
+  assert.equal(report.importPath, `${packageName}/icons`);
+  assert.deepEqual(report.counts, { total: 50, available: 3, unavailable: 47 });
+  assert.deepEqual(report.available, SYSTEM_ICON_NAMES);
+  assert.equal(
+    report.icons.find((icon) => icon.name === "Search").importStatement,
+    `import { SearchIcon } from "${packageName}/icons";`,
+  );
+  assert.deepEqual(report.requested, null);
+  assert.deepEqual(snapshot(root), before, "icons must not write");
+
+  const text = await runBin(["icons", "--cwd", root]);
+  assert.equal(text.exitCode, 0);
+  assert.match(text.stdout, /icon catalog \(contract version 4\)/);
+  assert.match(text.stdout, /3 available, 47 unavailable of 50 canonical icons/);
+  assert.match(text.stdout, /Search\s+SearchIcon/);
+});
+
+test("icons reports a known-but-undeclared name and rejects an unknown name", async (t) => {
+  const { root } = createConsumer(t, { manifest: SYSTEM_ICONS });
+
+  const unavailable = await runBin(["icons", "Menu", "--cwd", root, "--json"]);
+  assert.equal(unavailable.exitCode, 0);
+  const report = JSON.parse(unavailable.stdout);
+  assert.equal(report.requested.name, "Menu");
+  assert.equal(report.requested.available, false);
+  assert.equal(report.requested.reason, "not-declared");
+  assert.equal(report.requested.importStatement, null);
+
+  const unknown = await runBin(["icons", "Nope", "--cwd", root]);
+  assert.equal(unknown.exitCode, 1);
+  assert.match(unknown.stdout, /Icon catalog failed/);
+  assert.match(unknown.stdout, /Unknown icon "Nope"/);
 });
 
 /* -------------------------------------------------------------------------- */
@@ -1120,6 +1195,10 @@ test("offline commands never attempt the network", async (t) => {
   const components = await invokeOffline(runComponentsCommand, ["--cwd", v4.root, "--json"]);
   assert.equal(components.exitCode, undefined);
   assert.deepEqual(components.networkAttempts, []);
+
+  const icons = await invokeOffline(runIconsCommand, ["--cwd", v4.root, "--json"]);
+  assert.equal(icons.exitCode, undefined);
+  assert.deepEqual(icons.networkAttempts, []);
 
   const tokens = await invokeOffline(runTokensCommand, ["--cwd", v4.root, "--json"]);
   assert.equal(tokens.exitCode, undefined);

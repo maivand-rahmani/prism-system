@@ -20,6 +20,7 @@ export * from "./registry.mjs";
 export * from "./package-manager.mjs";
 export * from "./catalog.mjs";
 export * from "./components.mjs";
+export * from "./icons.mjs";
 export * from "./entry-scan.mjs";
 export * from "./tokens.mjs";
 export * from "./tailwind-setup.mjs";

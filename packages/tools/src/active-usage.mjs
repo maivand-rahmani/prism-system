@@ -29,7 +29,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 
-import { assertWithin } from "./constants.mjs";
+import { ICON_ENTRYPOINT, assertWithin, iconNameFromExportName } from "./constants.mjs";
 import { buildTokenCatalog } from "./tokens.mjs";
 import { getTypeScript, globToRegExp } from "./usage.mjs";
 
@@ -320,6 +320,7 @@ export function scanActiveUsage({
   const moduleReferences = [];
   const components = [];
   const extensions = [];
+  const icons = [];
   const variants = [];
   const sizes = [];
   const members = [];
@@ -399,6 +400,30 @@ export function scanActiveUsage({
       unverified.push({ code, message, file: relFile, line, column });
     };
 
+    /**
+     * Record one verified icon usage site. Icons are published only through the
+     * reserved icon entrypoint; a canonical `${Name}Icon` export on that path is
+     * the icon's canonical name. Availability is still decided by the manifest
+     * model during compatibility assessment, never by this syntax alone.
+     */
+    const recordIcon = (name, node) => {
+      const { line, column } = positionOf(node.getStart(sourceFile));
+      icons.push({ name, entrypoint: ICON_ENTRYPOINT, file: relFile, line, column });
+    };
+
+    /** Record an icon imported from the reserved icon entrypoint. */
+    const recordIconExport = (subpath, exportName, node) => {
+      if (subpath !== ICON_ENTRYPOINT) return;
+      const name = iconNameFromExportName(exportName);
+      if (name !== null) recordIcon(name, node);
+    };
+
+    /** Record one namespace/member icon reference (`Icons.SearchIcon`). */
+    const recordIconMember = (exportName, node) => {
+      const name = iconNameFromExportName(exportName);
+      if (name !== null) recordIcon(name, node);
+    };
+
     /* ------------------------------ imports ------------------------------ */
     const visitImports = (node) => {
       if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
@@ -414,6 +439,7 @@ export function scanActiveUsage({
                 bindings.set(clause.name.text, {
                   imported: null,
                   entrypoint: match.entrypoint,
+                  subpath: match.subpath,
                   source: "default",
                 });
               }
@@ -426,6 +452,7 @@ export function scanActiveUsage({
                 bindings.set(namedBindings.name.text, {
                   imported: null,
                   entrypoint: match.entrypoint,
+                  subpath: match.subpath,
                   source: "namespace",
                 });
               }
@@ -439,8 +466,10 @@ export function scanActiveUsage({
                   bindings.set(local, {
                     imported,
                     entrypoint: match.entrypoint,
+                    subpath: match.subpath,
                     source: "named",
                   });
+                  recordIconExport(match.subpath, imported, element.name);
                 }
               }
             }
@@ -481,6 +510,7 @@ export function scanActiveUsage({
           bindings.set(node.name.text, {
             imported: null,
             entrypoint: match.entrypoint,
+            subpath: match.subpath,
             source: "namespace",
           });
         }
@@ -498,6 +528,14 @@ export function scanActiveUsage({
             const match = classify(first.text);
             if (match !== null) {
               makeReference(first, dynamicImport ? "dynamic-import" : "require", match);
+              if (dynamicImport && match.subpath === ICON_ENTRYPOINT) {
+                recordUnverified(
+                  "dynamic-module",
+                  `Dynamic import of "${first.text}" cannot verify which icons are used; ` +
+                    "the icon catalog is only verified through named imports and literal namespace members.",
+                  first,
+                );
+              }
             }
           } else if (ts.isTemplateExpression(first)) {
             const fragments = [
@@ -542,6 +580,7 @@ export function scanActiveUsage({
                 bindings.set(node.name.text, {
                   imported: null,
                   entrypoint: match.entrypoint,
+                  subpath: match.subpath,
                   source: "namespace",
                 });
               } else if (ts.isObjectBindingPattern(node.name)) {
@@ -551,8 +590,10 @@ export function scanActiveUsage({
                     bindings.set(element.name.text, {
                       imported,
                       entrypoint: match.entrypoint,
+                      subpath: match.subpath,
                       source: "named",
                     });
+                    recordIconExport(match.subpath, imported, element.name);
                   }
                 }
               }
@@ -570,6 +611,7 @@ export function scanActiveUsage({
       return {
         imported: binding.imported,
         entrypoint: binding.entrypoint,
+        subpath: binding.subpath,
         isNamespace: binding.source === "namespace",
       };
     };
@@ -657,7 +699,9 @@ export function scanActiveUsage({
       if (resolved === null) return;
       if (resolved.isNamespace) {
         if (memberName === null) return;
-        if (model.components.has(memberName)) {
+        if (resolved.subpath === ICON_ENTRYPOINT) {
+          recordIconMember(memberName, tag);
+        } else if (model.components.has(memberName)) {
           handleComponentElement(memberName, node);
         } else if (model.extensions.has(memberName)) {
           recordExtension(memberName, tag);
@@ -703,7 +747,9 @@ export function scanActiveUsage({
           if (resolved !== null) {
             const memberName = node.name.text;
             if (resolved.isNamespace) {
-              if (model.components.has(memberName)) {
+              if (resolved.subpath === ICON_ENTRYPOINT) {
+                recordIconMember(memberName, node);
+              } else if (model.components.has(memberName)) {
                 recordComponent(memberName, node);
               } else if (model.extensions.has(memberName)) {
                 recordExtension(memberName, node);
@@ -734,12 +780,21 @@ export function scanActiveUsage({
         if (ts.isIdentifier(node.expression)) {
           const resolved = resolveLocal(node.expression.text);
           if (resolved !== null && resolved.isNamespace) {
-            recordUnverified(
-              "computed-member",
-              `Computed member access on design-system namespace "${node.expression.text}" ` +
-                "cannot be verified against the target system.",
-              node,
-            );
+            if (resolved.subpath === ICON_ENTRYPOINT) {
+              recordUnverified(
+                "computed-icon-access",
+                `Computed icon access on design-system icon namespace "${node.expression.text}" ` +
+                  "cannot be verified against the target system.",
+                node,
+              );
+            } else {
+              recordUnverified(
+                "computed-member",
+                `Computed member access on design-system namespace "${node.expression.text}" ` +
+                  "cannot be verified against the target system.",
+                node,
+              );
+            }
           }
         }
       }
@@ -962,6 +1017,7 @@ export function scanActiveUsage({
     moduleReferences: moduleReferences.length,
     components: components.length,
     extensions: extensions.length,
+    icons: icons.length,
     variants: variants.length,
     sizes: sizes.length,
     members: members.length,
@@ -980,6 +1036,7 @@ export function scanActiveUsage({
     moduleReferences,
     components,
     extensions,
+    icons,
     variants,
     sizes,
     members,
@@ -1001,14 +1058,21 @@ export function scanActiveUsage({
 /**
  * Build the manifest-derived model the scanner resolves bindings against.
  * `manifest: null` yields an empty model: module references are still detected,
- * but component/extension/token usage cannot be attributed.
+ * but component/extension/icon/token usage cannot be attributed.
+ *
+ * Icon availability is the real `publicApi["./icons"]` export list of canonical
+ * `${Name}Icon` names, never the fixed core vocabulary. A manifest without the
+ * reserved icon entrypoint has no icon import path and therefore no icons.
  */
 export function buildUsageModel(manifest) {
   const components = new Map();
   const extensions = new Map();
+  const icons = new Map();
   const entrypoints = new Set();
   const publicPaths = new Set(["."]);
   const publicApi = new Map();
+  let iconEntrypoint = null;
+  let iconImportPath = null;
   if (isPlainObject(manifest)) {
     const rawComponents = isPlainObject(manifest.components) ? manifest.components : {};
     for (const [name, entry] of Object.entries(rawComponents)) {
@@ -1033,8 +1097,28 @@ export function buildUsageModel(manifest) {
     for (const [key, names] of Object.entries(rawPublicApi)) {
       publicApi.set(key, stringArray(names));
     }
+    for (const exportName of publicApi.get(ICON_ENTRYPOINT) ?? []) {
+      const name = iconNameFromExportName(exportName);
+      if (name === null) continue;
+      icons.set(name, { name, exportName });
+    }
+    if (entrypoints.has(ICON_ENTRYPOINT)) {
+      iconEntrypoint = ICON_ENTRYPOINT;
+      if (typeof manifest.package === "string" && manifest.package.trim() !== "") {
+        iconImportPath = `${manifest.package}/icons`;
+      }
+    }
   }
-  return { components, extensions, entrypoints, publicPaths, publicApi };
+  return {
+    components,
+    extensions,
+    icons,
+    entrypoints,
+    publicPaths,
+    publicApi,
+    iconEntrypoint,
+    iconImportPath,
+  };
 }
 
 /**
