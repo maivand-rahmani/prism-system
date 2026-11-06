@@ -10,29 +10,42 @@ import {
   type ComponentName,
 } from "./catalog";
 import { Foundations } from "./foundations";
+import { IconCatalog } from "./icon-catalog";
 import { hasDarkTheme, shellThemeStyle, type ThemeMode, withParts } from "./system-theme";
 
-type ShowcaseTab = "required" | "additional" | "foundations";
+export type ShowcaseTab = "required" | "additional" | "icons" | "foundations";
 
 const tabs: Array<{ id: ShowcaseTab; label: string }> = [
   { id: "required", label: "Required" },
   { id: "additional", label: "Additional" },
+  { id: "icons", label: "Icons" },
   { id: "foundations", label: "Foundations" },
 ];
 
-export function Showcase({ initialSystemId }: { initialSystemId?: string } = {}) {
+export function Showcase({
+  initialSystemId,
+  initialTab,
+}: {
+  initialSystemId?: string;
+  initialTab?: ShowcaseTab;
+} = {}) {
   const [systemId, setSystemId] = React.useState(initialSystemId ?? registeredSystems[0]!.id);
-  const [activeTab, setActiveTab] = React.useState<ShowcaseTab>("required");
+  const [activeTab, setActiveTab] = React.useState<ShowcaseTab>(initialTab ?? "required");
   const [mode, setMode] = React.useState<ThemeMode>("light");
   const [variantName, setVariantName] = React.useState<ComponentName | null>(null);
   const system = getRegisteredSystem(systemId);
   const { Badge, Button, Select } = system.components;
   const Tabs = withParts(system.components.Tabs, "List", "Trigger", "Content");
   const darkAvailable = hasDarkTheme(system);
+  const iconCount = system.manifest.publicApi["./icons"]?.length ?? 0;
 
   React.useEffect(() => {
     if (initialSystemId) setSystemId(initialSystemId);
   }, [initialSystemId]);
+
+  React.useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
 
   React.useEffect(() => {
     setMode(document.documentElement.dataset.prismTheme === "dark" ? "dark" : "light");
@@ -106,6 +119,11 @@ export function Showcase({ initialSystemId }: { initialSystemId?: string } = {})
                     {REQUIRED_COMPONENTS.length}
                   </Badge>
                 )}
+                {tab.id === "icons" && iconCount > 0 && (
+                  <Badge variant="outline" size="sm">
+                    {iconCount}
+                  </Badge>
+                )}
               </Tabs.Trigger>
             ))}
             <span className="showcase-tab-spacer" role="presentation" />
@@ -126,6 +144,11 @@ export function Showcase({ initialSystemId }: { initialSystemId?: string } = {})
               {activeTab === "additional" && (
                 <AdditionalComponents system={system} onOpenVariants={setVariantName} />
               )}
+            </div>
+          </Tabs.Content>
+          <Tabs.Content value="icons">
+            <div className="showcase-panel">
+              {activeTab === "icons" && <IconCatalog system={system} />}
             </div>
           </Tabs.Content>
           <Tabs.Content value="foundations">

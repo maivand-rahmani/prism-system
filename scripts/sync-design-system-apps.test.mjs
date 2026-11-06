@@ -37,6 +37,7 @@ import ts from "typescript";
 
 import {
   EXTENSION_LOADERS_FILENAME,
+  ICON_LOADERS_FILENAME,
   SOURCE_DESCRIPTOR_FILENAME,
   applyAppIntegration,
   planAppIntegration,
@@ -231,6 +232,10 @@ function minimalManifestSource(systemPackageName = PULSE.packageName) {
     "      ],",
     "    },",
     "  },",
+    "  publicApi: {",
+    '    ".": ["Button"],',
+    '    "./tokens": ["minimalTokens"],',
+    "  },",
     "  components: {",
     ...components,
     "  },",
@@ -290,6 +295,17 @@ function registeredSystemUsageSource() {
     "    void button.effects.reducedMotion;",
     "    void button.effects.fallback;",
     "  }",
+    "}",
+    "",
+    "export function checkPublicApi(system: RegisteredSystem): void {",
+    '  const icons = system.manifest.publicApi["./icons"];',
+    "  if (icons !== undefined) {",
+    "    for (const name of icons) {",
+    '      if (name.endsWith("Icon")) void name;',
+    "    }",
+    "  }",
+    '  const rootExports = system.manifest.publicApi["."] ?? [];',
+    "  void rootExports;",
     "}",
     "",
     "export function checkSharedComponents(system: RegisteredSystem) {",
@@ -417,7 +433,12 @@ const EXTENSION_ENTRYPOINT = "./keyboard-scene";
 const EXTENSION_IMPORT = "@prism-system/ui-extension-fixture/keyboard-scene";
 const INJECTED_DESCRIPTION = 'Keyboard scene with "; process.exit(1); // injected metadata';
 
-function fixturePackageJson({ declareEntrypoint = true } = {}) {
+/** A nonempty canonical icon subset declared by the fixture package. */
+const FIXTURE_ICON_ENTRYPOINT = "./icons";
+const FIXTURE_ICON_NAMES = ["Home", "Search"];
+const FIXTURE_ICON_IMPORT = "@prism-system/ui-extension-fixture/icons";
+
+function fixturePackageJson({ declareEntrypoint = true, declareIcons = false } = {}) {
   return {
     name: EXTENSION_FIXTURE.packageName,
     version: EXTENSION_FIXTURE.version,
@@ -440,6 +461,14 @@ function fixturePackageJson({ declareEntrypoint = true } = {}) {
             },
           }
         : {}),
+      ...(declareIcons
+        ? {
+            [FIXTURE_ICON_ENTRYPOINT]: {
+              types: "./dist/icons/index.d.ts",
+              import: "./dist/icons/index.mjs",
+            },
+          }
+        : {}),
     },
     files: ["dist", "README.md", "AGENTS.md", "design-system.json", "design-brief.json", "LICENSE"],
     peerDependencies: { three: ">=0.186.0 <1" },
@@ -447,7 +476,11 @@ function fixturePackageJson({ declareEntrypoint = true } = {}) {
   };
 }
 
-function fixtureDescriptor({ includeExtensions = true, dropDeclaration = false } = {}) {
+function fixtureDescriptor({
+  includeExtensions = true,
+  dropDeclaration = false,
+  includeIcons = false,
+} = {}) {
   const components = {};
   for (const name of REQUIRED_NAMES) components[name] = { variants: [], sizes: [], members: [] };
   const descriptor = {
@@ -464,11 +497,6 @@ function fixtureDescriptor({ includeExtensions = true, dropDeclaration = false }
     },
   };
   if (includeExtensions) {
-    if (!dropDeclaration) {
-      descriptor.entrypoints = {
-        [EXTENSION_ENTRYPOINT]: { source: "./src/keyboard-scene/index.ts", requires: ["three"] },
-      };
-    }
     descriptor.extensions = {
       [EXTENSION_NAME]: {
         apiVersion: 1,
@@ -485,6 +513,21 @@ function fixtureDescriptor({ includeExtensions = true, dropDeclaration = false }
       },
     };
   }
+  const entrypoints = {};
+  if (includeExtensions && !dropDeclaration) {
+    entrypoints[EXTENSION_ENTRYPOINT] = {
+      source: "./src/keyboard-scene/index.ts",
+      requires: ["three"],
+    };
+  }
+  if (includeIcons) {
+    entrypoints[FIXTURE_ICON_ENTRYPOINT] = { source: "./src/icons/index.ts", requires: [] };
+    descriptor.icons = {
+      entrypoint: FIXTURE_ICON_ENTRYPOINT,
+      names: [...FIXTURE_ICON_NAMES],
+    };
+  }
+  if (Object.keys(entrypoints).length > 0) descriptor.entrypoints = entrypoints;
   return descriptor;
 }
 
@@ -493,7 +536,10 @@ function fixtureDescriptor({ includeExtensions = true, dropDeclaration = false }
  * schema-current source descriptor, a valid token source, and the exported
  * source barrel and documentation files the metadata refers to.
  */
-function createFixtureRoot(t, { includeExtensions = true, dropDeclaration = false } = {}) {
+function createFixtureRoot(
+  t,
+  { includeExtensions = true, dropDeclaration = false, includeIcons = false } = {},
+) {
   const root = mkdtempSync(join(tmpdir(), "prism-app-sync-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const app of ["showcase", "reference-app"]) {
@@ -508,16 +554,37 @@ function createFixtureRoot(t, { includeExtensions = true, dropDeclaration = fals
     `export function ${EXTENSION_NAME}() {\n  return null;\n}\n`,
     "utf8",
   );
+  if (includeIcons) {
+    mkdirSync(join(packageDir, "src", "icons"), { recursive: true });
+    writeFileSync(
+      join(packageDir, "src", "icons", "index.ts"),
+      `${FIXTURE_ICON_NAMES.map(
+        (name) => `export function ${name}Icon() {\n  return null;\n}\n`,
+      ).join("\n")}`,
+      "utf8",
+    );
+  }
   writeFileSync(join(packageDir, "docs", "keyboard-scene.md"), "# KeyboardScene\n", "utf8");
   writeFileSync(join(packageDir, "examples", "keyboard-scene.tsx"), "export {};\n", "utf8");
   writeFileSync(
     join(packageDir, "package.json"),
-    `${JSON.stringify(fixturePackageJson({ declareEntrypoint: !dropDeclaration }), null, 2)}\n`,
+    `${JSON.stringify(
+      fixturePackageJson({
+        declareEntrypoint: includeExtensions && !dropDeclaration,
+        declareIcons: includeIcons,
+      }),
+      null,
+      2,
+    )}\n`,
     "utf8",
   );
   writeFileSync(
     join(packageDir, SOURCE_DESCRIPTOR_FILENAME),
-    `${JSON.stringify(fixtureDescriptor({ includeExtensions, dropDeclaration }), null, 2)}\n`,
+    `${JSON.stringify(
+      fixtureDescriptor({ includeExtensions, dropDeclaration, includeIcons }),
+      null,
+      2,
+    )}\n`,
     "utf8",
   );
   writeFileSync(
@@ -543,6 +610,10 @@ function extensionLoaderPath(root) {
   return join(root, "apps", "showcase", "app", EXTENSION_LOADERS_FILENAME);
 }
 
+function iconLoaderPath(root) {
+  return join(root, "apps", "showcase", "app", ICON_LOADERS_FILENAME);
+}
+
 /** Every file path under `dir`, recursively. */
 function walkFiles(dir) {
   const files = [];
@@ -552,6 +623,25 @@ function walkFiles(dir) {
     else files.push(full);
   }
   return files;
+}
+
+/** A byte snapshot of every file under `root`, keyed by absolute path. */
+function snapshotTree(root) {
+  const snapshot = new Map();
+  for (const file of walkFiles(root)) snapshot.set(file, readFileSync(file));
+  return snapshot;
+}
+
+function assertTreeUnchanged(root, snapshot, message) {
+  const after = snapshotTree(root);
+  assert.deepEqual(
+    [...after.keys()].sort(),
+    [...snapshot.keys()].sort(),
+    `${message}: the planned file set must not change`,
+  );
+  for (const [file, bytes] of after) {
+    assert.deepEqual(bytes, snapshot.get(file), `${message}: ${file} must stay byte-identical`);
+  }
 }
 
 const SYSTEM_A = entry({
@@ -618,6 +708,7 @@ test("a manifest generates one registry with the real component map and manifest
     /export type RegisteredManifestEntrypoint = \{\n {2}requirements: readonly RegisteredManifestRequirement\[\];\n\};/,
   );
   assert.match(source, /entrypoints: Readonly<Record<string, RegisteredManifestEntrypoint>>;/);
+  assert.match(source, /publicApi: Readonly<Record<string, readonly string\[\]>>;/);
   assert.match(
     source,
     /export type RegisteredManifestEffectFeature = "depth" \| "motion" \| "3d";/,
@@ -729,6 +820,21 @@ test("neutral systems generate an empty Showcase loader and no Reference App loa
   assert.match(loader.after, /name: string,/);
   assert.doesNotMatch(loader.after, /import\(/);
 
+  // The icon catalog loader is the same kind of generated, tool-owned module:
+  // it always exists for Showcase, and a system without icons contributes no
+  // literal import at all.
+  const iconLoader = planFile(plan, "showcase", "icon-loaders");
+  assert.ok(iconLoader, "the Showcase icon loader is generated even when neutral");
+  assert.equal(iconLoader.action, "create");
+  assert.match(iconLoader.after, /@prism-system:tool-owned/);
+  assert.match(
+    iconLoader.after,
+    /export type IconModule = Readonly<Record<string, IconComponent>>;/,
+  );
+  assert.match(iconLoader.after, /export async function loadIcons\(/);
+  assert.match(iconLoader.after, /export function hasIconCatalog\(/);
+  assert.doesNotMatch(iconLoader.after, /import\(/);
+
   // Exactly the managed app outputs are planned: no empty package component,
   // motion, or custom module is ever generated.
   assert.deepEqual(plan.files.map((file) => `${file.app}:${file.kind}`).sort(), [
@@ -737,12 +843,14 @@ test("neutral systems generate an empty Showcase loader and no Reference App loa
     "reference-app:package-json",
     "reference-app:registry",
     "showcase:extension-loaders",
+    "showcase:icon-loaders",
     "showcase:layout",
     "showcase:next-config",
     "showcase:package-json",
     "showcase:registry",
   ]);
   assert.ok(!planFile(plan, "reference-app", "extension-loaders"));
+  assert.ok(!planFile(plan, "reference-app", "icon-loaders"));
 
   typecheckGeneratedRegistry(planFile(plan, "showcase", "registry").after, {
     packageName: EXTENSION_FIXTURE.packageName,
@@ -790,6 +898,71 @@ test("declared extensions generate literal lazy imports from real declarations",
   assert.doesNotMatch(showcaseRegistry, /import\(/);
   assert.doesNotMatch(showcaseRegistry, /keyboard-scene/);
   assert.doesNotMatch(showcaseRegistry, /KeyboardScene/);
+});
+
+test("declared icon catalogs generate literal loader imports only for declaring systems", async (t) => {
+  const root = createFixtureRoot(t, { includeExtensions: false, includeIcons: true });
+  const manifestValue = manifest(EXTENSION_FIXTURE, PULSE);
+  const plan = await planAppIntegration({ manifest: manifestValue, root });
+  assert.equal(plan.status, "planned");
+
+  const loader = planFile(plan, "showcase", "icon-loaders");
+  assert.ok(loader, "the Showcase icon loader is planned");
+  assert.match(loader.after, /@prism-system:tool-owned/);
+  assert.ok(
+    loader.after.includes(`"extension-fixture": () => import("${FIXTURE_ICON_IMPORT}"),`),
+    "the declared icon entrypoint becomes one literal dynamic import",
+  );
+  assert.equal(
+    (loader.after.match(/import\(/g) ?? []).length,
+    1,
+    "exactly one dynamic import per declared icon catalog",
+  );
+  assert.match(loader.after, /=>\s+import\(/, "imports stay inside their loader function");
+  assert.doesNotMatch(loader.after, /"pulse": \{/, "neutral systems contribute no icon mapping");
+  assert.doesNotMatch(loader.after, /ui-pulse/);
+  assert.doesNotMatch(loader.after, /ui-system-a/);
+  assert.doesNotMatch(loader.after, /ui-system-b/);
+
+  const importSpecifiers = [...loader.after.matchAll(/import\(([^)]*)\)/g)].map(
+    (match) => match[1],
+  );
+  assert.deepEqual(
+    importSpecifiers,
+    [JSON.stringify(FIXTURE_ICON_IMPORT)],
+    "every generated import is a literal string",
+  );
+
+  const referenceLoader = planFile(plan, "reference-app", "icon-loaders");
+  assert.ok(!referenceLoader, "the Reference App never plans an icon catalog loader");
+
+  // Planning is deterministic and byte-identical on a second run.
+  const again = await planAppIntegration({ manifest: manifestValue, root });
+  assert.equal(planFile(again, "showcase", "icon-loaders").after, loader.after);
+});
+
+test("planning app integration keeps repository bytes unchanged", async (t) => {
+  const root = createFixtureRoot(t, { includeExtensions: true, includeIcons: true });
+  const before = snapshotTree(root);
+  const plan = await planAppIntegration({
+    manifest: manifest(EXTENSION_FIXTURE, PULSE),
+    root,
+  });
+  assert.equal(plan.status, "planned");
+  assert.ok(plan.files.length > 0, "the plan contains managed files");
+  assertTreeUnchanged(root, before, "ds:register planning");
+});
+
+test("an unmarked icon loader file is refused instead of overwritten", async (t) => {
+  const root = createFixtureRoot(t, { includeExtensions: false, includeIcons: true });
+  const unmarked = "export const hasIconCatalog = () => false;\n";
+  writeFileSync(iconLoaderPath(root), unmarked, "utf8");
+
+  await assert.rejects(
+    planAppIntegration({ manifest: manifest(EXTENSION_FIXTURE, PULSE), root }),
+    /Refusing to rewrite .*icon-loaders\.ts/,
+  );
+  assert.equal(readFileSync(iconLoaderPath(root), "utf8"), unmarked, "bytes stay untouched");
 });
 
 test("an injected catalog is used directly and the lazy fallback still works", async (t) => {
@@ -935,6 +1108,7 @@ test("the live registries expose every package manifest and no guessed capabilit
 
   assert.match(source, /type RegisteredSystem = Omit<DesignSystem, "components"> & \{/);
   assert.match(source, /components: DesignSystemComponents;/);
+  assert.match(source, /publicApi: Readonly<Record<string, readonly string\[\]>>;/);
   assert.match(
     source,
     /capabilities: \{\n {4}categories: Readonly<Record<string, RegisteredManifestCapabilityCategory>>;\n {2}\};/,
@@ -955,22 +1129,49 @@ test("the live registries expose every package manifest and no guessed capabilit
   assertNoOptionalNameGuessing(source);
 });
 
-test("the live Showcase loader is in sync and the Reference App has none", async () => {
+test("the live Showcase loaders are in sync and the Reference App has none", async () => {
   const plan = await planAppIntegration({ manifest: liveManifest, root: repoRoot });
   assert.equal(plan.status, "planned");
 
-  const loaders = plan.files.filter((file) => file.kind === "extension-loaders");
+  const extensionLoaders = plan.files.filter((file) => file.kind === "extension-loaders");
   assert.deepEqual(
-    loaders.map((file) => file.app),
+    extensionLoaders.map((file) => file.app),
     ["showcase"],
     "only Showcase plans an extension loader registry",
   );
-  const [loader] = loaders;
+  const [loader] = extensionLoaders;
   assert.equal(loader.action, "unchanged", `${loader.relativePath} is in sync`);
   assert.equal(readFileSync(loader.path, "utf8"), loader.after);
+
+  const iconLoaders = plan.files.filter((file) => file.kind === "icon-loaders");
+  assert.deepEqual(
+    iconLoaders.map((file) => file.app),
+    ["showcase"],
+    "only Showcase plans an icon catalog loader registry",
+  );
+  const [iconLoader] = iconLoaders;
+  assert.equal(iconLoader.action, "unchanged", `${iconLoader.relativePath} is in sync`);
+  assert.equal(readFileSync(iconLoader.path, "utf8"), iconLoader.after);
+  assert.ok(
+    iconLoader.after.includes('"system-plr": () => import("@prism-system/ui-system-plr/icons"),'),
+    "the live loader imports the declared PLR icon catalog literally",
+  );
+  assert.equal(
+    (iconLoader.after.match(/import\(/g) ?? []).length,
+    1,
+    "the live loader has exactly one declared icon import",
+  );
+  assert.doesNotMatch(iconLoader.after, /ui-system-a\/icons/);
+  assert.doesNotMatch(iconLoader.after, /ui-system-b\/icons/);
+  assert.doesNotMatch(iconLoader.after, /"system-a":/);
+  assert.doesNotMatch(iconLoader.after, /"system-b":/);
 
   assert.ok(
     !existsSync(join(repoRoot, "apps", "reference-app", "app", EXTENSION_LOADERS_FILENAME)),
     "the Reference App never ships an extension loader module",
+  );
+  assert.ok(
+    !existsSync(join(repoRoot, "apps", "reference-app", "app", ICON_LOADERS_FILENAME)),
+    "the Reference App never ships an icon catalog loader module",
   );
 });

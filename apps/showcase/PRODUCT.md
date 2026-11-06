@@ -26,7 +26,8 @@ The site is published through Vercel. Visitors can browse registered systems and
 
 - The app composes registered design-system packages and contains no product business logic.
 - Required and optional shared-contract components are distinct from package-specific extensions; extensions remain outside the shared component contract.
-- A selected system determines which package components and declared extensions Showcase can preview.
+- Icons are a separate optional catalog: the Icons tab reads real `publicApi["./icons"]` availability and shows a neutral empty state when a system publishes none.
+- A selected system determines which package components, declared extensions, and icons Showcase can preview.
 
 ## Product Principles
 

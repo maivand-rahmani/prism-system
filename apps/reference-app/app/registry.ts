@@ -114,6 +114,7 @@ export type RegisteredManifest = {
   package: string;
   version: string;
   entrypoints: Readonly<Record<string, RegisteredManifestEntrypoint>>;
+  publicApi: Readonly<Record<string, readonly string[]>>;
   components: Readonly<Record<string, RegisteredManifestComponent>>;
   capabilities: {
     categories: Readonly<Record<string, RegisteredManifestCapabilityCategory>>;

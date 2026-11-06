@@ -890,3 +890,135 @@ body {
     transition: none;
   }
 }
+
+/* Icon catalog: app-owned composition only. The glyphs, color, stroke, and any
+   motion remain the active design system's implementation. */
+.icon-catalog {
+  display: grid;
+  gap: 16px;
+}
+
+.icon-catalog-toolbar {
+  align-items: center;
+  display: grid;
+  gap: 6px 12px;
+  grid-template-columns: minmax(120px, max-content) minmax(180px, 340px) auto;
+}
+
+.icon-catalog-toolbar label {
+  color: var(--showcase-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.icon-catalog-toolbar > span {
+  color: var(--showcase-ink-muted);
+  font-size: 12px;
+}
+
+.icon-catalog-import {
+  color: var(--showcase-ink-muted);
+  font-size: 12px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.icon-catalog-import code,
+.icon-tile-import {
+  font-family: var(--showcase-mono);
+}
+
+.icon-catalog-status {
+  color: var(--showcase-ink-muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+.icon-catalog-status--error {
+  color: #8a2f22;
+}
+
+.icon-category {
+  display: grid;
+  gap: 8px;
+}
+
+.icon-category h2 {
+  border-bottom: 1px solid var(--showcase-line);
+  color: var(--showcase-ink);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  margin: 0;
+  padding-bottom: 5px;
+  text-transform: capitalize;
+}
+
+.icon-grid {
+  display: grid;
+  gap: 5px;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.icon-tile {
+  align-items: center;
+  background: var(--showcase-surface);
+  border: 1px solid var(--showcase-line);
+  border-radius: var(--showcase-radius-small);
+  display: grid;
+  gap: 2px;
+  grid-template-columns: 38px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  min-width: 0;
+  padding: 9px 10px;
+}
+
+.icon-tile.is-unavailable {
+  border-style: dashed;
+}
+
+.icon-tile-glyph {
+  align-items: center;
+  color: var(--showcase-ink);
+  display: flex;
+  grid-row: span 2;
+  justify-content: center;
+}
+
+.icon-tile-name {
+  color: var(--showcase-ink);
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-tile-import {
+  color: var(--showcase-ink-muted);
+  font-family: var(--showcase-mono);
+  font-size: 11px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+@media (max-width: 700px) {
+  .icon-catalog-toolbar {
+    grid-template-columns: 1fr;
+  }
+  .showcase-tabs [role="tablist"] {
+    align-items: center;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+}
+
+@media (max-width: 410px) {
+  .icon-grid {
+    grid-template-columns: 1fr;
+  }
+}
