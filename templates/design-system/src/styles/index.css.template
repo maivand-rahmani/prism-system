@@ -28,6 +28,7 @@
 @import "../components/number-field/number-field.css";
 @import "../components/slider/slider.css";
 @import "../components/file-upload/file-upload.css";
+@import "../icons/icons.css";
 
 /* Base scope. Every component root carries the package UI class, so the shared
    reset and typography live here rather than in any single component file. */

@@ -179,7 +179,15 @@ test("a source descriptor must not declare the generated capability inventory", 
   const raw = readJson(fixturePath("valid", "design-system.source.json"));
   assert.throws(
     () => parseSourceDescriptor({ ...raw, capabilities: structuredClone(CAPABILITY_CATEGORIES) }),
-    /^Error: design-system\.source\.json has unknown field "capabilities"; allowed fields are \$schema, schemaVersion, contractVersion, name, components, design, rules, entrypoints, extensions, docs\.$/,
+    /^Error: design-system\.source\.json has unknown field "capabilities"; allowed fields are \$schema, schemaVersion, contractVersion, name, components, icons, design, rules, entrypoints, extensions, docs\.$/,
+  );
+});
+
+test("the source descriptor docs block rejects the removed icons field", () => {
+  const raw = readJson(fixturePath("valid", "design-system.source.json"));
+  assert.throws(
+    () => parseSourceDescriptor({ ...raw, docs: { ...raw.docs, icons: "./ICONS.md" } }),
+    /^Error: design-system\.source\.json "docs" has unknown field "icons"; allowed fields are readme, agents, brief, foundations, components, usage\.$/,
   );
 });
 

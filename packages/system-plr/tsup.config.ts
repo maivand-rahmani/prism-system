@@ -10,9 +10,10 @@ import { defineConfig } from "tsup";
  * explicitly for both ESM and CJS.
  *
  * `./tokens` is plain generated data and must stay server-safe, so it builds
- * separately, without the banner. `dist/` is cleaned once by the build script:
- * a per-config `clean` would delete the other config's declaration files,
- * because the two configs build in parallel.
+ * separately, without the banner. The icon catalog is a client entry because
+ * its components forward refs; it keeps the banner. `dist/` is cleaned once by
+ * the build script: a per-config `clean` would delete the other config's
+ * declaration files, because the configs build in parallel.
  *
  * Bounded additional entrypoints: declare an extra config object only when the
  * real source module exists; never create empty motion/custom placeholder
@@ -32,7 +33,7 @@ import { defineConfig } from "tsup";
  * added to this array together with the matching `package.json` exports entry
  * and the `design-system.source.json` `entrypoints` declaration. Client
  * entrypoints keep the banner; server-safe data subpaths build without it. The
- * root entry and `./tokens` remain the only unconditional entries.
+ * root entry, `./tokens`, and the icon catalog are the built entries.
  */
 export default defineConfig([
   {
@@ -47,5 +48,12 @@ export default defineConfig([
     format: ["esm", "cjs"],
     dts: true,
     clean: false,
+  },
+  {
+    entry: { "icons/index": "src/icons/index.ts" },
+    format: ["esm", "cjs"],
+    dts: true,
+    clean: false,
+    banner: { js: '"use client";' },
   },
 ]);

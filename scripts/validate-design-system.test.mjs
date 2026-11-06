@@ -20,6 +20,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  ICON_NAMES,
   OPTIONAL_COMPONENTS,
   REQUIRED_COMPONENTS,
   buildManifest,
@@ -949,6 +950,78 @@ function writeRevealArtifacts(pkgDir) {
   );
 }
 
+const iconExportName = (name) => `${name}Icon`;
+
+/**
+ * Add a real `./icons` catalog to a generated fixture repo, regenerate its
+ * manifest, and optionally write matching built `dist/icons` artifacts.
+ */
+function addIconCatalog({ pkgDir }, names = [...ICON_NAMES]) {
+  const pkgPath = join(pkgDir, "package.json");
+  const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+  pkg.exports["./icons"] = {
+    types: "./dist/icons/index.d.ts",
+    import: "./dist/icons/index.mjs",
+    require: "./dist/icons/index.js",
+  };
+  writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+
+  const sourcePath = join(pkgDir, "design-system.source.json");
+  const source = JSON.parse(readFileSync(sourcePath, "utf8"));
+  source.entrypoints = {
+    ...(source.entrypoints ?? {}),
+    "./icons": { source: "./src/icons/index.ts", requires: [] },
+  };
+  source.icons = { entrypoint: "./icons", names: [...names] };
+  writeFileSync(sourcePath, `${JSON.stringify(source, null, 2)}\n`, "utf8");
+
+  writeFile(
+    pkgDir,
+    "src/icons/index.ts",
+    `${names.map((name) => `export { ${iconExportName(name)} } from "./${name}.js";`).join("\n")}\n`,
+  );
+  for (const name of names) {
+    writeFile(
+      pkgDir,
+      `src/icons/${name}.tsx`,
+      `export const ${iconExportName(name)} = () => null;\n`,
+    );
+  }
+  writeFile(
+    pkgDir,
+    "src/icons/icons.css",
+    `.${UI_CLASS} .maivand-alpha-icon { color: inherit; }\n`,
+  );
+
+  const stylesPath = join(pkgDir, "src", "styles", "index.css");
+  const styles = readFileSync(stylesPath, "utf8");
+  writeFileSync(stylesPath, `${styles}@import "../icons/icons.css";\n`, "utf8");
+
+  const manifest = buildManifest({ id: ID, packageDir: pkgDir });
+  writeFileSync(join(pkgDir, "design-system.json"), serializeManifest(manifest));
+  return pkgDir;
+}
+
+/** Write matching `dist/icons` JS/DTS artifacts for the supplied icon names. */
+function writeIconArtifacts(pkgDir, names) {
+  const exports = names.map(iconExportName);
+  writeFile(
+    pkgDir,
+    "dist/icons/index.d.ts",
+    `${exports.map((name) => `declare const ${name}: unknown;`).join("\n")}\nexport { ${exports.join(", ")} };\n`,
+  );
+  writeFile(
+    pkgDir,
+    "dist/icons/index.mjs",
+    `${exports.map((name) => `const ${name} = () => null;`).join("\n")}\nexport { ${exports.join(", ")} };\n`,
+  );
+  writeFile(
+    pkgDir,
+    "dist/icons/index.js",
+    `"use strict";\nmodule.exports = { ${exports.join(", ")} };\n`,
+  );
+}
+
 test("a declared entrypoint with matching built JS and DTS passes", () => {
   const root = makeRepo({ mutate: (context) => addRevealEntrypoint(context) });
   writeRevealArtifacts(join(root, "packages", ID));
@@ -1010,6 +1083,120 @@ test("partially built artifacts are incomplete and fail closed", () => {
     failureText(result),
     /Entrypoint "\.\/custom\/reveal" artifacts are incomplete; missing: \.\/dist\/custom\/reveal\/index\.mjs, \.\/dist\/custom\/reveal\/index\.js\./,
   );
+});
+
+/* -------------------------------------------------------------------------- */
+/* Icon catalog: source, export map, stylesheet, and built artifacts          */
+/* -------------------------------------------------------------------------- */
+
+test("a system declaring all fifty icons passes", () => {
+  const result = run(makeRepo({ mutate: (context) => addIconCatalog(context) }));
+  assert.equal(result.ok, true, failureText(result));
+  assert.ok(result.checks.some((check) => check.name === "icon catalog"));
+});
+
+test("a system may declare any canonical icon subset", () => {
+  const names = ICON_NAMES.filter((name) => ["ArrowLeft", "Close", "Search"].includes(name));
+  const result = run(makeRepo({ mutate: (context) => addIconCatalog(context, names) }));
+  assert.equal(result.ok, true, failureText(result));
+});
+
+test("a declared icon missing from the source entrypoint fails closed", () => {
+  const root = makeRepo({
+    mutate: (context) => {
+      addIconCatalog(context);
+      const names = ICON_NAMES.filter((name) => name !== "Search");
+      writeFile(
+        context.pkgDir,
+        "src/icons/index.ts",
+        `${names.map((name) => `export { ${iconExportName(name)} } from "./${name}.js";`).join("\n")}\n`,
+      );
+    },
+  });
+  const result = run(root);
+  assert.equal(result.ok, false);
+  assert.match(failureText(result), /SearchIcon/);
+});
+
+test("an icon catalog missing from package.json exports fails closed", () => {
+  const root = makeRepo({
+    mutate: (context) => {
+      addIconCatalog(context);
+      const pkgPath = join(context.pkgDir, "package.json");
+      const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+      delete pkg.exports["./icons"];
+      writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+    },
+  });
+  const result = run(root);
+  assert.equal(result.ok, false);
+  assert.match(
+    failureText(result),
+    /Declared entrypoint "\.\/icons" is missing from package\.json exports/,
+  );
+});
+
+test("an incorrect ./icons export target is rejected", () => {
+  const root = makeRepo({
+    mutate: (context) => {
+      addIconCatalog(context);
+      const pkgPath = join(context.pkgDir, "package.json");
+      const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+      pkg.exports["./icons"].import = "./dist/icons/other.mjs";
+      writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+      const manifest = buildManifest({ id: ID, packageDir: context.pkgDir });
+      writeFileSync(join(context.pkgDir, "design-system.json"), serializeManifest(manifest));
+    },
+  });
+  const result = run(root);
+  assert.equal(result.ok, false);
+  assert.match(
+    failureText(result),
+    /package\.json exports\["\.\/icons"\] must be exactly \{"types":"\.\/dist\/icons\/index\.d\.ts","import":"\.\/dist\/icons\/index\.mjs","require":"\.\/dist\/icons\/index\.js"\}/,
+  );
+});
+
+test("the stylesheet missing the icon catalog import is rejected", () => {
+  const root = makeRepo({
+    mutate: (context) => {
+      addIconCatalog(context);
+      const stylesPath = join(context.pkgDir, "src", "styles", "index.css");
+      const styles = readFileSync(stylesPath, "utf8");
+      writeFileSync(stylesPath, styles.replace('@import "../icons/icons.css";\n', ""), "utf8");
+    },
+  });
+  const result = run(root);
+  assert.equal(result.ok, false);
+  assert.match(
+    failureText(result),
+    /src\/styles\/index\.css must import "\.\.\/icons\/icons\.css"/,
+  );
+});
+
+test("built icon artifacts matching the declared catalog pass", () => {
+  const root = makeRepo({
+    mutate: (context) => {
+      addIconCatalog(context);
+      writeIconArtifacts(context.pkgDir, ICON_NAMES);
+    },
+  });
+  const result = run(root);
+  assert.equal(result.ok, true, failureText(result));
+});
+
+test("built icon artifacts missing a declared export fail closed", () => {
+  const root = makeRepo({
+    mutate: (context) => {
+      addIconCatalog(context);
+      writeIconArtifacts(
+        context.pkgDir,
+        ICON_NAMES.filter((name) => name !== "LogOut"),
+      );
+    },
+  });
+  const result = run(root);
+  assert.equal(result.ok, false);
+  assert.match(failureText(result), /Entrypoint "\.\/icons" artifact .* Missing: LogOutIcon/);
 });
 
 test("extension docs and examples must exist before validation passes", () => {

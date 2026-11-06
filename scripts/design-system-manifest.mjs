@@ -9,7 +9,8 @@
  *
  *   package.json                 identity, exact version, exports, requirements
  *   design-system.source.json    explicit component/compound/variant descriptor
- *                                plus optional entrypoints/extensions/effects
+ *                                plus optional entrypoints/extensions/effects and
+ *                                the optional icon catalog declaration
  *   tokens.source.json           semantic token source
  *
  * The descriptor is the creative contract: it declares, by hand, each
@@ -86,13 +87,22 @@ export const REQUIRED_PACKAGE_FILES = Object.freeze([
 
 /**
  * Version of the package-owned source descriptor
- * (`design-system.source.json`). The source descriptor is schemaVersion 4;
- * the generated, shipped manifest is versioned independently below.
+ * (`design-system.source.json`). The source descriptor stays schemaVersion 4;
+ * it gained an optional `icons` catalog declaration without changing the
+ * shipped consumer manifest shape.
  */
 export const DESIGN_SYSTEM_SCHEMA_VERSION = 4;
 /** The single current numeric component contract version. */
 export const CONTRACT_VERSION = 4;
-/** Version of the generated, shipped manifest schema (`design-system.json`). */
+/**
+ * Version of the generated, shipped manifest schema (`design-system.json`).
+ *
+ * The icon catalog does not add a new manifest field: it uses the reserved
+ * `./icons` code entrypoint, its verified `publicApi` exports, and its
+ * entrypoint requirements, all of which schema 5 already defines. The manifest
+ * shape is therefore unchanged and a released schema-5 `prism-ds` can still
+ * read it.
+ */
 export const DESIGN_SYSTEM_MANIFEST_SCHEMA_VERSION = 5;
 
 /** `$schema` references and the generated marker written into every manifest. */
@@ -162,6 +172,103 @@ export const OPTIONAL_COMPONENTS = Object.freeze([
 
 /** Every component name a descriptor or manifest may declare. */
 export const COMPONENT_NAMES = Object.freeze([...REQUIRED_COMPONENTS, ...OPTIONAL_COMPONENTS]);
+
+/**
+ * The five canonical icon groups, in presentation order. Category membership is
+ * metadata only; availability is only the presence of a name in a system's
+ * declared `icons.names`.
+ */
+export const ICON_CATEGORIES = Object.freeze({
+  navigation: Object.freeze([
+    "ArrowLeft",
+    "ArrowRight",
+    "ArrowUp",
+    "ArrowDown",
+    "ChevronLeft",
+    "ChevronRight",
+    "ChevronUp",
+    "ChevronDown",
+    "Menu",
+    "Home",
+  ]),
+  actions: Object.freeze([
+    "Plus",
+    "Minus",
+    "Close",
+    "Check",
+    "Search",
+    "Filter",
+    "Settings",
+    "Edit",
+    "Trash",
+    "Copy",
+  ]),
+  files: Object.freeze([
+    "Download",
+    "Upload",
+    "Share",
+    "Link",
+    "ExternalLink",
+    "File",
+    "Folder",
+    "Image",
+    "Calendar",
+    "Clock",
+  ]),
+  feedback: Object.freeze([
+    "Info",
+    "Help",
+    "Warning",
+    "Error",
+    "Success",
+    "Loading",
+    "Eye",
+    "EyeOff",
+    "Lock",
+    "Unlock",
+  ]),
+  interface: Object.freeze([
+    "User",
+    "Users",
+    "Mail",
+    "Bell",
+    "Heart",
+    "Star",
+    "MoreHorizontal",
+    "MoreVertical",
+    "Refresh",
+    "LogOut",
+  ]),
+});
+
+/** All fifty canonical icon names, in canonical order. */
+export const ICON_NAMES = Object.freeze([
+  ...ICON_CATEGORIES.navigation,
+  ...ICON_CATEGORIES.actions,
+  ...ICON_CATEGORIES.files,
+  ...ICON_CATEGORIES.feedback,
+  ...ICON_CATEGORIES.interface,
+]);
+
+/** The one stable suffix every public icon component export uses. */
+export const ICON_EXPORT_SUFFIX = "Icon";
+
+/** A public icon component export name for a canonical icon name. */
+export function iconExportName(name) {
+  return `${name}${ICON_EXPORT_SUFFIX}`;
+}
+
+/** Every public icon export name, in canonical order. */
+export const ICON_EXPORT_NAMES = Object.freeze(ICON_NAMES.map(iconExportName));
+
+/** Whether a public export name is exactly a canonical icon export. */
+export function isCanonicalIconExportName(value) {
+  return (
+    typeof value === "string" &&
+    value.endsWith(ICON_EXPORT_SUFFIX) &&
+    ICON_NAMES.includes(value.slice(0, -ICON_EXPORT_SUFFIX.length))
+  );
+}
 
 /**
  * The canonical capability-category inventory generated into every shipped
@@ -235,6 +342,7 @@ const SOURCE_ROOT_FIELDS = Object.freeze([
   "contractVersion",
   "name",
   "components",
+  "icons",
   "design",
   "rules",
   "entrypoints",
@@ -664,6 +772,52 @@ function normalizeExtensions(raw, label) {
 }
 
 /**
+ * Validate an optional `icons` catalog declaration.
+ *
+ * The catalog is separate from components and from the generated
+ * `capabilities.categories` inventory. A declaring system names a nonempty,
+ * duplicate-free subset of the fifty canonical names in canonical order and
+ * points at the one reserved public code entrypoint `./icons`. An absent
+ * section means the system ships no icons; an empty section is never valid.
+ */
+function normalizeIcons(raw, label) {
+  if (!isPlainObject(raw)) {
+    throw new Error(`${label} must be an object.`);
+  }
+  assertKnownFields(raw, ["entrypoint", "names"], label);
+  if (!("entrypoint" in raw)) throw new Error(`${label} is missing required field "entrypoint".`);
+  if (!("names" in raw)) throw new Error(`${label} is missing required field "names".`);
+  const entrypoint = requireNonEmptyString(raw.entrypoint, `${label}.entrypoint`);
+  if (entrypoint !== "./icons") {
+    throw new Error(
+      `${label}.entrypoint must be exactly "./icons"; the icon catalog has one stable ` +
+        `public entrypoint across every design system (received ${JSON.stringify(entrypoint)}).`,
+    );
+  }
+  const names = requireStringArray(raw.names, `${label}.names`);
+  if (names.length === 0) {
+    throw new Error(
+      `${label}.names must not be empty; omit the "icons" section on a system that ships no icons.`,
+    );
+  }
+  const unknown = names.filter((name) => !ICON_NAMES.includes(name));
+  if (unknown.length > 0) {
+    throw new Error(
+      `${label}.names contains unknown icon name(s): ${unknown.join(", ")}. ` +
+        `Allowed names are the fifty canonical icons.`,
+    );
+  }
+  const canonicalOrder = ICON_NAMES.filter((name) => names.includes(name));
+  if (JSON.stringify(names) !== JSON.stringify(canonicalOrder)) {
+    throw new Error(
+      `${label}.names must list declared icons in canonical order ` +
+        `(received ${JSON.stringify(names)}; expected ${JSON.stringify(canonicalOrder)}).`,
+    );
+  }
+  return { entrypoint, names };
+}
+
+/**
  * Validate one component entry for a descriptor or manifest. `variants`,
  * `sizes`, and `members` are required unique string arrays (empty allowed);
  * `effects` and `description`/`docs`/`example` are optional metadata.
@@ -990,9 +1144,11 @@ function normalizeManifestEntrypoints(raw, label) {
 
 /**
  * Validate the relationship between `entrypoints`, `publicApi`, and the
- * optional `extensions` map: every entrypoint has exactly one publicApi member
- * list, every extension names a declared entrypoint that publicly exports it,
- * and extension names are never canonical component names.
+ * optional `extensions` map, plus the reserved `./icons` entrypoint convention:
+ * every entrypoint has exactly one publicApi member list, every extension names
+ * a declared entrypoint that publicly exports it, extension names are never
+ * canonical component names, and an icon entrypoint's public API is exactly the
+ * canonical `${Name}Icon` exports (never mixed with another entrypoint).
  */
 function validateManifestCatalog({ entrypoints, publicApi, extensions }) {
   const entrypointKeys = Object.keys(entrypoints);
@@ -1007,26 +1163,63 @@ function validateManifestCatalog({ entrypoints, publicApi, extensions }) {
         }`,
     );
   }
-  if (extensions === undefined) return;
-  for (const [name, extension] of Object.entries(extensions)) {
-    if (extension.entrypoint === "./tokens") {
+  if (extensions !== undefined) {
+    for (const [name, extension] of Object.entries(extensions)) {
+      if (extension.entrypoint === "./tokens") {
+        throw new Error(
+          `${DESIGN_SYSTEM_MANIFEST_FILENAME} extension "${name}" must not use the ` +
+            `server-only token entrypoint.`,
+        );
+      }
+      if (!(extension.entrypoint in entrypoints)) {
+        throw new Error(
+          `${DESIGN_SYSTEM_MANIFEST_FILENAME} extension "${name}" entrypoint ` +
+            `${JSON.stringify(extension.entrypoint)} is not declared in "entrypoints".`,
+        );
+      }
+      if (!publicApi[extension.entrypoint]?.includes(name)) {
+        throw new Error(
+          `${DESIGN_SYSTEM_MANIFEST_FILENAME} extension "${name}" is not listed in ` +
+            `"publicApi" for ${JSON.stringify(extension.entrypoint)}.`,
+        );
+      }
+    }
+  }
+  validateIconEntrypoint({ entrypoints, publicApi });
+}
+
+/**
+ * Validate the reserved `./icons` catalog convention in a manifest: the
+ * entrypoint is optional, but when present its public API must be a nonempty
+ * list of canonical `${Name}Icon` exports, and those exports may not appear on
+ * any other entrypoint. The manifest stays schema 5: availability is the real
+ * public API, never a second declaration.
+ */
+function validateIconEntrypoint({ entrypoints, publicApi }) {
+  for (const [key, names] of Object.entries(publicApi)) {
+    if (key === "./icons") continue;
+    const misplaced = names.filter((name) => isCanonicalIconExportName(name));
+    if (misplaced.length > 0) {
       throw new Error(
-        `${DESIGN_SYSTEM_MANIFEST_FILENAME} extension "${name}" must not use the ` +
-          `server-only token entrypoint.`,
+        `${DESIGN_SYSTEM_MANIFEST_FILENAME} publishes canonical icon export(s) ` +
+          `${misplaced.join(", ")} from ${JSON.stringify(key)}; every icon export must come ` +
+          `from the single reserved "./icons" entrypoint.`,
       );
     }
-    if (!(extension.entrypoint in entrypoints)) {
-      throw new Error(
-        `${DESIGN_SYSTEM_MANIFEST_FILENAME} extension "${name}" entrypoint ` +
-          `${JSON.stringify(extension.entrypoint)} is not declared in "entrypoints".`,
-      );
-    }
-    if (!publicApi[extension.entrypoint]?.includes(name)) {
-      throw new Error(
-        `${DESIGN_SYSTEM_MANIFEST_FILENAME} extension "${name}" is not listed in ` +
-          `"publicApi" for ${JSON.stringify(extension.entrypoint)}.`,
-      );
-    }
+  }
+  if (!("./icons" in entrypoints)) return;
+  const names = publicApi["./icons"] ?? [];
+  if (names.length === 0) {
+    throw new Error(
+      `${DESIGN_SYSTEM_MANIFEST_FILENAME} entrypoint "./icons" must publish at least one icon.`,
+    );
+  }
+  const invalid = names.filter((name) => !isCanonicalIconExportName(name));
+  if (invalid.length > 0) {
+    throw new Error(
+      `${DESIGN_SYSTEM_MANIFEST_FILENAME} publicApi["./icons"] must contain only canonical ` +
+        `"${ICON_EXPORT_SUFFIX}"-suffixed icon exports; invalid: ${invalid.join(", ")}.`,
+    );
   }
 }
 
@@ -1053,6 +1246,9 @@ export function parseSourceDescriptor(raw) {
       raw.entrypoints,
       `${DESIGN_SYSTEM_SOURCE_FILENAME} "entrypoints"`,
     );
+  }
+  if (raw.icons !== undefined) {
+    descriptor.icons = normalizeIcons(raw.icons, `${DESIGN_SYSTEM_SOURCE_FILENAME} "icons"`);
   }
   if (raw.extensions !== undefined) {
     descriptor.extensions = normalizeExtensions(
@@ -2006,6 +2202,12 @@ export function analyzeDesignSystemCatalog({ packageDir, descriptor }) {
         `Extension ${JSON.stringify(name)} is reserved by the runtime design-system identity.`,
       );
     }
+    if (ICON_EXPORT_NAMES.includes(name)) {
+      throw new Error(
+        `Extension ${JSON.stringify(name)} collides with a canonical icon export name; ` +
+          `icons are declared only in the "icons" catalog.`,
+      );
+    }
     if (extension.entrypoint === "./tokens") {
       throw new Error(
         `Extension ${JSON.stringify(name)} must not use the server-only token entrypoint.`,
@@ -2034,7 +2236,47 @@ export function analyzeDesignSystemCatalog({ packageDir, descriptor }) {
     );
   }
 
-  return { entrypoints, extensions, exportsByEntrypoint, requirementsByEntrypoint };
+  const icons = descriptor.icons;
+  if (icons !== undefined) {
+    if (!(icons.entrypoint in entrypoints)) {
+      throw new Error(
+        `${DESIGN_SYSTEM_SOURCE_FILENAME} "icons" entrypoint ${JSON.stringify(
+          icons.entrypoint,
+        )} must also be declared in "entrypoints".`,
+      );
+    }
+    const actual = exportsByEntrypoint.get(icons.entrypoint) ?? new Set();
+    const expected = new Set(icons.names.map(iconExportName));
+    const missing = [...expected].filter((name) => !actual.has(name));
+    const unexpected = [...actual].filter((name) => !expected.has(name));
+    if (missing.length > 0 || unexpected.length > 0) {
+      throw new Error(
+        `${DESIGN_SYSTEM_SOURCE_FILENAME} "icons" must match the runtime exports of ` +
+          `${JSON.stringify(icons.entrypoint)} (${entrypoints[icons.entrypoint].source}) exactly.` +
+          `${missing.length > 0 ? ` Missing exports: ${missing.join(", ")}.` : ""}` +
+          `${unexpected.length > 0 ? ` Undeclared exports: ${unexpected.join(", ")}.` : ""}`,
+      );
+    }
+  } else if ("./icons" in entrypoints) {
+    throw new Error(
+      `${DESIGN_SYSTEM_SOURCE_FILENAME} declares the reserved "./icons" entrypoint without an ` +
+        `"icons" catalog; declare the real icons or use a different entrypoint name.`,
+    );
+  }
+
+  for (const [key, names] of exportsByEntrypoint) {
+    for (const name of names) {
+      if (!ICON_EXPORT_NAMES.includes(name)) continue;
+      if (icons !== undefined && key === icons.entrypoint) continue;
+      throw new Error(
+        `Canonical icon export ${JSON.stringify(name)} is published from entrypoint ` +
+          `${JSON.stringify(key)}; every declared icon must come from the single ` +
+          `"icons" entrypoint so availability is never implied twice.`,
+      );
+    }
+  }
+
+  return { entrypoints, extensions, exportsByEntrypoint, requirementsByEntrypoint, icons };
 }
 
 /**

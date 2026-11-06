@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/maivand-rahmani/prism-system/schemas/design-system.schema.json",
   "title": "Design System Manifest",
-  "description": "The generated, shipped consumer manifest at packages/<id>/design-system.json (schemaVersion 5, contractVersion 4). It is produced deterministically by scripts/design-system-manifest.mjs from the package-owned design-system.source.json, tokens.source.json, package.json, and design-brief.json. It exposes the 29 required components and only the implemented optional components, the canonical capability-category inventory (`capabilities.categories`), flattened semantic token names (never token values), artifact paths, package-relative docs paths, a required `entrypoints` map with package.json-derived dependency/peer requirements, and optional nonempty `extensions` for custom PascalCase named exports. Do not edit it by hand: run `pnpm ds:manifest <id> --write` to regenerate. `package.json.version` is authoritative.",
+  "description": "The generated, shipped consumer manifest at packages/<id>/design-system.json (schemaVersion 5, contractVersion 4). It is produced deterministically by scripts/design-system-manifest.mjs from the package-owned design-system.source.json, tokens.source.json, package.json, and design-brief.json. It exposes the 29 required components and only the implemented optional components, the canonical capability-category inventory (`capabilities.categories`), flattened semantic token names (never token values), artifact paths, package-relative docs paths, a required `entrypoints` map with package.json-derived dependency/peer requirements, optional nonempty `extensions` for custom PascalCase named exports, and an optional icon catalog expressed through the reserved `./icons` code entrypoint: `publicApi[\"./icons\"]` lists the real canonical `${Name}Icon` exports. Icons are not components and no top-level `icons` field exists. Do not edit it by hand: run `pnpm ds:manifest <id> --write` to regenerate. `package.json.version` is authoritative.",
   "type": "object",
   "required": [
     "$schema",
@@ -70,7 +70,7 @@
     },
     "publicApi": {
       "type": "object",
-      "description": "Declared public member names per code subpath. It covers exactly the `entrypoints` keys and is validated against the package's actual public exports.",
+      "description": "Declared public member names per code subpath. It covers exactly the `entrypoints` keys and is validated against the package's actual public exports. The reserved `./icons` entrypoint, when present, must list exactly the canonical `${Name}Icon` exports; canonical icon exports may not appear on any other entrypoint.",
       "propertyNames": {
         "pattern": "^(?:\\.|\\./(?:[a-z0-9][a-z0-9-]*)(?:/[a-z0-9][a-z0-9-]*)*)$"
       },

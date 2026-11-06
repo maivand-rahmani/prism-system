@@ -46,6 +46,7 @@
 @import "../components/timeline/timeline.css";
 @import "../components/meter/meter.css";
 @import "../components/empty-state/empty-state.css";
+@import "../icons/icons.css";
 
 /* The system is scoped: products own composition; this package owns its ink and materials. */
 :where(.maivand-plr-ui) {

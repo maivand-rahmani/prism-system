@@ -17,7 +17,8 @@ editorial moments and Manrope for clear interface text and numbers.
 pnpm add @prism-system/ui-system-plr
 ```
 
-The package is built for React 18+ and depends on `@prism-system/ui-core`.
+The package is built for React 18+ and depends on `@prism-system/ui-core` and
+`lucide-react` (ISC; used only by the `./icons` entrypoint).
 
 ### Client boundary
 
@@ -155,6 +156,25 @@ same family is public as `typography.family.handwriting` in the token export,
 `--maivand-plr-typography-family-handwriting` in CSS, and
 `--font-prism-handwriting` in the Tailwind bridge.
 
+## Icons
+
+The package ships the complete fifty-icon Prism catalog from
+`@prism-system/ui-system-plr/icons`:
+
+```tsx
+import { SearchIcon } from "@prism-system/ui-system-plr/icons";
+
+<SearchIcon aria-hidden="true" />;
+```
+
+Icons inherit `currentColor`, default to `1em` and a `1.75` stroke, and are decorative
+unless you pass `label` (or `aria-label`/`aria-labelledby`). Icon-only controls name the
+control, not the icon. `LoadingIcon` is static by default; add
+`className="maivand-plr-icon-spin"` only when pending motion is appropriate, and reduced
+motion removes it. See [ICONS.md](./ICONS.md) for the full canonical-name/Lucide map,
+accessibility rules, replacement workflow, and license. Browse the live catalog at
+**`/showcase/system-plr/icons`**, or run `prism-ds icons [name] --cwd <root>`.
+
 ## Usage rules
 
 - **Compose with props.** Prefer existing components over local replacements, and use
@@ -200,7 +220,10 @@ available at `@prism-system/ui-system-plr/manifest`. It is `schemaVersion: 5` an
 current contract (`contractVersion: 4`), the exact package version, the component
 catalog, variants, sizes, compound members, the required `entrypoints` map with
 package.json-derived dependency/peer requirements, optional verified `extensions`, and
-the strict usage rules for this system.
+the strict usage rules for this system. The icon catalog is published through the
+reserved `./icons` entrypoint: availability is exactly `publicApi["./icons"]` (canonical
+`${Name}Icon` exports), never a separate availability list or the shared core
+vocabulary. A system without that entrypoint ships no icons.
 The manifest also carries the canonical `capabilities.categories` inventory
 (`composition`, `forms`, `data-display`) shared by every system: it maps component names
 to categories, not to availability. A system supports a component only when its name is

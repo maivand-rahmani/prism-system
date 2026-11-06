@@ -101,6 +101,26 @@ allowed, and an omitted optional name is simply unavailable.
   props, and `AspectRatio` adds only the structural `ratio`; layout values remain
   in the design system.
 
+## The shared icon catalog
+
+Icons are **not** part of the component contract and never enter
+`REQUIRED_COMPONENTS`, `OPTIONAL_COMPONENTS`, `DesignSystemComponents`, or
+`capabilities.categories`. Core owns only the neutral vocabulary and public prop
+shape:
+
+- `ICON_NAMES`, `ICON_CATEGORIES`, `IconName`, `IconExportName`, `iconExportName`,
+  `isIconName`, `iconNamesInCategory`, `isCanonicalIconExportName`, and
+  `iconNameFromExportName` in `src/design-system/icons.ts`;
+- `IconProps` and `IconComponent`, which standardize `size`, `label`, `decorative`,
+  standard SVG props, and a forwarded `ref`;
+- no SVG path data, no Lucide dependency, no colors, stroke width, default visual
+  size, animation, or component implementation.
+
+A design system declares only the icons it really ships and exports one component per
+name as `${Name}Icon` from its reserved `./icons` entrypoint. Availability is the
+generated manifest's real `publicApi["./icons"]`, never the core vocabulary. A system
+with no `./icons` entrypoint ships no icons.
+
 ## Accessibility expectations
 
 Contract comments describe the required ARIA behavior. When extending a contract,

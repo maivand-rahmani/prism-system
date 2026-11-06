@@ -38,6 +38,19 @@ descriptor stays `schemaVersion: 4` and never declares `capabilities`. The gener
 which describes category membership rather than availability. This system ships no
 custom extensions; do not add them without a separate request and complete implementation.
 
+## Icons
+
+The package ships all fifty canonical Prism icons from the reserved `./icons` entrypoint.
+The public names are stable semantic names; the current implementation wraps Lucide
+(`lucide-react`, ISC) through `src/icons/icon-base.tsx`, but the API is Prism's
+`IconProps`, not Lucide's. Color inherits `currentColor`, size defaults to `1em`, the
+default stroke is `1.75`, and decorative icons are hidden from assistive technology by
+default. `LoadingIcon` is static unless a consumer opts into the documented spin class;
+reduced motion removes it. Each icon lives in its own `src/icons/<Name>.tsx` module so a
+single glyph can be replaced without changing the public export. The source descriptor's
+`icons.names` and the real `./icons` exports must match exactly; the generated manifest
+publishes availability only through `publicApi["./icons"]`. See [ICONS.md](./ICONS.md).
+
 ## Extension points
 
 Improve the system here, and only here:
@@ -86,7 +99,8 @@ external coding agent consuming this package must:
    docs/example, effects, and the entrypoint requirements before using one. Read the
    manifest and this file before writing UI.
 2. **Use the public API.** Import the twenty-nine required components from the package
-   root and design tokens from `@prism-system/ui-system-plr/tokens`. Import ordinary CSS from
+   root, design tokens from `@prism-system/ui-system-plr/tokens`, and icons from
+   `@prism-system/ui-system-plr/icons`. Import ordinary CSS from
    `@prism-system/ui-system-plr/styles.css`; Tailwind v4 products additionally load
    `@prism-system/ui-system-plr/tailwind.css` after `tailwindcss` and before `styles.css`. Never
    import package internals or paths that are not part of the `exports` map. The

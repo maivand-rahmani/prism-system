@@ -206,3 +206,39 @@ there instead of restyling `Stack`.
 - Component hover, press, selection, and disclosure feedback is brief and tactile. Reduced
   motion removes transitions and loading shimmer. Page and section transitions belong to the
   application, not this package.
+
+## Icons in composition
+
+Icons are imported from the dedicated entrypoint, never the root:
+
+```tsx
+"use client";
+
+import * as React from "react";
+import { Button } from "@prism-system/ui-system-plr";
+import { CheckIcon, LoadingIcon, SearchIcon } from "@prism-system/ui-system-plr/icons";
+
+export function IconActions() {
+  const [saving, setSaving] = React.useState(false);
+
+  return (
+    <>
+      <Button type="button" aria-label="Search plans">
+        <SearchIcon aria-hidden="true" />
+      </Button>
+
+      <Button type="button" loading={saving} loadingText="Saving…" onClick={() => setSaving(true)}>
+        <CheckIcon aria-hidden="true" />
+        Save plan
+      </Button>
+
+      {saving && <LoadingIcon className="maivand-plr-icon-spin" label="Saving" />}
+    </>
+  );
+}
+```
+
+Keep the icon decorative inside a labeled button; give a standalone meaningful icon a
+`label`. Do not pass a fixed color: the icon inherits the surrounding text or status
+color. Use `size` only when the surrounding type does not already establish the right
+scale. See [ICONS.md](./ICONS.md).

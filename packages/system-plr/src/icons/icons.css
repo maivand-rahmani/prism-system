@@ -1,0 +1,28 @@
+/* Plan Like Rahmani icon presentation. Color is never set here: every glyph
+   draws with `currentColor`, so the system's ink, status colors, and dark theme
+   reach the icon through its surrounding component or text. */
+:where(.maivand-plr-ui) .maivand-plr-icon {
+  display: inline-block;
+  flex: none;
+  overflow: visible;
+  transform-origin: center;
+  vertical-align: -0.125em;
+}
+
+/* Opt-in motion for LoadingIcon. It is never applied by default, and reduced
+   motion removes it entirely. */
+:where(.maivand-plr-ui) .maivand-plr-icon-spin {
+  animation: maivand-plr-icon-spin 1s linear infinite;
+}
+
+@keyframes maivand-plr-icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui) .maivand-plr-icon-spin {
+    animation: none;
+  }
+}

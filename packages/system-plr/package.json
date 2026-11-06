@@ -35,6 +35,11 @@
       "import": "./dist/tokens/index.mjs",
       "require": "./dist/tokens/index.js"
     },
+    "./icons": {
+      "types": "./dist/icons/index.d.ts",
+      "import": "./dist/icons/index.mjs",
+      "require": "./dist/icons/index.js"
+    },
     "./manifest": "./design-system.json"
   },
   "files": [
@@ -43,6 +48,7 @@
     "USAGE.md",
     "AGENTS.md",
     "FONTS.md",
+    "ICONS.md",
     "docs",
     "examples",
     "design-system.json",
@@ -59,7 +65,8 @@
     "react-dom": ">=18"
   },
   "dependencies": {
-    "@prism-system/ui-core": "workspace:*"
+    "@prism-system/ui-core": "workspace:*",
+    "lucide-react": "1.70.0"
   },
   "devDependencies": {
     "@types/react": "19.3.0",

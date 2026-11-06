@@ -149,6 +149,38 @@ import {
 - `composeRefs` — merge several refs into one callback.
 - `mergeProps` — slot-friendly prop merging (chained handlers, class names, styles).
 
+### The icon catalog
+
+Icons are a separate, optional vocabulary, never components:
+
+```ts
+import {
+  ICON_NAMES,
+  ICON_CATEGORIES,
+  type IconName,
+  type IconProps,
+  type IconComponent,
+  iconExportName,
+  isIconName,
+} from "@prism-system/ui-core";
+
+const name: IconName = "Search";
+const exportName = iconExportName(name); // "SearchIcon"
+```
+
+- `ICON_NAMES` is the exact fifty-name canonical catalog; `IconName` is its union.
+- `ICON_CATEGORIES` groups the same names for presentation only.
+- `IconProps` standardizes `size`, `label`, `decorative`, standard SVG attributes,
+  and a forwarded `ref`; `IconComponent` is the stable public component type.
+- `iconExportName` is the single `${Name}Icon` convention a design system publishes
+  from its reserved `./icons` entrypoint.
+- Core contains **no SVG path data, no Lucide dependency, no color, stroke, size
+  default, or motion**. Each design system owns those visual decisions.
+
+A system declares only the icons it really ships in its source descriptor; the
+generated manifest publishes availability through `publicApi["./icons"]`. A system
+with no `./icons` entrypoint ships no icons, and core never implies otherwise.
+
 ### Accessibility helpers
 
 ```ts

@@ -16,7 +16,9 @@
  * `design-system.source.json`, its declared compound members must match the
  * actual public API, and `package.json.version` (authoritative) must equal the
  * generated-manifest version, the runtime `DesignSystem.version`, and the
- * registry entry version.
+ * registry entry version. A descriptor that declares the optional `icons`
+ * catalog must also ship its real `./icons` source, export map, stylesheet
+ * import, and built artifacts.
  */
 
 import { spawnSync } from "node:child_process";
@@ -48,6 +50,7 @@ import {
   TOKENS_SOURCE_FILENAME,
   checkDesignSystemManifest,
   collectRuntimeExportNames,
+  iconExportName,
   missingRequiredPackageFiles,
   readDesignSystemManifest,
   readSourceDescriptor,
@@ -102,6 +105,20 @@ const TOKENS_EXPORT_TARGET = Object.freeze({
   types: "./dist/tokens/index.d.ts",
   import: "./dist/tokens/index.mjs",
   require: "./dist/tokens/index.js",
+});
+
+/**
+ * The one reserved icon-catalog entrypoint and its exact build targets. The
+ * catalog is optional: only a descriptor that declares `icons` must publish it,
+ * and its declared names may be any nonempty canonical subset.
+ */
+const ICONS_ENTRYPOINT = "./icons";
+const ICONS_SOURCE_FILE = "src/icons/index.ts";
+const ICONS_STYLESHEET = "../icons/icons.css";
+const ICONS_EXPORT_TARGET = Object.freeze({
+  types: "./dist/icons/index.d.ts",
+  import: "./dist/icons/index.mjs",
+  require: "./dist/icons/index.js",
 });
 
 /** The legacy monolithic component module a package must not ship. */
@@ -945,10 +962,12 @@ function validateGeneratedManifest(context, fail) {
 /**
  * Static built-artifact verification for declared code entrypoints. When a
  * build is present, each entrypoint's built JS and DTS files must expose
- * exactly the runtime names its source module statically exports. When no
- * artifact exists yet, the source check already ran during manifest validation
- * and the packed harness owns built tarball artifacts. Package code is never
- * imported or executed to inspect extensions.
+ * exactly the runtime names its source module statically exports. The reserved
+ * `./icons` entrypoint is covered by this same loop, so a stale or partial
+ * `dist/icons` artifact fails closed. When no artifact exists yet, the source
+ * check already ran during manifest validation and the packed harness owns
+ * built tarball artifacts. Package code is never imported or executed to
+ * inspect extensions.
  */
 function validateEntrypointArtifacts(context, fail) {
   if (!context.packageDir || !context.pkg || !context.descriptor?.catalog) return;
@@ -1242,6 +1261,58 @@ function validateStylesheet(context, fail) {
 }
 
 /**
+ * The icon catalog is optional and lives only in the reserved `./icons`
+ * entrypoint. A declaring descriptor must ship a real source entrypoint whose
+ * runtime exports are exactly `${name}Icon` for its declared names, the exact
+ * built export targets, and a stylesheet that loads the catalog CSS. Built
+ * `dist/icons` artifacts are verified by the shared entrypoint-artifact check.
+ */
+function validateIconCatalog(context, fail) {
+  if (!context.packageDir || !context.descriptor) return;
+  const icons = context.descriptor.icons;
+  if (!icons) return;
+
+  const indexPath = join(context.packageDir, ICONS_SOURCE_FILE);
+  if (!existsSync(indexPath)) {
+    fail(`Missing icon catalog source: ${ICONS_SOURCE_FILE}.`);
+  } else {
+    const expected = new Set(icons.names.map(iconExportName));
+    const actual = collectExports(readFileSync(indexPath, "utf8")).names;
+    const missing = [...expected].filter((name) => !actual.has(name));
+    const extra = [...actual].filter((name) => !expected.has(name));
+    if (missing.length > 0 || extra.length > 0) {
+      fail(
+        `${ICONS_SOURCE_FILE} exports do not match the declared icon catalog.` +
+          `${missing.length > 0 ? ` Missing: ${missing.join(", ")}.` : ""}${
+            extra.length > 0 ? ` Undeclared: ${extra.join(", ")}.` : ""
+          }`,
+      );
+    }
+  }
+
+  if (context.pkg) {
+    const actual = context.pkg.exports?.[ICONS_ENTRYPOINT];
+    if (!sameExportTarget(actual, ICONS_EXPORT_TARGET)) {
+      fail(
+        `package.json exports["${ICONS_ENTRYPOINT}"] must be exactly ` +
+          `${JSON.stringify(ICONS_EXPORT_TARGET)} (received ${JSON.stringify(actual ?? null)}).`,
+      );
+    }
+  }
+
+  const stylesPath = join(context.packageDir, "src", "styles", "index.css");
+  if (existsSync(stylesPath)) {
+    const stylesDir = dirname(stylesPath);
+    const resolved = matches(CSS_IMPORT_PATTERN, readFileSync(stylesPath, "utf8")).map(
+      (specifier) => toPosix(relative(stylesDir, resolve(stylesDir, specifier))),
+    );
+    if (!resolved.includes(ICONS_STYLESHEET)) {
+      fail(`src/styles/index.css must import "${ICONS_STYLESHEET}".`);
+    }
+  }
+}
+
+/**
  * True when `src/index.ts` actually re-exports the runtime `DesignSystem`
  * symbol: declared directly, re-exported by name from the package-owned
  * `./design-system` module, or star re-exported from that module when the module
@@ -1452,6 +1523,7 @@ export function validateDesignSystem(options = {}) {
   check("component barrel exports", () => validateComponentBarrel(context, fail));
   check("compound members", () => validateCompoundMembers(context, fail));
   check("stylesheet entry", () => validateStylesheet(context, fail));
+  check("icon catalog", () => validateIconCatalog(context, fail));
   check("runtime design system", () => validateRuntimeDesignSystem(context, fail));
   check("package boundaries", () => validatePackageBoundaries(context, fail));
   check("documentation", () => validateDocumentation(context, fail));

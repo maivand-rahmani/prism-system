@@ -17,7 +17,8 @@ starting point for the Design Brief below rather than a finished product languag
 pnpm add {{PACKAGE_NAME}}
 ```
 
-The package is built for React 18+ and depends on `@prism-system/ui-core`.
+The package is built for React 18+ and depends on `@prism-system/ui-core` and
+`lucide-react` (ISC; used only by the `./icons` entrypoint).
 
 ### Client boundary
 
@@ -164,6 +165,25 @@ is the single source of truth. See the states, variants, and examples in the liv
 catalog at **`/showcase/{{SYSTEM_ID}}`**, or read them offline with
 `prism-ds components <name>`.
 
+## Icons
+
+The package ships the complete fifty-icon Prism catalog from
+`{{PACKAGE_NAME}}/icons`:
+
+```tsx
+import { SearchIcon } from "{{PACKAGE_NAME}}/icons";
+
+<SearchIcon aria-hidden="true" />
+```
+
+Icons inherit `currentColor`, default to `1em` and a `1.75` stroke, and are decorative
+unless you pass `label` (or `aria-label`/`aria-labelledby`). Icon-only controls name the
+control, not the icon. `LoadingIcon` is static by default; add
+`className="{{SYSTEM_CLASS}}-icon-spin"` only when pending motion is appropriate, and
+reduced motion removes it. See [ICONS.md](./ICONS.md) for the full canonical-name/Lucide
+map, accessibility rules, replacement workflow, and license. Browse the live catalog at
+**`/showcase/{{SYSTEM_ID}}/icons`**, or run `prism-ds icons [name] --cwd <root>`.
+
 ## Usage rules
 
 - **Compose with props.** Prefer existing components over local replacements, and use
@@ -200,7 +220,10 @@ available at `{{PACKAGE_NAME}}/manifest`. It is `schemaVersion: 5` and records t
 current contract (`contractVersion: 4`), the exact package version, the component
 catalog, variants, sizes, compound members, the required `entrypoints` map with
 package.json-derived dependency/peer requirements, optional verified `extensions`, and
-the strict usage rules for this system.
+the strict usage rules for this system. The icon catalog is published through the
+reserved `./icons` entrypoint: availability is exactly `publicApi["./icons"]` (canonical
+`${Name}Icon` exports), never a separate availability list or the shared core vocabulary.
+A system without that entrypoint ships no icons.
 The manifest also carries the canonical `capabilities.categories` inventory
 (`composition`, `forms`, `data-display`) shared by every system: it maps component names
 to categories, not to availability. A system supports a component only when its name is

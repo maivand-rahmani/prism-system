@@ -20,6 +20,11 @@
       "import": "./dist/tokens/index.mjs",
       "require": "./dist/tokens/index.js"
     },
+    "./icons": {
+      "types": "./dist/icons/index.d.ts",
+      "import": "./dist/icons/index.mjs",
+      "require": "./dist/icons/index.js"
+    },
     "./manifest": "./design-system.json"
   },
   "publicApi": {
@@ -73,7 +78,59 @@
       "DesignSystem",
       "systemPlrTokens"
     ],
-    "./tokens": ["systemPlrTokens"]
+    "./tokens": ["systemPlrTokens"],
+    "./icons": [
+      "ArrowDownIcon",
+      "ArrowLeftIcon",
+      "ArrowRightIcon",
+      "ArrowUpIcon",
+      "BellIcon",
+      "CalendarIcon",
+      "CheckIcon",
+      "ChevronDownIcon",
+      "ChevronLeftIcon",
+      "ChevronRightIcon",
+      "ChevronUpIcon",
+      "ClockIcon",
+      "CloseIcon",
+      "CopyIcon",
+      "DownloadIcon",
+      "EditIcon",
+      "ErrorIcon",
+      "ExternalLinkIcon",
+      "EyeIcon",
+      "EyeOffIcon",
+      "FileIcon",
+      "FilterIcon",
+      "FolderIcon",
+      "HeartIcon",
+      "HelpIcon",
+      "HomeIcon",
+      "ImageIcon",
+      "InfoIcon",
+      "LinkIcon",
+      "LoadingIcon",
+      "LockIcon",
+      "LogOutIcon",
+      "MailIcon",
+      "MenuIcon",
+      "MinusIcon",
+      "MoreHorizontalIcon",
+      "MoreVerticalIcon",
+      "PlusIcon",
+      "RefreshIcon",
+      "SearchIcon",
+      "SettingsIcon",
+      "ShareIcon",
+      "StarIcon",
+      "SuccessIcon",
+      "TrashIcon",
+      "UnlockIcon",
+      "UploadIcon",
+      "UserIcon",
+      "UsersIcon",
+      "WarningIcon"
+    ]
   },
   "entrypoints": {
     ".": {
@@ -81,6 +138,16 @@
     },
     "./tokens": {
       "requirements": []
+    },
+    "./icons": {
+      "requirements": [
+        {
+          "name": "lucide-react",
+          "kind": "dependency",
+          "range": "1.70.0",
+          "optional": false
+        }
+      ]
     }
   },
   "components": {
