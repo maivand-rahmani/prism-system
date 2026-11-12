@@ -30,6 +30,7 @@ import { fileURLToPath } from "node:url";
 import {
   CAPABILITY_CATEGORIES,
   CAPABILITY_CATEGORY_KEYS,
+  COMPONENT_NAMES,
   DESIGN_SYSTEM_MANIFEST_SCHEMA_VERSION,
   OPTIONAL_COMPONENTS,
   REQUIRED_COMPONENTS,
@@ -98,6 +99,53 @@ test("a shipped manifest with the source schemaVersion fails closed", () => {
     /^Error: design-system\.json has schemaVersion 4; expected 5\.$/,
   );
 });
+
+/**
+ * The pre-expansion optional contract names, in canonical order. Pinned here so
+ * the additive change cannot drop, reorder, or recategorize an existing
+ * optional contract.
+ */
+const LEGACY_OPTIONAL_COMPONENTS = Object.freeze([
+  "Grid",
+  "Section",
+  "Fieldset",
+  "Alert",
+  "Progress",
+  "Skeleton",
+  "Toast",
+  "Accordion",
+  "Avatar",
+  "Breadcrumbs",
+  "Pagination",
+  "Table",
+  "Metric",
+  "DescriptionList",
+  "Timeline",
+  "Meter",
+  "EmptyState",
+]);
+
+/**
+ * The appended optional contract names, in canonical order. Pinned here as
+ * literal expectations so the source of truth cannot silently reorder, drop, or
+ * categorize them.
+ */
+const APPENDED_OPTIONAL_COMPONENTS = Object.freeze([
+  "Popover",
+  "AlertDialog",
+  "ToggleGroup",
+  "Toolbar",
+  "TagGroup",
+  "ListBox",
+  "TreeView",
+  "TimeField",
+  "SearchField",
+  "CheckboxGroup",
+  "RangeSlider",
+  "DateRangePicker",
+  "Spinner",
+  "FileDropzone",
+]);
 
 /** The canonical capability inventory, restated here to catch canonical drift. */
 const EXPECTED_CAPABILITY_CATEGORIES = Object.freeze({
@@ -172,6 +220,41 @@ test("the shipped schema requires the generated inventory and agrees with the ge
       schemaClass.optional.const,
       `${key}.optional matches the shipped schema`,
     );
+  }
+});
+
+test("the shipped schemas enumerate exactly the canonical component names", () => {
+  for (const filename of ["design-system.schema.json", "design-system.source.schema.json"]) {
+    const schema = readJson(join(repoRoot, "schemas", filename));
+    assert.deepEqual(
+      Object.keys(schema.properties.components.properties),
+      [...COMPONENT_NAMES],
+      `${filename} component properties match the canonical names`,
+    );
+    assert.deepEqual(
+      schema.properties.components.required,
+      [...REQUIRED_COMPONENTS],
+      `${filename} keeps only the 29 required components required`,
+    );
+  }
+  assert.equal(OPTIONAL_COMPONENTS.length, 31);
+  assert.deepEqual(OPTIONAL_COMPONENTS.slice(0, LEGACY_OPTIONAL_COMPONENTS.length), [
+    ...LEGACY_OPTIONAL_COMPONENTS,
+  ]);
+  assert.deepEqual(OPTIONAL_COMPONENTS.slice(-APPENDED_OPTIONAL_COMPONENTS.length), [
+    ...APPENDED_OPTIONAL_COMPONENTS,
+  ]);
+});
+
+test("the appended optional names stay uncategorized", () => {
+  const categorized = new Set(
+    Object.values(EXPECTED_CAPABILITY_CATEGORIES).flatMap((category) => [
+      ...category.required,
+      ...category.optional,
+    ]),
+  );
+  for (const name of APPENDED_OPTIONAL_COMPONENTS) {
+    assert.equal(categorized.has(name), false, `${name} must stay uncategorized`);
   }
 });
 
@@ -322,6 +405,58 @@ test("a valid manifest builds with multiple different optional subsets", () => {
     ["Toast", "Table"],
   );
   assert.equal(parseManifest(b).contractVersion, 4);
+});
+
+test("the appended optional names are accepted when declared and when omitted", () => {
+  const withNewOptionals = structuredClone(validSource());
+  for (const name of APPENDED_OPTIONAL_COMPONENTS) {
+    assert.equal(name in withNewOptionals.components, false, `valid fixture omits ${name}`);
+    withNewOptionals.components[name] = { variants: [], sizes: [], members: [] };
+  }
+  const declared = parseSourceDescriptor(withNewOptionals);
+  assert.deepEqual(
+    APPENDED_OPTIONAL_COMPONENTS.filter((name) => name in declared.components),
+    [...APPENDED_OPTIONAL_COMPONENTS],
+  );
+
+  // Omission remains the neutral default: the original fixture is still valid
+  // and none of the appended names is implied.
+  const omitted = parseSourceDescriptor(validSource());
+  assert.deepEqual(
+    APPENDED_OPTIONAL_COMPONENTS.filter((name) => name in omitted.components),
+    [],
+  );
+
+  // Only the declared canonical names are accepted; arbitrary names fail.
+  const unknown = structuredClone(withNewOptionals);
+  unknown.components.FileDropzoneTypo = { variants: [], sizes: [], members: [] };
+  assert.throws(() => parseSourceDescriptor(unknown), /Unknown: FileDropzoneTypo\./);
+});
+
+test("a descriptor declaring every appended optional builds a valid manifest", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "prism-new-optionals-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  cpSync(fixturePath("valid"), dir, { recursive: true });
+  const sourcePath = join(dir, "design-system.source.json");
+  const source = JSON.parse(readFileSync(sourcePath, "utf8"));
+  for (const name of APPENDED_OPTIONAL_COMPONENTS) {
+    source.components[name] = { variants: [], sizes: [], members: [] };
+  }
+  writeFileSync(sourcePath, `${JSON.stringify(source, null, 2)}\n`, "utf8");
+
+  const manifest = buildManifest({ id: "v4-valid", packageDir: dir });
+  assert.deepEqual(
+    APPENDED_OPTIONAL_COMPONENTS.filter((name) => name in manifest.components),
+    [...APPENDED_OPTIONAL_COMPONENTS],
+  );
+  // The category inventory is not a second availability list: declaring the new
+  // optionals leaves the fixed canonical categories unchanged.
+  assert.deepEqual(manifest.capabilities.categories, EXPECTED_CAPABILITY_CATEGORIES);
+  assert.deepEqual(parseManifest(manifest).components, manifest.components);
+
+  const unknownManifest = structuredClone(manifest);
+  unknownManifest.components.Widget = { variants: [], sizes: [], members: [] };
+  assert.throws(() => parseManifest(unknownManifest), /Unknown: Widget\./);
 });
 
 test("readSourceDescriptor reads the descriptor and its tokens.source.json", () => {

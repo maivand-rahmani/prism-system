@@ -149,7 +149,13 @@ export const REQUIRED_COMPONENTS = Object.freeze([
   "FileUpload",
 ]);
 
-/** The 17 optional component names a system may implement, in order. */
+/**
+ * The 31 optional component names a system may implement, in order.
+ * Absence means unavailable; any other declared name fails closed.
+ *
+ * The final fourteen names are appended without capability-category
+ * membership: the canonical categories stay scoped, not exhaustive.
+ */
 export const OPTIONAL_COMPONENTS = Object.freeze([
   "Grid",
   "Section",
@@ -168,6 +174,20 @@ export const OPTIONAL_COMPONENTS = Object.freeze([
   "Timeline",
   "Meter",
   "EmptyState",
+  "Popover",
+  "AlertDialog",
+  "ToggleGroup",
+  "Toolbar",
+  "TagGroup",
+  "ListBox",
+  "TreeView",
+  "TimeField",
+  "SearchField",
+  "CheckboxGroup",
+  "RangeSlider",
+  "DateRangePicker",
+  "Spinner",
+  "FileDropzone",
 ]);
 
 /** Every component name a descriptor or manifest may declare. */

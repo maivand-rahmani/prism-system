@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import type { ComponentType, ReactElement, RefAttributes } from "react";
 import type {
   AccordionContentProps,
   AccordionHeaderProps,
@@ -6,6 +6,15 @@ import type {
   AccordionProps,
   AccordionTriggerProps,
   AlertDescriptionProps,
+  AlertDialogActionProps,
+  AlertDialogCancelProps,
+  AlertDialogContentProps,
+  AlertDialogDescriptionProps,
+  AlertDialogFooterProps,
+  AlertDialogHeaderProps,
+  AlertDialogProps,
+  AlertDialogTitleProps,
+  AlertDialogTriggerProps,
   AlertProps,
   AlertTitleProps,
   AspectRatioProps,
@@ -26,6 +35,8 @@ import type {
   CardProps,
   CardTitleProps,
   CenterProps,
+  CheckboxGroupItemProps,
+  CheckboxGroupProps,
   CheckboxProps,
   ClusterProps,
   ComboboxContentProps,
@@ -34,6 +45,7 @@ import type {
   ComboboxProps,
   ContainerProps,
   DatePickerProps,
+  DateRangePickerProps,
   DescriptionListDescriptionProps,
   DescriptionListItemProps,
   DescriptionListProps,
@@ -70,6 +82,7 @@ import type {
   EmptyStateTitleProps,
   FieldsetLegendProps,
   FieldsetProps,
+  FileDropzoneProps,
   FileUploadProps,
   FormFieldControlProps,
   FormFieldDescriptionProps,
@@ -80,6 +93,10 @@ import type {
   HeadingProps,
   InputProps,
   LinkProps,
+  ListBoxGroupProps,
+  ListBoxMultipleProps,
+  ListBoxOptionProps,
+  ListBoxSingleProps,
   MeterProps,
   MetricDescriptionProps,
   MetricLabelProps,
@@ -94,10 +111,20 @@ import type {
   PaginationNextProps,
   PaginationPreviousProps,
   PaginationProps,
+  PopoverAnchorProps,
+  PopoverArrowProps,
+  PopoverCloseProps,
+  PopoverContentProps,
+  PopoverDescriptionProps,
+  PopoverProps,
+  PopoverTitleProps,
+  PopoverTriggerProps,
   ProgressProps,
   RadioGroupIndicatorProps,
   RadioGroupItemProps,
   RadioGroupProps,
+  RangeSliderProps,
+  SearchFieldProps,
   SectionContentProps,
   SectionDescriptionProps,
   SectionFooterProps,
@@ -116,6 +143,7 @@ import type {
   SidebarProps,
   SkeletonProps,
   SliderProps,
+  SpinnerProps,
   StackProps,
   SwitchProps,
   SwitchThumbProps,
@@ -127,12 +155,14 @@ import type {
   TableHeaderProps,
   TableProps,
   TableRowProps,
+  TagGroupProps,
   TabsContentProps,
   TabsListProps,
   TabsProps,
   TabsTriggerProps,
   TextProps,
   TextareaProps,
+  TimeFieldProps,
   TimelineDescriptionProps,
   TimelineItemProps,
   TimelineProps,
@@ -145,12 +175,21 @@ import type {
   ToastProviderProps,
   ToastTitleProps,
   ToastViewportProps,
+  ToggleGroupItemProps,
+  ToggleGroupProps,
+  ToolbarButtonProps,
+  ToolbarLinkProps,
+  ToolbarProps,
+  ToolbarSeparatorProps,
+  ToolbarToggleGroupProps,
+  ToolbarToggleItemProps,
   TooltipArrowProps,
   TooltipContentProps,
   TooltipPortalProps,
   TooltipProps,
   TooltipProviderProps,
   TooltipTriggerProps,
+  TreeViewProps,
 } from "../contracts/index.js";
 
 /* -------------------------------------------------------------------------- */
@@ -179,7 +218,32 @@ export type DatePickerComponent = ComponentType<DatePickerProps>;
 export type NumberFieldComponent = ComponentType<NumberFieldProps>;
 export type SliderComponent = ComponentType<SliderProps>;
 export type FileUploadComponent = ComponentType<FileUploadProps>;
+export type TagGroupComponent = ComponentType<TagGroupProps>;
+export type TreeViewComponent = ComponentType<TreeViewProps>;
+export type TimeFieldComponent = ComponentType<TimeFieldProps>;
+export type SearchFieldComponent = ComponentType<SearchFieldProps>;
+export type RangeSliderComponent = ComponentType<RangeSliderProps>;
+export type DateRangePickerComponent = ComponentType<DateRangePickerProps>;
+export type SpinnerComponent = ComponentType<SpinnerProps>;
+export type FileDropzoneComponent = ComponentType<FileDropzoneProps>;
 export type MeterComponent = ComponentType<MeterProps>;
+
+/**
+ * `ListBox` is a native `<select>` with an overloaded single/multiple API.
+ *
+ * The discriminant must survive in the call signatures: omitting `multiple`
+ * (or setting it to `false`) uses a string value and callback, while
+ * `multiple: true` uses readonly string arrays. Collapsing the contract into
+ * `ComponentType<ListBoxProps>` would erase that relationship, so the two
+ * overloads stay separate and include the native select ref. Implementations
+ * attach `Option` and `Group` as static members, e.g. `ListBox.Option`.
+ */
+export interface ListBoxComponent {
+  (props: ListBoxSingleProps & RefAttributes<HTMLSelectElement>): ReactElement | null;
+  (props: ListBoxMultipleProps & RefAttributes<HTMLSelectElement>): ReactElement | null;
+  Option: ComponentType<ListBoxOptionProps>;
+  Group: ComponentType<ListBoxGroupProps>;
+}
 
 /**
  * Compound component contracts.
@@ -362,6 +426,43 @@ export type EmptyStateComponent = ComponentType<EmptyStateProps> & {
   Action: ComponentType<EmptyStateActionProps>;
 };
 
+export type PopoverComponent = ComponentType<PopoverProps> & {
+  Trigger: ComponentType<PopoverTriggerProps>;
+  Anchor: ComponentType<PopoverAnchorProps>;
+  Content: ComponentType<PopoverContentProps>;
+  Close: ComponentType<PopoverCloseProps>;
+  Title: ComponentType<PopoverTitleProps>;
+  Description: ComponentType<PopoverDescriptionProps>;
+  Arrow: ComponentType<PopoverArrowProps>;
+};
+
+export type AlertDialogComponent = ComponentType<AlertDialogProps> & {
+  Trigger: ComponentType<AlertDialogTriggerProps>;
+  Content: ComponentType<AlertDialogContentProps>;
+  Header: ComponentType<AlertDialogHeaderProps>;
+  Title: ComponentType<AlertDialogTitleProps>;
+  Description: ComponentType<AlertDialogDescriptionProps>;
+  Footer: ComponentType<AlertDialogFooterProps>;
+  Cancel: ComponentType<AlertDialogCancelProps>;
+  Action: ComponentType<AlertDialogActionProps>;
+};
+
+export type ToggleGroupComponent = ComponentType<ToggleGroupProps> & {
+  Item: ComponentType<ToggleGroupItemProps>;
+};
+
+export type ToolbarComponent = ComponentType<ToolbarProps> & {
+  Button: ComponentType<ToolbarButtonProps>;
+  Link: ComponentType<ToolbarLinkProps>;
+  Separator: ComponentType<ToolbarSeparatorProps>;
+  ToggleGroup: ComponentType<ToolbarToggleGroupProps>;
+  ToggleItem: ComponentType<ToolbarToggleItemProps>;
+};
+
+export type CheckboxGroupComponent = ComponentType<CheckboxGroupProps> & {
+  Item: ComponentType<CheckboxGroupItemProps>;
+};
+
 /* -------------------------------------------------------------------------- */
 /* The shared component contract                                               */
 /* -------------------------------------------------------------------------- */
@@ -374,10 +475,13 @@ export type EmptyStateComponent = ComponentType<EmptyStateProps> & {
  * `AspectRatio`, `Combobox`, `DatePicker`, `NumberField`, `Slider`, and
  * `FileUpload`.
  *
- * Seventeen optional entries: `Grid`, `Section`, `Fieldset`, `Alert`,
- * `Progress`, `Skeleton`, `Toast`, `Accordion`, `Avatar`, `Breadcrumbs`,
- * `Pagination`, `Table`, `Metric`, `DescriptionList`, `Timeline`, `Meter`, and
- * `EmptyState`.
+ * Thirty-one optional entries: the seventeen established capabilities `Grid`,
+ * `Section`, `Fieldset`, `Alert`, `Progress`, `Skeleton`, `Toast`, `Accordion`,
+ * `Avatar`, `Breadcrumbs`, `Pagination`, `Table`, `Metric`, `DescriptionList`,
+ * `Timeline`, `Meter`, and `EmptyState`, followed by `Popover`, `AlertDialog`,
+ * `ToggleGroup`, `Toolbar`, `TagGroup`, `ListBox`, `TreeView`, `TimeField`,
+ * `SearchField`, `CheckboxGroup`, `RangeSlider`, `DateRangePicker`, `Spinner`,
+ * and `FileDropzone`.
  *
  * Every design system must provide all twenty-nine required entries with a
  * compatible API so Showcase and Reference App can swap systems without
@@ -432,6 +536,20 @@ export interface DesignSystemComponents {
   Timeline?: TimelineComponent;
   Meter?: MeterComponent;
   EmptyState?: EmptyStateComponent;
+  Popover?: PopoverComponent;
+  AlertDialog?: AlertDialogComponent;
+  ToggleGroup?: ToggleGroupComponent;
+  Toolbar?: ToolbarComponent;
+  TagGroup?: TagGroupComponent;
+  ListBox?: ListBoxComponent;
+  TreeView?: TreeViewComponent;
+  TimeField?: TimeFieldComponent;
+  SearchField?: SearchFieldComponent;
+  CheckboxGroup?: CheckboxGroupComponent;
+  RangeSlider?: RangeSliderComponent;
+  DateRangePicker?: DateRangePickerComponent;
+  Spinner?: SpinnerComponent;
+  FileDropzone?: FileDropzoneComponent;
 }
 
 export type DesignSystemComponentName = keyof DesignSystemComponents;
@@ -469,7 +587,7 @@ export const REQUIRED_COMPONENTS = [
   "FileUpload",
 ] as const satisfies readonly DesignSystemComponentName[];
 
-/** The seventeen optional component names, in canonical order. */
+/** The thirty-one optional component names, in canonical order. */
 export const OPTIONAL_COMPONENTS = [
   "Grid",
   "Section",
@@ -488,6 +606,20 @@ export const OPTIONAL_COMPONENTS = [
   "Timeline",
   "Meter",
   "EmptyState",
+  "Popover",
+  "AlertDialog",
+  "ToggleGroup",
+  "Toolbar",
+  "TagGroup",
+  "ListBox",
+  "TreeView",
+  "TimeField",
+  "SearchField",
+  "CheckboxGroup",
+  "RangeSlider",
+  "DateRangePicker",
+  "Spinner",
+  "FileDropzone",
 ] as const satisfies readonly DesignSystemComponentName[];
 
 type RequiredComponentName = (typeof REQUIRED_COMPONENTS)[number];

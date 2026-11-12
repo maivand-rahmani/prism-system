@@ -58,24 +58,31 @@ Stack, FormField, Center, Cluster, Sidebar, AspectRatio, Combobox, DatePicker,
 NumberField, Slider, FileUpload
 ```
 
-Seventeen more are optional: `Grid`, `Section`, `Fieldset`, `Alert`, `Progress`,
+Thirty-one more are optional: `Grid`, `Section`, `Fieldset`, `Alert`, `Progress`,
 `Skeleton`, `Toast`, `Accordion`, `Avatar`, `Breadcrumbs`, `Pagination`, `Table`,
-`Metric`, `DescriptionList`, `Timeline`, `Meter`, `EmptyState`.
+`Metric`, `DescriptionList`, `Timeline`, `Meter`, `EmptyState`, `Popover`,
+`AlertDialog`, `ToggleGroup`, `Toolbar`, `TagGroup`, `ListBox`, `TreeView`,
+`TimeField`, `SearchField`, `CheckboxGroup`, `RangeSlider`, `DateRangePicker`,
+`Spinner`, `FileDropzone`.
 A system implements only the optional components it declares; empty stubs are not
 allowed, and an omitted optional name is simply unavailable.
 
 - `Button`, `Input`, `Textarea`, `Badge`, `Checkbox`, `Separator`, `Heading`,
   `Text`, `Link`, `Container`, `Stack`, `Grid`, `Progress`, `Skeleton`,
   `Center`, `Cluster`, `Sidebar`, `AspectRatio`, `DatePicker`, `NumberField`,
-  `Slider`, `FileUpload`, and `Meter` are single components.
+  `Slider`, `FileUpload`, `Meter`, `TagGroup`, `TreeView`, `TimeField`,
+  `SearchField`, `RangeSlider`, `DateRangePicker`, `Spinner`, and `FileDropzone`
+  are single components.
 - `Card`, `RadioGroup`, `Switch`, `Select`, `Tabs`, `Dialog`, `DropdownMenu`,
   `Tooltip`, `FormField`, `Combobox`, and the optional compound components
   (`Section`, `Fieldset`, `Alert`, `Toast`, `Accordion`, `Avatar`,
   `Breadcrumbs`, `Pagination`, `Table`, `Metric`, `DescriptionList`, `Timeline`,
-  `EmptyState`) attach their sub-components as static members
+  `EmptyState`, `Popover`, `AlertDialog`, `ToggleGroup`, `Toolbar`, `ListBox`,
+  `CheckboxGroup`) attach their sub-components as static members
   (`Card.Header`, `RadioGroup.Item`, `Switch.Thumb`, `Select.Item`, `Tabs.Trigger`,
   `Dialog.Content`, `DropdownMenu.Item`, `Tooltip.Content`, `FormField.Control`,
-  `Combobox.Input`, `Metric.Value`).
+  `Combobox.Input`, `Metric.Value`, `Popover.Content`, `ListBox.Option`,
+  `CheckboxGroup.Item`).
 - The public exports are neutral: `DesignSystemComponents`,
   `DesignSystemComponentName`, `DesignSystemComponent`, `REQUIRED_COMPONENTS`,
   `OPTIONAL_COMPONENTS`, `DesignSystem`, `defineDesignSystem`,
@@ -136,7 +143,7 @@ document the accessibility expectation next to the type. Reusable helpers in
 
 ## Scope
 
-Core owns the shared component contract (twenty-nine required plus seventeen
+Core owns the shared component contract (twenty-nine required plus thirty-one
 optional), their unstyled adapters, utilities, accessibility helpers, and hooks.
 There is one map, one `DesignSystem` type, and one registry; do not add parallel
 versioned aliases, string contract markers, or separate registries. Do not add

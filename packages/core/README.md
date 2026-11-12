@@ -8,7 +8,7 @@ typography, spacing, radius, shadows, or component styling** — the visual lang
 belongs entirely to each `@prism-system/ui-system-*` package.
 
 One current component contract is defined here: **twenty-nine required components
-plus seventeen optional contracts**. A single `DesignSystem` type and a single
+plus thirty-one optional contracts**. A single `DesignSystem` type and a single
 registry cover it, and the numeric `contractVersion: 4` identifies the contract
 generation at runtime.
 
@@ -69,7 +69,7 @@ prop types, e.g. `CardHeaderProps`, `RadioGroupItemProps`, `SwitchThumbProps`,
 
 ### Optional contracts
 
-Seventeen optional contracts are implemented only by systems that declare the
+Thirty-one optional contracts are implemented only by systems that declare the
 capability:
 
 ```ts
@@ -91,6 +91,20 @@ import type {
   TimelineProps,
   MeterProps,
   EmptyStateProps,
+  PopoverProps,
+  AlertDialogProps,
+  ToggleGroupProps,
+  ToolbarProps,
+  TagGroupProps,
+  ListBoxProps,
+  TreeViewProps,
+  TimeFieldProps,
+  SearchFieldProps,
+  CheckboxGroupProps,
+  RangeSliderProps,
+  DateRangePickerProps,
+  SpinnerProps,
+  FileDropzoneProps,
 } from "@prism-system/ui-core";
 ```
 
@@ -253,7 +267,7 @@ pnpm lint
 
 ## Scope
 
-Core owns the shared component contract (twenty-nine required plus seventeen
+Core owns the shared component contract (twenty-nine required plus thirty-one
 optional), their unstyled primitives, utilities, a11y helpers, and hooks. Factory
 tooling (create-design-system skills, templates, generators, validation) and
 manifest/lifecycle tooling are intentionally not implemented here; see

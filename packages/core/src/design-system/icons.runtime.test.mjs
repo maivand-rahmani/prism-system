@@ -7,7 +7,8 @@
  *
  * Proves the catalog is exactly fifty unique canonical names, that the five
  * groups partition it in canonical order, that public export naming is stable,
- * and that icons never leak into the component contract.
+ * that the component contract is twenty-nine required plus thirty-one optional
+ * names, and that icons never leak into the component contract.
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -125,9 +126,15 @@ test("isIconName accepts only canonical names", () => {
   assert.equal(isIconName(7), false);
 });
 
+test("the component contract has twenty-nine required and thirty-one optional names", () => {
+  assert.equal(REQUIRED_COMPONENTS.length, 29);
+  assert.equal(OPTIONAL_COMPONENTS.length, 31);
+  assert.equal(new Set([...REQUIRED_COMPONENTS, ...OPTIONAL_COMPONENTS]).size, 60);
+});
+
 test("icons never appear in the component contract", () => {
   const components = new Set([...REQUIRED_COMPONENTS, ...OPTIONAL_COMPONENTS]);
-  assert.equal(components.size, 46);
+  assert.equal(components.size, 60);
   // A few semantic names intentionally overlap a component word (for example the
   // Link component and the Link icon). The contract is unchanged: no icon name
   // was added to either component tuple, and the `${Name}Icon` exports are never
@@ -135,5 +142,5 @@ test("icons never appear in the component contract", () => {
   for (const name of ICON_NAMES) {
     assert.equal(components.has(`${name}Icon`), false, `${name}Icon must not be a component`);
   }
-  assert.equal(REQUIRED_COMPONENTS.length + OPTIONAL_COMPONENTS.length, 46);
+  assert.equal(REQUIRED_COMPONENTS.length + OPTIONAL_COMPONENTS.length, 60);
 });

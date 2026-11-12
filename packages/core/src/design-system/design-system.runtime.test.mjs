@@ -9,19 +9,57 @@
  *   node --test packages/core/src/design-system/design-system.runtime.test.mjs
  *
  * They prove the runtime guard accepts a valid required-only map (including
- * function and React exotic components) and rejects a `false` required value, a
- * `false` optional value, a `null` optional value, a plain object carrying an
- * unrelated `$$typeof` symbol, an unknown component name, a missing marker, and
- * a non-numeric marker. Optional omission stays allowed: an absent optional name
- * is not an error.
+ * function and React exotic components) and rejects a `false` required value,
+ * `false`/`null`/`undefined` optional values (including every appended
+ * capability), a plain object carrying an unrelated `$$typeof` symbol, an
+ * unknown component name, a missing marker, and a non-numeric marker. Optional
+ * omission stays allowed: an absent optional name is not an error.
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { forwardRef, lazy, memo } from "react";
 
-import { REQUIRED_COMPONENTS } from "../../dist/design-system/components.js";
+import { OPTIONAL_COMPONENTS, REQUIRED_COMPONENTS } from "../../dist/design-system/components.js";
 import { createDesignSystemRegistry } from "../../dist/design-system/design-system.js";
+
+/** The canonical optional tuple: seventeen original names plus fourteen appended. */
+const EXPECTED_OPTIONAL_COMPONENTS = [
+  "Grid",
+  "Section",
+  "Fieldset",
+  "Alert",
+  "Progress",
+  "Skeleton",
+  "Toast",
+  "Accordion",
+  "Avatar",
+  "Breadcrumbs",
+  "Pagination",
+  "Table",
+  "Metric",
+  "DescriptionList",
+  "Timeline",
+  "Meter",
+  "EmptyState",
+  "Popover",
+  "AlertDialog",
+  "ToggleGroup",
+  "Toolbar",
+  "TagGroup",
+  "ListBox",
+  "TreeView",
+  "TimeField",
+  "SearchField",
+  "CheckboxGroup",
+  "RangeSlider",
+  "DateRangePicker",
+  "Spinner",
+  "FileDropzone",
+];
+
+/** The fourteen capability contracts appended to the optional tuple, in order. */
+const APPENDED_OPTIONAL_COMPONENTS = EXPECTED_OPTIONAL_COMPONENTS.slice(17);
 
 /** A minimal function component. */
 function component() {
@@ -50,6 +88,12 @@ function currentSystem(overrides = {}) {
   };
 }
 
+test("the compiled optional tuple is exactly the thirty-one canonical names", () => {
+  assert.equal(REQUIRED_COMPONENTS.length, 29);
+  assert.equal(OPTIONAL_COMPONENTS.length, 31);
+  assert.deepEqual([...OPTIONAL_COMPONENTS], EXPECTED_OPTIONAL_COMPONENTS);
+});
+
 test("a valid required-only map registers", () => {
   const registry = createDesignSystemRegistry();
   const system = currentSystem();
@@ -58,6 +102,17 @@ test("a valid required-only map registers", () => {
 
   assert.equal(registry.has("runtime-system"), true);
   assert.equal(registry.get("runtime-system"), system);
+});
+
+test("all fourteen appended optional components are accepted", () => {
+  const components = requiredOnlyComponents();
+  for (const name of APPENDED_OPTIONAL_COMPONENTS) {
+    components[name] = component;
+  }
+
+  const registry = createDesignSystemRegistry([currentSystem({ components })]);
+
+  assert.equal(registry.has("runtime-system"), true);
 });
 
 test("function and React exotic components are accepted", () => {
@@ -99,6 +154,36 @@ test("an explicitly present null optional component is rejected", () => {
     () => createDesignSystemRegistry([currentSystem({ components })]),
     /Cannot register design system "runtime-system": component Grid \(null\) must be a React component\./,
   );
+});
+
+test("an explicitly null appended optional component is rejected for every appended name", () => {
+  for (const name of APPENDED_OPTIONAL_COMPONENTS) {
+    const components = requiredOnlyComponents();
+    components[name] = null;
+
+    assert.throws(
+      () => createDesignSystemRegistry([currentSystem({ components })]),
+      new RegExp(
+        `Cannot register design system "runtime-system": component ${name} \\(null\\) must be a React component\\.`,
+      ),
+      name,
+    );
+  }
+});
+
+test("an explicitly undefined appended optional component is rejected for every appended name", () => {
+  for (const name of APPENDED_OPTIONAL_COMPONENTS) {
+    const components = requiredOnlyComponents();
+    components[name] = undefined;
+
+    assert.throws(
+      () => createDesignSystemRegistry([currentSystem({ components })]),
+      new RegExp(
+        `Cannot register design system "runtime-system": component ${name} \\(undefined\\) must be a React component\\.`,
+      ),
+      name,
+    );
+  }
 });
 
 test("a required component explicitly present as null is rejected", () => {
@@ -153,8 +238,12 @@ test("a string or other numeric marker is rejected", () => {
 
 test("omitting an optional component is allowed", () => {
   const components = requiredOnlyComponents();
-  components.Grid = component;
-  delete components.Grid;
+  for (const name of ["Grid", ...APPENDED_OPTIONAL_COMPONENTS]) {
+    components[name] = component;
+  }
+  for (const name of ["Grid", ...APPENDED_OPTIONAL_COMPONENTS]) {
+    delete components[name];
+  }
 
   const registry = createDesignSystemRegistry([currentSystem({ components })]);
 

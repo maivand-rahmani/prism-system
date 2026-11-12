@@ -55,6 +55,7 @@ import {
   ICON_EXPORT_NAMES,
   ICON_EXPORT_SUFFIX,
   ICON_NAMES,
+  OPTIONAL_COMPONENTS,
 } from "./design-system-manifest.mjs";
 import { inspectTarball } from "./prepare-release.mjs";
 
@@ -939,7 +940,10 @@ function verifyConsumer(target) {
   assert(catalog.ok === true, `${target.id} components ok`);
   assert(catalog.contractVersion === 4, `${target.id} components contractVersion`);
   assert(catalog.counts.required === 29, `${target.id} components required count`);
-  assert(catalog.counts.optional === 17, `${target.id} components optional count`);
+  assert(
+    catalog.counts.optional === OPTIONAL_COMPONENTS.length,
+    `${target.id} components optional count`,
+  );
   for (const optional of OPTIONAL_SET[target.id]) {
     assert(catalog.available.includes(optional), `${target.id} should make ${optional} available`);
   }

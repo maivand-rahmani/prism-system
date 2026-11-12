@@ -9,6 +9,11 @@ The permanent regression test imports this snapshot directly. It runs no git
 command and never treats the repository's current `HEAD` as the released
 reader, so later commits cannot move the compatibility baseline.
 
+This snapshot predates the appended optional component names (`Popover` through
+`FileDropzone`). It still accepts unchanged schema-5 manifests and fails closed
+on a manifest that declares one of those newer names, so a system release that
+adds them must be coordinated with an upgraded `@prism-system/tools` reader.
+
 The three files are copied byte-for-byte with `git show` from:
 
 ```text

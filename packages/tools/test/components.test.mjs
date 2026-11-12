@@ -125,7 +125,7 @@ function snapshot(root) {
 /* Pure catalog rules                                                         */
 /* -------------------------------------------------------------------------- */
 
-test("catalog reports the 29 required plus 17 optional in canonical order", () => {
+test("catalog reports the required plus optional contract names in canonical order", () => {
   for (const manifest of MANIFESTS) {
     const catalog = buildComponentCatalog({ manifest });
     assert.equal(catalog.contractVersion, CONTRACT_VERSION);
@@ -134,12 +134,12 @@ test("catalog reports the 29 required plus 17 optional in canonical order", () =
       [...COMPONENT_NAMES],
       `${manifest.id} preserves canonical order`,
     );
-    assert.equal(catalog.components.length, 46);
+    assert.equal(catalog.components.length, COMPONENT_NAMES.length);
     const extensions = declaredExtensions(manifest);
     assert.deepEqual(catalog.counts, {
-      required: 29,
-      optional: 17,
-      available: 29 + declaredOptionals(manifest).length,
+      required: REQUIRED_COMPONENTS.length,
+      optional: OPTIONAL_COMPONENTS.length,
+      available: REQUIRED_COMPONENTS.length + declaredOptionals(manifest).length,
       unavailable: undeclaredOptionals(manifest).length,
       extensions: extensions.length,
     });
@@ -179,11 +179,14 @@ test("catalog reports the 29 required plus 17 optional in canonical order", () =
   }
 
   // Custom extensions never join component availability or change canonical
-  // component counts: B is still 29 required + 17 optional + its optionals.
-  assert.equal(b.components.length, 46);
-  assert.equal(b.counts.required, 29);
-  assert.equal(b.counts.optional, 17);
-  assert.equal(b.available.length, 29 + declaredOptionals(systemBManifest).length);
+  // component counts: B keeps its required + optional component contract.
+  assert.equal(b.components.length, COMPONENT_NAMES.length);
+  assert.equal(b.counts.required, REQUIRED_COMPONENTS.length);
+  assert.equal(b.counts.optional, OPTIONAL_COMPONENTS.length);
+  assert.equal(
+    b.available.length,
+    REQUIRED_COMPONENTS.length + declaredOptionals(systemBManifest).length,
+  );
   for (const name of declaredExtensions(systemBManifest)) {
     assert.ok(!b.available.includes(name), `${name} is not a component`);
     assert.ok(!b.unavailable.includes(name), `${name} is not a component`);

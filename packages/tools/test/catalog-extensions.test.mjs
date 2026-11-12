@@ -10,7 +10,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { CONTRACT_VERSION, MANIFEST_SCHEMA_VERSION } from "../src/constants.mjs";
+import {
+  COMPONENT_NAMES,
+  CONTRACT_VERSION,
+  MANIFEST_SCHEMA_VERSION,
+  REQUIRED_COMPONENTS,
+} from "../src/constants.mjs";
 import { buildComponentCatalog } from "../src/components.mjs";
 import { collectManifestFailures, detectManifestContract } from "../src/manifest.mjs";
 import { buildInfoResult } from "../src/registry.mjs";
@@ -396,10 +401,10 @@ test("the unified catalog exposes extensions with entrypoint, importPath, effect
 
   assert.equal(catalog.counts.extensions, 1);
   const componentNames = catalog.components.map((component) => component.name);
-  assert.equal(componentNames.length, 46);
+  assert.equal(componentNames.length, COMPONENT_NAMES.length);
   assert.deepEqual(componentNames.slice(0, 3), ["Button", "Input", "Textarea"]);
   assert.ok(componentNames.includes("FileUpload"));
-  assert.equal(catalog.available.length, 29);
+  assert.equal(catalog.available.length, REQUIRED_COMPONENTS.length);
   assert.equal(catalog.extensions.length, 1);
   const [extension] = catalog.extensions;
   assert.equal(extension.kind, "extension");
@@ -425,7 +430,7 @@ test("canonical catalog entries expose the declared root entrypoint metadata", (
   };
   const catalog = buildComponentCatalog({ manifest });
 
-  assert.equal(catalog.components.length, 46);
+  assert.equal(catalog.components.length, COMPONENT_NAMES.length);
   for (const component of catalog.components) {
     assert.equal(component.entrypoint, ".");
     assert.equal(component.importPath, manifest.package);

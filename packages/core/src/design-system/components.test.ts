@@ -5,8 +5,9 @@
  * typecheck time, that
  *  1. the `DesignSystemComponents` map and `REQUIRED_COMPONENTS` tuple are the
  *     exact twenty-nine required components, in canonical order,
- *  2. the `OPTIONAL_COMPONENTS` tuple is the exact seventeen optional
- *     components, in canonical order,
+ *  2. the `OPTIONAL_COMPONENTS` tuple is the exact thirty-one optional
+ *     components, in canonical order, including the fourteen appended
+ *     capability contracts,
  *  3. `DesignSystemComponentName` covers exactly the required and optional
  *     names, and optional omission stays optional,
  *  4. `defineDesignSystem` accepts the full required shape (with any optional
@@ -19,6 +20,7 @@
  *
  * `tsconfig.build.json` excludes `*.test.ts`, so nothing here ships in `dist`.
  */
+import type { RefAttributes } from "react";
 import type {
   AccordionContentProps,
   AccordionHeaderProps,
@@ -26,6 +28,15 @@ import type {
   AccordionProps,
   AccordionTriggerProps,
   AlertDescriptionProps,
+  AlertDialogActionProps,
+  AlertDialogCancelProps,
+  AlertDialogContentProps,
+  AlertDialogDescriptionProps,
+  AlertDialogFooterProps,
+  AlertDialogHeaderProps,
+  AlertDialogProps,
+  AlertDialogTitleProps,
+  AlertDialogTriggerProps,
   AlertProps,
   AlertTitleProps,
   AspectRatioProps,
@@ -46,6 +57,8 @@ import type {
   CardProps,
   CardTitleProps,
   CenterProps,
+  CheckboxGroupItemProps,
+  CheckboxGroupProps,
   CheckboxProps,
   ClusterProps,
   ComboboxContentProps,
@@ -54,6 +67,7 @@ import type {
   ComboboxProps,
   ContainerProps,
   DatePickerProps,
+  DateRangePickerProps,
   DescriptionListDescriptionProps,
   DescriptionListItemProps,
   DescriptionListProps,
@@ -90,6 +104,7 @@ import type {
   EmptyStateTitleProps,
   FieldsetLegendProps,
   FieldsetProps,
+  FileDropzoneProps,
   FileUploadProps,
   FormFieldControlProps,
   FormFieldDescriptionProps,
@@ -100,6 +115,10 @@ import type {
   HeadingProps,
   InputProps,
   LinkProps,
+  ListBoxGroupProps,
+  ListBoxMultipleProps,
+  ListBoxOptionProps,
+  ListBoxSingleProps,
   MeterProps,
   MetricDescriptionProps,
   MetricLabelProps,
@@ -114,10 +133,20 @@ import type {
   PaginationNextProps,
   PaginationPreviousProps,
   PaginationProps,
+  PopoverAnchorProps,
+  PopoverArrowProps,
+  PopoverCloseProps,
+  PopoverContentProps,
+  PopoverDescriptionProps,
+  PopoverProps,
+  PopoverTitleProps,
+  PopoverTriggerProps,
   ProgressProps,
   RadioGroupIndicatorProps,
   RadioGroupItemProps,
   RadioGroupProps,
+  RangeSliderProps,
+  SearchFieldProps,
   SectionContentProps,
   SectionDescriptionProps,
   SectionFooterProps,
@@ -136,6 +165,7 @@ import type {
   SidebarProps,
   SkeletonProps,
   SliderProps,
+  SpinnerProps,
   StackProps,
   SwitchProps,
   SwitchThumbProps,
@@ -147,12 +177,14 @@ import type {
   TableHeaderProps,
   TableProps,
   TableRowProps,
+  TagGroupProps,
   TabsContentProps,
   TabsListProps,
   TabsProps,
   TabsTriggerProps,
   TextProps,
   TextareaProps,
+  TimeFieldProps,
   TimelineDescriptionProps,
   TimelineItemProps,
   TimelineProps,
@@ -165,12 +197,21 @@ import type {
   ToastProviderProps,
   ToastTitleProps,
   ToastViewportProps,
+  ToggleGroupItemProps,
+  ToggleGroupProps,
+  ToolbarButtonProps,
+  ToolbarLinkProps,
+  ToolbarProps,
+  ToolbarSeparatorProps,
+  ToolbarToggleGroupProps,
+  ToolbarToggleItemProps,
   TooltipArrowProps,
   TooltipContentProps,
   TooltipPortalProps,
   TooltipProps,
   TooltipProviderProps,
   TooltipTriggerProps,
+  TreeViewProps,
 } from "../contracts/index.js";
 import {
   OPTIONAL_COMPONENTS,
@@ -389,6 +430,73 @@ const EmptyState = Object.assign(component<EmptyStateProps>, {
   Action: component<EmptyStateActionProps>,
 });
 
+/** The appended single-component contracts, in canonical order. */
+const TagGroup = component<TagGroupProps>;
+const TreeView = component<TreeViewProps>;
+const TimeField = component<TimeFieldProps>;
+const SearchField = component<SearchFieldProps>;
+const RangeSlider = component<RangeSliderProps>;
+const DateRangePicker = component<DateRangePickerProps>;
+const Spinner = component<SpinnerProps>;
+const FileDropzone = component<FileDropzoneProps>;
+
+/** The appended compound contracts, with their exact static member types. */
+const Popover = Object.assign(component<PopoverProps>, {
+  Trigger: component<PopoverTriggerProps>,
+  Anchor: component<PopoverAnchorProps>,
+  Content: component<PopoverContentProps>,
+  Close: component<PopoverCloseProps>,
+  Title: component<PopoverTitleProps>,
+  Description: component<PopoverDescriptionProps>,
+  Arrow: component<PopoverArrowProps>,
+});
+
+const AlertDialog = Object.assign(component<AlertDialogProps>, {
+  Trigger: component<AlertDialogTriggerProps>,
+  Content: component<AlertDialogContentProps>,
+  Header: component<AlertDialogHeaderProps>,
+  Title: component<AlertDialogTitleProps>,
+  Description: component<AlertDialogDescriptionProps>,
+  Footer: component<AlertDialogFooterProps>,
+  Cancel: component<AlertDialogCancelProps>,
+  Action: component<AlertDialogActionProps>,
+});
+
+const ToggleGroup = Object.assign(component<ToggleGroupProps>, {
+  Item: component<ToggleGroupItemProps>,
+});
+
+const Toolbar = Object.assign(component<ToolbarProps>, {
+  Button: component<ToolbarButtonProps>,
+  Link: component<ToolbarLinkProps>,
+  Separator: component<ToolbarSeparatorProps>,
+  ToggleGroup: component<ToolbarToggleGroupProps>,
+  ToggleItem: component<ToolbarToggleItemProps>,
+});
+
+const CheckboxGroup = Object.assign(component<CheckboxGroupProps>, {
+  Item: component<CheckboxGroupItemProps>,
+});
+
+/**
+ * `ListBox` keeps separate single and multiple call signatures, each with the
+ * native select ref. The fixture mirrors them directly so the map checks the
+ * real overloaded contract instead of collapsing both branches through one
+ * `ComponentType`.
+ */
+function ListBoxFixture(_props: ListBoxSingleProps & RefAttributes<HTMLSelectElement>): null;
+function ListBoxFixture(_props: ListBoxMultipleProps & RefAttributes<HTMLSelectElement>): null;
+function ListBoxFixture(
+  _props: (ListBoxSingleProps | ListBoxMultipleProps) & RefAttributes<HTMLSelectElement>,
+): null {
+  return null;
+}
+
+const ListBox = Object.assign(ListBoxFixture, {
+  Option: component<ListBoxOptionProps>,
+  Group: component<ListBoxGroupProps>,
+});
+
 /** A valid map with the twenty-nine required components and no optional members. */
 export const COMPONENTS_FIXTURE: DesignSystemComponents = {
   Button,
@@ -422,6 +530,20 @@ export const COMPONENTS_FIXTURE: DesignSystemComponents = {
   FileUpload,
 };
 
+/** Optional capabilities may still be omitted entirely from a valid map. */
+export const COMPONENTS_WITHOUT_OPTIONALS_FIXTURE: DesignSystemComponents = COMPONENTS_FIXTURE;
+
+/**
+ * A declared optional value may be `undefined` at the type level under the
+ * current compiler settings. The runtime registry still rejects a key that is
+ * present with `undefined`, so omission remains the only valid "absent" form.
+ */
+export const COMPONENTS_WITH_UNDEFINED_OPTIONALS_FIXTURE: DesignSystemComponents = {
+  ...COMPONENTS_FIXTURE,
+  Grid: undefined,
+  FileDropzone: undefined,
+};
+
 /** A valid map with every optional component declared. */
 export const COMPONENTS_ALL_OPTIONALS_FIXTURE: DesignSystemComponents = {
   ...COMPONENTS_FIXTURE,
@@ -442,6 +564,39 @@ export const COMPONENTS_ALL_OPTIONALS_FIXTURE: DesignSystemComponents = {
   Timeline,
   Meter,
   EmptyState,
+  Popover,
+  AlertDialog,
+  ToggleGroup,
+  Toolbar,
+  TagGroup,
+  ListBox,
+  TreeView,
+  TimeField,
+  SearchField,
+  CheckboxGroup,
+  RangeSlider,
+  DateRangePicker,
+  Spinner,
+  FileDropzone,
+};
+
+/** A valid map with all fourteen appended optionals and no older optional members. */
+export const COMPONENTS_APPENDED_OPTIONALS_FIXTURE: DesignSystemComponents = {
+  ...COMPONENTS_FIXTURE,
+  Popover,
+  AlertDialog,
+  ToggleGroup,
+  Toolbar,
+  TagGroup,
+  ListBox,
+  TreeView,
+  TimeField,
+  SearchField,
+  CheckboxGroup,
+  RangeSlider,
+  DateRangePicker,
+  Spinner,
+  FileDropzone,
 };
 
 /** A valid map with a different optional subset. */
@@ -450,6 +605,9 @@ export const COMPONENTS_SUBSET_FIXTURE: DesignSystemComponents = {
   Grid,
   Alert,
   Table,
+  Popover,
+  SearchField,
+  Spinner,
 };
 
 /* -------------------------------------------------------------------------- */
@@ -492,7 +650,7 @@ export const REQUIRED_TUPLE_IS_EXACT: Equal<
   | "FileUpload"
 > = true;
 
-/** The optional tuple names exactly the seventeen optional keys, in order. */
+/** The optional tuple names exactly the thirty-one optional keys, in order. */
 export const OPTIONAL_TUPLE_IS_EXACT: Equal<
   (typeof OPTIONAL_COMPONENTS)[number],
   | "Grid"
@@ -512,6 +670,20 @@ export const OPTIONAL_TUPLE_IS_EXACT: Equal<
   | "Timeline"
   | "Meter"
   | "EmptyState"
+  | "Popover"
+  | "AlertDialog"
+  | "ToggleGroup"
+  | "Toolbar"
+  | "TagGroup"
+  | "ListBox"
+  | "TreeView"
+  | "TimeField"
+  | "SearchField"
+  | "CheckboxGroup"
+  | "RangeSlider"
+  | "DateRangePicker"
+  | "Spinner"
+  | "FileDropzone"
 > = true;
 
 /** The explicit expected tuples double as literal-order assertions. */
@@ -565,11 +737,77 @@ export const EXPECTED_OPTIONAL_TUPLE: typeof OPTIONAL_COMPONENTS = [
   "Timeline",
   "Meter",
   "EmptyState",
+  "Popover",
+  "AlertDialog",
+  "ToggleGroup",
+  "Toolbar",
+  "TagGroup",
+  "ListBox",
+  "TreeView",
+  "TimeField",
+  "SearchField",
+  "CheckboxGroup",
+  "RangeSlider",
+  "DateRangePicker",
+  "Spinner",
+  "FileDropzone",
 ];
 
-/** The contract requires exactly twenty-nine components and offers seventeen optional. */
+/** The fourteen appended optional names, in their required canonical order. */
+export const APPENDED_OPTIONAL_NAMES = [
+  "Popover",
+  "AlertDialog",
+  "ToggleGroup",
+  "Toolbar",
+  "TagGroup",
+  "ListBox",
+  "TreeView",
+  "TimeField",
+  "SearchField",
+  "CheckboxGroup",
+  "RangeSlider",
+  "DateRangePicker",
+  "Spinner",
+  "FileDropzone",
+] as const satisfies readonly (typeof OPTIONAL_COMPONENTS)[number][];
+
+/** The appended names are the final fourteen entries of the optional tuple, in order. */
+export const EXPECTED_APPENDED_OPTIONAL_TAIL: [
+  (typeof OPTIONAL_COMPONENTS)[17],
+  (typeof OPTIONAL_COMPONENTS)[18],
+  (typeof OPTIONAL_COMPONENTS)[19],
+  (typeof OPTIONAL_COMPONENTS)[20],
+  (typeof OPTIONAL_COMPONENTS)[21],
+  (typeof OPTIONAL_COMPONENTS)[22],
+  (typeof OPTIONAL_COMPONENTS)[23],
+  (typeof OPTIONAL_COMPONENTS)[24],
+  (typeof OPTIONAL_COMPONENTS)[25],
+  (typeof OPTIONAL_COMPONENTS)[26],
+  (typeof OPTIONAL_COMPONENTS)[27],
+  (typeof OPTIONAL_COMPONENTS)[28],
+  (typeof OPTIONAL_COMPONENTS)[29],
+  (typeof OPTIONAL_COMPONENTS)[30],
+] = [
+  "Popover",
+  "AlertDialog",
+  "ToggleGroup",
+  "Toolbar",
+  "TagGroup",
+  "ListBox",
+  "TreeView",
+  "TimeField",
+  "SearchField",
+  "CheckboxGroup",
+  "RangeSlider",
+  "DateRangePicker",
+  "Spinner",
+  "FileDropzone",
+];
+
+/** The contract requires exactly twenty-nine components and offers thirty-one optional. */
 export const REQUIRED_COUNT: 29 = REQUIRED_COMPONENTS.length;
-export const OPTIONAL_COUNT: 17 = OPTIONAL_COMPONENTS.length;
+export const OPTIONAL_COUNT: 31 = OPTIONAL_COMPONENTS.length;
+export const APPENDED_OPTIONAL_COUNT: 14 = APPENDED_OPTIONAL_NAMES.length;
 
 /** Every map key is required or optional: no stray names exist. */
 export const NAME_IS_REQUIRED_OR_OPTIONAL: Equal<
@@ -582,6 +820,9 @@ export const REQUIRED_COMPONENT_SAMPLE: DesignSystemComponent = Button;
 
 /** An optional component also satisfies the component union. */
 export const OPTIONAL_COMPONENT_SAMPLE: DesignSystemComponent = Grid;
+
+/** An appended optional component also satisfies the component union. */
+export const APPENDED_OPTIONAL_COMPONENT_SAMPLE: DesignSystemComponent = Popover;
 
 /* -------------------------------------------------------------------------- */
 /* Design system definition assertions                                         */
@@ -607,6 +848,16 @@ export const DEFINITION_WITH_OPTIONALS_FIXTURE = defineDesignSystem({
   components: COMPONENTS_ALL_OPTIONALS_FIXTURE,
 });
 
+/** The same, with the appended optional components declared. */
+export const DEFINITION_WITH_APPENDED_OPTIONALS_FIXTURE = defineDesignSystem({
+  id: "fixture-current-appended-optionals",
+  name: "Fixture Current with appended optionals",
+  packageName: "@prism-system/fixture-current-appended-optionals",
+  version: "0.0.0",
+  contractVersion: 4,
+  components: COMPONENTS_APPENDED_OPTIONALS_FIXTURE,
+});
+
 /** The same, with a different optional subset. */
 export const DEFINITION_WITH_SUBSET_FIXTURE = defineDesignSystem({
   id: "fixture-current-subset",
@@ -621,6 +872,8 @@ export const DEFINITION_WITH_SUBSET_FIXTURE = defineDesignSystem({
 export const DEFINITION_IS_DESIGN_SYSTEM: DesignSystem = DEFINITION_FIXTURE;
 export const DEFINITION_WITH_OPTIONALS_IS_DESIGN_SYSTEM: DesignSystem =
   DEFINITION_WITH_OPTIONALS_FIXTURE;
+export const DEFINITION_WITH_APPENDED_OPTIONALS_IS_DESIGN_SYSTEM: DesignSystem =
+  DEFINITION_WITH_APPENDED_OPTIONALS_FIXTURE;
 
 /** The definition helper preserves the literal `id` and the numeric marker. */
 export const DEFINITION_ID: "fixture-current" = DEFINITION_FIXTURE.id;
@@ -674,6 +927,13 @@ const _NULL_OPTIONAL_MAP: DesignSystemComponents = {
   Grid: null,
 };
 
+/** An explicitly declared `null` appended optional is also not a component. */
+const _NULL_APPENDED_OPTIONAL_MAP: DesignSystemComponents = {
+  ...COMPONENTS_FIXTURE,
+  // @ts-expect-error - a declared optional component must be a real component.
+  Popover: null,
+};
+
 /** The numeric marker is required: an unversioned object is rejected. */
 export const UNVERSIONED_SYSTEM = {
   id: "fixture-unversioned",
@@ -714,6 +974,7 @@ export type _NegativeFixtures = [
   typeof _MISSING_REQUIRED_MAP,
   typeof _UNKNOWN_KEY_MAP,
   typeof _NULL_OPTIONAL_MAP,
+  typeof _NULL_APPENDED_OPTIONAL_MAP,
   typeof UNVERSIONED_DEFINITION,
   typeof WRONG_VERSION_DEFINITION,
   typeof STRING_VERSION_DEFINITION,

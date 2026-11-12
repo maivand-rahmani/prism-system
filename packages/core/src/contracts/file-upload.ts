@@ -11,8 +11,8 @@ export interface FileUploadOwnProps {
  * The native `type` is fixed and removed from the prop base; only the matching
  * literal may be supplied. Native `accept`/`multiple`/`capture`/change/ref/form
  * semantics are kept, and `invalid` maps to `aria-invalid`. Drop zones and
- * visible file lists are product or design-system compositions built around
- * this control, not part of the contract.
+ * visible file lists are not part of this control; systems may separately
+ * implement the optional `FileDropzone` contract.
  */
 export type FileUploadProps = FileUploadOwnProps &
   Omit<ComponentPropsWithoutRef<"input">, "type"> & {

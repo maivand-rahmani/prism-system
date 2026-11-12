@@ -66,8 +66,8 @@ export function defineDesignSystem<const T extends DesignSystem>(system: T): T {
 
 /**
  * Every name the shared component contract may declare: the twenty-nine
- * required names plus the seventeen optional names. Any other key is rejected
- * at runtime.
+ * required names plus every optional name. Any other key is rejected at
+ * runtime.
  */
 const ALLOWED_COMPONENTS: ReadonlySet<string> = new Set<string>([
   ...REQUIRED_COMPONENTS,
@@ -156,8 +156,8 @@ function assertDesignSystem(system: DesignSystem): void {
       const label = unknown.length === 1 ? "component" : "components";
       throw new Error(
         `Cannot register design system "${system.id}": unknown ${label} ` +
-          `${unknown.join(", ")}. Allowed names are the twenty-nine required and seventeen ` +
-          `optional components.`,
+          `${unknown.join(", ")}. Allowed names are the twenty-nine required and thirty-one ` +
+          `optional components of the shared contract.`,
       );
     }
   }

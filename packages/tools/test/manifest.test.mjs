@@ -47,6 +47,24 @@ const systemBManifest = readCurrentManifest(
   join(repoRoot, "packages", "system-b", "design-system.json"),
 );
 
+/** The appended optional contract names, in canonical order. */
+const APPENDED_OPTIONAL_COMPONENTS = Object.freeze([
+  "Popover",
+  "AlertDialog",
+  "ToggleGroup",
+  "Toolbar",
+  "TagGroup",
+  "ListBox",
+  "TreeView",
+  "TimeField",
+  "SearchField",
+  "CheckboxGroup",
+  "RangeSlider",
+  "DateRangePicker",
+  "Spinner",
+  "FileDropzone",
+]);
+
 /** Remove every declared optional component so only the required set remains. */
 function withoutOptionalComponents(manifest) {
   const clone = structuredClone(manifest);
@@ -142,6 +160,36 @@ test("a manifest with every optional omitted is valid (absence means unavailable
   });
   assert.deepEqual(result.capabilities.optional, []);
   assert.deepEqual(result.availableComponents, [...REQUIRED_COMPONENTS]);
+});
+
+test("the appended optional components are accepted only when declared", () => {
+  // The checked-in A/B manifests predate the appended names and remain valid
+  // because omission means unavailable, not a second availability declaration.
+  for (const manifest of [systemAManifest, systemBManifest]) {
+    assert.deepEqual(
+      APPENDED_OPTIONAL_COMPONENTS.filter((name) => name in manifest.components),
+      [],
+    );
+    assert.deepEqual(collectManifestFailures(manifest), []);
+  }
+
+  const withAppended = structuredClone(systemAManifest);
+  for (const name of APPENDED_OPTIONAL_COMPONENTS) {
+    withAppended.components[name] = { variants: [], sizes: [], members: [] };
+  }
+  assert.deepEqual(collectManifestFailures(withAppended), []);
+  assert.deepEqual(
+    APPENDED_OPTIONAL_COMPONENTS.filter((name) => name in withAppended.components),
+    [...APPENDED_OPTIONAL_COMPONENTS],
+  );
+
+  // Declaring a component is not enough: canonical names stay a closed set.
+  const unknown = structuredClone(withAppended);
+  unknown.components.FileDropzoneTypo = { variants: [], sizes: [], members: [] };
+  assert.ok(
+    collectManifestFailures(unknown).includes("components.FileDropzoneTypo is not allowed."),
+    collectManifestFailures(unknown).join(" "),
+  );
 });
 
 /* -------------------------------------------------------------------------- */
@@ -433,6 +481,30 @@ test("canonical icon exports are confined to the reserved icon entrypoint", () =
 /* Released-reader compatibility                                              */
 /* -------------------------------------------------------------------------- */
 
+test("the released schema-5 reader still accepts the unchanged A/B manifests", () => {
+  for (const manifest of [systemAManifest, systemBManifest]) {
+    assert.doesNotThrow(() =>
+      validateReleasedManifest(manifest, {
+        packageName: manifest.package,
+        version: manifest.version,
+      }),
+    );
+  }
+});
+
+test("a released schema-5 reader fails closed on appended optional names", () => {
+  const manifest = withoutOptionalComponents(systemAManifest);
+  manifest.components.Popover = { variants: [], sizes: [], members: [] };
+  assert.throws(
+    () =>
+      validateReleasedManifest(manifest, {
+        packageName: manifest.package,
+        version: manifest.version,
+      }),
+    /components\.Popover is not allowed/,
+  );
+});
+
 test("the released schema-5 reader accepts the generated PLR icon manifest", () => {
   const plrDir = join(repoRoot, "packages", "system-plr");
   const manifest = readJson(join(plrDir, "design-system.json"));
@@ -465,9 +537,25 @@ test("the released schema-5 reader accepts the generated PLR icon manifest", () 
     assert.match(name, /Icon$/);
   }
 
-  // The current validator and the actual released reader both fully accept it.
+  // The current validator fully accepts it. A released schema-5 reader keeps
+  // reading the same manifest shape; it fails closed only on component names it
+  // predates, so the legacy view strips the appended optionals before the
+  // released-reader check. This documents the coordinated-release requirement
+  // instead of silently pretending an old CLI understands new names.
   assert.deepEqual(collectManifestFailures(manifest), []);
-  assert.doesNotThrow(() => validateReleasedManifest(manifest, releasedArgs));
+  const legacyManifest = structuredClone(manifest);
+  const appendedDeclared = APPENDED_OPTIONAL_COMPONENTS.filter(
+    (name) => name in legacyManifest.components,
+  );
+  for (const name of appendedDeclared) delete legacyManifest.components[name];
+  assert.doesNotThrow(() => validateReleasedManifest(legacyManifest, releasedArgs));
+  for (const name of appendedDeclared) {
+    assert.throws(
+      () => validateReleasedManifest(manifest, releasedArgs),
+      new RegExp(`components\\.${name} is not allowed`),
+      `the released reader must fail closed on the newer optional ${name}`,
+    );
+  }
 
   // The shipped manifest and source schemas also reject the removed docs field.
   const manifestSchema = readJson(join(repoRoot, "schemas", "design-system.schema.json"));

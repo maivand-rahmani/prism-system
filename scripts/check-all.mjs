@@ -764,8 +764,8 @@ for (const entry of packages) {
 
 try {
   const core = await import("@prism-system/ui-core");
-  if (core.REQUIRED_COMPONENTS?.length !== 29) fail("ui-core REQUIRED_COMPONENTS length");
-  if (core.OPTIONAL_COMPONENTS?.length !== 17) fail("ui-core OPTIONAL_COMPONENTS length");
+  if (core.REQUIRED_COMPONENTS?.length !== ${REQUIRED_COMPONENTS.length}) fail("ui-core REQUIRED_COMPONENTS length");
+  if (core.OPTIONAL_COMPONENTS?.length !== ${OPTIONAL_COMPONENTS.length}) fail("ui-core OPTIONAL_COMPONENTS length");
   if (typeof core.defineDesignSystem !== "function") fail("ui-core defineDesignSystem");
   if (typeof core.createDesignSystemRegistry !== "function") {
     fail("ui-core createDesignSystemRegistry");

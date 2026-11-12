@@ -106,7 +106,21 @@
         "DescriptionList": { "$ref": "#/$defs/component" },
         "Timeline": { "$ref": "#/$defs/component" },
         "Meter": { "$ref": "#/$defs/component" },
-        "EmptyState": { "$ref": "#/$defs/component" }
+        "EmptyState": { "$ref": "#/$defs/component" },
+        "Popover": { "$ref": "#/$defs/component" },
+        "AlertDialog": { "$ref": "#/$defs/component" },
+        "ToggleGroup": { "$ref": "#/$defs/component" },
+        "Toolbar": { "$ref": "#/$defs/component" },
+        "TagGroup": { "$ref": "#/$defs/component" },
+        "ListBox": { "$ref": "#/$defs/component" },
+        "TreeView": { "$ref": "#/$defs/component" },
+        "TimeField": { "$ref": "#/$defs/component" },
+        "SearchField": { "$ref": "#/$defs/component" },
+        "CheckboxGroup": { "$ref": "#/$defs/component" },
+        "RangeSlider": { "$ref": "#/$defs/component" },
+        "DateRangePicker": { "$ref": "#/$defs/component" },
+        "Spinner": { "$ref": "#/$defs/component" },
+        "FileDropzone": { "$ref": "#/$defs/component" }
       }
     },
     "icons": {
