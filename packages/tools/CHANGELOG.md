@@ -1,5 +1,19 @@
 # Changelog — @prism-system/tools
 
+## 5.2.0
+
+### Minor Changes
+
+- 1e3b1c5: Add fourteen optional component contracts and their Plan Like Rahmani implementations:
+  Popover, AlertDialog, ToggleGroup, Toolbar, TagGroup, ListBox, TreeView, TimeField,
+  SearchField, CheckboxGroup, RangeSlider, DateRangePicker, Spinner, and FileDropzone.
+  The twenty-nine required components and optional omission semantics are unchanged.
+
+  Update `prism-ds` to recognize the expanded catalog and improve narrow-terminal
+  confirmation, project details, and large-catalog navigation. Older `prism-ds` versions
+  reject manifests containing the new component names; upgrade the CLI before installing
+  or upgrading to a design system that declares them.
+
 ## 5.1.0
 
 ### Minor Changes
