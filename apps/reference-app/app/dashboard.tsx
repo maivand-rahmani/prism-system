@@ -130,6 +130,27 @@ type CompoundParts = {
     Description: PartComponent;
   };
   EmptyState: { Title: PartComponent; Description: PartComponent; Action: PartComponent };
+  Popover: {
+    Trigger: PartComponent;
+    Content: PartComponent;
+    Title: PartComponent;
+    Description: PartComponent;
+    Close: PartComponent;
+  };
+  AlertDialog: {
+    Trigger: PartComponent;
+    Content: PartComponent;
+    Header: PartComponent;
+    Title: PartComponent;
+    Description: PartComponent;
+    Footer: PartComponent;
+    Cancel: PartComponent;
+    Action: PartComponent;
+  };
+  ToggleGroup: { Item: PartComponent };
+  Toolbar: { ToggleGroup: PartComponent; ToggleItem: PartComponent };
+  ListBox: { Group: PartComponent; Option: PartComponent };
+  CheckboxGroup: { Item: PartComponent };
 };
 
 function compound<Name extends keyof CompoundParts>(
@@ -682,8 +703,179 @@ function OptionalReference({ system, name }: { system: RegisteredSystem; name: O
         </EmptyState>
       );
     }
+    case "Popover": {
+      const Popover = compound(Component, "Popover");
+      return (
+        <Popover>
+          <Popover.Trigger type="button">Project details</Popover.Trigger>
+          <Popover.Content>
+            <Popover.Title>Atlas launch</Popover.Title>
+            <Popover.Description>Kickoff is planned for October 1.</Popover.Description>
+            <Popover.Close type="button">Close</Popover.Close>
+          </Popover.Content>
+        </Popover>
+      );
+    }
+    case "AlertDialog": {
+      const AlertDialog = compound(Component, "AlertDialog");
+      return (
+        <AlertDialog>
+          <AlertDialog.Trigger type="button">Archive project</AlertDialog.Trigger>
+          <AlertDialog.Content>
+            <AlertDialog.Header>
+              <AlertDialog.Title>Archive Atlas?</AlertDialog.Title>
+              <AlertDialog.Description>
+                This moves the project out of the active list. No project will be changed in this
+                reference.
+              </AlertDialog.Description>
+            </AlertDialog.Header>
+            <AlertDialog.Footer>
+              <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+              <AlertDialog.Action>Archive project</AlertDialog.Action>
+            </AlertDialog.Footer>
+          </AlertDialog.Content>
+        </AlertDialog>
+      );
+    }
+    case "ToggleGroup": {
+      const ToggleGroup = compound(Component, "ToggleGroup");
+      return (
+        <ToggleGroup type="single" aria-label="Project view" defaultValue="board">
+          <ToggleGroup.Item value="board">Board</ToggleGroup.Item>
+          <ToggleGroup.Item value="list">List</ToggleGroup.Item>
+        </ToggleGroup>
+      );
+    }
+    case "Toolbar": {
+      const Toolbar = compound(Component, "Toolbar");
+      return (
+        <Toolbar aria-label="Project formatting">
+          <Toolbar.ToggleGroup type="multiple" aria-label="Text style">
+            <Toolbar.ToggleItem value="bold">Bold</Toolbar.ToggleItem>
+            <Toolbar.ToggleItem value="italic">Italic</Toolbar.ToggleItem>
+            <Toolbar.ToggleItem value="underline">Underline</Toolbar.ToggleItem>
+          </Toolbar.ToggleGroup>
+        </Toolbar>
+      );
+    }
+    case "TagGroup": {
+      return <TagGroupScenario Component={Component} />;
+    }
+    case "ListBox": {
+      const ListBox = compound(Component, "ListBox");
+      return (
+        <ListBox label="Project owner" defaultValue="maya" size={3}>
+          <ListBox.Group label="Studio">
+            <ListBox.Option value="maya">Maya Chen</ListBox.Option>
+            <ListBox.Option value="ari">Ari Lane</ListBox.Option>
+          </ListBox.Group>
+          <ListBox.Option value="jules">Jules Moss</ListBox.Option>
+        </ListBox>
+      );
+    }
+    case "TreeView":
+      return (
+        <Component
+          label="Project sections"
+          defaultExpandedValues={["launch"]}
+          nodes={[
+            {
+              value: "launch",
+              label: "Atlas launch",
+              children: [
+                { value: "brief", label: "Project brief" },
+                { value: "schedule", label: "Schedule" },
+              ],
+            },
+            { value: "research", label: "Research" },
+          ]}
+        />
+      );
+    case "TimeField":
+      return <Component label="Review time" id="optional-review-time" defaultValue="14:30" />;
+    case "SearchField":
+      return <SearchScenario Component={Component} />;
+    case "CheckboxGroup":
+      return <CheckboxGroupScenario Component={Component} />;
+    case "RangeSlider":
+      return (
+        <Component
+          label="Project budget range"
+          startLabel="Minimum budget"
+          endLabel="Maximum budget"
+          min={0}
+          max={100}
+          step={5}
+          defaultValue={[25, 75]}
+        />
+      );
+    case "DateRangePicker":
+      return <Component label="Project dates" defaultValue={["2026-10-01", "2026-10-14"]} />;
+    case "Spinner":
+      return (
+        <div>
+          <Component label="Loading project activity" />
+        </div>
+      );
+    case "FileDropzone":
+      return (
+        <Component
+          label="Add project files"
+          hint="Choose files to attach; this reference does not upload them."
+          accept=".pdf,.doc,.docx"
+          multiple
+        />
+      );
   }
   return null;
+}
+
+function TagGroupScenario({ Component }: { Component: React.ElementType }) {
+  const [items, setItems] = React.useState([
+    { value: "research", label: "Research" },
+    { value: "launch", label: "Launch" },
+  ]);
+  return (
+    <Component
+      label="Project tags"
+      items={items}
+      onRemove={(value: string) =>
+        setItems((current) => current.filter((item) => item.value !== value))
+      }
+      emptyLabel="No tags remain"
+    />
+  );
+}
+
+function SearchScenario({ Component }: { Component: React.ElementType }) {
+  const [value, setValue] = React.useState("");
+  return (
+    <div>
+      <Component
+        label="Search projects"
+        value={value}
+        onValueChange={setValue}
+        placeholder="Search projects"
+      />
+      <p role="status">{value ? `Search query: ${value}` : "Search the workspace"}</p>
+    </div>
+  );
+}
+
+function CheckboxGroupScenario({ Component }: { Component: React.ElementType }) {
+  const [value, setValue] = React.useState<string[]>(["email"]);
+  const CheckboxGroup = compound(Component, "CheckboxGroup");
+  return (
+    <div>
+      <CheckboxGroup legend="Project notifications" value={value} onValueChange={setValue}>
+        <CheckboxGroup.Item value="email" label="Email updates" />
+        <CheckboxGroup.Item value="digest" label="Weekly digest" />
+      </CheckboxGroup>
+      <p role="status">
+        {value.length} notification option{value.length === 1 ? "" : "s"} selected
+      </p>
+    </div>
+  );
 }
 
 function OptionalReferenceSection({ system }: { system: RegisteredSystem }) {

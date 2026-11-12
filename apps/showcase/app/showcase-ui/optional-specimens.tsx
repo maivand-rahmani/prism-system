@@ -3,6 +3,7 @@
 import type { OPTIONAL_COMPONENTS } from "@prism-system/ui-core";
 import { runtimeComponent, withParts } from "./system-theme";
 import type { RegisteredSystem } from "../registry";
+import { OptionalSpecimenExtra } from "./optional-specimens-extra";
 
 export type OptionalName = (typeof OPTIONAL_COMPONENTS)[number];
 
@@ -15,6 +16,27 @@ export function OptionalSpecimen({
 }) {
   const Component = runtimeComponent(system, name);
   if (!Component) return null;
+
+  if (
+    [
+      "Popover",
+      "AlertDialog",
+      "ToggleGroup",
+      "Toolbar",
+      "TagGroup",
+      "ListBox",
+      "TreeView",
+      "TimeField",
+      "SearchField",
+      "CheckboxGroup",
+      "RangeSlider",
+      "DateRangePicker",
+      "Spinner",
+      "FileDropzone",
+    ].includes(name as string)
+  ) {
+    return <OptionalSpecimenExtra system={system} name={name as string} />;
+  }
 
   switch (name) {
     case "Grid":

@@ -62,6 +62,20 @@ const specimenFootprints: Record<ComponentName, SpecimenFootprint> = {
   Timeline: { width: "feature", height: "roomy" },
   Meter: { width: "standard", height: "compact" },
   EmptyState: { width: "feature", height: "roomy" },
+  Popover: { width: "standard", height: "standard" },
+  AlertDialog: { width: "standard", height: "standard" },
+  ToggleGroup: { width: "standard", height: "compact" },
+  Toolbar: { width: "standard", height: "compact" },
+  TagGroup: { width: "standard", height: "compact" },
+  ListBox: { width: "standard", height: "standard" },
+  TreeView: { width: "standard", height: "roomy" },
+  TimeField: { width: "standard", height: "standard" },
+  SearchField: { width: "standard", height: "standard" },
+  CheckboxGroup: { width: "standard", height: "roomy" },
+  RangeSlider: { width: "standard", height: "standard" },
+  DateRangePicker: { width: "wide", height: "roomy" },
+  Spinner: { width: "compact", height: "compact" },
+  FileDropzone: { width: "wide", height: "standard" },
 };
 
 function SpecimenTile({
