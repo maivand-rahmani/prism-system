@@ -75,6 +75,20 @@
       "Timeline",
       "Meter",
       "EmptyState",
+      "Popover",
+      "AlertDialog",
+      "ToggleGroup",
+      "Toolbar",
+      "TagGroup",
+      "ListBox",
+      "TreeView",
+      "TimeField",
+      "SearchField",
+      "CheckboxGroup",
+      "RangeSlider",
+      "DateRangePicker",
+      "Spinner",
+      "FileDropzone",
       "DesignSystem",
       "systemPlrTokens"
     ],
@@ -772,6 +786,197 @@
         "reducedMotion": true
       },
       "description": "A quiet first-use or no-results surface with one clear next action.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Popover": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Trigger", "Anchor", "Content", "Close", "Title", "Description", "Arrow"],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A paper panel anchored to a trigger for compact contextual content and controls.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "AlertDialog": {
+      "variants": [],
+      "sizes": [],
+      "members": [
+        "Trigger",
+        "Content",
+        "Header",
+        "Title",
+        "Description",
+        "Footer",
+        "Cancel",
+        "Action"
+      ],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A modal confirmation that requires an explicit action or cancellation.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "ToggleGroup": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Item"],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A keyboard-navigable group of pressed-state toggles for one or several choices.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Toolbar": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Button", "Link", "Separator", "ToggleGroup", "ToggleItem"],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A single-stop keyboard bar for grouped actions, links, and toggles.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "TagGroup": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A labelled set of removable paper tags with keyboard focus recovery.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "ListBox": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Option", "Group"],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A native single- or multiple-selection listbox with labelled options and groups.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "TreeView": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A data-driven tree with roving focus, expandable branches, and explicit selection.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "TimeField": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A native time-of-day field with a paper treatment, label, hint, and error wiring.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "SearchField": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A labelled search input with a decorative glyph and a keyboard-operable clear control.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "CheckboxGroup": {
+      "variants": [],
+      "sizes": [],
+      "members": ["Item"],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A fieldset of related checkboxes with shared selection, required validation, and error text.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "RangeSlider": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "Two native range thumbs bound to an ordered, tokenized track and value readout.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "DateRangePicker": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "Two native date inputs for an ordered start-to-end range with shared validation.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "Spinner": {
+      "variants": [],
+      "sizes": ["sm", "md", "lg"],
+      "members": [],
+      "effects": {
+        "features": ["motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A named status indicator with an inked rotating mark for pending work.",
+      "docs": "./docs/components.md",
+      "example": "./examples/diary-compositions.md"
+    },
+    "FileDropzone": {
+      "variants": [],
+      "sizes": [],
+      "members": [],
+      "effects": {
+        "features": ["depth", "motion"],
+        "rendering": "dom",
+        "reducedMotion": true
+      },
+      "description": "A native file picker that also accepts real drops, with type and multiple-file checks.",
       "docs": "./docs/components.md",
       "example": "./examples/diary-compositions.md"
     }

@@ -1,0 +1,63 @@
+:where(.maivand-plr-ui).maivand-plr-spinner {
+  align-items: center;
+  color: var(--maivand-plr-color-action-primary);
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+  vertical-align: middle;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-spinner-mark {
+  animation: maivand-plr-spinner-turn 900ms linear infinite;
+  display: block;
+  overflow: visible;
+}
+
+:where(.maivand-plr-ui).maivand-plr-spinner-sm .maivand-plr-spinner-mark {
+  height: 1rem;
+  width: 1rem;
+}
+
+:where(.maivand-plr-ui).maivand-plr-spinner-md .maivand-plr-spinner-mark {
+  height: 1.5rem;
+  width: 1.5rem;
+}
+
+:where(.maivand-plr-ui).maivand-plr-spinner-lg .maivand-plr-spinner-mark {
+  height: 2rem;
+  width: 2rem;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-spinner-track,
+:where(.maivand-plr-ui) .maivand-plr-spinner-ink {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 2.5;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-spinner-track {
+  opacity: 0.3;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-spinner-ink {
+  stroke-dasharray: 15 42;
+}
+
+@keyframes maivand-plr-spinner-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui) .maivand-plr-spinner-mark {
+    animation: none;
+    transform: rotate(0deg);
+  }
+
+  :where(.maivand-plr-ui) .maivand-plr-spinner-ink {
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+}

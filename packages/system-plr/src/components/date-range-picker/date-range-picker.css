@@ -1,0 +1,57 @@
+:where(.maivand-plr-ui).maivand-plr-date-range {
+  gap: var(--maivand-plr-spacing-scale-2);
+  min-width: 0;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-date-range-fields {
+  display: grid;
+  gap: var(--maivand-plr-spacing-scale-3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-date-range-field {
+  display: grid;
+  gap: var(--maivand-plr-spacing-scale-1);
+  min-width: 0;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-date-range-label {
+  color: var(--maivand-plr-color-text-secondary);
+  font-size: var(--maivand-plr-typography-size-xs);
+  font-weight: var(--maivand-plr-typography-weight-medium);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-date-range-input {
+  accent-color: var(--maivand-plr-color-action-primary);
+  font-variant-numeric: lining-nums tabular-nums;
+  min-width: 0;
+  padding-inline: var(--maivand-plr-spacing-scale-2);
+  width: 100%;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-date-range-input:focus-visible {
+  outline: 3px solid var(--maivand-plr-color-border-focus);
+  outline-offset: 2px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-date-range-input-error {
+  border-color: var(--maivand-plr-color-status-danger);
+}
+
+:where(.maivand-plr-ui).maivand-plr-date-range:has(.maivand-plr-date-range-input:focus-visible)
+  > .maivand-plr-label {
+  color: var(--maivand-plr-color-action-primary-hover);
+}
+
+@media (max-width: 30rem) {
+  :where(.maivand-plr-ui) .maivand-plr-date-range-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui) .maivand-plr-date-range-input::-webkit-calendar-picker-indicator {
+    transition-duration: var(--maivand-plr-motion-duration-reduced);
+  }
+}

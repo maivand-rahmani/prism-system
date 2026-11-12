@@ -1,0 +1,91 @@
+:where(.maivand-plr-ui).maivand-plr-list-box-field {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+/* The native listbox keeps browser selection, keyboard, and form behavior; this is only its paper surface. */
+:where(.maivand-plr-ui) .maivand-plr-list-box {
+  appearance: none;
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  border: 1px solid var(--maivand-plr-color-border-default);
+  border-radius: var(--maivand-plr-radius-sm);
+  box-shadow: inset 0 1px 2px
+    color-mix(in srgb, var(--maivand-plr-color-text-primary) 7%, transparent);
+  color: var(--maivand-plr-color-text-primary);
+  font-size: var(--maivand-plr-typography-size-md);
+  line-height: var(--maivand-plr-typography-line-height-normal);
+  min-width: 0;
+  outline: 0;
+  overflow-y: auto;
+  padding: var(--maivand-plr-spacing-scale-1);
+  scrollbar-color: color-mix(in srgb, var(--maivand-plr-color-border-strong) 60%, transparent)
+    transparent;
+  scrollbar-width: thin;
+  transition:
+    border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    box-shadow var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard);
+  width: 100%;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-list-box:hover:not(:disabled) {
+  border-color: var(--maivand-plr-color-border-strong);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-list-box:focus-visible {
+  border-color: var(--maivand-plr-color-border-focus);
+  box-shadow: var(--maivand-plr-shadow-focus);
+  outline: 3px solid var(--maivand-plr-color-border-focus);
+  outline-offset: 2px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-list-box[aria-invalid="true"] {
+  border-color: var(--maivand-plr-color-status-danger);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-list-box:disabled {
+  background-color: var(--maivand-plr-color-surface-sunken);
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-list-box-option {
+  border-radius: var(--maivand-plr-radius-sm);
+  color: var(--maivand-plr-color-text-primary);
+  cursor: pointer;
+  padding: 7px 10px;
+}
+
+/* Selection gets a tinted row and a heavier weight, so it never relies on color alone. */
+:where(.maivand-plr-ui) .maivand-plr-list-box-option:checked {
+  background-color: var(--maivand-plr-color-action-secondary);
+  color: var(--maivand-plr-color-action-secondary-text);
+  font-weight: var(--maivand-plr-typography-weight-semibold);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-list-box-option:disabled {
+  color: var(--maivand-plr-color-text-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-list-box-group {
+  color: var(--maivand-plr-color-text-muted);
+  font-size: var(--maivand-plr-typography-size-xs);
+  font-style: normal;
+  font-weight: var(--maivand-plr-typography-weight-semibold);
+}
+
+/* Touch lists get taller rows; the native listbox still scrolls within its visible rows. */
+@media (pointer: coarse) {
+  :where(.maivand-plr-ui) .maivand-plr-list-box-option {
+    padding-block: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui) .maivand-plr-list-box {
+    transition-duration: var(--maivand-plr-motion-duration-reduced);
+  }
+}

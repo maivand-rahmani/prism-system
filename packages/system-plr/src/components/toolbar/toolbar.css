@@ -1,0 +1,100 @@
+/* A paper bar that holds the working tools; it wraps on narrow screens instead of scrolling. */
+:where(.maivand-plr-ui).maivand-plr-toolbar {
+  align-items: center;
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  border: 1px solid var(--maivand-plr-color-border-default);
+  border-radius: var(--maivand-plr-radius-sm);
+  box-shadow: var(--maivand-plr-shadow-sm);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--maivand-plr-spacing-scale-1);
+  max-width: 100%;
+  padding: var(--maivand-plr-spacing-scale-1);
+}
+
+:where(.maivand-plr-ui).maivand-plr-toolbar[data-orientation="vertical"] {
+  align-items: stretch;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  width: max-content;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-toolbar-button {
+  min-width: 40px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-toolbar-link {
+  align-items: center;
+  border-radius: var(--maivand-plr-radius-sm);
+  color: var(--maivand-plr-color-action-primary-hover);
+  display: inline-flex;
+  font-size: var(--maivand-plr-typography-size-sm);
+  min-height: 40px;
+  outline: 0;
+  padding: var(--maivand-plr-spacing-scale-2) var(--maivand-plr-spacing-scale-3);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: background-color var(--maivand-plr-motion-duration-fast)
+    var(--maivand-plr-motion-easing-standard);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-toolbar-link:hover {
+  background: var(--maivand-plr-color-action-secondary);
+  color: var(--maivand-plr-color-action-secondary-text);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-toolbar-link:focus-visible {
+  outline: 3px solid var(--maivand-plr-color-border-focus);
+  outline-offset: 2px;
+}
+
+/* A worn oak groove divides groups of tools. */
+:where(.maivand-plr-ui) .maivand-plr-toolbar-separator {
+  align-self: stretch;
+  background-color: var(--maivand-plr-color-border-strong);
+  background-image: var(--maivand-plr-material-oak-grain);
+  border: 0;
+  flex: none;
+  margin-block: var(--maivand-plr-spacing-scale-1);
+  margin-inline: var(--maivand-plr-spacing-scale-1);
+  min-height: 20px;
+  width: 1px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-toolbar-separator[data-orientation="horizontal"] {
+  height: 1px;
+  margin-block: var(--maivand-plr-spacing-scale-1);
+  margin-inline: var(--maivand-plr-spacing-scale-2);
+  min-height: 0;
+  width: auto;
+}
+
+/* Inside the bar the tray is part of the paper: no second inset surface. */
+:where(.maivand-plr-ui).maivand-plr-toolbar .maivand-plr-toolbar-toggle-group {
+  background: transparent;
+  background-image: none;
+  border-color: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui) .maivand-plr-toolbar-link {
+    transition-duration: var(--maivand-plr-motion-duration-reduced) !important;
+  }
+}
+
+@media (max-width: 30rem) {
+  :where(.maivand-plr-ui) .maivand-plr-toolbar-button,
+  :where(.maivand-plr-ui) .maivand-plr-toolbar-link {
+    min-height: 44px;
+  }
+}
+
+@media (pointer: coarse) {
+  :where(.maivand-plr-ui) .maivand-plr-toolbar-button,
+  :where(.maivand-plr-ui) .maivand-plr-toolbar-link {
+    min-height: 44px;
+  }
+}

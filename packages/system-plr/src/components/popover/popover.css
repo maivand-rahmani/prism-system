@@ -1,0 +1,97 @@
+/* The trigger keeps the outline button surface; while the panel is open it presses in. */
+:where(.maivand-plr-ui).maivand-plr-popover-trigger[data-state="open"] {
+  background-color: var(--maivand-plr-color-action-secondary);
+  border-color: var(--maivand-plr-color-border-strong);
+  box-shadow: inset 0 2px 3px
+    color-mix(in srgb, var(--maivand-plr-color-text-primary) 16%, transparent);
+  color: var(--maivand-plr-color-action-secondary-text);
+  transform: translateY(1px);
+}
+
+/* A paper slip pinned beside its trigger: a warm sheet with the same ledger edge as the menus. */
+:where(.maivand-plr-ui).maivand-plr-popover-content {
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  border: 1px solid var(--maivand-plr-color-border-default);
+  border-inline-start: 3px double var(--maivand-plr-color-border-strong);
+  border-radius: var(--maivand-plr-radius-md);
+  box-shadow: var(--maivand-plr-shadow-md);
+  color: var(--maivand-plr-color-text-primary);
+  display: grid;
+  gap: var(--maivand-plr-spacing-scale-3);
+  line-height: var(--maivand-plr-typography-line-height-normal);
+  max-height: var(--radix-popover-content-available-height, calc(100dvh - 24px));
+  max-width: min(340px, calc(100vw - 24px));
+  overflow: auto;
+  overflow-wrap: anywhere;
+  overscroll-behavior: contain;
+  padding: var(--maivand-plr-spacing-scale-4);
+  transform-origin: var(--radix-popover-content-transform-origin, top center);
+  width: max-content;
+  z-index: var(--maivand-plr-layers-dropdown);
+}
+
+:where(.maivand-plr-ui).maivand-plr-popover-content[data-state="open"] {
+  animation: maivand-plr-popover-drop var(--maivand-plr-motion-duration-normal)
+    var(--maivand-plr-motion-easing-entrance);
+}
+
+:where(.maivand-plr-ui).maivand-plr-popover-content[data-state="closed"] {
+  display: none;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-popover-close {
+  justify-self: end;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-popover-title {
+  font-family: Literata, Georgia, serif;
+  font-size: var(--maivand-plr-typography-size-xl);
+  letter-spacing: -0.02em;
+  line-height: var(--maivand-plr-typography-line-height-tight);
+  margin: 0;
+  text-wrap: balance;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-popover-description {
+  color: var(--maivand-plr-color-text-secondary);
+  font-size: var(--maivand-plr-typography-size-sm);
+  margin: 0;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-popover-arrow {
+  fill: var(--maivand-plr-color-surface-raised);
+  stroke: var(--maivand-plr-color-border-default);
+  stroke-width: 1px;
+}
+
+@keyframes maivand-plr-popover-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-5px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui).maivand-plr-popover-content[data-state="open"] {
+    animation-duration: var(--maivand-plr-motion-duration-reduced) !important;
+    animation-iteration-count: 1 !important;
+  }
+  :where(.maivand-plr-ui).maivand-plr-popover-trigger {
+    transition-duration: var(--maivand-plr-motion-duration-reduced) !important;
+  }
+}
+
+@media (max-width: 30rem) {
+  :where(.maivand-plr-ui).maivand-plr-popover-content {
+    max-width: calc(100vw - 24px);
+    padding: var(--maivand-plr-spacing-scale-3);
+  }
+  :where(.maivand-plr-ui).maivand-plr-popover-trigger {
+    min-height: 44px;
+  }
+}

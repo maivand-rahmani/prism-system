@@ -1,0 +1,180 @@
+:where(.maivand-plr-ui) .maivand-plr-checkbox-group-list {
+  display: grid;
+  gap: var(--maivand-plr-spacing-scale-1);
+  min-width: 0;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-group-item {
+  align-items: flex-start;
+  border: 1px solid transparent;
+  border-inline-start: 2px solid transparent;
+  border-radius: var(--maivand-plr-radius-sm);
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 10px;
+  transition:
+    background-color var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard),
+    border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-group-item:hover:not([data-disabled]) {
+  background-color: var(--maivand-plr-color-surface-sunken);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  border-color: var(--maivand-plr-color-border-default);
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-checkbox-group-item:has(.maivand-plr-checkbox-group-input:focus-visible) {
+  border-color: var(--maivand-plr-color-border-focus);
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-checkbox-group-item:has(.maivand-plr-checkbox-group-input:checked) {
+  background-color: color-mix(
+    in srgb,
+    var(--maivand-plr-color-action-secondary) 48%,
+    var(--maivand-plr-color-surface-raised)
+  );
+  border-inline-start-color: var(--maivand-plr-color-action-primary);
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-checkbox-group-item:has(.maivand-plr-checkbox-group-input[aria-invalid="true"]) {
+  border-color: var(--maivand-plr-color-status-danger);
+  border-inline-start-color: var(--maivand-plr-color-status-danger);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-group-item[data-disabled] {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+/* The native checkbox stays full-size over the drawn box, so focus, clicks, and form data are the browser's. */
+:where(.maivand-plr-ui) .maivand-plr-checkbox-group-control {
+  flex: none;
+  height: 28px;
+  margin-block-start: -1px;
+  margin-inline-start: -2px;
+  position: relative;
+  width: 28px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-group-input {
+  cursor: inherit;
+  height: 100%;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  position: absolute;
+  width: 100%;
+  z-index: 1;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-group-box {
+  align-items: center;
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  border: 1px solid var(--maivand-plr-color-border-strong);
+  border-radius: var(--maivand-plr-radius-sm);
+  box-shadow: inset 0 1px 2px
+    color-mix(in srgb, var(--maivand-plr-color-text-primary) 12%, transparent);
+  display: flex;
+  height: 19px;
+  inset-block-start: 4.5px;
+  inset-inline-start: 4.5px;
+  justify-content: center;
+  pointer-events: none;
+  position: absolute;
+  transition:
+    background-color var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard),
+    border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    box-shadow var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard);
+  width: 19px;
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-checkbox-group-item:hover:not([data-disabled])
+  .maivand-plr-checkbox-group-box {
+  border-color: var(--maivand-plr-color-action-primary);
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-checkbox-group-input:checked
+  + .maivand-plr-checkbox-group-box {
+  background-color: var(--maivand-plr-color-action-primary);
+  border-color: var(--maivand-plr-color-action-primary-hover);
+  box-shadow: inset 0 1px 1px
+    color-mix(in srgb, var(--maivand-plr-color-text-primary) 16%, transparent);
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-checkbox-group-input:focus-visible
+  + .maivand-plr-checkbox-group-box {
+  outline: 3px solid var(--maivand-plr-color-border-focus);
+  outline-offset: 2px;
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-checkbox-group-input[aria-invalid="true"]
+  + .maivand-plr-checkbox-group-box {
+  border-color: var(--maivand-plr-color-status-danger);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-group-mark {
+  display: block;
+  fill: none;
+  height: 13px;
+  opacity: 0;
+  overflow: visible;
+  stroke: var(--maivand-plr-color-action-primary-text);
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.2;
+  transition:
+    opacity var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    stroke-dashoffset var(--maivand-plr-motion-duration-normal)
+      var(--maivand-plr-motion-easing-entrance);
+  width: 13px;
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-checkbox-group-input:checked
+  + .maivand-plr-checkbox-group-box
+  .maivand-plr-checkbox-group-mark {
+  opacity: 1;
+  stroke-dashoffset: 0;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-group-copy {
+  display: grid;
+  flex: 1;
+  gap: 3px;
+  min-width: 0;
+  padding-block-start: 2px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-group-label {
+  font-size: var(--maivand-plr-typography-size-md);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-checkbox-group-description {
+  color: var(--maivand-plr-color-text-muted);
+  font-size: var(--maivand-plr-typography-size-xs);
+  line-height: 1.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui) .maivand-plr-checkbox-group-item,
+  :where(.maivand-plr-ui) .maivand-plr-checkbox-group-box,
+  :where(.maivand-plr-ui) .maivand-plr-checkbox-group-mark {
+    transition-duration: var(--maivand-plr-motion-duration-reduced);
+  }
+}

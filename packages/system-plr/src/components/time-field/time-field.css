@@ -1,0 +1,52 @@
+/* Time is a native control: the browser keeps its own time picker and keyboard
+   editing. The paper field, label, and tactile underline come from the shared
+   native-field rules; this file only dresses the time-specific parts. */
+:where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-time-field {
+  caret-color: var(--maivand-plr-color-action-primary);
+  font-variant-numeric: lining-nums tabular-nums;
+  min-width: 0;
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-time-field::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.78;
+  transform-origin: center;
+  transition:
+    opacity var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    transform var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-entrance);
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-time-field:hover:not(
+    :disabled
+  )::-webkit-calendar-picker-indicator {
+  opacity: 1;
+  transform: rotate(-12deg) scale(1.12);
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-time-field:focus-visible::-webkit-calendar-picker-indicator {
+  opacity: 1;
+  transform: rotate(8deg) scale(1.06);
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-time-field:active:not(
+    :disabled
+  )::-webkit-calendar-picker-indicator {
+  transform: scale(0.92);
+}
+
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-time-field:disabled::-webkit-calendar-picker-indicator {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui)
+    .maivand-plr-native-control.maivand-plr-time-field::-webkit-calendar-picker-indicator {
+    transition-duration: var(--maivand-plr-motion-duration-reduced);
+  }
+}

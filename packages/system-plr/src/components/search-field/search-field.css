@@ -1,0 +1,144 @@
+/* The search field reads as a paper inset, like Input: the shell owns the
+   surface, border, and focus ring; the native input inside it is borderless. */
+:where(.maivand-plr-ui).maivand-plr-search-field {
+  position: relative;
+}
+:where(.maivand-plr-ui).maivand-plr-search-field .maivand-plr-native-control-track {
+  padding-block-end: 0;
+}
+:where(.maivand-plr-ui).maivand-plr-search-field .maivand-plr-native-control-track::after {
+  display: none;
+}
+
+/* Visually hidden but still the input's accessible name. */
+:where(.maivand-plr-ui) .maivand-plr-search-field-label-hidden {
+  block-size: 1px;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  inline-size: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-search-field-shell {
+  align-items: center;
+  background-color: var(--maivand-plr-color-surface-raised);
+  background-image: var(--maivand-plr-material-paper-fiber);
+  border: 1px solid var(--maivand-plr-color-border-default);
+  border-radius: var(--maivand-plr-radius-sm);
+  box-shadow: inset 0 1px 2px
+    color-mix(in srgb, var(--maivand-plr-color-text-primary) 7%, transparent);
+  display: flex;
+  min-height: 40px;
+  position: relative;
+  transition:
+    border-color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    box-shadow var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard);
+}
+:where(.maivand-plr-ui) .maivand-plr-search-field-shell:hover:not(:has(:disabled)) {
+  border-color: var(--maivand-plr-color-border-strong);
+}
+:where(.maivand-plr-ui) .maivand-plr-search-field-shell:focus-within {
+  border-color: var(--maivand-plr-color-border-focus);
+  box-shadow:
+    inset 0 1px 2px color-mix(in srgb, var(--maivand-plr-color-text-primary) 9%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--maivand-plr-color-border-focus) 44%, transparent);
+}
+:where(.maivand-plr-ui)
+  .maivand-plr-search-field-shell:has(.maivand-plr-search-input:focus-visible) {
+  outline: 3px solid var(--maivand-plr-color-border-focus);
+  outline-offset: 2px;
+}
+:where(.maivand-plr-ui) .maivand-plr-search-field-shell:has(.maivand-plr-search-input:disabled) {
+  background-color: var(--maivand-plr-color-surface-sunken);
+  opacity: 0.72;
+}
+:where(.maivand-plr-ui).maivand-plr-search-field:has(.maivand-plr-search-input[aria-invalid="true"])
+  .maivand-plr-search-field-shell {
+  border-color: var(--maivand-plr-color-status-danger);
+}
+
+:where(.maivand-plr-ui) .maivand-plr-search-field-icon {
+  color: var(--maivand-plr-color-text-muted);
+  display: flex;
+  flex: 0 0 auto;
+  padding-inline-start: 11px;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-search-input {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--maivand-plr-color-text-primary);
+  flex: 1 1 auto;
+  font-variant-numeric: lining-nums;
+  min-height: 0;
+  min-width: 0;
+  outline: 0;
+  padding: 10px 10px 10px 8px;
+  caret-color: var(--maivand-plr-color-action-primary);
+}
+:where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-search-input:focus-visible {
+  box-shadow: none;
+  outline: 0;
+}
+:where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-search-input::placeholder {
+  color: var(--maivand-plr-color-text-muted);
+}
+:where(.maivand-plr-ui) .maivand-plr-native-control.maivand-plr-search-input:disabled {
+  background: transparent;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+/* One clear control: the component's own button, not the browser's built-in x. */
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-search-input::-webkit-search-cancel-button,
+:where(.maivand-plr-ui)
+  .maivand-plr-native-control.maivand-plr-search-input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+:where(.maivand-plr-ui) .maivand-plr-search-field-clear {
+  align-items: center;
+  align-self: stretch;
+  background: transparent;
+  border: 0;
+  border-radius: var(--maivand-plr-radius-sm);
+  color: var(--maivand-plr-color-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  min-inline-size: 40px;
+  min-block-size: 40px;
+  padding: 0;
+  transition:
+    color var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-standard),
+    background-color var(--maivand-plr-motion-duration-fast)
+      var(--maivand-plr-motion-easing-standard),
+    transform var(--maivand-plr-motion-duration-fast) var(--maivand-plr-motion-easing-entrance);
+}
+:where(.maivand-plr-ui) .maivand-plr-search-field-clear:hover {
+  color: var(--maivand-plr-color-text-primary);
+  background-color: color-mix(in srgb, var(--maivand-plr-color-text-primary) 6%, transparent);
+}
+:where(.maivand-plr-ui) .maivand-plr-search-field-clear:active {
+  transform: scale(0.92);
+}
+:where(.maivand-plr-ui) .maivand-plr-search-field-clear:focus-visible {
+  outline: 3px solid var(--maivand-plr-color-border-focus);
+  outline-offset: -3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.maivand-plr-ui) .maivand-plr-search-field-clear {
+    transition-duration: var(--maivand-plr-motion-duration-reduced);
+  }
+}
