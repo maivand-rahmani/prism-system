@@ -28,7 +28,7 @@ coding-агент просто читает файлы-инструкции (`AG
 
 - `@prism-system/ui-core` — **фундамент и правила**: какие компоненты обязаны
   существовать и какие у них типы. Единственный текущий контракт — **версия 4**:
-  29 обязательных компонентов и 17 дополнительных контрактов. Без цветов и стилей.
+  29 обязательных компонентов и 31 дополнительный контракт. Без цветов и стилей.
 - `@prism-system/ui-system-a` / `@prism-system/ui-system-b` — **наборы деталей
   внешнего вида**: смысловые токены, CSS, варианты, состояния, анимации. Каждая
   система реализует все 29 обязательных компонентов и только те дополнительные,
@@ -105,10 +105,10 @@ pnpm --filter @prism-system/reference-app dev
 `pnpm dev` запускает все dev-цели через Turborepo сразу; для повседневной работы
 удобнее запускать приложения по одному.
 
-## 6. Контракт: 29 обязательных и 17 дополнительных
+## 6. Контракт: 29 обязательных и 31 дополнительный
 
 Текущий контракт один — **версия 4** (в runtime — числовое
-`contractVersion: 4`). Обе системы реализуют **29 обязательных компонентов**:
+`contractVersion: 4`). Все системы реализуют **29 обязательных компонентов**:
 
 ```text
 Button, Input, Textarea, Card, Badge, Checkbox, RadioGroup, Switch, Select,
@@ -117,13 +117,15 @@ Stack, FormField, Center, Cluster, Sidebar, AspectRatio, Combobox, DatePicker,
 NumberField, Slider, FileUpload
 ```
 
-Дополнительно каждая система может реализовать любой из **17 дополнительных
-контрактов**:
+Дополнительно каждая система может реализовать любой из **31 дополнительного
+контракта**:
 
 ```text
 Grid, Section, Fieldset, Alert, Progress, Skeleton, Toast, Accordion, Avatar,
 Breadcrumbs, Pagination, Table, Metric, DescriptionList, Timeline, Meter,
-EmptyState
+EmptyState, Popover, AlertDialog, ToggleGroup, Toolbar, TagGroup, ListBox,
+TreeView, TimeField, SearchField, CheckboxGroup, RangeSlider, DateRangePicker,
+Spinner, FileDropzone
 ```
 
 Дополнительные компоненты — это реальные capabilities, а не заглушки. Если системы
@@ -133,6 +135,7 @@ EmptyState
 | -------- | --------------------------- |
 | System A | `Grid`, `Fieldset`, `Alert`, `Progress`, `Accordion`, `Pagination`, `Table`, `Metric`, `DescriptionList`, `Meter`, `Timeline` |
 | System B | `Section`, `Alert`, `Skeleton`, `Toast`, `Avatar`, `Breadcrumbs`, `Metric`, `Timeline`, `EmptyState` |
+| System PLR | Все дополнительные контракты |
 
 Разница между A и B — во внешнем виде и в наборе дополнительных компонентов.
 Именно поэтому Reference App может переключать систему, не переписывая интерфейс.
@@ -147,7 +150,9 @@ EmptyState
 теперь `schemaVersion: 4`, служит только входом генератора и не содержит блок
 `capabilities` — его туда не добавляют и не повторяют. Форма манифеста одна:
 читатели schema 4 и более старых схем обновляются вместе с системой, потому что
-текущий `prism-ds` требует schema 5 и отклоняет schema 4.
+текущий `prism-ds` требует schema 5 и отклоняет schema 4. Старые читатели schema 5
+также отклоняют неизвестные им новые имена компонентов. Перед установкой или
+обновлением системы, которая их объявляет, сначала обновите `prism-ds`.
 
 Помимо контракта манифест описывает публичные входы и самостоятельные расширения:
 `entrypoints` перечисляет требования зависимостей каждого входа, `extensions` —

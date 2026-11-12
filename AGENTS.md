@@ -95,14 +95,16 @@ Stack, FormField, Center, Cluster, Sidebar, AspectRatio, Combobox, DatePicker,
 NumberField, Slider, FileUpload
 ```
 
-- **Optional.** Seventeen additional contracts. A system implements only the ones it
+- **Optional.** Thirty-one additional contracts. A system implements only the ones it
   really ships and declares them in its descriptor and generated manifest; an omitted
   name means unavailable, and empty stubs are not allowed:
 
 ```text
 Grid, Section, Fieldset, Alert, Progress, Skeleton, Toast, Accordion,
 Avatar, Breadcrumbs, Pagination, Table, Metric, DescriptionList, Timeline,
-Meter, EmptyState
+Meter, EmptyState, Popover, AlertDialog, ToggleGroup, Toolbar, TagGroup, ListBox,
+TreeView, TimeField, SearchField, CheckboxGroup, RangeSlider, DateRangePicker,
+Spinner, FileDropzone
 ```
 
 The contract types live in `@prism-system/ui-core` as one neutral API:
@@ -142,7 +144,9 @@ selected entry, never for an unused extension.
 There is exactly one current shipped manifest shape. Current tooling requires
 `schemaVersion: 5` and rejects schema-4 and older manifests; manifest readers built for
 schema 4 must be upgraded in lockstep, and an older published `prism-ds` cannot read a
-schema-5 manifest. Upgrade `prism-ds` together with the installed system.
+schema-5 manifest. Older schema-5 readers also reject optional component names they do
+not recognize. Before installing or upgrading a system that declares the newly added
+optional components, upgrade `prism-ds` to a reader that knows those names.
 
 ## The shared icon catalog
 
@@ -157,10 +161,11 @@ A design system that ships icons declares a nonempty canonical subset in its
 from the reserved `./icons` entrypoint. The generated manifest does **not** gain a new
 top-level field: availability is exactly the verified `publicApi["./icons"]` list of
 canonical `${Name}Icon` exports, and the entrypoint's `requirements` describe its real
-dependencies. Keeping schema 5 means released `prism-ds` readers still accept the
-manifest; they simply do not expose the new catalog command. A system without an
-`./icons` entrypoint ships no icons, and tools must never treat the core vocabulary as
-availability.
+dependencies. Adding the icon entrypoint alone remains compatible with older schema-5
+readers, which do not expose the icon catalog command. Separately, a manifest declaring
+new optional component names requires a reader that recognizes those names. A system
+without an `./icons` entrypoint ships no icons, and tools must never treat the core
+vocabulary as availability.
 
 - A new package from `templates/design-system` ships all fifty icons by default.
 - System PLR ships all fifty and is the first complete example.

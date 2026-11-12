@@ -30,7 +30,7 @@ Showcase route `/showcase/{{SYSTEM_ID}}`.
 
 ## Optional additions
 
-The seventeen optional contracts are capabilities, not stubs: only implement and
+The thirty-one optional contracts are capabilities, not stubs: only implement and
 declare an optional component when it has real behavior, local CSS, and a public
 export. An omitted optional name means it is unavailable. Do not hardcode an optional
 set in the documentation; declare implemented components in the descriptor and

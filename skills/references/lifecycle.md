@@ -10,7 +10,7 @@ component catalog. Development-stage history is archived under
 
 `@prism-system/ui-core` and the checked schemas define **one current contract**,
 identified by the numeric `contractVersion: 4`. Exactly twenty-nine components are
-required; seventeen more are optional capabilities. Systems implement all required
+required; thirty-one more are optional capabilities. Systems implement all required
 contracts and only real optional implementations. Exact names and types are in
 [`contracts`](../../packages/core/src/contracts),
 [`components.ts`](../../packages/core/src/design-system/components.ts),
@@ -27,7 +27,9 @@ The generated public manifest declares `schemaVersion: 5` and the numeric
 `contractVersion: 4`; the package-owned source descriptor is `schemaVersion: 4` and is
 never shipped. There is only one current shipped shape: readers built for schema 4 must
 be upgraded in lockstep, an older `prism-ds` cannot read a schema-5 manifest, and current
-tools reject schema-4 and older manifests. Other shapes fail closed. Consumers follow the installed
+tools reject schema-4 and older manifests. Readers also reject unknown optional component
+names, including when the schema version has not changed; update `prism-ds` alongside a
+system that declares newly added optional components. Other shapes fail closed. Consumers follow the installed
 public manifest and shipped docs, without needing this source checkout. Never guess from
 package name or version number. Availability is only the presence of a key in the
 manifest `components` map: all required names plus keys for actual optional

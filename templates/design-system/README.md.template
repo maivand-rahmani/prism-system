@@ -152,7 +152,7 @@ Every design system on the current contract provides the same twenty-nine requir
 - `FileUpload`
 
 The public API of these required components is stable. Optional components are
-omitted unless this package implements and declares them; the seventeen optional
+omitted unless this package implements and declares them; the thirty-one optional
 contracts are capabilities, not stubs. Components use only `@prism-system/ui-core`
 for behavior and React; this package owns the visual tokens, CSS, and component
 composition. Card publishes flat root exports for its parts (`CardHeader`,

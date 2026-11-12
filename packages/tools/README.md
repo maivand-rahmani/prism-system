@@ -550,7 +550,10 @@ root-level `.design-system/config.json` is read only to migrate it. An unknown c
 `contractVersion: 4`) is accepted. There is one shipped manifest shape, so readers of
 `schemaVersion: 4` and older must be upgraded in lockstep:
 an older `prism-ds` cannot read a schema-5 manifest, and this tooling rejects schema 4 and
-older. The manifest's top-level `capabilities.categories` inventory (composition, forms,
+older. Even an older schema-5 reader rejects optional component names it does not know.
+Before installing or upgrading a system that declares newly added optional components,
+update `prism-ds` to a release that recognizes them; otherwise manifest validation fails.
+The manifest's top-level `capabilities.categories` inventory (composition, forms,
 data-display) is canonical category membership, not availability: per-system support is
 only the presence of a key in `manifest.components`, and category availability is derived
 by intersecting the two. Custom extensions are available only as declared in
