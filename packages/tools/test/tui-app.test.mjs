@@ -957,6 +957,8 @@ test("connected tabs use only returned manifest component keys and declared cate
   assert.match(app.lastFrame(), /forms/);
   assert.doesNotMatch(app.lastFrame(), /data-display|invented/);
   assert.match(app.lastFrame(), /Available: Card/);
+  assert.doesNotMatch(app.lastFrame(), /SELECTED COMPONENT|j\/k select|required entries/);
+  assert.match(app.lastFrame(), /Category membership and availability/);
   app.unmount();
 });
 
@@ -2684,5 +2686,147 @@ test("recovery keeps guidance separate and requires confirmation for an applicab
   assert.equal(executions.length, 0);
   await press(app, "escape");
   assert.equal(executions.length, 0, "canceling recovery never applies the repair");
+  app.unmount();
+});
+
+test("compact project facts keep labels and values readable without column collisions", async () => {
+  const app = start(makeServices({ getProjectState: connectedState }), { columns: 46, rows: 16 });
+  await settle(app);
+  const frames = await collectScrollableFrames(app, [
+    { pattern: /EXACT VERSION\s+1\.2\.3/, description: "project version fact" },
+    { pattern: /CONTRACT\s+4/, description: "contract fact" },
+    { pattern: /TARGET\s+\/consumer\/demo-app/, description: "consumer target fact" },
+  ]);
+  assert.match(frames, /PACKAGE\s+@prism-system\/ui-a/);
+  assert.match(frames, /EXACT VERSION\s+1\.2\.3/);
+  assert.match(frames, /CONTRACT\s+4/);
+  assert.match(frames, /TARGET\s+\/consumer\/demo-app/);
+  assert.doesNotMatch(frames, /CONTRACTARGET|ui-a1\.2\.3/);
+  app.unmount();
+});
+
+test("short confirmation keeps Apply and Cancel visible together and still requires explicit approval", async () => {
+  const executions = [];
+  const app = start(
+    makeServices({
+      getProjectState: connectedState,
+      executeMutation: async (action, preview) => {
+        executions.push({ action, preview });
+        return { ok: true, applied: true, changed: true, failures: [] };
+      },
+    }),
+    { columns: 46, rows: 16 },
+  );
+  await settle(app);
+  await press(app, "g");
+  await typeText(app, "2.0.0");
+  await press(app, "enter");
+  await waitFor(() => /Confirm planned change/.test(app.lastFrame() ?? ""), "short confirmation");
+
+  const frame = app.lastFrame() ?? "";
+  assert.match(footerFrame(frame), /Apply\s+\(y \/ Enter\)/i);
+  assert.match(footerFrame(frame), /Cancel\s+\(Esc \/ n\)/i);
+  const confirmationFrames = await collectScrollableFrames(app, [
+    { pattern: /EXACT VERSION\s+2\.0\.0/, description: "exact version in the approval plan" },
+  ]);
+  assert.match(confirmationFrames, /EXACT VERSION\s+2\.0\.0/);
+  assert.equal(executions.length, 0, "rendering the approval controls never executes the plan");
+
+  await press(app, "escape");
+  await settle(app);
+  assert.equal(executions.length, 0, "Escape remains a safe cancellation on a small terminal");
+  assert.match(app.lastFrame() ?? "", /Cancelled/);
+  app.unmount();
+
+  const approvingApp = start(
+    makeServices({
+      getProjectState: connectedState,
+      executeMutation: async (action, preview) => {
+        executions.push({ action, preview });
+        return { ok: true, applied: true, changed: true, failures: [] };
+      },
+    }),
+    { columns: 46, rows: 16 },
+  );
+  await settle(approvingApp);
+  await press(approvingApp, "g");
+  await typeText(approvingApp, "2.0.0");
+  await press(approvingApp, "enter");
+  await waitFor(
+    () => /Confirm planned change/.test(approvingApp.lastFrame() ?? ""),
+    "second short confirmation",
+  );
+  await press(approvingApp, "enter");
+  await waitFor(() => executions.length === 1, "explicitly approved mutation");
+  assert.equal(executions[0].action.kind, "upgrade");
+  approvingApp.unmount();
+});
+
+test("31 optional components stay one-row navigable with selection details and an honest total", async () => {
+  const optionalNames = [
+    "Grid",
+    "Section",
+    "Fieldset",
+    "Alert",
+    "Progress",
+    "Skeleton",
+    "Toast",
+    "Accordion",
+    "Avatar",
+    "Breadcrumbs",
+    "Pagination",
+    "Table",
+    "Metric",
+    "DescriptionList",
+    "Timeline",
+    "Meter",
+    "EmptyState",
+    "Popover",
+    "AlertDialog",
+    "ToggleGroup",
+    "Toolbar",
+    "TagGroup",
+    "ListBox",
+    "TreeView",
+    "TimeField",
+    "SearchField",
+    "CheckboxGroup",
+    "RangeSlider",
+    "DateRangePicker",
+    "Spinner",
+    "FileDropzone",
+  ];
+  const components = optionalNames.map((name, index) => ({
+    name,
+    required: false,
+    optional: true,
+    variants: index % 2 === 0 ? ["solid", "ghost"] : [],
+    description: `Optional ${name} component.`,
+  }));
+  const app = start(
+    makeServices({
+      getProjectState: connectedState,
+      listComponents: () => ({
+        ok: true,
+        components,
+        available: optionalNames.filter((_, index) => index % 3 !== 0),
+        unavailable: optionalNames.filter((_, index) => index % 3 === 0),
+        capabilities: { categories: {} },
+        extensions: [],
+      }),
+    }),
+    { columns: 80, rows: 24 },
+  );
+  await settle(app);
+  await press(app, "2");
+  await press(app, "o");
+  await settle(app);
+  assert.match(app.lastFrame() ?? "", /31 optional components/);
+  assert.match(app.lastFrame() ?? "", /j\/k select · ↑\/↓ scroll/);
+  assert.match(app.lastFrame() ?? "", /GRID[\s\S]*?Optional Grid component\./);
+  await press(app, "j");
+  const nextFrame = app.lastFrame() ?? "";
+  assert.match(nextFrame, /SECTION[\s\S]*?Optional Section component\./);
+  assert.match(nextFrame, /31 optional components/);
   app.unmount();
 });

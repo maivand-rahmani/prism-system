@@ -753,6 +753,7 @@ function TuiApp({ services }) {
   const [searchContext, setSearchContext] = useState("catalog");
   const [detailReturnView, setDetailReturnView] = useState("main");
   const [componentSection, setComponentSection] = useState("required");
+  const [selectedComponentName, setSelectedComponentName] = useState(null);
   const [componentCatalog, setComponentCatalog] = useState(null);
   const [componentError, setComponentError] = useState(null);
   const [selectedExtensionName, setSelectedExtensionName] = useState(null);
@@ -1991,6 +1992,26 @@ function TuiApp({ services }) {
           }
         }
         if (activeTab === "components") {
+          if (componentSection === "required" || componentSection === "optional") {
+            const componentEntries = (
+              Array.isArray(componentCatalog?.components) ? componentCatalog.components : []
+            ).filter((component) =>
+              componentSection === "optional"
+                ? component.optional === true
+                : component.required === true,
+            );
+            if ((event.key === "j" || event.key === "k") && componentEntries.length > 0) {
+              const currentIndex = componentEntries.findIndex(
+                (component) => component.name === selectedComponentName,
+              );
+              const startIndex = currentIndex < 0 ? 0 : currentIndex;
+              const direction = event.key === "j" ? 1 : -1;
+              const nextIndex =
+                (startIndex + direction + componentEntries.length) % componentEntries.length;
+              setSelectedComponentName(componentEntries[nextIndex].name);
+              return true;
+            }
+          }
           if (event.key === "r") {
             setComponentSection("required");
             return true;
@@ -2084,6 +2105,9 @@ function TuiApp({ services }) {
         columns,
         project,
         activeTab,
+        componentCatalog,
+        componentSection,
+        selectedComponentName,
         searchQuery,
         searchContext,
         selectedSystemId,
@@ -2419,6 +2443,7 @@ function TuiApp({ services }) {
     const categories = isRecord(componentCatalog.capabilities?.categories)
       ? componentCatalog.capabilities.categories
       : {};
+    const categoryEntries = Object.entries(categories).filter(([name]) => CATEGORY_NAMES.has(name));
     const extensions = Array.isArray(componentCatalog.extensions)
       ? componentCatalog.extensions
       : [];
@@ -2426,22 +2451,34 @@ function TuiApp({ services }) {
     const entries = allComponents.filter((component) =>
       optionalOnly ? component.optional === true : component.required === true,
     );
+    const sectionAvailableCount = entries.filter(
+      (component) => availableNames.has(component.name) && !unavailableNames.has(component.name),
+    ).length;
+    const sectionUnavailableCount = entries.length - sectionAvailableCount;
     const selectedExtension =
       extensions.find((extension) => extension.name === selectedExtensionName) ??
       extensions[0] ??
       null;
     const visibleEntries = componentSection === "extensions" ? extensions : entries;
+    const selectedComponent =
+      componentSection === "extensions" || componentSection === "categories"
+        ? null
+        : (visibleEntries.find((component) => component.name === selectedComponentName) ??
+          visibleEntries[0] ??
+          null);
+    const selectedComponentIndex = selectedComponent
+      ? visibleEntries.findIndex((component) => component.name === selectedComponent.name)
+      : -1;
     const componentItems = visibleEntries.map((component, index) => {
       const available = availableNames.has(component.name) && !unavailableNames.has(component.name);
-      const metadata = componentMetadata(component);
       return {
         id: `component-${component.name}-${index}`,
         label:
           componentSection === "extensions"
             ? `EXTENSION  ${component.name}`
             : `${available ? "AVAILABLE" : "UNAVAILABLE"}  ${component.name}`,
-        description:
-          metadata || (component.required ? "Required contract component." : "Optional component."),
+        description: "",
+        component,
       };
     });
 
@@ -2458,10 +2495,43 @@ function TuiApp({ services }) {
         { key: "counts", dimColor: true },
         componentSection === "extensions"
           ? `${extensions.length} declared extension${extensions.length === 1 ? "" : "s"}`
-          : `${availableNames.size} available · ${unavailableNames.size} unavailable`,
+          : componentSection === "categories"
+            ? `${categoryEntries.length} capability categories`
+            : `${sectionAvailableCount} available · ${sectionUnavailableCount} unavailable · ${entries.length} ${optionalOnly ? "optional" : "required"} components`,
       ),
+      componentSection !== "extensions" &&
+        componentSection !== "categories" &&
+        h(Text, { key: "component-navigation-hint", dimColor: true }, "j/k select · ↑/↓ scroll"),
+      componentSection !== "extensions" &&
+        componentSection !== "categories" &&
+        entries.length > 12 &&
+        selectedComponent &&
+        paragraph(
+          [
+            line(
+              [
+                statusBadge(
+                  availableNames.has(selectedComponent.name) ? "success" : "muted",
+                  availableNames.has(selectedComponent.name) ? "Available" : "Unavailable",
+                  "component-status",
+                ),
+                h(Heading, { key: "component-name", compact: true }, selectedComponent.name),
+              ],
+              { key: "component-heading", flexWrap: "wrap" },
+            ),
+            h(
+              Text,
+              { key: "component-details", dimColor: true, wrap: "wrap" },
+              componentMetadata(selectedComponent) ||
+                (selectedComponent.required
+                  ? "Required contract component."
+                  : "Optional component."),
+            ),
+          ],
+          { key: "component-details", marginTop: 1 },
+        ),
       componentSection === "categories"
-        ? Object.keys(categories).filter((name) => CATEGORY_NAMES.has(name)).length === 0
+        ? categoryEntries.length === 0
           ? h(
               Text,
               { key: "no-categories", dimColor: true },
@@ -2470,47 +2540,66 @@ function TuiApp({ services }) {
           : h(
               MouseLayout,
               { key: "category-list", flexDirection: "column", marginTop: 1 },
-              Object.entries(categories)
-                .filter(([name]) => CATEGORY_NAMES.has(name))
-                .map(([name, category]) => {
-                  const available = Array.isArray(category?.available) ? category.available : [];
-                  const unavailable = Array.isArray(category?.unavailable)
-                    ? category.unavailable
-                    : [];
-                  return paragraph(
-                    [
-                      h(Text, { key: "name", bold: true, color: "cyan" }, name),
-                      h(
-                        Text,
-                        { key: "available", wrap: "wrap" },
-                        `Available: ${available.join(", ") || "none"}`,
-                      ),
-                      h(
-                        Text,
-                        { key: "unavailable", dimColor: true, wrap: "wrap" },
-                        `Unavailable: ${unavailable.join(", ") || "none"}`,
-                      ),
-                    ],
-                    { key: `category-${name}`, marginBottom: 1 },
-                  );
-                }),
+              categoryEntries.map(([name, category]) => {
+                const available = Array.isArray(category?.available) ? category.available : [];
+                const unavailable = Array.isArray(category?.unavailable)
+                  ? category.unavailable
+                  : [];
+                return paragraph(
+                  [
+                    h(Text, { key: "name", bold: true, color: "cyan" }, name),
+                    h(
+                      Text,
+                      { key: "available", wrap: "wrap" },
+                      `Available: ${available.join(", ") || "none"}`,
+                    ),
+                    h(
+                      Text,
+                      { key: "unavailable", dimColor: true, wrap: "wrap" },
+                      `Unavailable: ${unavailable.join(", ") || "none"}`,
+                    ),
+                  ],
+                  { key: `category-${name}`, marginBottom: 1 },
+                );
+              }),
             )
         : componentItems.length > 0
           ? h(List, {
               key: `component-list-${componentSection}`,
               items: componentItems,
               selectedId:
-                componentSection === "extensions" && selectedExtension
-                  ? `component-${selectedExtension.name}-${extensions.indexOf(selectedExtension)}`
-                  : undefined,
-              onSelect:
                 componentSection === "extensions"
-                  ? (id) => {
-                      const index = componentItems.findIndex((item) => item.id === id);
-                      setSelectedExtensionName(extensions[index]?.name ?? null);
-                    }
-                  : undefined,
-              maxVisible: Math.max(2, Math.min(12, componentItems.length, rows - 11)),
+                  ? selectedExtension
+                    ? `component-${selectedExtension.name}-${extensions.indexOf(selectedExtension)}`
+                    : undefined
+                  : selectedComponent
+                    ? `component-${selectedComponent.name}-${selectedComponentIndex}`
+                    : undefined,
+              onSelect: (id) => {
+                const index = componentItems.findIndex((item) => item.id === id);
+                if (componentSection === "extensions") {
+                  setSelectedExtensionName(extensions[index]?.name ?? null);
+                } else {
+                  setSelectedComponentName(visibleEntries[index]?.name ?? null);
+                }
+              },
+              renderItem: (item, { focused, selected }) =>
+                h(
+                  Text,
+                  {
+                    bold: focused || selected,
+                    color: focused ? "cyan" : undefined,
+                    wrap: "truncate-end",
+                  },
+                  `${selected ? "› " : "  "}${item.label}`,
+                ),
+              // A single line per item keeps large catalogs compact. Let the
+              // AppShell viewport scroll the complete catalog instead of
+              // hiding later entries inside a nested list window.
+              maxVisible:
+                componentItems.length > 12
+                  ? componentItems.length
+                  : Math.max(2, Math.min(12, componentItems.length, rows - 11)),
             })
           : h(
               Text,
@@ -2555,7 +2644,9 @@ function TuiApp({ services }) {
         { key: "manifest-note", dimColor: true },
         componentSection === "extensions"
           ? "Only declared extensions are shown. Details reflect this installed public manifest."
-          : "Availability and capability details reflect the installed public manifest.",
+          : componentSection === "categories"
+            ? "Category membership and availability reflect the installed manifest; categories are not exhaustive."
+            : `${componentItems.length} ${optionalOnly ? "optional" : "required"} entries · j/k select · ↑/↓ scroll · availability reflects this installed public manifest.`,
       ),
     ]);
   };
@@ -3245,7 +3336,7 @@ function TuiApp({ services }) {
     paragraph([
       h(Heading, { key: "title" }, "Connected design system"),
       h(MouseLayout, { key: "project-banner" }, projectBanner(project, services.cwd, compact)),
-      h(MouseLayout, { key: "facts", marginTop: 1 }, [
+      h(MouseLayout, { key: "facts", marginTop: 1, flexDirection: "column" }, [
         keyValue("PACKAGE", project?.packageName, { compact, key: "package" }),
         keyValue("EXACT VERSION", project?.version, { compact, key: "version" }),
         keyValue("CONTRACT", project?.contractVersion, { compact, key: "contract" }),
@@ -4506,7 +4597,13 @@ function TuiApp({ services }) {
     addFooterAction("open-manage", "m", "Manage", openManage);
   }
 
-  const actionsPerFooterPage = footerShortLabels ? 1 : Math.max(1, footerActions.length);
+  // Confirmation is the only screen that must never paginate its safe choices:
+  // Apply, Cancel, and any review link stay visible together on tiny terminals.
+  const actionsPerFooterPage = footerShortLabels
+    ? view === "confirm"
+      ? Math.max(1, footerActions.length)
+      : 1
+    : Math.max(1, footerActions.length);
   const footerPageCount = Math.max(1, Math.ceil(footerActions.length / actionsPerFooterPage));
   footerPageCountRef.current = footerPageCount;
   const activeFooterPage = Math.min(footerActionPage, footerPageCount - 1);
@@ -4631,6 +4728,7 @@ function TuiApp({ services }) {
     view,
     activeTab,
     componentSection,
+    selectedComponentName ?? "",
     selectedExtensionName ?? "",
     tokenGroup ?? "",
     selectedIconName ?? "",
