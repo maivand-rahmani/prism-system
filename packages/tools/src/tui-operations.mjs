@@ -180,6 +180,13 @@ function errorMessage(error) {
 
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
+/**
+ * TUI-only stdio for the CLI self-update manager. Ink owns the terminal, so the
+ * npm/pnpm child must never inherit the screen or stdin. Output is captured with
+ * Node's bounded spawn buffer and only a bounded tail is surfaced on failure.
+ */
+const TUI_UPDATE_STDIO = Object.freeze(["ignore", "pipe", "pipe"]);
+
 function failure(boundary, error) {
   return { ok: false, boundary, failures: [errorMessage(error)] };
 }
@@ -1116,7 +1123,15 @@ export function createTuiOperations({
   }
 
   function updateOptions(options = {}) {
-    return { ...options, cwd: resolvedCwd, fetchImpl, spawnImpl };
+    return {
+      ...options,
+      cwd: resolvedCwd,
+      fetchImpl,
+      spawnImpl,
+      // Ink owns the terminal: never inherit the TUI's stdin/stdout for the
+      // package-manager child. The CLI keeps its own default `inherit`.
+      stdio: [...TUI_UPDATE_STDIO],
+    };
   }
 
   async function previewCliUpdate(options = {}) {
@@ -1125,12 +1140,56 @@ export function createTuiOperations({
         updateOptions({ ...options, dryRun: true, confirmed: false }),
       );
       const plan = isPlainObject(result?.plan) ? result.plan : null;
+      const updateAvailable =
+        typeof result?.updateAvailable === "boolean"
+          ? result.updateAvailable
+          : plan?.updateAvailable === true;
+      const currentVersion =
+        typeof result?.currentVersion === "string"
+          ? result.currentVersion
+          : typeof plan?.currentVersion === "string"
+            ? plan.currentVersion
+            : null;
+      const targetVersion =
+        typeof result?.targetVersion === "string"
+          ? result.targetVersion
+          : typeof plan?.targetVersion === "string"
+            ? plan.targetVersion
+            : null;
+      const command = isPlainObject(result?.command)
+        ? result.command
+        : isPlainObject(plan?.command)
+          ? plan.command
+          : null;
+      const failures =
+        Array.isArray(result?.failures) && result.failures.length > 0
+          ? [...result.failures]
+          : Array.isArray(plan?.failures)
+            ? [...plan.failures]
+            : [];
+      const advice =
+        typeof result?.advice === "string"
+          ? result.advice
+          : typeof plan?.advice === "string"
+            ? plan.advice
+            : null;
+      let state = typeof result?.state === "string" ? result.state : null;
+      if (state === null && result?.ok === true) {
+        state = updateAvailable ? "dry-run" : "up-to-date";
+      }
       return {
         ...(isPlainObject(result) ? result : {}),
         ok: result?.ok === true,
         dryRun: true,
         kind: "self-update",
-        failures: Array.isArray(result?.failures) ? [...result.failures] : [],
+        boundary: typeof result?.boundary === "string" ? result.boundary : null,
+        updateAvailable,
+        currentVersion,
+        targetVersion,
+        command,
+        state,
+        advice,
+        failures,
         material:
           result?.ok === true ? { plan, plannedChanges: result.plannedChanges ?? [] } : null,
         result,
@@ -1140,6 +1199,13 @@ export function createTuiOperations({
         ok: false,
         dryRun: true,
         kind: "self-update",
+        boundary: null,
+        updateAvailable: false,
+        currentVersion: null,
+        targetVersion: null,
+        command: null,
+        state: null,
+        advice: null,
         failures: [errorMessage(error)],
         material: null,
         result: null,

@@ -58,6 +58,7 @@ import {
   OPTIONAL_COMPONENTS,
 } from "./design-system-manifest.mjs";
 import { inspectTarball } from "./prepare-release.mjs";
+import { assertPackedTuiModuleGraph } from "./check-tui-module-graph.mjs";
 
 const ROOT = repoRoot();
 const TEMP_ROOT = join(ROOT, "TEMP", "lifecycle");
@@ -691,6 +692,13 @@ runCheck("pack and inspect the @prism-system/tools artifact", () => {
     const text = readFileSync(join(extracted, rel), "utf8");
     assert(!text.includes(ROOT), `shipped tools file ${rel} references the repository root`);
   }
+  // The packed TUI must carry every literal relative module it reaches. This is
+  // a static presence check only: nonliteral dynamic imports and runtime
+  // rendering are not proven, and nothing is executed.
+  assertPackedTuiModuleGraph({
+    label: "@prism-system/tools",
+    packageDir: extracted,
+  });
   // Stage TypeScript next to the packed tools so check-usage/check and the
   // scanner-backed switch/recover steps can lazy-load it without a network
   // install.

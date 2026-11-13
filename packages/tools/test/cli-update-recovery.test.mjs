@@ -340,9 +340,18 @@ test("index.mjs re-exports the completed self-update and recovery modules", asyn
 });
 
 test("self-update and recover backends stay lazily imported by the CLI", () => {
+  // The facade (`src/cli.mjs`) eagerly loads its command families, so the
+  // maintenance family is where these backends must stay dynamic. Inspecting
+  // the moved module keeps the guard meaningful instead of deleting it.
   const cli = readFileSync(join(repoRoot, "packages", "tools", "src", "cli.mjs"), "utf8");
-  assert.match(cli, /await import\("\.\/self-update\.mjs"\)/u);
-  assert.match(cli, /await import\("\.\/recovery\.mjs"\)/u);
+  const maintenance = readFileSync(
+    join(repoRoot, "packages", "tools", "src", "cli", "commands", "maintenance.mjs"),
+    "utf8",
+  );
+  assert.match(maintenance, /await import\("\.\.\/\.\.\/self-update\.mjs"\)/u);
+  assert.match(maintenance, /await import\("\.\.\/\.\.\/recovery\.mjs"\)/u);
+  assert.doesNotMatch(maintenance, /^import\s[^\n]*from\s+["']\.\.\/\.\.\/self-update\.mjs["']/mu);
+  assert.doesNotMatch(maintenance, /^import\s[^\n]*from\s+["']\.\.\/\.\.\/recovery\.mjs["']/mu);
   assert.doesNotMatch(cli, /^import\s[^\n]*from\s+["']\.\/self-update\.mjs["']/mu);
   assert.doesNotMatch(cli, /^import\s[^\n]*from\s+["']\.\/recovery\.mjs["']/mu);
 

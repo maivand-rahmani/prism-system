@@ -904,6 +904,26 @@ export async function planSelfUpdate({
   };
 }
 
+/** Maximum manager output characters kept for a bounded, truthful failure detail. */
+const MAX_MANAGER_OUTPUT_CHARS = 2000;
+
+/**
+ * Read the captured manager output from a spawn result, if any, without ever
+ * keeping more than {@link MAX_MANAGER_OUTPUT_CHARS}. The default CLI stdio is
+ * `inherit`, so this is empty there and CLI behavior is unchanged.
+ */
+function boundedSpawnOutput(spawnResult) {
+  if (!isPlainObject(spawnResult)) return "";
+  const decode = (value) => {
+    if (typeof value === "string") return value;
+    if (Buffer.isBuffer(value)) return value.toString("utf8");
+    return "";
+  };
+  const text = `${decode(spawnResult.stdout)}\n${decode(spawnResult.stderr)}`.trim();
+  if (text.length <= MAX_MANAGER_OUTPUT_CHARS) return text;
+  return `…${text.slice(-(MAX_MANAGER_OUTPUT_CHARS - 1))}`;
+}
+
 function updatePlanDifference(expected, actual) {
   if (!isPlainObject(expected)) return ["the expected plan is not an object"];
   const details = [];
@@ -1042,16 +1062,28 @@ export async function selfUpdate({
     state: "blocked",
     packageName: CLI_PACKAGE_NAME,
     failures: [],
+    advice: null,
     plan,
   };
   if (!plan.ok) {
-    return { ...base, ok: false, boundary: plan.boundary ?? "plan" };
+    const planFailures =
+      Array.isArray(plan.failures) && plan.failures.length > 0
+        ? [...plan.failures]
+        : ["The self-update plan could not be built."];
+    return {
+      ...base,
+      ok: false,
+      boundary: plan.boundary ?? "plan",
+      failures: planFailures,
+      advice: typeof plan.advice === "string" ? plan.advice : null,
+    };
   }
   if (!plan.updateAvailable) {
     return {
       ...base,
       ok: true,
       state: "up-to-date",
+      updateAvailable: false,
       currentVersion: plan.currentVersion,
       targetVersion: plan.targetVersion,
       command: null,
@@ -1062,6 +1094,10 @@ export async function selfUpdate({
       ...base,
       ok: true,
       state: "dry-run",
+      updateAvailable: true,
+      currentVersion: plan.currentVersion,
+      targetVersion: plan.targetVersion,
+      command: plan.command,
       plannedChanges: [
         { kind: "dependency", manager: plan.command.manager, command: plan.command },
       ],
@@ -1106,6 +1142,7 @@ export async function selfUpdate({
     return { ...base, ok: false, boundary: "spawn", failures: [error.message] };
   }
   if (spawnResult.status !== 0) {
+    const managerOutput = boundedSpawnOutput(spawnResult);
     return {
       ...base,
       ok: false,
@@ -1113,9 +1150,11 @@ export async function selfUpdate({
       state: "manager-failed",
       partial: true,
       managerExit: spawnResult.status ?? null,
+      ...(managerOutput === "" ? {} : { managerOutput }),
       failures: [
         `${plan.command.manager} exited with code ${spawnResult.status ?? "unknown"}; the ` +
           "installation state is unknown and was not rolled back.",
+        ...(managerOutput === "" ? [] : [`${plan.command.manager} output:\n${managerOutput}`]),
       ],
     };
   }

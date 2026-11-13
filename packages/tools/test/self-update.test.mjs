@@ -626,15 +626,112 @@ test("planSelfUpdate fails closed offline and on invalid target versions", async
   assert.equal(registryError.boundary, "registry");
 });
 
+test("selfUpdate propagates real plan failures and advice when planning is blocked", async (t) => {
+  const root = createConsumer(t, { devDependencies: { [CLI_PACKAGE_NAME]: "1.0.0" } });
+  const installedDir = installFakeCli(root, "1.0.0");
+  const spawnCalls = [];
+
+  const offline = await selfUpdate({
+    cwd: root,
+    packageRoot: installedDir,
+    offline: true,
+    dryRun: true,
+    spawnImpl: captureSpawn(spawnCalls),
+  });
+  assert.equal(offline.ok, false);
+  assert.equal(offline.boundary, "offline");
+  assert.deepEqual(offline.failures, offline.plan.failures);
+  assert.match(offline.failures.join(" "), /Offline/);
+
+  const registry = await selfUpdate({
+    cwd: root,
+    packageRoot: installedDir,
+    fetchImpl: async () => {
+      throw new Error("offline registry test");
+    },
+    dryRun: true,
+    spawnImpl: captureSpawn(spawnCalls),
+  });
+  assert.equal(registry.ok, false);
+  assert.equal(registry.boundary, "registry");
+  assert.deepEqual(registry.failures, registry.plan.failures);
+  assert.match(registry.failures.join(" "), /offline registry test/);
+  assert.equal(registry.advice, null);
+  assert.equal(spawnCalls.length, 0);
+});
+
+test("selfUpdate keeps plan advice for a real installation-context block", async (t) => {
+  const root = createConsumer(t, { lockfile: null });
+  const installedDir = installFakeCli(root, "1.0.0");
+  // The installed copy is not declared in the consumer, so the plan fails closed
+  // with installation-context advice instead of pretending it can update itself.
+  const result = await selfUpdate({
+    cwd: root,
+    packageRoot: installedDir,
+    targetVersion: NEWER,
+    dryRun: true,
+    spawnImpl: captureSpawn([]),
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.boundary, "installation");
+  assert.ok(Array.isArray(result.failures) && result.failures.length > 0);
+  assert.match(result.failures.join(" "), /unknown installation/);
+  assert.equal(result.advice, result.plan.advice);
+  assert.equal(typeof result.advice, "string");
+});
+
+test("selfUpdate keeps the CLI's inherited stdio and bounds captured manager output", async (t) => {
+  const root = createConsumer(t, { devDependencies: { [CLI_PACKAGE_NAME]: "1.0.0" } });
+  const installedDir = installFakeCli(root, "1.0.0");
+
+  const inheritedCalls = [];
+  const inherited = await selfUpdate({
+    cwd: root,
+    packageRoot: installedDir,
+    targetVersion: NEWER,
+    confirmed: true,
+    spawnImpl: captureSpawn(inheritedCalls, {
+      onSpawn: () =>
+        writeJson(join(installedDir, "package.json"), {
+          name: CLI_PACKAGE_NAME,
+          version: NEWER,
+          exports: { "./package.json": "./package.json" },
+        }),
+    }),
+  });
+  assert.equal(inherited.ok, true);
+  assert.equal(inheritedCalls[0].options.stdio, "inherit");
+
+  const marker = "npm ERR! registry denied";
+  const capturedCalls = [];
+  const failed = await selfUpdate({
+    cwd: root,
+    packageRoot: installedDir,
+    targetVersion: NEWER,
+    confirmed: true,
+    stdio: ["ignore", "pipe", "pipe"],
+    spawnImpl: captureSpawn(capturedCalls, {
+      status: 2,
+      stderr: `${"x".repeat(5000)}${marker}`,
+    }),
+  });
+  assert.equal(failed.ok, false);
+  assert.equal(failed.boundary, "manager");
+  assert.ok(failed.managerOutput.endsWith(marker));
+  assert.ok(failed.managerOutput.length <= 2000);
+  assert.match(failed.failures.join(" "), /registry denied/);
+  assert.equal(capturedCalls[0].options.stdio.includes("inherit"), false);
+});
+
 /* -------------------------------------------------------------------------- */
 /* Execution                                                                  */
 /* -------------------------------------------------------------------------- */
 
-function captureSpawn(record, { status = 0, onSpawn = null } = {}) {
+function captureSpawn(record, { status = 0, stdout = null, stderr = null, onSpawn = null } = {}) {
   return (command, args, options) => {
     record.push({ command, args, options });
     if (onSpawn) onSpawn();
-    return { status, error: null };
+    return { status, error: null, stdout, stderr };
   };
 }
 
@@ -671,9 +768,41 @@ test("selfUpdate dry-run plans the exact command without spawning or writing", a
   assert.equal(result.ok, true);
   assert.equal(result.state, "dry-run");
   assert.equal(result.changed, false);
+  assert.equal(result.updateAvailable, true);
+  assert.equal(result.currentVersion, result.plan.currentVersion);
+  assert.equal(result.targetVersion, NEWER);
+  assert.deepEqual(result.command, result.plan.command);
   assert.equal(spawnCalls.length, 0);
   assert.deepEqual(snapshotTree(root), before);
   assert.equal(result.plannedChanges[0].command.manager, "npm");
+});
+
+test("selfUpdate global dry-run exposes top-level update fields without a verified global root", async () => {
+  const spawnCalls = [];
+  const result = await selfUpdate({
+    global: true,
+    manager: "npm",
+    targetVersion: NEWER,
+    dryRun: true,
+    spawnImpl: captureSpawn(spawnCalls),
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.state, "dry-run");
+  assert.equal(result.updateAvailable, true);
+  assert.equal(result.plan.updateAvailable, true);
+  assert.equal(result.currentVersion, result.plan.currentVersion);
+  assert.equal(result.targetVersion, NEWER);
+  assert.equal(result.command.manager, "npm");
+  assert.equal(result.command.scope, "global");
+  assert.deepEqual(result.command.args, [
+    "install",
+    "--global",
+    "--ignore-scripts",
+    "--registry=https://registry.npmjs.org",
+    `${CLI_PACKAGE_NAME}@${NEWER}`,
+  ]);
+  assert.equal(spawnCalls.length, 0);
 });
 
 test("selfUpdate dry-run in a pnpm workspace root shows -w and writes nothing", async (t) => {
@@ -931,5 +1060,9 @@ test("selfUpdate is a no-op when the current version is already latest", async (
   assert.equal(result.ok, true);
   assert.equal(result.state, "up-to-date");
   assert.equal(result.changed, false);
+  assert.equal(result.updateAvailable, false);
+  assert.equal(result.currentVersion, result.plan.currentVersion);
+  assert.equal(result.targetVersion, OLDER);
+  assert.equal(result.command, null);
   assert.equal(spawnCalls.length, 0);
 });

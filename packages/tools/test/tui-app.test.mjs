@@ -8,6 +8,7 @@ import { FrameworkProvider, MouseLayout, ScreenRegistry, useKeyHandler } from "r
 import { createWindowsInputTransport } from "runeframe/windows-input";
 
 import TuiApp, { ChangePreviewModal } from "../src/tui-app.mjs";
+import { dispatchFocusedAction } from "../src/tui/hooks/use-navigation-keys.mjs";
 
 const h = React.createElement;
 let activeModalEscapeEvents = null;
@@ -470,6 +471,8 @@ async function press(app, key) {
       down: "\u001b[B",
       right: "\u001b[C",
       left: "\u001b[D",
+      tab: "\t",
+      "shift-tab": "\u001b[Z",
     }[key] ?? key;
   return send(app, input);
 }
@@ -489,6 +492,15 @@ async function scrollDownUntil(app, pattern, description, limit = 80) {
   return app.lastFrame();
 }
 
+async function scrollUpUntil(app, pattern, description, limit = 80) {
+  const visibleText = () => (app.lastFrame() ?? "").replace(/\s+/g, " ");
+  for (let index = 0; index < limit && !pattern.test(visibleText()); index += 1) {
+    await send(app, "\u001b[A");
+  }
+  assert.match(visibleText(), pattern, `${description} should be reachable by scrolling up`);
+  return app.lastFrame();
+}
+
 async function collectScrollableFrames(app, targets) {
   const frames = [app.lastFrame() ?? ""];
   for (const { pattern, description } of targets) {
@@ -498,16 +510,61 @@ async function collectScrollableFrames(app, targets) {
   return frames.join("\n");
 }
 
+/**
+ * The shell anchors a footer at the bottom of the terminal, separated from the
+ * scrollable body by its top border. Content rules (CHANGE PREVIEW, ACTIVITY,
+ * etc.) also use horizontal rules, so the footer is the region after the LAST
+ * rule, not anything inferred from removed section headings.
+ */
+function frameSections(frame) {
+  const lines = (frame ?? "").split("\n");
+  let footerStart = -1;
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    if (/^\s*─{10,}\s*$/.test(lines[index])) {
+      footerStart = index;
+      break;
+    }
+  }
+  if (footerStart < 0) {
+    const navIndex = lines.findLastIndex((line) => /^\s*Navigate:/.test(line));
+    if (navIndex >= 0) footerStart = Math.max(0, navIndex - 1);
+  }
+  return {
+    lines,
+    footerStart,
+    body: footerStart < 0 ? (frame ?? "") : lines.slice(0, footerStart).join("\n"),
+    footer: footerStart < 0 ? "" : lines.slice(footerStart + 1).join("\n"),
+  };
+}
+
 function bodyFrame(frame) {
-  const borderStart = frame.lastIndexOf("┌");
-  const footerStart = borderStart >= 0 ? borderStart : frame.toUpperCase().lastIndexOf("ACTIONS");
-  return footerStart < 0 ? frame : frame.slice(0, footerStart);
+  return frameSections(frame).body;
 }
 
 function footerFrame(frame) {
-  const borderStart = frame.lastIndexOf("┌");
-  const footerStart = borderStart >= 0 ? borderStart : frame.toUpperCase().lastIndexOf("ACTIONS");
-  return footerStart < 0 ? "" : frame.slice(footerStart);
+  return frameSections(frame).footer;
+}
+
+/** Locate a visible control's rendered label and return its measured hitbox. */
+function actionAreaFor(diagnostics, frame, pattern, description) {
+  const lines = (frame ?? "").split("\n");
+  const rowIndex = lines.findIndex((line) => pattern.test(line));
+  assert.notEqual(rowIndex, -1, `${description} must be rendered before it can be clicked`);
+  const column = lines[rowIndex].search(pattern);
+  const areas = diagnostics.at(-1)?.areas ?? [];
+  const area = areas.find(
+    (candidate) =>
+      !candidate.wheelOnly &&
+      candidate.eligible &&
+      candidate.hasHandler &&
+      !candidate.disabled &&
+      column >= candidate.bounds.x &&
+      column < candidate.bounds.x + candidate.bounds.width &&
+      rowIndex >= candidate.bounds.y &&
+      rowIndex < candidate.bounds.y + candidate.bounds.height,
+  );
+  assert.ok(area, `${description} must have a measured pointer hitbox over its visible label`);
+  return area;
 }
 
 test("renders empty, installed-unconnected, and connected states without loading a catalog", async () => {
@@ -522,13 +579,16 @@ test("renders empty, installed-unconnected, and connected states without loading
   await settle(empty);
   assert.match(empty.lastFrame(), /No system connected/i);
   assert.match(empty.lastFrame(), /Browse catalog/i);
-  assert.doesNotMatch(bodyFrame(empty.lastFrame()), /Browse catalog|Search catalog|\bSearch\b/i);
-  assert.match(footerFrame(empty.lastFrame()), /Browse catalog\s+\(b\)/i);
-  assert.match(footerFrame(empty.lastFrame()), /Search catalog\s+\(s\)/i);
+  assert.match(bodyFrame(empty.lastFrame()), /Browse catalog\s+\(b\)/i);
+  assert.match(bodyFrame(empty.lastFrame()), /Search catalog\s+\(s\)/i);
+  assert.doesNotMatch(footerFrame(empty.lastFrame()), /Browse catalog|Search catalog/i);
+  assert.match(footerFrame(empty.lastFrame()), /Navigate:.*Manage/i);
+  assert.match(footerFrame(empty.lastFrame()), /navigation only/i);
   assert.equal(searches, 0, "mount only reads local project state");
   await press(empty, "s");
   assert.match(empty.lastFrame(), /Search the registry/);
-  assert.match(footerFrame(empty.lastFrame()), /Search catalog\s+\(Enter\)/i);
+  assert.match(bodyFrame(empty.lastFrame()), /Search catalog\s+\(Enter\)/i);
+  assert.match(bodyFrame(empty.lastFrame()), /Cancel\s+\(Esc\)/i);
   empty.unmount();
 
   const installed = start(makeServices({ getProjectState: () => state("installed") }));
@@ -549,12 +609,18 @@ test("renders empty, installed-unconnected, and connected states without loading
   assert.match(frame, /Components/);
   assert.match(frame, /Tokens/);
   assert.match(frame, /Checks/);
-  assert.doesNotMatch(
-    bodyFrame(frame),
-    /Inspect manifest|Reconnect|Upgrade version|Refresh state/i,
-    "connected-system actions are kept in the footer",
+  await scrollDownUntil(connected, /Inspect manifest\s+\(d\)/i, "inline connected-system actions");
+  assert.match(
+    bodyFrame(connected.lastFrame()),
+    /Inspect manifest\s+\(d\)/i,
+    "connected-system actions sit inline with the screen content",
   );
-  assert.match(footerFrame(frame), /Inspect manifest/);
+  assert.match(bodyFrame(connected.lastFrame()), /Reconnect\s+\(c\)/i);
+  assert.doesNotMatch(
+    footerFrame(connected.lastFrame()),
+    /Inspect manifest|Reconnect|Upgrade version|Refresh state/i,
+  );
+  assert.match(footerFrame(connected.lastFrame()), /navigation only/i);
   connected.unmount();
 });
 
@@ -639,22 +705,30 @@ test("inspects a selected system before install and requires confirmation; Escap
   await press(app, "b");
   await settle(app);
   assert.equal(mutations.length, 0);
+  assert.equal(
+    app.lastFrame().includes("Published manifest details"),
+    false,
+    "browse alone never inspects a result",
+  );
+  assert.equal(mutations.length, 0, "browsing the catalog cannot start a preview");
   await press(app, "enter");
   await waitFor(
     () => /Published manifest details/.test(app.lastFrame() ?? ""),
     "explicit manifest inspection",
   );
   assert.match(app.lastFrame(), /Exact version: 1\.2\.3/);
-  assert.match(app.lastFrame(), /Install only/);
-  assert.doesNotMatch(bodyFrame(app.lastFrame()), /Install only|Use\s*&\s*connect/i);
-  assert.match(footerFrame(app.lastFrame()), /Install only/);
-  assert.match(footerFrame(app.lastFrame()), /Use\s*&\s*connect/i);
+  await scrollDownUntil(app, /Install only\s+\(i\)/i, "inline install control on manifest details");
+  assert.match(bodyFrame(app.lastFrame()), /Install only\s+\(i\)/i);
+  assert.match(bodyFrame(app.lastFrame()), /Use\s*&\s*connect\s+\(u\)/i);
+  assert.doesNotMatch(footerFrame(app.lastFrame()), /Install only|Use\s*&\s*connect/i);
+  assert.match(footerFrame(app.lastFrame()), /Navigate:.*Back/i);
   await press(app, "i");
   await waitFor(() => /Confirm planned change/.test(app.lastFrame() ?? ""), "install confirmation");
   assert.equal(mutations.length, 1);
   assert.equal(mutations[0].kind, "install");
   assert.equal(mutations[0].version, "1.2.3");
   assert.match(app.lastFrame(), /PACKAGE MANAGER/);
+  await scrollDownUntil(app, /pnpm add/, "the exact install command");
   assert.match(app.lastFrame(), /pnpm add/);
   assert.match(app.lastFrame(), /\/consumer\/demo-app/);
   await press(app, "escape");
@@ -818,7 +892,9 @@ test("use preview clearly separates install-and-connect and never executes befor
   assert.match(app.lastFrame(), /AGENTS_AFTER_MARKER/);
   await press(app, "escape");
   await settle(app);
-  assert.match(app.lastFrame(), /Confirm planned change/);
+  assert.match(app.lastFrame(), /Review controls/);
+  await press(app, "tab");
+  await press(app, "tab");
   await press(app, "enter");
   await waitFor(() => executed.length === 1, "one confirmed use mutation");
   assert.equal(executed.length, 1);
@@ -873,8 +949,10 @@ test("preview and execution failures remain explicit and never look successful",
   assert.equal(executions.length, 0, "a failed preview cannot be executed");
 
   await scrollDownUntil(app, /Manifest token groups:/, "the rest of the inspected manifest");
-  assert.match(footerFrame(app.lastFrame()), /Install\s+\(i\)/i);
+  await scrollDownUntil(app, /Install only\s+\(i\)/i, "the inline install control");
+  assert.match(bodyFrame(app.lastFrame()), /Install only\s+\(i\)/i);
   assert.match(footerFrame(app.lastFrame()), /↑\/↓ scroll/);
+  assert.match(footerFrame(app.lastFrame()), /navigation only/);
 
   await press(app, "i");
   await waitFor(
@@ -945,8 +1023,10 @@ test("connected tabs use only returned manifest component keys and declared cate
   assert.equal(componentReads, 1);
   assert.match(app.lastFrame(), /AVAILABLE\s+Button/);
   assert.match(app.lastFrame(), /Required/i);
-  assert.doesNotMatch(bodyFrame(app.lastFrame()), /R Required|O Optional|G Categories/i);
-  assert.match(footerFrame(app.lastFrame()), /Required\s+\(r\)/i);
+  assert.match(bodyFrame(app.lastFrame()), /Required\s+\(r\)/i);
+  assert.match(bodyFrame(app.lastFrame()), /Optional\s+\(o\)/i);
+  assert.doesNotMatch(footerFrame(app.lastFrame()), /Required|Optional|Categories/i);
+  assert.match(footerFrame(app.lastFrame()), /navigation only/i);
   await press(app, "o");
   await settle(app);
   assert.match(app.lastFrame(), /UNAVAILABLE\s+Accordion/);
@@ -989,18 +1069,17 @@ test("declared extensions are a separate TUI catalog view with their import and 
       getProjectState: connectedState,
       listComponents: () => ({ ...componentCatalog(), extensions: [extension] }),
     }),
-    { columns: 80, rows: 14 },
+    { columns: 80, rows: 24 },
   );
   await settle(app);
   await press(app, "2");
   await settle(app);
   assert.match(app.lastFrame(), /AVAILABLE\s+Button/);
-  assert.match(footerFrame(app.lastFrame()), /Required\s+\(r\)/i);
+  assert.match(bodyFrame(app.lastFrame()), /Required\s+\(r\)/i);
 
   await press(app, "x");
   await settle(app);
   assert.match(app.lastFrame(), /EXTENSION\s+KeyboardScene/);
-  assert.doesNotMatch(app.lastFrame(), /API \/ ENTRYPOINT/);
   assert.match(footerFrame(app.lastFrame()), /↑\/↓ scroll/);
   const extensionFrames = [app.lastFrame() ?? ""];
   for (let index = 0; index < 80 && !/DOCS \/ EXAMPLE/.test(app.lastFrame() ?? ""); index += 1) {
@@ -1026,13 +1105,12 @@ test("declared extensions are a separate TUI catalog view with their import and 
     /DOCS \/ EXAMPLE\s+docs\/keyboard-scene\.md.*examples\/keyboard-scene\.tsx/,
   );
   assert.match(app.lastFrame(), /DOCS \/ EXAMPLE/);
-  assert.match(footerFrame(app.lastFrame()), /Required\s+\(r\)/i);
   await press(app, "r");
   await settle(app);
   assert.match(
     app.lastFrame(),
     /AVAILABLE\s+Button/,
-    "footer shortcuts still work after scrolling",
+    "inline shortcuts still work after scrolling",
   );
   app.unmount();
 });
@@ -1063,9 +1141,10 @@ test("normalized mouse clicks activate a measured catalog action", async () => {
   await settle(app);
   assert.equal(mouse.listenerCount, 1, "FrameworkProvider subscribes to the injected event source");
   assert.match(app.lastFrame(), /Browse catalog/);
-  assert.doesNotMatch(bodyFrame(app.lastFrame()), /Browse catalog|Search catalog|\bSearch\b/i);
-  assert.match(footerFrame(app.lastFrame()), /Browse catalog\s+\(b\)/i);
-  assert.match(footerFrame(app.lastFrame()), /Search catalog\s+\(s\)/i);
+  assert.match(bodyFrame(app.lastFrame()), /Browse catalog\s+\(b\)/i);
+  assert.match(bodyFrame(app.lastFrame()), /Search catalog\s+\(s\)/i);
+  assert.doesNotMatch(footerFrame(app.lastFrame()), /Browse catalog|Search catalog/i);
+  assert.match(footerFrame(app.lastFrame()), /Navigate:.*Manage/i);
 
   // This is a real terminal cell outside the content area. Runeframe's
   // diagnostics expose the measured, registered hitboxes without inferring
@@ -1078,17 +1157,21 @@ test("normalized mouse clicks activate a measured catalog action", async () => {
   const measuredButtons = probe.areas.filter(
     (area) => !area.wheelOnly && area.eligible && area.hasHandler && !area.disabled,
   );
-  assert.equal(measuredButtons.length, 3, "Browse, Search, and Manage each have one footer hitbox");
-  assert.match(app.lastFrame(), /ACTIONS/i);
-  const footerRow = Math.max(...measuredButtons.map((area) => area.bounds.y));
-  const footerButtons = measuredButtons
-    .filter((area) => area.bounds.y === footerRow)
-    .sort((left, right) => left.bounds.x - right.bounds.x);
-  assert.equal(footerButtons.length, 3, "the footer keeps its actions on a measured row");
-  await publishClick(mouse, footerButtons[1].bounds);
+  assert.equal(
+    measuredButtons.length,
+    3,
+    "Browse and Search are inline; Manage stays in the footer",
+  );
+  const searchAction = actionAreaFor(
+    diagnostics,
+    app.lastFrame(),
+    /Search catalog\s+\(s\)/i,
+    "inline search action",
+  );
+  await publishClick(mouse, searchAction.bounds);
   await waitFor(
     () => /Search the registry/.test(app.lastFrame() ?? ""),
-    "clickable footer search action",
+    "clickable inline search action",
   );
   await settle(app);
   mouse.publish(mousePacket("move", 79, 0));
@@ -1096,32 +1179,36 @@ test("normalized mouse clicks activate a measured catalog action", async () => {
   const inputAreas = diagnostics
     .at(-1)
     .areas.filter((area) => !area.wheelOnly && area.eligible && area.hasHandler && !area.disabled);
-  const lastActionRow = Math.max(...inputAreas.map((area) => area.bounds.y));
-  const searchField = inputAreas.find((area) => area.bounds.y < lastActionRow);
+  const searchField = inputAreas.find((area) => area.bounds.width >= 40);
   assert.ok(searchField, "the search field remains a distinct clickable input");
   await publishClick(mouse, searchField.bounds);
   await settle(app);
-  const inputFooterButtons = inputAreas
-    .filter((area) => area.bounds.y === lastActionRow)
-    .sort((left, right) => left.bounds.x - right.bounds.x);
-  assert.equal(inputFooterButtons.length, 2, "search submit and cancel stay in the footer");
-  assert.match(footerFrame(app.lastFrame()), /Cancel\s+\(Esc\)/i);
-  await publishClick(mouse, inputFooterButtons[1].bounds);
+  assert.match(bodyFrame(app.lastFrame()), /Search catalog\s+\(Enter\)/i);
+  assert.match(bodyFrame(app.lastFrame()), /Cancel\s+\(Esc\)/i);
+  assert.doesNotMatch(footerFrame(app.lastFrame()), /Cancel|Search catalog/i);
+  const cancelAction = actionAreaFor(
+    diagnostics,
+    app.lastFrame(),
+    /Cancel\s+\(Esc\)/i,
+    "inline search cancel",
+  );
+  await publishClick(mouse, cancelAction.bounds);
   await settle(app);
   assert.match(
     app.lastFrame(),
     /Choose a design system/,
-    "footer cancel returns to the catalog home",
+    "inline cancel returns to the catalog home",
   );
 
   mouse.publish(mousePacket("move", 79, 0));
   await pause();
-  const refreshedProbe = diagnostics.at(-1);
-  const refreshedButtons = refreshedProbe.areas
-    .filter((area) => !area.wheelOnly && area.eligible && area.hasHandler && !area.disabled)
-    .sort((left, right) => left.bounds.y - right.bounds.y || left.bounds.x - right.bounds.x);
-  assert.equal(refreshedButtons.length, 3, "the home footer returns to Browse, Search, and Manage");
-  await publishClick(mouse, refreshedButtons[0].bounds);
+  const browseAction = actionAreaFor(
+    diagnostics,
+    app.lastFrame(),
+    /Browse catalog\s+\(b\)/i,
+    "inline browse action",
+  );
+  await publishClick(mouse, browseAction.bounds);
 
   await waitFor(
     () => searches.length === 1 && /Mouse-selected system/.test(app.lastFrame() ?? ""),
@@ -1138,7 +1225,7 @@ test("normalized mouse clicks activate a measured catalog action", async () => {
   app.unmount();
 });
 
-test("footer mouse controls change token groups and the keyboard shortcut remains available", async () => {
+test("inline mouse controls change token groups and the keyboard shortcut remains available", async () => {
   const mouse = createMouseEventSource();
   const diagnostics = [];
   const app = start(makeServices({ getProjectState: connectedState }), {
@@ -1151,27 +1238,18 @@ test("footer mouse controls change token groups and the keyboard shortcut remain
   await press(app, "3");
   await settle(app);
   assert.match(app.lastFrame(), /themes · 2\/2 token names/);
+  assert.match(bodyFrame(app.lastFrame()), /Next group\s+\(\]/i);
+  assert.match(bodyFrame(app.lastFrame()), /Previous group\s+\(\[\)/i);
 
   mouse.publish(mousePacket("move", 79, 0));
   await pause();
-  const probe = diagnostics.at(-1);
-  const controls = probe.areas.filter(
-    (area) => !area.wheelOnly && area.eligible && area.hasHandler && !area.disabled,
+  const nextGroup = actionAreaFor(
+    diagnostics,
+    app.lastFrame(),
+    /Next group\s+\(\]/i,
+    "inline next token group control",
   );
-  const contentBottom = Math.max(
-    ...controls
-      .filter((area) => area.bounds.width >= 40)
-      .map((area) => area.bounds.y + area.bounds.height),
-  );
-  const footerButtons = controls
-    .filter((area) => area.bounds.width < 40 && area.bounds.y >= contentBottom)
-    .sort((left, right) => left.bounds.y - right.bounds.y || left.bounds.x - right.bounds.x);
-  assert.equal(
-    footerButtons.length,
-    6,
-    "token actions, local refresh, and Manage are clickable in the footer",
-  );
-  await publishClick(mouse, footerButtons[1].bounds);
+  await publishClick(mouse, nextGroup.bounds);
   await waitFor(() => /spacing · 1\/1 token names/.test(app.lastFrame() ?? ""), "next token group");
 
   await press(app, "[");
@@ -1255,7 +1333,7 @@ test("normalized vertical wheel events scroll the measured component catalog lis
   assert.equal(mouse.listenerCount, 1);
   await press(app, "2");
   await settle(app);
-  assert.match(app.lastFrame(), /AVAILABLE\s+Button/);
+  await scrollDownUntil(app, /AVAILABLE\s+Button/, "the component catalog viewport");
   assert.doesNotMatch(app.lastFrame(), /AVAILABLE\s+Alert/);
 
   // Probe from the top-right terminal cell, away from the list. The wheel
@@ -1355,8 +1433,9 @@ test("icons load lazily on the fifth tab and list only available canonical names
   assert.match(app.lastFrame(), /ArrowLeft\s+ArrowLeftIcon/);
   assert.match(app.lastFrame(), /Search\s+SearchIcon/);
   assert.doesNotMatch(bodyFrame(app.lastFrame()), /Home\s+HomeIcon/);
-  assert.match(footerFrame(app.lastFrame()), /Filter names\s+\(\/\)/i);
-  assert.match(footerFrame(app.lastFrame()), /Reload\s+\(l\)/i);
+  assert.match(bodyFrame(app.lastFrame()), /Filter names\s+\(\/\)/i);
+  assert.match(bodyFrame(app.lastFrame()), /Reload\s+\(l\)/i);
+  assert.doesNotMatch(footerFrame(app.lastFrame()), /Filter names|Reload/i);
   app.unmount();
 });
 
@@ -1373,7 +1452,7 @@ test("icons filter locally with / and show the selected import and entrypoint re
   assert.match(app.lastFrame(), /filter: search/);
   assert.match(app.lastFrame(), /Search\s+SearchIcon/);
   assert.doesNotMatch(bodyFrame(app.lastFrame()), /ArrowLeft/);
-  assert.match(footerFrame(app.lastFrame()), /Filter names\s+\(\/\)/i);
+  assert.match(bodyFrame(app.lastFrame()), /Filter names\s+\(\/\)/i);
 
   const detailFrames = await collectScrollableFrames(app, [
     { pattern: /lucide-react@\^0\.468\.0/, description: "selected icon requirement details" },
@@ -1384,6 +1463,49 @@ test("icons filter locally with / and show the selected import and entrypoint re
   assert.match(details, /import \{ SearchIcon \} from "@prism-system\/ui-a\/icons"/);
   assert.match(details, /ENTRYPOINT\s+\.\/icons.*@prism-system\/ui-a\/icons/);
   assert.match(details, /lucide-react@\^0\.468\.0.*peer/);
+  app.unmount();
+});
+
+test("q is ordinary input in icon search and does not exit the TUI", async () => {
+  const app = start(makeServices({ getProjectState: connectedState }), { columns: 80, rows: 20 });
+  await settle(app);
+  await press(app, "5");
+  await settle(app);
+  await press(app, "/");
+  await typeText(app, "q");
+  assert.match(app.lastFrame(), /Filter icon names/);
+  assert.match(app.lastFrame(), /q/);
+  assert.doesNotMatch(app.lastFrame(), /PRISM DS {2}\/ {2}CONSUMER TERMINAL\s*$/);
+  app.unmount();
+});
+
+test("successful system mutation invalidates the lazy icon catalog cache", async () => {
+  let iconReads = 0;
+  const app = start(
+    makeServices({
+      getProjectState: connectedState,
+      listIcons: () => {
+        iconReads += 1;
+        return iconCatalog();
+      },
+      executeMutation: async () => ({ ok: true, applied: true, changed: true, failures: [] }),
+    }),
+  );
+  await settle(app);
+  await press(app, "5");
+  await settle(app);
+  assert.equal(iconReads, 1);
+  await press(app, "1");
+  await press(app, "g");
+  await typeText(app, "2.0.0");
+  await press(app, "enter");
+  await waitFor(() => /Confirm planned change/.test(app.lastFrame() ?? ""), "upgrade confirmation");
+  await press(app, "y");
+  await waitFor(() => /connected/i.test(app.lastFrame() ?? ""), "mutation completion");
+  await pause(80);
+  await press(app, "5");
+  await settle(app);
+  assert.equal(iconReads, 2, "icons reload after a system-changing operation");
   app.unmount();
 });
 
@@ -1406,7 +1528,8 @@ test("icons reload with l without leaving the tab", async () => {
   await settle(app);
   assert.equal(iconReads, 2);
   assert.match(app.lastFrame(), /ArrowLeft\s+ArrowLeftIcon/);
-  assert.match(footerFrame(app.lastFrame()), /Reload\s+\(l\)/i);
+  assert.match(bodyFrame(app.lastFrame()), /Reload\s+\(l\)/i);
+  assert.doesNotMatch(footerFrame(app.lastFrame()), /Reload/i);
   app.unmount();
 });
 
@@ -1521,13 +1644,14 @@ test("Checks explain scope, report results, and require an explicit CSS path for
   await settle(app);
   assert.match(app.lastFrame(), /not application tests/i);
   assert.match(app.lastFrame(), /never searches for or guesses/i);
+  assert.match(app.lastFrame(), /Run check\s+\(c\)/i);
+  assert.match(app.lastFrame(), /Run doctor\s+\(d\)/i);
+  assert.match(app.lastFrame(), /Check usage\s+\(u\)/i);
+  assert.match(app.lastFrame(), /Check CSS path\s+\(t\)/i);
   assert.doesNotMatch(
-    bodyFrame(app.lastFrame()),
-    /Run check|Run doctor|Check usage|Check CSS path/i,
-    "check actions are described in the body and offered once in Actions",
+    app.lastFrame().slice(app.lastFrame().indexOf("Navigate:")),
+    /Run check|Run doctor|Check usage|Check CSS/i,
   );
-  assert.match(footerFrame(app.lastFrame()), /Run check\s+\(c\)/i);
-  assert.match(footerFrame(app.lastFrame()), /Run doctor\s+\(d\)/i);
 
   await press(app, "c");
   await waitFor(() => calls.some(([name]) => name === "check"), "health report");
@@ -1539,7 +1663,7 @@ test("Checks explain scope, report results, and require an explicit CSS path for
   );
   await scrollDownUntil(app, /not_checked/i, "the individual health-check status");
   assert.match(app.lastFrame(), /not_checked/i);
-  assert.match(footerFrame(app.lastFrame()), /Run check\s+\(c\)/i);
+  assert.match(app.lastFrame(), /Run check\s+\(c\)/i);
   await press(app, "d");
   await waitFor(() => calls.some(([name]) => name === "doctor"), "doctor diagnostics");
   assert.match(app.lastFrame(), /export missing/);
@@ -1559,21 +1683,20 @@ test("Checks explain scope, report results, and require an explicit CSS path for
     "no path is auto-selected",
   );
   await typeText(app, "src/app.css");
-  Object.defineProperty(app.stdout, "rows", { configurable: true, value: 14 });
-  app.stdout.emit("resize");
-  await settle(app);
   await press(app, "enter");
   await waitFor(() => calls.some(([name]) => name === "tailwind"), "explicit Tailwind check");
+  await waitFor(
+    () => /Tailwind bridge plan is pending/i.test(app.lastFrame() ?? ""),
+    "rendered Tailwind bridge plan status",
+  );
   assert.deepEqual(
     calls.find(([name]) => name === "tailwind"),
     ["tailwind", "src/app.css"],
   );
   assert.match(app.lastFrame(), /Tailwind bridge plan is pending/i);
-  assert.doesNotMatch(
-    app.lastFrame(),
-    /CSS target:/,
-    "the exact target starts below this short viewport",
-  );
+  Object.defineProperty(app.stdout, "rows", { configurable: true, value: 14 });
+  app.stdout.emit("resize");
+  await settle(app);
   await scrollDownUntil(app, /CSS target:/, "the explicit CSS bridge result");
   assert.match(app.lastFrame(), /WARNING · CSS bridge changes are pending/);
   assert.doesNotMatch(app.lastFrame(), /Read-only preview\. Nothing was written\./);
@@ -1584,14 +1707,107 @@ test("Checks explain scope, report results, and require an explicit CSS path for
   );
   assert.match(app.lastFrame(), /CSS target:/);
   assert.match(app.lastFrame(), /Read-only preview|no CSS was written/i);
-  assert.match(footerFrame(app.lastFrame()), /Check\s+\(c\)/i);
+  await scrollUpUntil(app, /Run check\s+\(c\)/i, "the inline check control after scrolling");
+  assert.doesNotMatch(app.lastFrame().slice(app.lastFrame().indexOf("Navigate:")), /Run check/i);
   const completedChecks = calls.filter(([name]) => name === "check").length;
   await press(app, "c");
   await waitFor(
     () => calls.filter(([name]) => name === "check").length === completedChecks + 1,
-    "the fixed check action after scrolling",
+    "the inline check action after scrolling",
   );
   app.unmount();
+});
+
+test("Checks owns its four non-paginated task controls at normal and narrow sizes", async () => {
+  const calls = [];
+  const services = makeServices({
+    getProjectState: connectedState,
+    runCheck: () => {
+      calls.push("check");
+      return { ok: true, summary: "Health report ready", checks: [] };
+    },
+    runDoctor: () => {
+      calls.push("doctor");
+      return { ok: true, summary: "Doctor ready", checks: [] };
+    },
+    runUsageCheck: () => {
+      calls.push("usage");
+      return { ok: true, summary: "Usage ready", findings: [] };
+    },
+  });
+  const mouse = createMouseEventSource();
+  const diagnostics = [];
+  const app = start(services, {
+    mouseEventSource: mouse.source,
+    mouseDiagnostics: (event) => diagnostics.push(event),
+    columns: 80,
+    rows: 24,
+  });
+  await settle(app);
+  await press(app, "4");
+  await settle(app);
+  const controls = ["Run check (c)", "Run doctor (d)", "Check usage (u)", "Check CSS path (t)"];
+  for (const action of controls)
+    assert.match(app.lastFrame(), new RegExp(action.replace(/[()]/g, "\\$&")));
+  const lines = app.lastFrame().split("\n");
+  const row = lines.findIndex((line) => line.includes("Run doctor (d)"));
+  const column = lines[row].indexOf("Run doctor (d)") + 2;
+  mouse.publish(mousePacket("move", column, row));
+  await pause();
+  const targetId = diagnostics.at(-1)?.targetId;
+  assert.ok(targetId, "the visible doctor button is the actual mouse target");
+  mouse.publish(mousePacket("press", column, row));
+  mouse.publish(mousePacket("release", column, row));
+  await waitFor(() => calls.includes("doctor"), "doctor callback from contextual mouse button");
+  assert.equal(diagnostics.at(-1)?.targetId, targetId);
+  await press(app, "c");
+  await waitFor(() => calls.includes("check"), "existing check hotkey callback");
+  assert.doesNotMatch(
+    app.lastFrame().slice(app.lastFrame().indexOf("Navigate:")),
+    /Run check|Run doctor|Check usage|Check CSS path/,
+  );
+  app.unmount();
+
+  const narrow = start(services, { columns: 46, rows: 14 });
+  await settle(narrow);
+  await press(narrow, "4");
+  await settle(narrow);
+  assert.doesNotMatch(narrow.lastFrame(), /More actions|Previous actions/i);
+  await scrollDownUntil(narrow, /Run doctor \(d\)/, "the Checks controls while content scrolls");
+  assert.match(
+    narrow.lastFrame(),
+    /Run doctor \(d\)/,
+    "Checks controls remain reachable while content scrolls",
+  );
+  await scrollUpUntil(narrow, /Run check\s+\(c\)/i, "the first Checks control");
+  const doctorsBefore = calls.filter((name) => name === "doctor").length;
+  const checksBefore = calls.filter((name) => name === "check").length;
+  await press(narrow, "tab");
+  await press(narrow, "tab");
+  assert.match(
+    narrow.lastFrame(),
+    />\s+Run doctor/,
+    "focus is marked on the visible doctor control",
+  );
+  await press(narrow, "enter");
+  await waitFor(
+    () => calls.filter((name) => name === "doctor").length === doctorsBefore + 1,
+    "narrow doctor callback",
+  );
+  await scrollDownUntil(narrow, /Doctor ready/, "the narrow doctor result");
+  assert.equal(
+    calls.filter((name) => name === "doctor").length,
+    doctorsBefore + 1,
+    "Enter invokes the focused doctor action exactly once",
+  );
+  assert.equal(calls.filter((name) => name === "check").length, checksBefore);
+  await scrollUpUntil(narrow, /Run check\s+\(c\)/i, "the top Checks controls");
+  for (const action of controls) {
+    const pattern = new RegExp(action.replace(/[()]/g, "\\$&"));
+    if (!pattern.test(narrow.lastFrame() ?? "")) await scrollDownUntil(narrow, pattern, action);
+    assert.match(narrow.lastFrame(), pattern, `${action} remains reachable at 46×14`);
+  }
+  narrow.unmount();
 });
 
 test("loading, mutation failures, resize, keyboard back navigation, and NO_COLOR keep text status clear", async (t) => {
@@ -1620,9 +1836,9 @@ test("loading, mutation failures, resize, keyboard back navigation, and NO_COLOR
     /NO SYSTEM CONNECTED/i,
     "the empty state is named in text, not just by color",
   );
-  assert.match(app.lastFrame(), /ACTIONS/i);
-  assert.match(app.lastFrame(), /Browse catalog\s+\(b\)/i);
-  assert.match(app.lastFrame(), /q or Ctrl\+C exit/i);
+  assert.match(bodyFrame(app.lastFrame()), /Browse catalog\s+\(b\)/i);
+  assert.match(footerFrame(app.lastFrame()), /q or Ctrl\+C exit/i);
+  assert.match(footerFrame(app.lastFrame()), /navigation only/i);
   await press(app, "b");
   assert.match(app.lastFrame(), /Searching catalog/i);
   rejectSearch(new Error("offline"));
@@ -1715,6 +1931,19 @@ test("upgrade requires a user-entered exact version and shows the manifest diff 
   await waitFor(() => /Confirm planned change/.test(app.lastFrame() ?? ""), "upgrade confirmation");
   assert.equal(previews.length, 1);
   assert.equal(previews[0].version, "2.0.0");
+  await press(app, "tab");
+  await press(app, "tab");
+  assert.match(app.lastFrame(), />\s+View manifest diff/);
+  await press(app, "enter");
+  await waitFor(() => /Manifest diff/.test(app.lastFrame() ?? ""), "focused manifest diff review");
+  assert.equal(executions.length, 0, "focused diff Enter opens review only");
+  await press(app, "escape");
+  await waitFor(
+    () => /Confirm planned change/.test(app.lastFrame() ?? ""),
+    "return from manifest review",
+  );
+  await press(app, ".");
+  await settle(app);
   assert.match(app.lastFrame(), /View manifest diff\s+\(m\)/);
   assert.doesNotMatch(app.lastFrame(), /Component added: Meter/);
   assert.equal(executions.length, 0);
@@ -1904,7 +2133,7 @@ test("Windows adapter normalizes raw Escape, closes a modal, then cancels withou
   }
 });
 
-test("narrow terminals keep paths and action hints visible", async () => {
+test("narrow terminals keep paths and action hints reachable without paging", async () => {
   const app = start(makeServices({ getProjectState: connectedState }));
   await settle(app);
   Object.defineProperty(app.stdout, "columns", { configurable: true, value: 38 });
@@ -1913,17 +2142,25 @@ test("narrow terminals keep paths and action hints visible", async () => {
   await settle(app);
   const frame = app.lastFrame();
   assert.match(frame, /\/consumer\/demo-app/);
-  assert.match(frame, /Inspect\s+\(d\)/i);
-  assert.match(frame, /More\s+\(\.\)/i);
-  assert.match(frame.replace(/\s+/g, " "), /q or Ctrl\+C exit/);
-  await press(app, ".");
+  assert.match(footerFrame(frame), /Navigate:.*Manage/i);
+  assert.match(footerFrame(frame), /q or Ctrl\+C exit/i);
+  assert.doesNotMatch(frame, /More actions\s+\[\.\]|Previous actions/i);
+  await scrollDownUntil(app, /Inspect manifest\s+\(d\)/i, "inline inspect control at 38x12");
+  await scrollDownUntil(app, /Reconnect\s+\(c\)/i, "inline reconnect control at 38x12");
+  assert.match(app.lastFrame(), /Reconnect\s+\(c\)/i);
   await press(app, ".");
   await settle(app);
-  assert.match(app.lastFrame(), /Upgrade\s+\(g\)/i);
+  assert.doesNotMatch(app.lastFrame(), /Confirm planned change|Apply\s+\(/i);
+  await scrollDownUntil(
+    app,
+    /Upgrade to exact version\s+\(g\)/i,
+    "inline upgrade control at 38x12",
+  );
+  assert.match(app.lastFrame(), /Upgrade to exact version\s+\(g\)/i);
   app.unmount();
 });
 
-test("short resized terminals keep the footer at the bottom with clickable actions", async () => {
+test("short resized terminals keep the footer anchored and inline actions clickable", async () => {
   const mouse = createMouseEventSource();
   const diagnostics = [];
   const executions = [];
@@ -1945,65 +2182,50 @@ test("short resized terminals keep the footer at the bottom with clickable actio
   await settle(app);
   const frame = app.lastFrame() ?? "";
   assert.match(frame.replace(/\s+/g, " "), /q or Ctrl\+C exit/);
-  assert.match(frame, /Inspect\s+\(d\)/i);
-  assert.match(frame, /More\s+\(\.\)/i);
-  const lines = frame.split("\n");
-  const footerTop = lines.findIndex((line) => /┌/.test(line));
-  const exitRow = lines.findIndex((line) => /q or Ctrl\+C exit/i.test(line));
-  assert.notEqual(footerTop, -1);
-  assert.notEqual(exitRow, -1);
-  assert.ok(exitRow > footerTop, "the exit hint remains in the anchored footer");
+  const sections = frameSections(frame);
+  assert.notEqual(sections.footerStart, -1, "the anchored footer is separated by its top border");
+  assert.match(sections.footer, /Navigate:/);
+  assert.match(sections.footer, /q or Ctrl\+C exit/i);
+  assert.match(sections.footer, /navigation only/i);
+  assert.equal(sections.lines.length, 12, "the short terminal frame keeps its exact height");
+  assert.ok(
+    sections.footerStart < 12 && sections.footerStart >= 8,
+    "the footer remains anchored at the bottom of the short terminal",
+  );
+  assert.doesNotMatch(sections.footer, /Inspect manifest|Reconnect|More actions/i);
 
+  await scrollDownUntil(app, /Reconnect\s+\(c\)/i, "inline reconnect control at 38x12");
   mouse.publish(mousePacket("move", 37, 0));
   await pause();
-  const footerButtons = diagnostics
+  const reconnect = actionAreaFor(
+    diagnostics,
+    app.lastFrame(),
+    /Reconnect\s+\(c\)/i,
+    "inline reconnect action",
+  );
+  const measuredActions = diagnostics
     .at(-1)
-    .areas.filter(
-      (area) =>
-        !area.wheelOnly &&
-        area.eligible &&
-        area.hasHandler &&
-        !area.disabled &&
-        area.bounds.y > footerTop,
-    );
-  assert.ok(footerButtons.length >= 2, "visible action and paging controls have measured targets");
+    .areas.filter((area) => !area.wheelOnly && area.eligible && area.hasHandler && !area.disabled);
+  assert.ok(measuredActions.length >= 1, "the visible inline actions have measured hitboxes");
   assert.ok(
-    footerButtons.every(
+    measuredActions.every(
       (area) =>
         area.bounds.x >= 0 &&
         area.bounds.y >= 0 &&
         area.bounds.x + area.bounds.width <= 38 &&
         area.bounds.y + area.bounds.height <= 12,
     ),
-    "no footer target is clipped beyond the resized terminal bounds",
+    "no inline target is clipped beyond the resized terminal bounds",
   );
-  const moreActions = footerButtons.find((area) => {
-    const row = lines[area.bounds.y] ?? "";
-    const column = row.search(/More\s+\(\.\)/i);
-    return column >= area.bounds.x && column < area.bounds.x + area.bounds.width;
-  });
-  assert.ok(moreActions, "more actions has a visible, measured target");
-  await publishClick(mouse, moreActions.bounds);
+  await publishClick(mouse, reconnect.bounds);
   assert.equal(
     diagnostics.at(-1).dispatched,
     true,
-    "the paging button remains a real mouse target at the resized terminal origin",
+    "the inline action is a real mouse target at the resized terminal origin",
   );
-  assert.equal(diagnostics.at(-1).targetId, moreActions.id);
-  await waitFor(() => /Reconnect\s+\(c\)/i.test(app.lastFrame() ?? ""), "next footer action");
-
-  mouse.publish(mousePacket("move", 37, 0));
-  await pause();
-  const reconnect = diagnostics.at(-1).areas.find((area) => {
-    if (area.wheelOnly || !area.eligible || !area.hasHandler || area.disabled) return false;
-    const row = app.lastFrame()?.split("\n")[area.bounds.y] ?? "";
-    const column = row.search(/Reconnect/i);
-    return column >= area.bounds.x && column < area.bounds.x + area.bounds.width;
-  });
-  assert.ok(reconnect, "the reconnect action is reachable on the next footer page");
-  await publishClick(mouse, reconnect.bounds);
+  assert.equal(diagnostics.at(-1).targetId, reconnect.id);
   await waitFor(() => /Confirm planned change/.test(app.lastFrame() ?? ""), "reconnect preview");
-  assert.equal(executions.length, 0, "opening a footer action never executes the preview");
+  assert.equal(executions.length, 0, "opening an inline action never executes the preview");
   await press(app, "escape");
   await settle(app);
   assert.equal(executions.length, 0, "Escape cancels without mutation");
@@ -2099,15 +2321,15 @@ test("Manage exposes lifecycle actions, an explicit CSS target, compatibility re
     }),
   );
   await settle(app);
-  assert.match(footerFrame(app.lastFrame()), /Manage\s+\(m\)/i);
+  assert.match(app.lastFrame(), /Navigate:.*Manage/i);
 
   await press(app, "m");
   assert.match(app.lastFrame(), /Manage project and tooling/);
-  assert.match(footerFrame(app.lastFrame()), /System lifecycle\s+\(s\)/i);
+  assert.match(app.lastFrame(), /System lifecycle\s+\(s\)/i);
   await press(app, "s");
   assert.match(app.lastFrame(), /System lifecycle/);
-  assert.match(footerFrame(app.lastFrame()), /Switch system\s+\(w\)/i);
-  assert.match(footerFrame(app.lastFrame()), /Remove system\s+\(x\)/i);
+  assert.match(app.lastFrame(), /Switch system\s+\(w\)/i);
+  assert.match(app.lastFrame(), /Remove system\s+\(x\)/i);
 
   await press(app, "c");
   assert.match(app.lastFrame(), /Choose an explicit CSS file/);
@@ -2122,7 +2344,9 @@ test("Manage exposes lifecycle actions, an explicit CSS target, compatibility re
     () => /Published manifest details/.test(app.lastFrame() ?? ""),
     "switch target details",
   );
-  assert.match(footerFrame(app.lastFrame()), /Preview switch\s+\(w\)/i);
+  assert.match(app.lastFrame(), /@prism-system\/ui-b@2\.0\.0/);
+  await scrollDownUntil(app, /Preview switch\s+\(w\)/i, "switch target preview control");
+  assert.match(app.lastFrame(), /Preview switch\s+\(w\)/i);
   await press(app, "w");
   await waitFor(() => /Confirm planned change/.test(app.lastFrame() ?? ""), "switch preview");
   assert.equal(previews[0].kind, "switch");
@@ -2255,6 +2479,8 @@ test("compact switch review bounds long detected-entry and peer lists without hi
     () => /Published manifest details/.test(app.lastFrame() ?? ""),
     "compact switch target details",
   );
+  await scrollDownUntil(app, /Preview switch\s+\(w\)/i, "compact switch target preview control");
+  assert.match(app.lastFrame(), /Preview switch\s+\(w\)/i);
   await press(app, "w");
   await waitFor(
     () => /Confirm planned change/.test(app.lastFrame() ?? ""),
@@ -2282,7 +2508,7 @@ test("compact switch review bounds long detected-entry and peer lists without hi
   assert.match(frame, /\+2 more auto-selected entries not shown/);
   assert.match(frame, /three \[peer\] · \^0\.186\.0 · optional · install 0\.186\.1/);
   assert.match(frame, /\+3 more peer actions not shown/);
-  assert.match(footerFrame(app.lastFrame()), /Apply\s+\(y \/ Enter\)/i);
+  assert.match(frame, /Confirm & apply\s+\(y \/ Enter\)/i);
   assert.equal(executions.length, 0);
   await press(app, "escape");
   assert.equal(executions.length, 0, "canceling a compact preview does not mutate the project");
@@ -2326,8 +2552,14 @@ test("Use offers pending automatic skill setup, an explicit agent, and a clear n
   await settle(app);
   await press(app, "enter");
   await waitFor(() => /Published manifest details/.test(app.lastFrame() ?? ""), "catalog details");
-  assert.match(footerFrame(app.lastFrame()), /Use without skill setup\s+\(n\)/i);
-  assert.match(footerFrame(app.lastFrame()), /Choose skill agent\s+\(a\)/i);
+  await scrollDownUntil(
+    app,
+    /Use without skill setup\s+\(n\)/i,
+    "inline use-without-skill control",
+  );
+  assert.match(bodyFrame(app.lastFrame()), /Use without skill setup\s+\(n\)/i);
+  await scrollDownUntil(app, /Choose skill agent\s+\(a\)/i, "inline choose-agent control");
+  assert.match(bodyFrame(app.lastFrame()), /Choose skill agent\s+\(a\)/i);
 
   await press(app, "u");
   await waitFor(
@@ -2381,31 +2613,36 @@ test("Use offers pending automatic skill setup, an explicit agent, and a clear n
 test("skills screen observes inventory offline, requires an agent, and cancellation never installs", async () => {
   let inventoryCalls = 0;
   const previews = [];
+  const previewResponses = [];
   const executions = [];
   const catalog = [
     {
       id: "use-design-system",
       skill: "use-design-system",
       type: "prism",
+      source: "prism",
+      publisher: "Prism",
+      categories: ["lifecycle"],
+      tags: ["consumer"],
       role: "consumer",
       reviewStatus: "firstparty",
-      description: "Consumer setup instructions.",
-      tags: ["consumer"],
     },
     {
       id: "frontend-design",
       skill: "frontend-design",
       type: "design",
+      source: "vercel-labs/agent-skills",
+      publisher: "Vercel Labs",
+      categories: ["design"],
+      tags: ["ui"],
       role: "design-craft",
       reviewStatus: "reviewed",
-      description: "UI craft guidance.",
-      tags: ["ui"],
     },
   ];
   const app = start(
     makeServices({
       getProjectState: connectedState,
-      skillAgentIds: ["claude-code", "codex", "cursor", "opencode"],
+      skillAgentIds: ["codex", "unverified-agent", "claude-code", "cursor", "opencode"],
       listSkills: async ({ scope }) => {
         inventoryCalls += 1;
         return {
@@ -2416,7 +2653,18 @@ test("skills screen observes inventory offline, requires an agent, and cancellat
               catalogId: "use-design-system",
               scope: "project",
               managed: true,
+              modified: false,
+              drift: false,
+              placements: [{ relativePath: ".agents/skills/use-design-system", agent: null }],
               relativePath: ".agents/skills/use-design-system",
+            },
+            {
+              name: "use-design-system",
+              scope: "global",
+              managed: false,
+              modified: false,
+              drift: false,
+              relativePath: "skills/use-design-system",
             },
           ],
           scope,
@@ -2424,7 +2672,7 @@ test("skills screen observes inventory offline, requires an agent, and cancellat
       },
       previewSkillMutation: async (action) => {
         previews.push(action);
-        return {
+        const result = {
           ok: true,
           dryRun: true,
           kind: "skill",
@@ -2437,16 +2685,20 @@ test("skills screen observes inventory offline, requires an agent, and cancellat
               {
                 path: "/consumer/demo-app/.agents/skills/use-design-system",
                 selected: true,
-                exists: false,
+                exists: true,
               },
             ],
             warnings: [],
           },
         };
+        previewResponses.push(result);
+        return result;
       },
       executeSkillMutation: async (action, preview) => {
         executions.push({ action, preview });
-        return { ok: true, applied: true, changed: true, failures: [] };
+        return executions.length === 1
+          ? { ok: true, applied: true, changed: true, failures: [] }
+          : { ok: true, applied: false, changed: false, failures: [] };
       },
     }),
   );
@@ -2457,17 +2709,41 @@ test("skills screen observes inventory offline, requires an agent, and cancellat
   assert.equal(inventoryCalls, 1);
   assert.match(app.lastFrame(), /AGENT\s+not selected/);
   assert.match(app.lastFrame(), /Instructions only/);
-  assert.match(footerFrame(app.lastFrame()), /Choose agent\s+\(a\)/i);
-  assert.match(footerFrame(app.lastFrame()), /Add skill\s+\(Enter\)/i);
+  assert.doesNotMatch(footerFrame(app.lastFrame()), /Add skill|Choose agent/i);
+  assert.match(app.lastFrame(), /Enter or click a skill to view details/);
 
   await press(app, "enter");
+  assert.match(app.lastFrame(), /use-design-system/);
+  assert.match(app.lastFrame(), /Agent: not selected/i);
+  assert.match(app.lastFrame(), /Scope: project/i);
+  assert.match(app.lastFrame(), /\[i\] Update \(preview\)/);
+  assert.match(app.lastFrame(), /\[x\] Remove/);
+  assert.match(app.lastFrame(), /Source: prism · Publisher: Prism · Trust: firstparty/);
+  assert.match(app.lastFrame(), /Managed/);
+  assert.doesNotMatch(app.lastFrame(), /modified files detected|placement drift detected/i);
+  assert.match(app.lastFrame(), /Paths: \.agents\/skills\/use-design-system/);
+  assert.match(app.lastFrame(), /No description is published/);
   assert.equal(previews.length, 0, "an absent agent selection never produces a plan");
-  assert.match(app.lastFrame(), /Choose a catalog skill and one supported agent/i);
-  await press(app, "1");
-  assert.match(app.lastFrame(), /AGENT\s+claude-code/);
+  await press(app, "escape");
+  assert.doesNotMatch(app.lastFrame(), /ID \/ TYPE/);
+  assert.equal(previews.length, 0, "closing the details dialog does not plan or mutate");
   await press(app, "enter");
-  await waitFor(() => /Confirm skill add/.test(app.lastFrame() ?? ""), "skill add confirmation");
-  assert.deepEqual(previews[0].agents, ["claude-code"]);
+  await press(app, "a");
+  assert.match(app.lastFrame(), /Agent: codex/i);
+  await press(app, "g");
+  assert.match(app.lastFrame(), /Scope: global/i);
+  assert.match(app.lastFrame(), /External\/unmanaged/i);
+  assert.match(app.lastFrame(), /overwrite\/remove unavailable/);
+  assert.doesNotMatch(app.lastFrame(), /\[i\] Update|\[x\] Remove/);
+  await press(app, "g");
+  assert.match(app.lastFrame(), /Scope: project/i);
+  await press(app, "u");
+  await waitFor(
+    () => /Confirm skill update/.test(app.lastFrame() ?? ""),
+    "skill update confirmation",
+  );
+  assert.equal(previews.length, 1);
+  assert.deepEqual(previews[0].agents, ["codex"]);
   const skillPreview = await collectScrollableFrames(app, [
     { pattern: /SOURCE REVISION/, description: "skill source revision" },
     { pattern: /Planned skill placements/, description: "planned skill placement" },
@@ -2484,13 +2760,97 @@ test("skills screen observes inventory offline, requires an agent, and cancellat
   assert.equal(executions.length, 0, "cancellation does not call the skill installer");
 
   await settle(app);
-  await press(app, "g");
-  assert.match(app.lastFrame(), /SCOPE\s+GLOBAL/);
-  await press(app, "a");
-  assert.match(app.lastFrame(), /Choose a skill agent/);
-  await typeText(app, "codex");
   await press(app, "enter");
-  assert.match(app.lastFrame(), /AGENT\s+codex/);
+  await press(app, "u");
+  await waitFor(
+    () => /Confirm skill update/.test(app.lastFrame() ?? ""),
+    "second skill update preview",
+  );
+  assert.equal(executions.length, 0);
+  await press(app, "y");
+  await waitFor(() => executions.length === 1, "confirmed skill update");
+  assert.equal(
+    executions[0].preview,
+    previewResponses[1],
+    "execution receives the unchanged reviewed preview",
+  );
+  await waitFor(() => inventoryCalls === 2, "inventory refresh after skill update");
+
+  await settle(app);
+  await press(app, "enter");
+  await press(app, "u");
+  await waitFor(() => /Confirm skill update/.test(app.lastFrame() ?? ""), "no-op skill preview");
+  await press(app, "y");
+  await waitFor(
+    () => /Skill action made no changes/.test(app.lastFrame() ?? ""),
+    "truthful no-op status",
+  );
+  assert.equal(executions.length, 2);
+  await waitFor(() => inventoryCalls === 3, "inventory refresh after no-op");
+
+  await settle(app);
+  await press(app, "escape");
+  await press(app, "k");
+  await press(app, "d");
+  await press(app, "enter");
+  assert.match(app.lastFrame(), /frontend-design/);
+  assert.match(app.lastFrame(), /\[i\] Install \(preview\)/);
+  await press(app, "a");
+  await press(app, "g");
+  assert.match(app.lastFrame(), /Scope: global/i);
+  assert.match(
+    app.lastFrame(),
+    /Agent: (codex|unverified-agent|claude-code|cursor|opencode)/i,
+    "an explicit supported agent remains selected",
+  );
+  app.unmount();
+});
+
+test("skill modal disables shell navigation mouse targets behind the overlay", async () => {
+  const mouse = createMouseEventSource();
+  const diagnostics = [];
+  const app = start(
+    makeServices({
+      getProjectState: connectedState,
+      skillAgentIds: ["codex"],
+      listSkills: async () => ({
+        ok: true,
+        catalog: [
+          {
+            id: "use-design-system",
+            skill: "use-design-system",
+            type: "prism",
+            source: "prism",
+            role: "consumer",
+          },
+        ],
+        installed: [],
+        scope: "project",
+      }),
+    }),
+    {
+      mouseEventSource: mouse.source,
+      mouseDiagnostics: (event) => diagnostics.push(event),
+      columns: 80,
+      rows: 24,
+    },
+  );
+  await settle(app);
+  await press(app, "m");
+  await press(app, "k");
+  await waitFor(() => /use-design-system/.test(app.lastFrame() ?? ""), "skill list");
+  await press(app, "enter");
+  assert.match(app.lastFrame(), /Agent: not selected/);
+
+  // Probe the old Manage-button location at the bottom of the terminal. Use
+  // the event's actual target, not an arbitrary eligible-area snapshot entry.
+  mouse.publish(mousePacket("move", 10, 22));
+  await pause();
+  assert.equal(
+    diagnostics.at(-1)?.targetId ?? null,
+    null,
+    "the hidden shell footer has no target while the dialog is open",
+  );
   app.unmount();
 });
 
@@ -2549,7 +2909,8 @@ test("slow startup update check does not block the connected screen; global upda
   await press(app, "m");
   await press(app, "u");
   assert.match(app.lastFrame(), /Checking in background/i);
-  assert.match(app.lastFrame(), /This updates the CLI package only/);
+  assert.match(app.lastFrame(), /Update the prism-ds CLI only/);
+  assert.match(app.lastFrame(), /does not upgrade your design system/i);
   resolveCheck({
     ok: true,
     available: true,
@@ -2659,8 +3020,26 @@ test("recovery keeps guidance separate and requires confirmation for an applicab
   await press(app, "m");
   await press(app, "r");
   await waitFor(() => /2 issues at/.test(app.lastFrame() ?? ""), "recovery diagnosis");
-  assert.match(app.lastFrame(), /GUIDANCE\s+Repair the consumer config/);
-  assert.match(app.lastFrame(), /REPAIR\s+Reconnect the consumer contract/);
+  const diagnosisFrame = app.lastFrame() ?? "";
+  assert.match(
+    diagnosisFrame,
+    /GUIDANCE\s+Repair the consumer config/,
+    "normal recovery guidance is visible immediately above the secondary CSS/entry controls",
+  );
+  assert.match(diagnosisFrame, /REPAIR\s+Reconnect the consumer contract/);
+  const normalizedDiagnosis = diagnosisFrame.replace(/\s+/g, " ");
+  if (/Set a CSS target/.test(normalizedDiagnosis)) {
+    assert.ok(
+      normalizedDiagnosis.search(/GUIDANCE\s+Repair the consumer config/) <
+        normalizedDiagnosis.search(/Set a CSS target/),
+      "recovery suggestions stay above secondary CSS/entry controls",
+    );
+    assert.ok(
+      normalizedDiagnosis.search(/Preview selected repair/i) <
+        normalizedDiagnosis.search(/Set a CSS target/),
+      "the repair preview control stays above secondary CSS/entry controls",
+    );
+  }
 
   await press(app, "enter");
   assert.equal(previews.length, 0, "guidance-only recommendations never invoke a planner");
@@ -2671,6 +3050,12 @@ test("recovery keeps guidance separate and requires confirmation for an applicab
     "the applicable recovery repair choice",
   );
   await press(app, "2");
+  await scrollDownUntil(
+    app,
+    /Preview selected repair/i,
+    "the inline repair preview control before optional CSS/entry controls",
+  );
+  assert.match(app.lastFrame(), /Preview selected repair/i);
   await press(app, "enter");
   await waitFor(
     () => /Confirm targeted recovery action/.test(app.lastFrame() ?? ""),
@@ -2705,6 +3090,217 @@ test("compact project facts keep labels and values readable without column colli
   app.unmount();
 });
 
+test("full TUI keeps project context and both safe confirmation choices at short widths", async () => {
+  for (const [columns, rows] of [
+    [46, 14],
+    [38, 12],
+  ]) {
+    const executions = [];
+    const app = start(
+      makeServices({
+        getProjectState: connectedState,
+        executeMutation: async (action, preview) => {
+          executions.push({ action, preview });
+          return { ok: true, applied: true, changed: true, failures: [] };
+        },
+      }),
+      { columns, rows },
+    );
+    await settle(app);
+    const home = app.lastFrame() ?? "";
+    assert.match(home, /@prism-system\/ui-a@1\.2\.3/);
+    assert.match(footerFrame(home).replace(/\s+/g, " "), /navigation only/i);
+    assert.doesNotMatch(home, /More actions\s+\[\.\]|Previous actions/i);
+    await scrollDownUntil(app, /Reconnect\s+\(c\)/i, `${columns}x${rows} inline reconnect control`);
+    assert.match(bodyFrame(app.lastFrame()), /Inspect manifest\s+\(d\)/i);
+    await scrollDownUntil(
+      app,
+      /Upgrade to exact version\s+\(g\)/i,
+      `${columns}x${rows} inline upgrade control`,
+    );
+    assert.match(bodyFrame(app.lastFrame()), /Upgrade to exact version\s+\(g\)/i);
+
+    await press(app, "g");
+    await typeText(app, "2.0.0");
+    await press(app, "enter");
+    await waitFor(
+      () => /CHANGE PREVIEW|Review controls/.test(app.lastFrame() ?? ""),
+      `${columns}x${rows} preview`,
+    );
+    const approval = app.lastFrame() ?? "";
+    assert.match(approval, /Apply\s+\(y \/ Enter\)/i);
+    assert.match(approval, /Cancel\s+\(Esc \/ n\)/i);
+    assert.equal(executions.length, 0, "preview rendering is read-only");
+    await scrollDownUntil(app, /Confirm planned change/, `${columns}x${rows} confirmation title`);
+    await press(app, "escape");
+    assert.equal(executions.length, 0, "Escape cancels without executing");
+    app.unmount();
+  }
+});
+
+test("integrated footer focus is visible, wraps every action, and never steals list or input keys", async () => {
+  for (const columns of [38, 46, 50, 68, 80, 100]) {
+    const executions = [];
+    const app = start(
+      makeServices({
+        getProjectState: connectedState,
+        executeMutation: async (action, preview) => {
+          executions.push({ action, preview });
+          return { ok: true, applied: true, changed: true, failures: [] };
+        },
+      }),
+      { columns, rows: columns < 50 ? 12 : 18 },
+    );
+    await settle(app);
+    await scrollDownUntil(
+      app,
+      /Inspect manifest\s+\(d\)/i,
+      `${columns} columns inline action controls`,
+    );
+    await scrollDownUntil(
+      app,
+      /Refresh state\s+\(p\)/i,
+      `${columns} columns all inline action rows`,
+    );
+    const seen = new Set();
+    let firstMarker = "";
+    for (let index = 0; index < 30; index += 1) {
+      await press(app, "tab");
+      const frame = app.lastFrame() ?? "";
+      const marker = frame.match(/\[>\s*[^\]]+\]/)?.[0] ?? "";
+      assert.ok(marker, `${columns} columns shows a textual focused-action marker:\n${frame}`);
+      if (!firstMarker) firstMarker = marker;
+      seen.add(marker);
+      if (index > 1 && marker === firstMarker) break;
+    }
+    assert.ok(seen.size >= 3, `${columns} columns exposes multiple actions through Tab`);
+    assert.equal(executions.length, 0, "moving focus never executes a mutation");
+    await press(app, "shift-tab");
+    await settle(app);
+    assert.doesNotMatch(app.lastFrame(), /Tab next · Shift\+Tab back · Enter activate/);
+    app.unmount();
+  }
+
+  const app = start(makeServices({ getProjectState: connectedState }), { columns: 80, rows: 24 });
+  await settle(app);
+  await press(app, "5");
+  await settle(app);
+  await press(app, "/");
+  await typeText(app, "q,.");
+  assert.match(app.lastFrame(), /Filter icon names/);
+  assert.match(app.lastFrame(), /q/);
+  assert.match(app.lastFrame(), /,\./);
+  assert.doesNotMatch(app.lastFrame(), /Tab actions/);
+  app.unmount();
+});
+
+test("integrated focused Enter confirms exactly once and Escape still cancels", async () => {
+  const executions = [];
+  const app = start(
+    makeServices({
+      getProjectState: connectedState,
+      executeMutation: async (action, preview) => {
+        executions.push({ action, preview });
+        return { ok: true, applied: true, changed: true, failures: [] };
+      },
+    }),
+    { columns: 80, rows: 24 },
+  );
+  await settle(app);
+  await press(app, "g");
+  await typeText(app, "2.0.0");
+  await press(app, "enter");
+  await waitFor(() => /Confirm planned change/.test(app.lastFrame() ?? ""), "confirmation screen");
+  assert.equal(executions.length, 0);
+  await press(app, "tab");
+  await press(app, "tab");
+  assert.match(app.lastFrame(), />\s+Confirm & apply/);
+  await press(app, "enter");
+  await waitFor(() => executions.length === 1, "one confirmed execution");
+  await pause(50);
+  assert.equal(executions.length, 1, "Enter is not double-activated by Runeframe Button");
+  app.unmount();
+
+  const canceledExecutions = [];
+  const canceled = start(
+    makeServices({
+      getProjectState: connectedState,
+      executeMutation: async (action) => {
+        canceledExecutions.push(action);
+        return { ok: true, applied: true, failures: [] };
+      },
+    }),
+    { columns: 46, rows: 14 },
+  );
+  await settle(canceled);
+  await press(canceled, "g");
+  await typeText(canceled, "2.0.0");
+  await press(canceled, "enter");
+  await waitFor(
+    () => /Confirm planned change/.test(canceled.lastFrame() ?? ""),
+    "short confirmation",
+  );
+  assert.match(canceled.lastFrame(), /Apply\s+\(y \/ Enter\)/i);
+  assert.match(canceled.lastFrame(), /Cancel\s+\(Esc \/ n\)/i);
+  await press(canceled, "escape");
+  assert.equal(canceledExecutions.length, 0, "Escape from integrated confirmation never executes");
+  canceled.unmount();
+});
+
+test("focused Cancel owns Enter and cannot execute a pending mutation", async () => {
+  const executions = [];
+  const app = start(
+    makeServices({
+      getProjectState: connectedState,
+      executeMutation: async (action) => {
+        executions.push(action);
+        return { ok: true, applied: true, failures: [] };
+      },
+    }),
+    { columns: 80, rows: 24 },
+  );
+  await settle(app);
+  await press(app, "g");
+  await typeText(app, "2.0.0");
+  await press(app, "enter");
+  await waitFor(() => /Confirm planned change/.test(app.lastFrame() ?? ""), "confirmation screen");
+  // Walk focus to Cancel rather than using its direct n/Escape shortcut.
+  for (let index = 0; index < 6; index += 1) await press(app, "tab");
+  assert.match(app.lastFrame(), />\s+Cancel/);
+  await press(app, "enter");
+  await pause(30);
+  assert.equal(executions.length, 0);
+  assert.doesNotMatch(app.lastFrame(), /Confirm planned change/);
+  app.unmount();
+});
+
+test("disabled or stale focused confirmation controls consume activation without applying", () => {
+  const calls = [];
+  const event = { enter: true, key: "Enter" };
+  for (const key of ["cancel", "inspect-files"]) {
+    const handled = dispatchFocusedAction({
+      focusedKey: key,
+      actions: [{ key, disabled: true, onActivate: () => calls.push(key) }],
+      event,
+      inputView: false,
+      confirmationView: true,
+    });
+    assert.equal(handled, true);
+  }
+  assert.equal(
+    dispatchFocusedAction({
+      focusedKey: "cancel",
+      actions: [],
+      event,
+      inputView: false,
+      confirmationView: true,
+    }),
+    true,
+    "a stale focused key still owns Enter",
+  );
+  assert.deepEqual(calls, [], "disabled/stale controls never invoke Apply or their own callbacks");
+});
+
 test("short confirmation keeps Apply and Cancel visible together and still requires explicit approval", async () => {
   const executions = [];
   const app = start(
@@ -2724,8 +3320,9 @@ test("short confirmation keeps Apply and Cancel visible together and still requi
   await waitFor(() => /Confirm planned change/.test(app.lastFrame() ?? ""), "short confirmation");
 
   const frame = app.lastFrame() ?? "";
-  assert.match(footerFrame(frame), /Apply\s+\(y \/ Enter\)/i);
-  assert.match(footerFrame(frame), /Cancel\s+\(Esc \/ n\)/i);
+  assert.match(frame, /Confirm & apply\s+\(y \/ Enter\)/i);
+  assert.match(frame, /Cancel\s+\(Esc \/ n\)/i);
+  assert.doesNotMatch(footerFrame(frame), /Apply\s+\(y \/ Enter\)|Cancel\s+\(Esc \/ n\)/i);
   const confirmationFrames = await collectScrollableFrames(app, [
     { pattern: /EXACT VERSION\s+2\.0\.0/, description: "exact version in the approval plan" },
   ]);

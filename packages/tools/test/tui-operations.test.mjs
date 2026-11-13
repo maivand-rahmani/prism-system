@@ -9,8 +9,12 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolve } from "node:path";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 
+import { buildSpawnPlan } from "../src/package-manager.mjs";
+import { CLI_PACKAGE_NAME, readCliPackageInfo } from "../src/self-update.mjs";
 import { createTuiOperations, PROJECT_STATES } from "../src/tui-operations.mjs";
 
 const TARGET = "@prism-system/ui-system-a";
@@ -1635,6 +1639,64 @@ test("skill listing is offline and skill execution refuses a changed source/plac
   assert.equal(executionCalls.length, 1, "a changed revision is never sent to the installer");
 });
 
+function writeJsonFile(path, value) {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+/**
+ * Real production-shaped update fixture: a consumer that declares the actual
+ * running `@prism-system/tools` version and a fake installed copy at that exact
+ * version. Planning stays local and deterministic via an explicit targetVersion.
+ */
+function createRealUpdateFixture(t, { declared = true, section = "devDependencies" } = {}) {
+  const root = mkdtempSync(join(tmpdir(), "prism-tui-update-"));
+  t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
+  const current = readCliPackageInfo().version;
+  const manifest = {
+    name: "consumer-app",
+    version: "0.0.0",
+    private: true,
+    packageManager: "npm@10.0.0",
+  };
+  if (declared) manifest[section] = { [CLI_PACKAGE_NAME]: current };
+  writeJsonFile(join(root, "package.json"), manifest);
+  const installed = join(root, "node_modules", "@prism-system", "tools");
+  writeJsonFile(join(installed, "package.json"), {
+    name: CLI_PACKAGE_NAME,
+    version: current,
+    exports: { ".": "./src/index.mjs", "./package.json": "./package.json" },
+  });
+  mkdirSync(join(installed, "src"), { recursive: true });
+  writeFileSync(join(installed, "src", "index.mjs"), "export {};\n", "utf8");
+  const [major, minor, patch] = current.split(".").map(Number);
+  return { root, installed, current, target: `${major}.${minor}.${patch + 1}` };
+}
+
+/** Fake manager spawn that applies the update to the fake installed copy. */
+function updateSpawn(installed, version, record = []) {
+  return (command, args, options) => {
+    record.push({ command, args, options });
+    writeJsonFile(join(installed, "package.json"), {
+      name: CLI_PACKAGE_NAME,
+      version,
+      exports: { ".": "./src/index.mjs", "./package.json": "./package.json" },
+    });
+    return { status: 0, error: null, stdout: Buffer.from("updated\n"), stderr: Buffer.alloc(0) };
+  };
+}
+
+function expectedLocalUpdateArgs(version) {
+  return [
+    "install",
+    "--save-dev",
+    "--save-exact",
+    "--ignore-scripts",
+    "--registry=https://registry.npmjs.org",
+    `${CLI_PACKAGE_NAME}@${version}`,
+  ];
+}
+
 test("CLI update planning is separate, bounded-check options pass through, and confirmation is mandatory", async () => {
   const command = {
     manager: "npm",
@@ -1667,9 +1729,6 @@ test("CLI update planning is separate, bounded-check options pass through, and c
         ? {
             ok: true,
             dryRun: true,
-            updateAvailable: true,
-            currentVersion: "2.9.0",
-            targetVersion: "3.0.0",
             plan,
             plannedChanges: [{ kind: "dependency", command }],
           }
@@ -1686,11 +1745,17 @@ test("CLI update planning is separate, bounded-check options pass through, and c
   const preview = await tui.previewCliUpdate(options);
   assert.equal(preview.ok, true);
   assert.equal(preview.updateAvailable, true);
+  assert.equal(preview.currentVersion, "2.9.0");
+  assert.equal(preview.targetVersion, "3.0.0");
+  assert.deepEqual(preview.command, command);
+  assert.equal(preview.state, "dry-run");
   assert.deepEqual(preview.plan.command, command);
+  assert.deepEqual(preview.material.plannedChanges, [{ kind: "dependency", command }]);
   assert.equal(calls.update[0][0].dryRun, true);
   assert.equal(calls.update[0][0].confirmed, false);
   assert.equal(calls.update[0][0].cwd, RESOLVED_CWD);
   assert.equal(calls.update[0][0].spawnImpl, spawnImpl);
+  assert.equal(calls.update[0][0].stdio.includes("inherit"), false);
 
   const outcome = await tui.executeCliUpdate(options, preview);
   assert.equal(outcome.ok, true);
@@ -1698,6 +1763,215 @@ test("CLI update planning is separate, bounded-check options pass through, and c
   assert.deepEqual(dryRunFlags(calls, "update"), [true, true, false]);
   assert.equal(calls.update[2][0].confirmed, true);
   assert.deepEqual(calls.update[2][0].expectedPlan, plan);
+});
+
+test("CLI update preview falls back to the plan's real failures and advice", async () => {
+  const plan = {
+    action: "self-update",
+    currentVersion: "2.9.0",
+    targetVersion: "3.0.0",
+    updateAvailable: true,
+    command: null,
+    failures: ["The installation context is no longer verified."],
+    advice: "Reinstall prism-ds in the intended location, then preview again.",
+  };
+  const { tui } = createHarness({
+    update: async () => ({ ok: false, dryRun: true, plan, failures: [] }),
+  });
+
+  const preview = await tui.previewCliUpdate();
+  assert.equal(preview.ok, false);
+  assert.equal(preview.boundary, null);
+  assert.deepEqual(preview.failures, plan.failures);
+  assert.equal(preview.advice, plan.advice);
+  assert.equal(preview.updateAvailable, true);
+  assert.equal(preview.currentVersion, "2.9.0");
+  assert.equal(preview.targetVersion, "3.0.0");
+  assert.equal(preview.command, null);
+  assert.equal(preview.material, null);
+});
+
+test("production global dry-run preview exposes updateAvailable without a verified global root", async () => {
+  const spawnCalls = [];
+  const fetchCalls = [];
+  const tui = createTuiOperations({
+    cwd: TEST_CWD,
+    spawnImpl: (...args) => {
+      spawnCalls.push(args);
+      throw new Error("previewing must never spawn");
+    },
+    fetchImpl: async () => {
+      fetchCalls.push("fetch");
+      throw new Error("an explicit target version must not read the registry");
+    },
+  });
+
+  const preview = await tui.previewCliUpdate({
+    global: true,
+    manager: "npm",
+    targetVersion: "99.0.0",
+  });
+  assert.equal(preview.ok, true, preview.failures.join(" "));
+  assert.equal(preview.state, "dry-run");
+  assert.equal(preview.updateAvailable, true);
+  assert.equal(preview.plan.updateAvailable, true);
+  assert.equal(preview.currentVersion, readCliPackageInfo().version);
+  assert.equal(preview.targetVersion, "99.0.0");
+  assert.equal(preview.plan.scope, "global");
+  assert.deepEqual(preview.command, preview.plan.command);
+  assert.equal(preview.command.scope, "global");
+  assert.deepEqual(preview.command.args, [
+    "install",
+    "--global",
+    "--ignore-scripts",
+    "--registry=https://registry.npmjs.org",
+    `${CLI_PACKAGE_NAME}@99.0.0`,
+  ]);
+  assert.equal(spawnCalls.length, 0);
+  assert.equal(fetchCalls.length, 0);
+});
+
+test("real dry-run preview reaches confirmation and executes the reviewed plan exactly once", async (t) => {
+  const fixture = createRealUpdateFixture(t);
+  const spawnCalls = [];
+  const fetchCalls = [];
+  const tui = createTuiOperations({
+    cwd: fixture.root,
+    spawnImpl: updateSpawn(fixture.installed, fixture.target, spawnCalls),
+    fetchImpl: async () => {
+      fetchCalls.push("fetch");
+      throw new Error("the real test must stay offline");
+    },
+  });
+  const options = { packageRoot: fixture.installed, targetVersion: fixture.target };
+
+  const preview = await tui.previewCliUpdate(options);
+  assert.equal(preview.ok, true, preview.failures.join(" "));
+  assert.equal(preview.kind, "self-update");
+  assert.equal(preview.dryRun, true);
+  assert.equal(preview.state, "dry-run");
+  assert.equal(preview.updateAvailable, true);
+  assert.equal(preview.currentVersion, fixture.current);
+  assert.equal(preview.targetVersion, fixture.target);
+  assert.equal(preview.plan.updateAvailable, true);
+  assert.deepEqual(preview.command, preview.plan.command);
+  assert.equal(preview.plan.scope, "local");
+  assert.equal(preview.plan.command.manager, "npm");
+  assert.deepEqual(preview.plan.command.args, expectedLocalUpdateArgs(fixture.target));
+  assert.deepEqual(preview.material, {
+    plan: preview.plan,
+    plannedChanges: preview.plannedChanges,
+  });
+  assert.equal(preview.plannedChanges.length, 1);
+  assert.equal(spawnCalls.length, 0, "previewing never spawns the manager");
+  assert.equal(fetchCalls.length, 0, "an explicit target version needs no registry read");
+
+  const outcome = await tui.executeCliUpdate(options, preview);
+  assert.equal(outcome.ok, true, outcome.failures.join(" "));
+  assert.equal(outcome.applied, true);
+  assert.equal(outcome.changed, true);
+  assert.equal(outcome.result.state, "verified");
+  assert.deepEqual(outcome.preview.material, preview.material);
+  assert.equal(spawnCalls.length, 1, "the reviewed update is executed exactly once");
+  const planned = buildSpawnPlan({
+    manager: preview.plan.command.manager,
+    args: preview.plan.command.args,
+  });
+  assert.equal(spawnCalls[0].command, planned.command);
+  assert.deepEqual(spawnCalls[0].args, planned.args);
+  assert.equal(spawnCalls[0].options.cwd, fixture.root);
+  assert.equal(spawnCalls[0].options.stdio.includes("inherit"), false);
+  assert.equal(spawnCalls[0].options.stdio[0], "ignore");
+});
+
+test("CLI update blocks on preview drift and an up-to-date preview never spawns", async (t) => {
+  const drifted = createRealUpdateFixture(t);
+  const driftSpawns = [];
+  const driftTui = createTuiOperations({
+    cwd: drifted.root,
+    spawnImpl: updateSpawn(drifted.installed, drifted.target, driftSpawns),
+  });
+  const driftOptions = { packageRoot: drifted.installed, targetVersion: drifted.target };
+  const driftPreview = await driftTui.previewCliUpdate(driftOptions);
+  assert.equal(driftPreview.ok, true, driftPreview.failures.join(" "));
+
+  // The dependency section changed after review: the fresh plan is materially
+  // different, so nothing may be spawned.
+  writeJsonFile(join(drifted.root, "package.json"), {
+    name: "consumer-app",
+    version: "0.0.0",
+    private: true,
+    packageManager: "npm@10.0.0",
+    dependencies: { [CLI_PACKAGE_NAME]: drifted.current },
+  });
+  const drift = await driftTui.executeCliUpdate(driftOptions, driftPreview);
+  assert.equal(drift.ok, false);
+  assert.equal(drift.boundary, "preview-drift");
+  assert.equal(drift.applied, false);
+  assert.match(drift.failures.join(" "), /changed after review/);
+  assert.equal(driftSpawns.length, 0);
+
+  const current = createRealUpdateFixture(t);
+  const noopSpawns = [];
+  const noopTui = createTuiOperations({
+    cwd: current.root,
+    spawnImpl: updateSpawn(current.installed, current.current, noopSpawns),
+  });
+  const noopOptions = { packageRoot: current.installed, targetVersion: current.current };
+  const noopPreview = await noopTui.previewCliUpdate(noopOptions);
+  assert.equal(noopPreview.ok, true);
+  assert.equal(noopPreview.updateAvailable, false);
+  assert.equal(noopPreview.state, "up-to-date");
+  assert.equal(noopPreview.command, null);
+
+  const noop = await noopTui.executeCliUpdate(noopOptions, noopPreview);
+  assert.equal(noop.ok, true);
+  assert.equal(noop.changed, false);
+  assert.equal(noop.applied, false);
+  assert.equal(noopSpawns.length, 0);
+});
+
+test("CLI update preview surfaces real plan failures and advice without spawning", async (t) => {
+  const fixture = createRealUpdateFixture(t);
+  const installSpawns = [];
+  const tui = createTuiOperations({
+    cwd: fixture.root,
+    spawnImpl: updateSpawn(fixture.installed, fixture.target, installSpawns),
+    fetchImpl: async () => {
+      throw new Error("simulated registry outage");
+    },
+  });
+
+  const badManager = await tui.previewCliUpdate({
+    packageRoot: fixture.installed,
+    manager: "yarn",
+    targetVersion: fixture.target,
+  });
+  assert.equal(badManager.ok, false);
+  assert.equal(badManager.boundary, "manager");
+  assert.match(badManager.failures.join(" "), /Unsupported package manager/);
+  assert.deepEqual(badManager.failures, badManager.plan.failures);
+
+  const registry = await tui.previewCliUpdate({ packageRoot: fixture.installed });
+  assert.equal(registry.ok, false);
+  assert.equal(registry.boundary, "registry");
+  assert.match(registry.failures.join(" "), /simulated registry outage/);
+  assert.deepEqual(registry.failures, registry.plan.failures);
+
+  const undeclared = createRealUpdateFixture(t, { declared: false });
+  const adviceTui = createTuiOperations({
+    cwd: undeclared.root,
+    spawnImpl: updateSpawn(undeclared.installed, undeclared.target, installSpawns),
+  });
+  const installation = await adviceTui.previewCliUpdate({
+    packageRoot: undeclared.installed,
+    targetVersion: undeclared.target,
+  });
+  assert.equal(installation.ok, false);
+  assert.equal(installation.boundary, "installation");
+  assert.equal(typeof installation.advice, "string");
+  assert.equal(installation.advice, installation.plan.advice);
+  assert.equal(installSpawns.length, 0);
 });
 
 test("recovery report is read-only; action preview is exact and execution stays explicit", async () => {

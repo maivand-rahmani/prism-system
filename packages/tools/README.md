@@ -88,16 +88,28 @@ Components, Tokens, Checks, and Icons. Press `m` for **Manage**, which groups:
   a design-system upgrade;
 - **Project recovery** (`r`) — offline diagnosis first, then only applicable repairs.
 
-Each screen's footer lists its actions and keyboard shortcuts; `Esc` goes back or
-cancels, and `q` (or `Ctrl+C`; `Ctrl+C` in a text field) exits.
+Contextual controls and their shortcuts appear on the relevant screen; the footer is
+reserved for navigation. `Esc` goes back or cancels, and `q` (or `Ctrl+C`; `Ctrl+C` in a
+text field) exits.
+
+In **Skills**, click a skill or select it with the keyboard and press Enter to open its
+details. Choose an agent and project or global scope in the dialog, then choose Install,
+Update, or Remove to review the proposed change. Opening the dialog and changing these
+settings are offline. Unmanaged installations cannot be updated or removed by `prism-ds`.
+
+In **Update prism-ds**, check for a release and preview the local update or an explicitly
+selected global target. Choose npm or pnpm when requested; a global choice does not
+override a detected local manager. An `npx` copy cannot update itself: an explicit global
+target may install a separate copy and might not be verifiable. Restart `prism-ds` after
+a verified update.
 
 Every change is previewed read-only first: the exact target and version, the
 package-manager command, and planned file effects; a switch adds usage/compatibility
 coverage, a removal lists preserved files, a skill change shows its source revision and
 placements, and a CLI update shows the installation context. Nothing is applied until you
-confirm with `y`/Enter; `Esc`/`n` cancels. When a preview lists managed files, press `v`
-to inspect each file's exact before/after content. If the state changes after review, the
-operation is refused instead of applying a stale plan.
+confirm with `y` or Apply; `Esc`/`n` cancels. Enter activates the focused control. When a
+preview lists managed files, press `v` to inspect each file's exact before/after content.
+If the state changes after review, the operation is refused instead of applying a stale plan.
 
 On a release details screen with nothing installed, `i` installs only, `u` installs and
 connects, `a` chooses a skill agent, and `n` uses without skill setup. The consumer-use

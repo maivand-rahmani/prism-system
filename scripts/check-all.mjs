@@ -93,6 +93,7 @@ import {
   collectRuntimeExportNames,
 } from "./design-system-manifest.mjs";
 import { collectPackedCustomFailures } from "./check-custom-components.mjs";
+import { assertPackedTuiModuleGraph } from "./check-tui-module-graph.mjs";
 
 const ROOT = repoRoot();
 const TEMP_ROOT = join(ROOT, "TEMP", "lifecycle");
@@ -1420,6 +1421,13 @@ async function main() {
         const text = readFileSync(join(extracted, rel), "utf8");
         assert(!text.includes(ROOT), `shipped tools file ${rel} references the repository root`);
       }
+      // The packed TUI must carry every literal relative module it reaches.
+      // This is a static presence check only: nonliteral dynamic imports and
+      // runtime rendering are not proven, and nothing is executed.
+      assertPackedTuiModuleGraph({
+        label: "@prism-system/tools",
+        packageDir: extracted,
+      });
     });
 
     /* ---------------------------------------------------------------------- */
